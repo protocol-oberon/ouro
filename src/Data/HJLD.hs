@@ -1,6 +1,8 @@
 module Data.HJLD (someFunc) where
 
+import qualified Data.HJLD.Parser as P
+
 
 someFunc :: IO ()
 someFunc = do
-    putStrLn "Yo!"
+    P.main
