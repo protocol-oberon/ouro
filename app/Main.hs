@@ -1,8 +1,8 @@
 module Main (main) where
 
-import qualified Data.HJLD (someFunc)
+import qualified Data.HJLD as HJLD
 
 main :: IO ()
 main = do
     putStrLn "Hello, Haskell!"
-    Data.HJLD.someFunc
+    HJLD.go

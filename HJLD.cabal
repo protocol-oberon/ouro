@@ -64,10 +64,9 @@ library
     -- Modules included in this library but not exported.
     other-modules:
         Data.HJLD.Internal.Expr
-        Data.HJLD.Internal.State
-        Data.HJLD.Internal.Tokens
         Data.HJLD.Internal.Kinds
-        Data.HJLD.Lexer
+        Data.HJLD.Internal.Schema
+        Data.HJLD.Internal.State
         Data.HJLD.Parser
 
     -- LANGUAGE extensions used by modules in this package.

@@ -1,8 +1,10 @@
-module Data.HJLD (someFunc) where
+module Data.HJLD (go) where
 
 import qualified Data.HJLD.Parser as P
+import qualified Data.Text.IO     as TIO
 
 
-someFunc :: IO ()
-someFunc = do
-    P.main
+go :: IO ()
+go = do
+    json <- TIO.readFile "linked-art.json"
+    P.go json

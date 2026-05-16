@@ -1,61 +1,100 @@
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE DataKinds      #-}
 {-# LANGUAGE GADTs          #-}
 {-# LANGUAGE KindSignatures #-}
 
 module Data.HJLD.Internal.Expr where
 
-import qualified Data.HJLD.Internal.Kinds as JLD
-import           Data.Text                (Text, unpack)
+import qualified Data.HJLD.Internal.Kinds  as JLD
+import           Data.HJLD.Internal.Schema (Schema)
+import           Data.Text                 (Text)
 
 
 -- TYPED AST of JASON Linked Data
 data Expr (t :: JLD.Type) where
-    -- JLD Primitives
-    String  :: Text                          -> Expr 'JLD.Primitive
-    Number  :: Double                        -> Expr 'JLD.Primitive
-    Boolean :: Bool                          -> Expr 'JLD.Primitive
-    Object  :: [(Text, Expr 'JLD.Primitive)] -> Expr 'JLD.Primitive
-    Array   :: [Expr 'JLD.Primitive]         -> Expr 'JLD.Primitive
-    Null    ::                                  Expr 'JLD.Primitive
+    -- Leaves
+    String  :: Text    -> Expr 'JLD.Primitive
+    Number  :: Double  -> Expr 'JLD.Primitive
+    Boolean :: Bool    -> Expr 'JLD.Primitive
+    Null    ::            Expr 'JLD.Primitive
+
+    -- Structural Trees / Closures
+    Context :: Schema  -> Expr t -> Expr t
+    Reverse ::            Expr t -> Expr t
+
+    -- The Pure Binary Backbones
+    -- A Cons can take any data node or property as its head, and another list or Nil as its tail.
+    Cons    :: Expr head -> Expr tail -> Expr 'JLD.List
+    Attr    :: Text      -> Expr any  -> Expr 'JLD.List
+    Nil     ::                           Expr 'JLD.List
+
+    -- Boundary Tags
+    Object  :: Expr 'JLD.List -> Expr any -> Expr 'JLD.Primitive
+    Array   :: Expr 'JLD.List             -> Expr 'JLD.Primitive
 
 
+-- An existential wrapper to securely erase GADT type indices solely for tree rendering.
+data SomeExpr where
+    SomeExpr :: Expr t -> SomeExpr
 
 
--- Tree-based Visualization for HJLD Expressions.
---
--- A manual Show instance that renders the GADT as an ASCII tree.
--- It distinguishes between leaf 'Primitive' nodes and branching 'Node'
--- structures, using prefix markers (├──, └──) to indicate depth.
 instance Show (Expr t) where
-    -- Initiates the recursive rendering with an empty indent.
-    -- The root is always treated as the 'last' child of its level.
-    show expr = "\n" ++ render "" True expr
+    show expr = "\n" ++ render [] True expr
         where
-        -- Render Expr to string
-        render :: String -> Bool -> Expr any -> String
-        render indent _isLast = \case
-                                -- Base cases MUST NOT have trailing newlines
-                                String  txt  -> "String "  ++ show txt
-                                Number  n    -> "Number "  ++ show n
-                                Boolean b    -> "Boolean " ++ show b
-                                Null         -> "Null"
-                                -- Containers add a newline after the header, then delegate
-                                Object pairs -> "Object\n" ++ renderChildren indent [ (unpack k ++ " -> ", v) | (k, v) <- pairs ]
-                                Array items  -> "Array\n"  ++ renderChildren indent [ ("- ", v) | v <- items ]
+        -- `env` holds the layout tokens for all parent levels.
+        -- Concrete structural components ("│   ", "    ") and label-offsets
+        -- are preserved sequentially in the list to prevent drifting.
+        render :: [String] -> Bool -> Expr any -> String
+        render env isLast = \case
+                             String  txt  -> "String "  ++ show txt
+                             Number  n    -> "Number "  ++ show n
+                             Boolean b    -> "Boolean " ++ show b
+                             Null         -> "Null"
+                             Nil          -> "Nil"
+
+                             Context schema inner -> "Context "  ++ show schema ++ "\n" ++
+                                                     concat env ++ "└── " ++
+                                                     render (env ++ ["    " :: String]) True inner
+
+                             Reverse inner -> "Reverse\n" ++
+                                              concat env ++ "└── " ++
+                                              render (env ++ ["    " :: String]) True inner
+
+                             Cons h t -> "Cons\n" ++ renderBackbone env isLast h t
+
+                             Attr k v ->
+                                let label = "Attr " ++ show k ++ " -> "
+                                    pad   = replicate (length label) ' '
+                                in label ++ render (env ++ [pad]) isLast v
+
+                             Object props body -> "Object\n" ++ renderChildren env [("properties -> ", SomeExpr props), ("body -> ", SomeExpr body)]
+                             Array  list       -> "Array\n"  ++ renderChildren env [("elements -> ", SomeExpr list)]
 
 
-        renderChildren :: String -> [(String, Expr 'JLD.Primitive)] -> String
-        renderChildren indent xs =
+        renderBackbone :: [String] -> Bool -> Expr head -> Expr tail -> String
+        renderBackbone env _isLast headExpr tailExpr =
+            let markerH, markerT, barH, barT :: String
+                markerH = "├── "
+                markerT = "└── "
+                barH    = "│   "
+                barT    = "    "
+                lineH   = concat env ++ markerH ++ render (env ++ [barH]) False headExpr
+                lineT   = case tailExpr of
+                              Cons nextH nextT -> concat env ++ markerT ++ "Cons\n" ++ renderBackbone (env ++ [barT]) True nextH nextT
+                              _                -> concat env ++ markerT ++ render env True tailExpr
+            in lineH ++ "\n" ++ lineT
+
+
+        renderChildren :: [String] -> [(String, SomeExpr)] -> String
+        renderChildren env xs =
             let flags = replicate (length xs - 1) False ++ [True]
-                -- Generate the full block of children
-                block = concat $ zipWith (renderChild indent) flags xs
-            in if null block then "" else init block -- 'init' removes the final trailing '\n'
+                block = concat $ zipWith (renderChild env) flags xs
+            in if null block then "" else init block
 
-        renderChild :: String -> Bool -> (String, Expr 'JLD.Primitive) -> String
-        renderChild indent isLast (binding, val) =
-            let marker      = if isLast then "└── " else "├── "
-                padding     = replicate (length binding) ' '
-                bar         = if isLast then "    " else "│   "
-                childIndent = indent ++ bar ++ padding
-                -- Render the result and ensure there is exactly ONE newline at the end of this branch
-            in indent ++ marker ++ binding ++ render childIndent True val ++ "\n"
+
+        renderChild :: [String] -> Bool -> (String, SomeExpr) -> String
+        renderChild env isLast (binding, SomeExpr val) =
+            let marker    = if isLast then "└── " :: String else "├── " :: String
+                parentBar = if isLast then "    " :: String else "│   " :: String
+                pad       = replicate (length binding) ' '
+            in concat env ++ marker ++ binding ++ render (env ++ [parentBar, pad]) isLast val ++ "\n"
