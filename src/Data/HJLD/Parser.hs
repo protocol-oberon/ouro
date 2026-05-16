@@ -1,6 +1,6 @@
 {-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE GADTs             #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Data.HJLD.Parser where
 
@@ -13,12 +13,15 @@ import qualified Data.HJLD.Internal.Schema  as Schema
 import           Data.Maybe                 (listToMaybe)
 import           Data.Scientific            (toRealFloat)
 import           Data.Text                  (Text, pack)
+import           Data.Time.Format           (defaultTimeLocale, parseTimeM)
 import           Data.Void                  (Void)
-import           Text.Megaparsec            (Parsec, between, choice,
-                                             errorBundlePretty, manyTill, parse,
-                                             sepBy, try, (<|>))
-import           Text.Megaparsec.Char       (char, space1)
+import           Text.Megaparsec            (ParseErrorBundle, Parsec, between,
+                                             choice, manyTill, parse, sepBy,
+                                             try, (<|>))
+import           Text.Megaparsec.Char       (char, space1, string)
 import qualified Text.Megaparsec.Char.Lexer as L
+import qualified Text.URI                   as URI
+
 
 
 type Parser = Parsec Void Text
@@ -36,7 +39,7 @@ symbol :: Text -> Parser Text
 symbol = L.symbol sc
 
 
--- Parse primitives, matching your new unified primitive variants
+-- Parse primitives (without pURI, since URI keys belong to Object scopes)
 pExpr :: Parser (Expr 'JLD.Primitive)
 pExpr = lexeme $   pObject
               <|> pArray
@@ -45,36 +48,44 @@ pExpr = lexeme $   pObject
               <|> pBoolean
               <|> pNull
 
--- Intermediate parsing state to clean context out from data properties
+
+-- Intermediate parsing state updated to catch native explicit URI values
 data KeyVal
     = ContextKV Schema
     | DataKV Text (Expr 'JLD.Primitive)
 
+
 -- Parse an Object where the Context closure executes outer precedence
 pObject :: Parser (Expr 'JLD.Primitive)
 pObject = between (symbol "{") (symbol "}") $ do
-    pairs <- pObjectField `sepBy` symbol ","
+    fields <- pObjectField `sepBy` symbol ","
 
-    let mSchema   = listToMaybe [ s | ContextKV s <- pairs ]
-    let dataProps = [ (k, v) | DataKV k v <- pairs ]
+    let mSchema   = listToMaybe [ s | ContextField s <- fields ]
+    let dataLists = [ d | DataField d <- fields ]
 
-    -- Clean spine list construction
-    let propSpine = foldr (\(k, v) acc -> Expr.Cons (Expr.Attr k v) acc) Expr.Nil dataProps
+    -- Because each 'd' is already an (Expr.Attr key val),
+    -- we just link the existing attributes together using Cons!
+    let propSpine = foldr Expr.Cons Expr.Nil dataLists
 
-    -- Core structural object configuration
     let coreObject = Expr.Object propSpine Expr.Null
 
     case mSchema of
-        -- Context wraps Object, maintaining 'JLD.Primitive type status
         Just schema -> return $ Expr.Context schema coreObject
         Nothing     -> return coreObject
 
 
-pObjectField :: Parser KeyVal
+-- An intermediate type to separate the structural processing
+-- directives (@context) from the underlying property data spine.
+data ObjectField
+    = ContextField Schema
+    | DataField    (Expr 'JLD.List)
+
+pObjectField :: Parser ObjectField
 pObjectField = choice
-    [ try (symbol "\"@context\"" *> symbol ":") *> (ContextKV <$> pSchema)
-    , do (key, val) <- pPair
-         return (DataKV key val)
+    [ try (symbol "\"@context\"" *> symbol ":") *> (ContextField <$> pSchema)
+    , try pURIAttr
+    , try pDateAttr
+    , DataField <$> pAttr
     ]
 
 
@@ -102,8 +113,9 @@ pDirective = do
     choice
         [ Schema.SetVocab <$> try pKeyString
         , Schema.SetBase  <$> try pKeyString
-        , do iri <- pKeyString
-             return $ Schema.DefineTerm key (Schema.TermDefinition iri Nothing Nothing)
+        , do
+            iri <- pKeyString
+            return $ Schema.DefineTerm key (Schema.TermDefinition iri Nothing Nothing)
         ]
     where
     pKeyString :: Parser Text
@@ -122,12 +134,62 @@ pArray = between (symbol "[") (symbol "]") $ do
 
 
 -- Pairs cleanly reference top-level primitives
-pPair :: Parser (Text, Expr 'JLD.Primitive)
-pPair = do
+pAttr :: Parser (Expr 'JLD.List)
+pAttr = do
     key <- pKey
     _   <- symbol ":"
     val <- pExpr
-    return (key, val)
+    pure $ Expr.Attr key val
+
+
+-- Directly parses the "id" key and a strict URI value into your Attr spine constructor
+pURIAttr :: Parser ObjectField
+pURIAttr = do
+    _   <- symbol "\"id\""
+    _   <- symbol ":"
+    val <- choice
+           [ try pBlankNodeCase
+           , pURICase
+           ]
+    pure . DataField $ Expr.Attr "id" val
+  where
+    -- Branch 1: Captures raw blank nodes and maps directly to BlankNode Text
+    pBlankNodeCase :: Parser (Expr 'JLD.Primitive)
+    pBlankNodeCase = do
+        _   <- char '"'
+        _   <- string "_:"
+        str <- manyTill L.charLiteral (char '"')
+        pure . Expr.BlankNode . pack $ "_:" ++ str
+
+    -- Branch 2: Captures valid network URIs between structural JSON quotes
+    pURICase :: Parser (Expr 'JLD.Primitive)
+    pURICase = between (char '"') (char '"') $ do
+        uri <- URI.parser
+        pure $ Expr.URI uri
+
+
+pDateAttr :: Parser ObjectField
+pDateAttr = do
+    -- Match either target key string within quotes cleanly
+    rawKey <- try (symbol "\"begin_of_the_begin\"") <|> try (symbol "\"end_of_the_end\"")
+    _   <- symbol ":"
+    _   <- char '"'
+    str <- lexeme $ manyTill L.charLiteral (char '"')
+
+    let key = case rawKey of
+                       "\"begin_of_the_begin\"" -> "begin_of_the_begin"
+                       _                        -> "end_of_the_end"
+
+    -- Attempt to parse the timestamp value strictly
+    case parseTimeM True defaultTimeLocale "%Y-%m-%dT%H:%M:%SZ" str of
+        Just utcTime -> pure . DataField $ Expr.Attr key (Expr.Date utcTime)
+        -- Halts validation immediately and raises a localized parse error
+        Nothing ->
+            fail $ "Invalid ISO 8601 Timestamp format for "
+                ++ show key
+                ++ ". Expected format: \"YYYY-MM-DDTHH:MM:SSZ\" but got: "
+                ++ show str
+
 
 
 pString :: Parser (Expr 'JLD.Primitive)
@@ -141,8 +203,8 @@ pNumber = lexeme $ do
 
 
 pBoolean :: Parser (Expr 'JLD.Primitive)
-pBoolean = (Expr.Boolean True  <$ symbol "true")
-       <|> (Expr.Boolean False <$ symbol "false")
+pBoolean =  (Expr.Boolean True  <$ symbol "true")
+        <|> (Expr.Boolean False <$ symbol "false")
 
 
 pNull :: Parser (Expr 'JLD.Primitive)
@@ -156,11 +218,5 @@ pKey = lexeme $ do
     return $ pack str
 
 
-go :: Text -> IO ()
-go = \input -> case parse pExpr "JSON-LD Source" input of
-                   Left err -> do
-                       putStrLn "Parsing Failed!"
-                       putStrLn (errorBundlePretty err)
-                   Right expr -> do
-                       putStrLn "Parsing Succeeded! Tree Output:"
-                       print expr
+go :: String -> Text -> Either (ParseErrorBundle Text Void) (Expr 'JLD.Primitive)
+go = parse pExpr

@@ -77,11 +77,13 @@ library
 
     -- Other library packages from which modules are imported.
     build-depends:
+        time ^>=1.12.2,
         scientific ^>=0.3.8.1,
-        base      ^>=4.20.2.0,
-        megaparsec >= 9.2 && < 10.0,
-        text       >= 2.0,
-        vector    ^>=0.13.2.0,
+        base       ^>=4.20.2.0,
+        megaparsec  >= 9.2 && < 10.0,
+        text        >= 2.0,
+        vector     ^>=0.13.2.0,
+        modern-uri ^>= 0.3.6.1
 
     -- Directories containing source files.
     hs-source-dirs:   src
