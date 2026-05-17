@@ -1,19 +1,41 @@
 
 module Data.HJLD.Internal.Schema where
 
+import           Data.List (intercalate)
 import           Data.Text (Text)
+import qualified Text.URI  as URI
+
 
 newtype Schema = Schema [SchemaDirective]
-    deriving (Show, Eq)
+    deriving Eq
+
+instance Show Schema where
+    show = \case
+            Schema []         -> "Schema []"
+            Schema directives -> "Schema [\n" ++ indentedDirectives directives ++ "\n]"
+        where
+        -- Formats and indents each directive line
+        indentedDirectives xs = intercalate ",\n" (map (\sd -> "  " ++ show sd) xs)
 
 data SchemaDirective
-    = DefineTerm    Text TermDefinition
-    | SetVocab      Text
+    = ClearContext
+    | DefineTerm    Text TermDefinition
+    | RemoteContext !URI.URI
     | SetBase       Text
     | SetLanguage   Text
-    | RemoteContext Text
-    | ClearContext
-    deriving (Show, Eq)
+    | SetVocab      Text
+    deriving Eq
+
+instance Show SchemaDirective where
+    show = \case
+            RemoteContext c   -> "RemoteContext -> URI "  ++ URI.renderStr c
+            DefineTerm    t d -> "DefineTerm -> String "  ++ show t ++ " " ++ show d
+            SetVocab      v   -> "SetVocab -> String "    ++ show v
+            SetBase       b   -> "SetBase -> String "     ++ show b
+            SetLanguage   l   -> "SetLanguage -> String " ++ show l
+            ClearContext      -> "ClearContext"
+
+
 
 instance Semigroup Schema where
     (Schema a) <> (Schema b) = Schema (a ++ b)

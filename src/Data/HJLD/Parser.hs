@@ -89,21 +89,29 @@ pObjectField = choice
     ]
 
 
+pQuotedURI :: Parser URI.URI
+pQuotedURI = between (char '"') (char '"') URI.parser
+
 pSchema :: Parser Schema
 pSchema = choice
-    [ Schema [Schema.ClearContext] <$ symbol "null"
-    , do uri <- pRawStringLiteral
+    [ -- Scenario 1: Null context (Clear Context)
+      Schema [Schema.ClearContext] <$ symbol "null"
+
+      -- Scenario 2: A single remote context strict URI
+    , do uri <- lexeme pQuotedURI
          return $ Schema [Schema.RemoteContext uri]
+
+      -- Scenario 3: An inline object mapping block e.g. {"crm": "..."}
     , between (symbol "{") (symbol "}") $ do
         directives <- pDirective `sepBy` symbol ","
         return $ Schema directives
+
+      -- Scenario 4: A list/array of multiple contexts e.g. ["url1", {"map": "url2"}]
+    , between (symbol "[") (symbol "]") $ do
+        schemas <- pSchema `sepBy` symbol ","
+        let flattenedDirectives = concatMap (\(Schema directives) -> directives) schemas
+        return $ Schema flattenedDirectives
     ]
-    where
-    pRawStringLiteral :: Parser Text
-    pRawStringLiteral = lexeme $ do
-        _   <- char '"'
-        str <- manyTill L.charLiteral (char '"')
-        return $ pack str
 
 
 pDirective :: Parser SchemaDirective
@@ -153,7 +161,6 @@ pURIAttr = do
            ]
     pure . DataField $ Expr.Attr "id" val
   where
-    -- Branch 1: Captures raw blank nodes and maps directly to BlankNode Text
     pBlankNodeCase :: Parser (Expr 'JLD.Primitive)
     pBlankNodeCase = do
         _   <- char '"'
@@ -161,11 +168,9 @@ pURIAttr = do
         str <- manyTill L.charLiteral (char '"')
         pure . Expr.BlankNode . pack $ "_:" ++ str
 
-    -- Branch 2: Captures valid network URIs between structural JSON quotes
+    -- Reuses the exact same logic as your remote context validation!
     pURICase :: Parser (Expr 'JLD.Primitive)
-    pURICase = between (char '"') (char '"') $ do
-        uri <- URI.parser
-        pure $ Expr.URI uri
+    pURICase = Expr.URI <$> pQuotedURI
 
 
 pDateAttr :: Parser ObjectField

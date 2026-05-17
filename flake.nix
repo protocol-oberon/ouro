@@ -22,6 +22,7 @@
                     pkgs-unstable.zlib
                     pkgs-unstable.haskellPackages.hoogle
                     pkgs-unstable.stylish-haskell
+                    pkgs-unstable.jq
                 ];
             };
         }

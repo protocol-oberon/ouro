@@ -1,21 +1,20 @@
-module Data.HJLD (go) where
+module Data.HJLD
+( compile
+, validate
+) where
 
 import qualified Data.HJLD.Parser as P
-import qualified Data.Text.IO     as TIO
+import           Data.Text        (Text, pack)
 import           Text.Megaparsec  (errorBundlePretty)
 
 
-go :: IO ()
-go = do
-    json <- TIO.readFile "linked-art.json"
+-- Eventually this will output oberon code instead of just the AST
+compile :: String -> Text -> Either String Text
+compile filename input = case P.go filename input of
+                             Left  err  -> Left (errorBundlePretty err)
+                             Right expr -> Right (pack $ show expr)
 
-    case P.go "linked-art.json" json of
-        Left err -> do
-            putStrLn "Parsing Failed!"
-            putStrLn (errorBundlePretty err)
-
-        Right expr -> do
-            let ast = show expr
-
-            putStrLn "Parsing Succeeded!"
-            writeFile "ast.txt" ast
+validate :: String -> Text -> Either String String
+validate filename input = case P.go filename input of
+                              Left  err  -> Left (errorBundlePretty err)
+                              Right expr -> Right (show expr )
