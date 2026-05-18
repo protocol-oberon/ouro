@@ -68,6 +68,7 @@ library
         Data.HJLD.Internal.Schema
         Data.HJLD.Internal.State
         Data.HJLD.Parser
+        Data.HJLD.Serializer
 
     -- LANGUAGE extensions used by modules in this package.
     default-extensions:
@@ -110,8 +111,8 @@ executable HJLD
 
     -- Other library packages from which modules are imported.
     build-depends:
-        filepath ^>=1.5.4.0,
-        text ^>=2.1.3,
+        filepath             ^>=1.5.4.0,
+        text                 ^>=2.1.3,
         base                 ^>=4.20.2.0,
         optparse-applicative ^>= 0.19,
         ansi-terminal        ^>= 1.1,

@@ -17,20 +17,29 @@ instance Show Schema where
         -- Formats and indents each directive line
         indentedDirectives xs = intercalate ",\n" (map (\sd -> "  " ++ show sd) xs)
 
+
+toList :: Schema -> [SchemaDirective]
+toList (Schema x) = x
+
+
 data SchemaDirective
     = ClearContext
     | DefineTerm    Text TermDefinition
     | RemoteContext !URI.URI
     | SetBase       Text
     | SetLanguage   Text
-    | SetVocab      Text
+    | SetVocab      (Either URI.URI Text)
     deriving Eq
 
 instance Show SchemaDirective where
     show = \case
             RemoteContext c   -> "RemoteContext -> URI "  ++ URI.renderStr c
             DefineTerm    t d -> "DefineTerm -> String "  ++ show t ++ " " ++ show d
-            SetVocab      v   -> "SetVocab -> String "    ++ show v
+
+            -- Explicitly unpack the Either block to reflect the underlying type accurately
+            SetVocab (Left uri)  -> "SetVocab -> URI "    ++ URI.renderStr uri
+            SetVocab (Right txt) -> "SetVocab -> String " ++ show txt
+
             SetBase       b   -> "SetBase -> String "     ++ show b
             SetLanguage   l   -> "SetLanguage -> String " ++ show l
             ClearContext      -> "ClearContext"
@@ -62,17 +71,3 @@ data ContainerType
     | ContainerSet
     | ContainerLanguage
     deriving (Show, Eq)
-
-
--- Now your example works beautifully using (<>)
-parentSchema :: Schema
-parentSchema = Schema [ SetVocab "http://schema.org/"
-                      , DefineTerm "name" (TermDefinition "http://schema.org/name" Nothing Nothing)
-                      ]
-
-localSchema :: Schema
-localSchema = Schema [ DefineTerm "name" (TermDefinition "http://xmlns.com/foaf/0.1/name" Nothing Nothing) ]
-
--- Combining them using the Semigroup operator
-combinedSchema :: Schema
-combinedSchema = parentSchema <> localSchema

@@ -7,6 +7,7 @@ module Data.HJLD.Internal.Expr where
 
 import qualified Data.HJLD.Internal.Kinds  as JLD
 import           Data.HJLD.Internal.Schema (Schema)
+import           Data.List                 (intercalate)
 import           Data.Text                 (Text, unpack)
 import           Data.Time                 (UTCTime)
 import qualified Text.URI                  as MURI
@@ -39,9 +40,24 @@ data Expr (t :: JLD.Type) where
     Array   :: Expr 'JLD.List             -> Expr 'JLD.Primitive
 
 
+
 -- An existential wrapper to securely erase GADT type indices solely for tree rendering.
 data SomeExpr where
     SomeExpr :: Expr t -> SomeExpr
+
+-- Util
+flattenArray :: Expr t -> [SomeExpr]
+flattenArray = \case
+    Cons h t -> SomeExpr h : flattenArray t
+    Nil      -> []
+    other    -> [SomeExpr other]
+
+
+flattenProps :: Expr t -> [(Text, SomeExpr)]
+flattenProps = \case
+    Cons h t -> flattenProps h ++ flattenProps t
+    Attr k v -> [(k, SomeExpr v)]
+    _        -> []
 
 
 instance Show (Expr t) where
@@ -62,12 +78,18 @@ instance Show (Expr t) where
                              BlankNode n  -> "BLANK "   ++ (unpack n)
 
                              -- Closures
-                             Context schema inner -> "Context "  ++ show schema ++ "\n" ++
-                                                     concat env ++ "└── " ++
-                                                     render (env ++ ["    " :: String]) True inner
+                             Context schema inner -> let schemaStr      = show schema
+                                                         -- Split the multi-line schema string by its newlines
+                                                         schemaLines    = lines schemaStr
+                                                         -- Re-join them, forcing the current `env` block
+                                                         -- to prefix every line after the first one!
+                                                         indentedSchema = intercalate ("\n" ++ concat env) schemaLines
+                                                     in "Context  " ++ indentedSchema ++ "\n" ++
+                                                        concat env  ++ "└── " ++
+                                                        render (env ++ ["    " :: String]) True inner
 
                              Reverse inner -> "Reverse\n" ++
-                                              concat env ++ "└── " ++
+                                              concat env  ++ "└── " ++
                                               render (env ++ ["    " :: String]) True inner
 
                              -- The Pure Binary Backbones

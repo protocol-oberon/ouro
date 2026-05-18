@@ -2,20 +2,22 @@
 
 module Main (main) where
 
+import           Data.Char           (toLower)
 import qualified Data.HJLD           as HJLD
-import           Data.Text           (pack)
 import qualified Data.Text.IO        as TIO
+import qualified Data.Text.Lazy      as TL
+import qualified Data.Text.Lazy.IO   as TLIO
 import           Options.Applicative (Parser, argument, command,
                                       customExecParser, eitherReader, fullDesc,
                                       header, help, helper, info, long, metavar,
                                       optional, prefs, progDesc, short,
                                       showHelpOnEmpty, showHelpOnError,
                                       strOption, subparser, switch, (<**>))
-import           System.FilePath     (replaceExtension, takeFileName, (</>), takeExtension)
-import Data.Char (toLower)
+import           System.FilePath     (replaceExtension, takeExtension,
+                                      takeFileName, (</>))
 
 
--- Your Action *is* your configuration
+-- Configuration
 data Action
     = Compile  FilePath (Maybe FilePath)       -- input, output
     -- Eventually Validate will only take 1 filepath and format inplace
@@ -34,16 +36,18 @@ pAction = subparser
         <$> pPathKeyword
         <*> optional pOutputDirOption
 
-
     pValidate :: Parser Action
     pValidate = Validate <$> pPathKeyword <*> optional pOutputFileOption <*> switch (long "print" <> short 'p')
+
 
 -- Reusable primitive parsers
 pOutputDirOption :: Parser FilePath
 pOutputDirOption = strOption (long "output" <> short 'o' <> metavar "DIR" <> help "Output directory")
 
+
 pOutputFileOption :: Parser FilePath
 pOutputFileOption = strOption (long "output" <> short 'o' <> metavar "FILE" <> help "Output file")
+
 
 pPathKeyword :: Parser FilePath
 pPathKeyword = pLiteralPath *> pJsonFile
@@ -102,22 +106,19 @@ runValidate inputFile outputFile shouldPrint = do
     content <- TIO.readFile inputFile
     case HJLD.validate inputFile content of
         Left  err -> putStrLn $ "Compilation Error:\n" ++ err
-        Right ast -> do
-            putStrLn $ "Validated JLD Ast for: " ++ inputFile
+        Right json -> do
+            putStrLn $ "Validated JLD JSON for: " ++ inputFile
             case shouldPrint of
-                True  -> putStrLn ast
+                True  -> TIO.putStrLn $ TL.toStrict json
                 False -> pure ()
 
             case outputFile of
                 -- Placeholder, this will be formatted JSON in the future
-                Just o  -> TIO.writeFile o (pack ast)
+                Just o  -> TLIO.writeFile o json
                 Nothing -> pure ()
 
 
-
 main :: IO ()
-main = do
-    config <- runParser
-    case config of
-        Compile  ifp ofp    -> runCompile  ifp ofp
-        Validate ifp ofp sp -> runValidate ifp ofp sp
+main = runParser >>= \case
+                      Compile  ifp ofp    -> runCompile  ifp ofp
+                      Validate ifp ofp sp -> runValidate ifp ofp sp

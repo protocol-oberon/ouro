@@ -118,14 +118,24 @@ pDirective :: Parser SchemaDirective
 pDirective = do
     key <- pKey
     _   <- symbol ":"
-    choice
-        [ Schema.SetVocab <$> try pKeyString
-        , Schema.SetBase  <$> try pKeyString
-        , do
+    case key of
+        "@vocab" -> do
+            txt <- pKeyString
+            -- Try to parse as an absolute URI first, otherwise fallback to Text
+            case URI.mkURI txt of
+                Just validUri -> return $ Schema.SetVocab (Left validUri)
+                Nothing       -> return $ Schema.SetVocab (Right txt)
+
+        "@base" -> do
+            txt <- pKeyString
+            return $ Schema.SetBase txt
+
+        -- Fallback case handles standard user-defined terms
+        _ -> do
             iri <- pKeyString
             return $ Schema.DefineTerm key (Schema.TermDefinition iri Nothing Nothing)
-        ]
-    where
+
+  where
     pKeyString :: Parser Text
     pKeyString = lexeme $ do
         _   <- char '"'
