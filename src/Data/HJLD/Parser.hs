@@ -41,7 +41,7 @@ symbol = L.symbol sc
 
 -- Parse primitives (without pURI, since URI keys belong to Object scopes)
 pExpr :: Parser (Expr 'JLD.Primitive)
-pExpr = lexeme $   pObject
+pExpr = lexeme $  pObject
               <|> pArray
               <|> pString
               <|> pNumber
@@ -163,47 +163,47 @@ pAttr = do
 -- Directly parses the "id" key and a strict URI value into your Attr spine constructor
 pURIAttr :: Parser ObjectField
 pURIAttr = do
-    _   <- symbol "\"id\""
-    _   <- symbol ":"
-    val <- choice
-           [ try pBlankNodeCase
-           , pURICase
-           ]
-    pure . DataField $ Expr.Attr "id" val
-  where
-    pBlankNodeCase :: Parser (Expr 'JLD.Primitive)
-    pBlankNodeCase = do
-        _   <- char '"'
-        _   <- string "_:"
-        str <- manyTill L.charLiteral (char '"')
-        pure . Expr.BlankNode . pack $ "_:" ++ str
+           _   <- symbol "\"id\""
+           _   <- symbol ":"
+           val <- choice
+                  [ try pBlankNodeCase
+                  , pURICase
+                  ]
+           pure . DataField $ Expr.Attr "id" val
 
-    -- Reuses the exact same logic as your remote context validation!
-    pURICase :: Parser (Expr 'JLD.Primitive)
-    pURICase = Expr.URI <$> pQuotedURI
+           where
+           pBlankNodeCase :: Parser (Expr 'JLD.Primitive)
+           pBlankNodeCase = do
+                            _   <- char '"'
+                            _   <- string "_:"
+                            str <- manyTill L.charLiteral (char '"')
+                            pure . Expr.BlankNode . pack $ "_:" ++ str
+
+           -- Reuses the exact same logic as your remote context validation!
+           pURICase :: Parser (Expr 'JLD.Primitive)
+           pURICase = Expr.URI <$> pQuotedURI
 
 
 pDateAttr :: Parser ObjectField
 pDateAttr = do
-    -- Match either target key string within quotes cleanly
-    rawKey <- try (symbol "\"begin_of_the_begin\"") <|> try (symbol "\"end_of_the_end\"")
-    _   <- symbol ":"
-    _   <- char '"'
-    str <- lexeme $ manyTill L.charLiteral (char '"')
+            -- Match either target key string within quotes cleanly
+            rawKey <- try (symbol "\"begin_of_the_begin\"") <|> try (symbol "\"end_of_the_end\"")
+            _   <- symbol ":"
+            _   <- char '"'
+            str <- lexeme $ manyTill L.charLiteral (char '"')
 
-    let key = case rawKey of
-                       "\"begin_of_the_begin\"" -> "begin_of_the_begin"
-                       _                        -> "end_of_the_end"
+            let key = case rawKey of
+                          "\"begin_of_the_begin\"" -> "begin_of_the_begin"
+                          _                        -> "end_of_the_end"
 
-    -- Attempt to parse the timestamp value strictly
-    case parseTimeM True defaultTimeLocale "%Y-%m-%dT%H:%M:%SZ" str of
-        Just utcTime -> pure . DataField $ Expr.Attr key (Expr.Date utcTime)
-        -- Halts validation immediately and raises a localized parse error
-        Nothing ->
-            fail $ "Invalid ISO 8601 Timestamp format for "
-                ++ show key
-                ++ ". Expected format: \"YYYY-MM-DDTHH:MM:SSZ\" but got: "
-                ++ show str
+            -- Attempt to parse the timestamp value strictly
+            case parseTimeM True defaultTimeLocale "%Y-%m-%dT%H:%M:%SZ" str of
+                Just utcTime -> pure . DataField $ Expr.Attr key (Expr.Date utcTime)
+                -- Halts validation immediately and raises a localized parse error
+                Nothing      -> fail $ "Invalid ISO 8601 Timestamp format for "
+                                    ++ show key
+                                    ++ ". Expected format: \"YYYY-MM-DDTHH:MM:SSZ\" but got: "
+                                    ++ show str
 
 
 
@@ -228,9 +228,9 @@ pNull = Expr.Null <$ symbol "null"
 
 pKey :: Parser Text
 pKey = lexeme $ do
-    _   <- char '"'
-    str <- manyTill L.charLiteral (char '"')
-    return $ pack str
+                _   <- char '"'
+                str <- manyTill L.charLiteral (char '"')
+                return $ pack str
 
 
 go :: String -> Text -> Either (ParseErrorBundle Text Void) (Expr 'JLD.Primitive)

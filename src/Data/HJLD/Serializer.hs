@@ -2,6 +2,10 @@
 
 module Data.HJLD.Serializer where
 
+import           Control.Monad.Identity    (Identity, runIdentity)
+import           Control.Monad.Reader      (MonadReader (..), ReaderT (..),
+                                            asks)
+import           Control.Monad.State       (MonadState, StateT (..), modify)
 import           Data.HJLD.Internal.Expr   (Expr)
 import qualified Data.HJLD.Internal.Expr   as Expr
 import           Data.HJLD.Internal.Schema (Schema (..), SchemaDirective)
@@ -11,161 +15,323 @@ import qualified Data.Text                 as T
 import qualified Data.Text.Lazy            as TL
 import qualified Data.Text.Lazy.Builder    as B
 import qualified Data.Time.Format          as TF
+import           Lens.Micro                (Lens', over, to, (%~), (^.))
 import qualified Text.URI                  as URI
 
 
-toJSON :: Expr t -> TL.Text
-toJSON = B.toLazyText . buildJSON 0 []
+-- Global runtime configuration
+data PrinterOptions = PrinterOptions
+    { indentSpacing :: !Int
+    }
 
 
-buildJSON :: Int -> [SchemaDirective] -> Expr t -> B.Builder
-buildJSON indent env = \case
-                     -- Primatives
-                     Expr.String txt    -> escapeString txt
-                     Expr.Number n      -> B.fromString $ show n
-                     Expr.Boolean True  -> "true"
-                     Expr.Boolean False -> "false"
-                     Expr.URI  u        -> escapeString $ URI.render u
-                     Expr.Date d        -> escapeString $ T.pack $ TF.formatTime TF.defaultTimeLocale "%Y-%m-%dT%H:%M:%SZ" d
-                     Expr.Null          -> "null"
-                     Expr.BlankNode b   -> escapeString $ "_:" <> b
-                     -- Structural Closures
-                     Expr.Context schema inner -> let Schema derictives = schema
-                                                      localEnv          = env <> derictives
-                                                  in buildContextBlock indent localEnv schema inner
-
-                     Expr.Reverse inner -> "{\n"
-                                        <> (ind indent)
-                                        <> "  \"@reverse\": "
-                                        <> buildJSON (indent + 2) env inner
-                                        <> "\n"
-                                        <> (ind indent)
-                                        <> "}"
-                     --
-                     -- Bondary Tags
-                     Expr.Object propsCons _body -> let propsList = Expr.flattenProps propsCons
-                                                    in case null propsList of
-                                                          True  -> "{}"
-                                                          False -> "{\n"
-                                                                <> intercalateBuilders
-                                                                       ",\n"
-                                                                       (map (renderProperty (indent + 2) env) propsList)
-                                                                <> "\n"
-                                                                <> ind indent
-                                                                <> "}"
-
-                     Expr.Array elems -> let ls = Expr.flattenArray elems
-                                         in case null ls of
-                                                True  -> "[]"
-                                                False -> "[\n"
-                                                      <> intercalateBuilders ",\n" (map (renderArrayElement (indent + 2) env) ls)
-                                                      <> "\n"
-                                                      <> ind indent
-                                                      <> "]"
-
-                     -- Fallback handling for raw backbone pieces
-                     Expr.Cons h t -> "[\n" <> buildArrayElements (indent + 2) env (Expr.Cons h t) <> "\n" <> ind indent <> "]"
-                     Expr.Attr k v -> "{\n" <> ind (indent + 2) <> escapeString k <> ": " <> buildJSON (indent + 2) env v <> "\n" <> ind indent <> "}"
-                     Expr.Nil      -> "[]"
+defaultOptions :: PrinterOptions
+defaultOptions = PrinterOptions { indentSpacing = 2 }
 
 
--- Layout Builders (2-space, trailing-comma trailing mechanics)
+-- PrinterEnv.
+--
+-- Dynamic environment that updates as we enter sub-structures
+-- It tracks the structural depth of the JSON via nesting level
+data PrinterEnv = PrinterEnv
+    { options      :: !PrinterOptions
+    , nestingLevel :: !Int
+    }
 
--- Unrolls proper spinfs into structured key-value pairs
-buildProps :: Int -> [SchemaDirective] -> Expr t -> B.Builder
-buildProps indent env expr = go True expr
+
+-- PrinterState.
+--
+-- A linear, append-only ledger for the accumulation of side effects during serialization.
+-- Uses a lazy text builder to accrue JSON as the AST is descended upon.
+--
+-- We use a strict bang pattern ('!') on [SchemaDirective] to avoid potential space leaks
+-- during deep AST traversals. Since we modify this list linearly within a state layer
+-- upon entry to an Expr.Context closure, we want this metadata to evaluate immediately.
+--
+-- We use a Builder to drastically increase performance compared to normal string
+-- concatenation; it works by generating an internal execution graph of append actions,
+-- deferring chunk allocation until the entire output JSON is produced in a single pass.
+data PrinterState = PrinterState
+    { activeDirectives :: ![SchemaDirective]
+    , outputBuffer     :: !B.Builder
+    }
+
+-- Printer a.
+--
+-- A newtype wrapper implementing a custom Reader-State architecture. We manually layer
+-- ReaderT and StateT over the Identity monad—combined with strict record fields—to completely
+-- bypass standard RWST space leaks.
+--
+-- ReaderT PrinterEnv handles the downward flow of contextual layout configurations, allowing
+-- functions to alter the indentation level locally without impacting parent structures.
+--
+-- StateT PrinterState serves as our linear execution timeline, recording read-write state
+-- mutations that persist across the lifetime of the AST traversal. This allows strings to be
+-- appended to the outputBuffer and context rules to be pushed onto activeDirectives.
+--
+-- The Identity monad anchors the transformer stack, guaranteeing that the entire JSON
+-- serialization process remains purely functional and free of arbitrary side effects.
+newtype Printer a = Printer
+    { runPrinterP :: ReaderT PrinterEnv (StateT PrinterState Identity) a
+    } deriving (Functor, Applicative, Monad, MonadReader PrinterEnv, MonadState PrinterState)
+
+
+-- toJSON.
+--
+-- A pure function that transforms a JLD AST into a pure JSON Text stream.
+-- Monadic evaluation for the AST occurs by applying the initial environment and state to
+-- runReaderT and runStateT before passing the computation to runIdentity. Monad transformers
+-- do not exist in a vacuum; they must always layer over a base monad. Because this serializer
+-- is entirely pure, we use Identity as our base to eliminate runtime monadic overhead.
+--
+-- Running a StateT computation unpacks a tuple of (result, finalState). Because our AST engine
+-- is an append-only writer loop that returns an empty unit '()', we use a wildcard hole ('_')
+-- to discard the useless return value. The accumulated JSON data *is* our side effect; by binding
+-- only 'finalState', we capture the modified state record containing our completed buffer.
+toJSON :: PrinterOptions -> Expr t -> TL.Text
+toJSON opts expr =
+    let initEnv   = PrinterEnv   { options = opts, nestingLevel = 0 }
+        initState = PrinterState { activeDirectives = [], outputBuffer = mempty }
+
+        -- Run the underlying transformer stack transformations layers
+        (_, finalState) = runIdentity $ runStateT (runReaderT (runPrinterP (buildJSON expr)) initEnv) initState
+    in B.toLazyText (outputBuffer finalState)
+
+
+-- buildJSON.
+--
+-- A recursive descent encoder that returns a monadic ledger of commands needed to produce the output JSON.
+-- We pattern match on each node of the JLD AST to either produce an immediate monadic command within the
+-- current context of the Printer monad, or to recur deeper down the tree.
+--
+-- Do notation is used liberally to cleanly sequence layout and indentation changes.
+buildJSON :: Expr t -> Printer ()
+buildJSON = \case
+              -- Primatives
+              Expr.String    txt   -> tell $ escapeString txt
+              Expr.Number    n     -> tell $ B.fromString $ show n
+              Expr.Boolean   True  -> tell "true"
+              Expr.Boolean   False -> tell "false"
+              Expr.URI       uri   -> tell $ escapeString $ URI.render uri
+              Expr.Date      date  -> tell $ escapeString $ T.pack $ TF.formatTime  TF.defaultTimeLocale "%Y-%m-%dT%H:%M:%SZ" date
+              Expr.Null            -> tell "null"
+              Expr.BlankNode blank -> tell $ escapeString $ "_:" <> blank
+
+              -- Structural Closures
+              Expr.Context schema inner -> do
+                                           let Schema directives = schema
+                                           modify (activeDirectivesL %~ (++ directives))
+                                           buildContextBlock directives inner
+
+              Expr.Reverse inner -> do
+                                    tell "{\n"
+                                    nested $ do
+                                             emitIndent
+                                             tell "\"@reverse\": "
+                                             buildJSON inner
+                                    tell "\n"
+                                    emitIndent
+                                    tell "}"
+
+
+              -- Bondary Tags
+              Expr.Object props _body -> case Expr.flattenProps props of
+                                             [] -> pure ()
+                                             ps -> do
+                                                   tell "{\n"
+                                                   nested $ intercalateM ",\n" (map renderProperty ps)
+                                                   tell "\n"
+                                                   emitIndent
+                                                   tell "}"
+
+              Expr.Array elems -> case Expr.flattenArray elems of
+                                      [] -> tell "[]"
+                                      ls -> do
+                                            tell "[\n"
+                                            nested $ intercalateM ",\n" (map renderArrayElement ls)
+                                            tell "\n"
+                                            emitIndent
+                                            tell "]"
+
+
+              -- Fallback handling for raw backbone pieces
+              Expr.Cons h t -> do
+                               tell "[\n"
+                               nested $ buildArrayElements (Expr.Cons h t)
+                               tell "\n"
+                               emitIndent
+                               tell "]"
+
+              Expr.Attr k v -> do
+                               tell "{\n"
+                               nested $ do
+                                        emitIndent
+                                        tell (escapeString k <> ": ")
+                                        buildJSON v
+                               tell "\n"
+                               emitIndent
+                               tell "}"
+
+              Expr.Nil -> pure ()
+
+
+-- Manual Lenses for PrinterEnv
+optionsL :: Lens' PrinterEnv PrinterOptions
+optionsL f e = (\o -> e { options = o }) <$> f (options e)
+
+
+nestingLevelL :: Lens' PrinterEnv Int
+nestingLevelL f e = (\l -> e { nestingLevel = l }) <$> f (nestingLevel e)
+
+
+activeDirectivesL :: Lens' PrinterState [SchemaDirective]
+activeDirectivesL f s = (\d -> s { activeDirectives = d }) <$> f (activeDirectives s)
+
+
+outputBufferL :: Lens' PrinterState B.Builder
+outputBufferL f s = (\b -> s { outputBuffer = b }) <$> f (outputBuffer s)
+
+
+-- Layout
+-- Append a chunk to the state buffer
+tell :: B.Builder -> Printer ()
+tell chunk = modify (outputBufferL %~ (<> chunk))
+
+
+-- nested.
+--
+-- Increments the lexical scoping level for an inner printing block.
+--
+-- We use the lens 'over' combinator to update the environment record point-free.
+-- Instead of manually extracting the structure, modifying the field, and rebuilding
+-- the record, 'over' maps (+ 1) directly over the target lens focus in-place.
+--
+-- Combined with 'local', this isolates the nesting change to just the inner computation;
+-- the state automatically rolls back when the nested block finishes executing.
+nested :: Printer a -> Printer a
+nested = local (over nestingLevelL (+ 1))
+
+
+-- Generate and emit line pading
+emitIndent :: Printer ()
+emitIndent = do
+             -- Using 'to' to safely dive inside the nested PrinterOptions record
+             spacing <- asks (^. optionsL . to indentSpacing)
+             level   <- asks (^. nestingLevelL)
+             tell $ B.fromText (Data.Text.replicate (level * spacing ) " ")
+
+
+-- Serializes a JSON-LD block by flattening object properties inline alongside its '@context' keys.
+buildContextBlock :: [SchemaDirective] -> Expr t -> Printer ()
+buildContextBlock directives inner = do
+    tell "{\n"
+    nested $ do
+             emitIndent
+             tell "\"@context\": "
+             renderSchemaInline directives
+
+             -- Pull out the object properties to sit inline alongside the context keys
+             case inner of
+                 Expr.Object props _ -> case Expr.flattenProps props of
+                                            [] -> pure ()
+                                            ps -> do
+                                                  tell ",\n"
+                                                  intercalateM ",\n" (map renderProperty ps)
+                 other -> do
+                          tell ",\n"
+                          emitIndent
+                          tell "\"@graph\": "
+                          buildJSON other
+
+    tell "\n"
+    emitIndent
+    tell "}"
+
+
+-- Formats an individual object key-value property pair with indentation alignment.
+renderProperty :: (Text, Expr.SomeExpr) -> Printer ()
+renderProperty (k, Expr.SomeExpr v) = do
+                                      emitIndent
+                                      tell (escapeString k <> ": ")
+                                      buildJSON v
+
+
+-- Unrolls schema directives inline, prioritizing a raw string for standalone remote context references.
+renderSchemaInline :: [SchemaDirective] -> Printer ()
+renderSchemaInline directives = case directives of
+                                    -- Single remote string shouldn't be wrapped in braces
+                                    [Sch.RemoteContext uri] -> tell (escapeString (URI.render uri))
+                                    _ | null directives     -> tell "{}"
+                                      | otherwise           -> do
+                                                               tell "{\n"
+                                                               nested $ do
+                                                                        -- Map each directive to a Printer action and join them with ",\n"
+                                                                        intercalateM ",\n" (map renderDirective directives)
+                                                               tell "\n"
+                                                               emitIndent -- Automatically aligns with the parent indentation
+                                                               tell "}"
     where
-    go :: Bool -> Expr a -> B.Builder
-    go isFirst = \case
-                  -- We thread the first-flag state through the left branch,
-                  -- then use 'isNil' or track status to evaluate the tail.
-                  Expr.Cons h t -> let headBuilder = go isFirst h
-                                       tailBuilder = go (isFirst && isNil h) t
-                                   in headBuilder <> tailBuilder
-
-                  Expr.Attr k v -> let prefix = case isFirst of
-                                                    True  -> ind indent
-                                                    False -> ",\n" <> ind indent
-                                   in prefix <> escapeString k <> ": " <> buildJSON indent env v
-
-                  _             -> mempty
+    renderDirective :: Sch.SchemaDirective -> Printer ()
+    renderDirective d = do
+                        emitIndent
+                        case d of
+                            Sch.ClearContext       -> tell "\"@context\": null"
+                            Sch.DefineTerm k def   -> tell (escapeString k <> ": " <> escapeString (Sch.targetIRI def))
+                            Sch.RemoteContext uri  -> tell ("\"@context\": "       <> escapeString (URI.render uri))
+                            Sch.SetBase txt        -> tell ("\"@base\": "          <> escapeString txt)
+                            Sch.SetLanguage txt    -> tell ("\"@language\": "      <> escapeString txt)
+                            Sch.SetVocab (Left u)  -> tell ("\"@vocab\": "         <> escapeString (URI.render u))
+                            Sch.SetVocab (Right t) -> tell ("\"@vocab\": "         <> escapeString t)
 
 
--- Unrolls array items with normal 2-space alignment and trailing commas
-buildArrayElements :: Int -> [SchemaDirective] -> Expr t -> B.Builder
-buildArrayElements indent env expr = go expr
-    where
-    go :: Expr a -> B.Builder
-    go = \case
-          Expr.Cons h t -> ind indent <> buildJSON indent env h <> ",\n" <> go t
-          Expr.Nil      -> mempty
-          other         -> ind indent <> buildJSON indent env other <> ",\n"
+-- Recursively unrolls sequential list elements onto individual indented lines separated by commas.
+buildArrayElements :: Expr t -> Printer ()
+buildArrayElements expr = case expr of
+                              Expr.Cons h Expr.Nil -> do
+                                                      emitIndent
+                                                      buildJSON h
+
+                              Expr.Cons h t -> do
+                                               emitIndent
+                                               buildJSON h
+                                               tell ",\n"
+                                               buildArrayElements t
+
+                              other -> buildJSON other
 
 
--- Handles cleanly merging an inline context alongside other sibling parameters
-buildContextBlock :: Int -> [SchemaDirective] -> Schema -> Expr t -> B.Builder
-buildContextBlock indent env (Schema directives) inner =
-    let pad      = ind indent
-        innerPad = ind (indent + 2)
-    in "{\n"    <>
-       innerPad <> "\"@context\": " <> renderSchemaInline (indent + 2) directives <> ",\n" <>
-       -- Force a newline break directly after the body contents stream out
-       stripObjectBrackets (indent + 2) env inner <> "\n" <>
-       pad      <> "}"
+-- Unpacks an existential wrapper to render an individual item inside a JSON collection.
+renderArrayElement :: Expr.SomeExpr -> Printer ()
+renderArrayElement (Expr.SomeExpr e) = do
+                                       emitIndent
+                                       buildJSON e
 
-
-intercalateBuilders :: B.Builder -> [B.Builder] -> B.Builder
-intercalateBuilders = curry $ \case
-                               (_,   [])     -> mempty
-                               (sep, (x:xs)) -> x <> foldr (\b acc -> sep <> b <> acc) mempty xs
-
-
--- Low-Level Text Utilities
-ind :: Int -> B.Builder
-ind n = B.fromText (Data.Text.replicate n " ")
-
-
+-- Text Utils
+-- Wraps raw textual fragments inside a pair of escaped double quotes for correct JSON string conformity.
 escapeString :: Text -> B.Builder
 escapeString txt = "\"" <> B.fromText txt <> "\""
 
 
+-- isNIl.
+--
+-- Collections in our JLD (Arrays and Objects) are repesented as linked list, using Cons and Nil nodes.
+-- Expr.Nil is the explict base case, a terminal sentinel value.
 isNil :: Expr t -> Bool
 isNil = \case { Expr.Nil -> True; _ -> False }
 
 
-stripObjectBrackets :: Int -> [SchemaDirective] -> Expr t -> B.Builder
-stripObjectBrackets indent env = \case
-                                  Expr.Object props _ -> buildProps indent env props
-                                  other               -> ind indent <> "\"@graph\": " <> buildJSON indent env other
-
-
-renderProperty :: Int -> [SchemaDirective] -> (Text, Expr.SomeExpr) -> B.Builder
-renderProperty indent env (k, Expr.SomeExpr v) = ind indent <> escapeString k <> ": " <> buildJSON indent env v
-
-
-renderArrayElement :: Int -> [SchemaDirective] -> Expr.SomeExpr -> B.Builder
-renderArrayElement indent env (Expr.SomeExpr e) = ind indent <> buildJSON indent env e
-
-
--- Emits schema directives inside standard trailing-comma objects
-renderSchemaInline :: Int -> [SchemaDirective] -> B.Builder
-renderSchemaInline indent directives = case directives of
-                                           -- Smart Interception: Single remote string shouldn't be wrapped in braces
-                                           [Sch.RemoteContext uri] -> escapeString (URI.render uri)
-                                            -- Fallback for multiple or alternative context directives
-                                           _                       -> case null directives of
-                                                                          True  -> "{}"
-                                                                          False -> "{\n"
-                                                                                <> intercalateBuilders ",\n" (map renderDirective directives)
-                                                                                <> "\n"
-                                                                                <> ind indent
-                                                                                <> "}"
-    where
-    renderDirective = \case
-                       Sch.ClearContext          -> ind (indent + 2) <> "\"@context\": null"
-                       Sch.DefineTerm    k   def -> ind (indent + 2) <> escapeString k <> ": " <> escapeString (Sch.targetIRI def)
-                       Sch.RemoteContext uri     -> ind (indent + 2) <> "\"@context\": "       <> escapeString (URI.render uri)
-                       Sch.SetBase       txt     -> ind (indent + 2) <> "\"@base\": "     <> escapeString txt
-                       Sch.SetLanguage   txt     -> ind (indent + 2) <> "\"@language\": " <> escapeString txt
-                       Sch.SetVocab (Left uri)   -> ind (indent + 2) <> "\"@vocab\": "    <> escapeString (URI.render uri)
-                       Sch.SetVocab (Right txt)  -> ind (indent + 2) <> "\"@vocab\": "    <> escapeString txt
+-- intercalateM.
+--
+-- A monadic intercalator that stitches a collection of layout actions together.
+-- It sequences a list of printing computations while seamlessly interleaving a static
+-- separator ('B.Builder') directly between adjacent elements.
+--
+-- We pattern match to cleanly isolate the execution tracks:
+--   1. An empty action list safely halts immediately with a no-op ('pure ()').
+--   2. A populated list runs the first element standalone ('x'), completely bypassing
+--      trailing comma artifacts. It then uses 'mapM_' to efficiently zip the separator
+--      ('tell sep') ahead of each remaining sibling node. intercalator to loop through structures
+intercalateM :: B.Builder -> [Printer ()] -> Printer ()
+intercalateM = curry $ \case
+                        (_,   [])     -> pure ()
+                        (sep, (x:xs)) -> x >> mapM_ (\action -> tell sep >> action) xs
