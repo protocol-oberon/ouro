@@ -3,10 +3,10 @@
 {-# LANGUAGE GADTs          #-}
 {-# LANGUAGE KindSignatures #-}
 
-module Data.HJLD.Internal.Expr where
+module Data.Oberon.Internal.Expr where
 
-import qualified Data.HJLD.Internal.Kinds  as JLD
-import           Data.HJLD.Internal.Schema (Schema)
+import qualified Data.Oberon.Internal.Kinds  as JLD
+import           Data.Oberon.Internal.Schema (Schema)
 import           Data.List                 (intercalate)
 import           Data.Text                 (Text, unpack)
 import           Data.Time                 (UTCTime)
@@ -48,20 +48,25 @@ data Expr (t :: JLD.Type) where
     Date      :: UTCTime -> Expr 'JLD.Primitive
     Null      ::            Expr 'JLD.Primitive
     BlankNode :: Text    -> Expr 'JLD.Primitive
+    EmptyArr  ::            Expr 'JLD.Primitive
+    EmptyObj  ::            Expr 'JLD.Primitive
 
-    -- Structural Trees / Closures
-    Context :: Schema  -> Expr t -> Expr t
-    Reverse ::            Expr t -> Expr t
+    -- Structural Metadata Trees (Explicitly index as 'JLD.Meta)
+    -- This acts as a strict compile-time guardian preventing metadata leaks.
+    Context   :: Schema -> Expr 'JLD.Meta
+    EmptyMeta ::           Expr 'JLD.Meta  -- Replaces using 'Null' as a placeholder!
 
     -- The Pure Binary Backbones
-    -- A Cons can take any data node or property as its head, and another list or Nil as its tail.
     Cons    :: Expr head -> Expr tail -> Expr 'JLD.List
     Attr    :: Text      -> Expr any  -> Expr 'JLD.List
     Nil     ::                           Expr 'JLD.List
 
-    -- Boundary Tags
-    Object  :: Expr 'JLD.List -> Expr any -> Expr 'JLD.Primitive
-    Array   :: Expr 'JLD.List             -> Expr 'JLD.Primitive
+    -- Boundary Gates
+    -- The first slot is strictly bound to a metadata type index.
+    -- The second slot captures your data sequence payload spine.
+    Object  :: Expr 'JLD.Meta -> Expr 'JLD.List -> Expr 'JLD.Primitive
+    Array   :: Expr 'JLD.List                   -> Expr 'JLD.Primitive
+
 
 
 -- An existential wrapper to securely erase GADT type indices solely for tree rendering.
@@ -102,21 +107,16 @@ instance Show (Expr t) where
                              Date    d    -> "Date "    ++ show d
                              Null         -> "Null"
                              BlankNode n  -> "BLANK "   ++ (unpack n)
+                             EmptyArr     -> "[]"
+                             EmptyObj     -> "{}"
 
                              -- Closures
-                             Context schema inner -> let schemaStr      = show schema
-                                                         -- Split the multi-line schema string by its newlines
-                                                         schemaLines    = lines schemaStr
-                                                         -- Re-join them, forcing the current `env` block
-                                                         -- to prefix every line after the first one!
-                                                         indentedSchema = intercalate ("\n" ++ concat env) schemaLines
-                                                     in "Context  " ++ indentedSchema ++ "\n" ++
-                                                        concat env  ++ "└── " ++
-                                                        render (env ++ ["    " :: String]) True inner
+                             Context schema -> let schemaStr      = show schema
+                                                   schemaLines    = lines schemaStr
+                                                   indentedSchema = intercalate ("\n" ++ concat env) schemaLines
+                                               in indentedSchema
 
-                             Reverse inner -> "Reverse\n" ++
-                                              concat env  ++ "└── " ++
-                                              render (env ++ ["    " :: String]) True inner
+                             EmptyMeta -> "Null"
 
                              -- The Pure Binary Backbones
                              Cons h t -> "Cons\n" ++ renderBackbone env isLast h t
@@ -128,8 +128,8 @@ instance Show (Expr t) where
                              Nil  -> "Nil"
 
                              -- Boundary tags
-                             Object props body -> "Object\n" ++ renderChildren env [("properties -> ", SomeExpr props), ("body -> ", SomeExpr body)]
-                             Array  list       -> "Array\n"  ++ renderChildren env [("elements -> ", SomeExpr list)]
+                             Object ctx  body -> "Object\n" ++ renderChildren env [("context -> ", SomeExpr ctx), ("body -> ", SomeExpr body)]
+                             Array  list      -> "Array\n"  ++ renderChildren env [("elements -> ", SomeExpr list)]
 
 
         renderBackbone :: [String] -> Bool -> Expr head -> Expr tail -> String

@@ -1,5 +1,5 @@
 
-module Data.HJLD.Internal.Kinds where
+module Data.Oberon.Internal.Kinds where
 
 -- Type.
 --
@@ -15,7 +15,9 @@ module Data.HJLD.Internal.Kinds where
 -- List is used to construct the pure binary backbone chains (Cons, Attr, Nil) that safely
 -- encapsulate sequential networks of child nodes or key-value object property pairs.
 data Type
+    -- JLD
     = Primitive
     | Context
     | List
+    | Meta
     deriving (Show, Eq)

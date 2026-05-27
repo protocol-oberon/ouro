@@ -1,4 +1,4 @@
-# Revision history for hjld
+# Revision history for oberon
 
 ## 0.1.0.0 -- YYYY-mm-dd
 

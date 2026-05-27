@@ -1,22 +1,24 @@
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE DataKinds #-}
 
-module Data.HJLD.Serializer where
+module Data.Oberon.Json.Serializer where
 
-import           Control.Monad.Identity    (Identity, runIdentity)
-import           Control.Monad.Reader      (MonadReader (..), ReaderT (..),
-                                            asks)
-import           Control.Monad.State       (MonadState, StateT (..), modify)
-import           Data.HJLD.Internal.Expr   (Expr)
-import qualified Data.HJLD.Internal.Expr   as Expr
-import           Data.HJLD.Internal.Schema (Schema (..), SchemaDirective)
-import qualified Data.HJLD.Internal.Schema as Sch
-import           Data.Text                 (Text, replicate)
-import qualified Data.Text                 as T
-import qualified Data.Text.Lazy            as TL
-import qualified Data.Text.Lazy.Builder    as B
-import qualified Data.Time.Format          as TF
-import           Lens.Micro                (Lens', over, to, (%~), (^.))
-import qualified Text.URI                  as URI
+import           Control.Monad.Identity      (Identity, runIdentity)
+import           Control.Monad.Reader        (MonadReader (..), ReaderT (..),
+                                              asks)
+import           Control.Monad.State         (MonadState, StateT (..), modify)
+import           Data.Oberon.Internal.Expr   (Expr)
+import qualified Data.Oberon.Internal.Expr   as Expr
+import           Data.Oberon.Internal.Schema (Schema (..), SchemaDirective)
+import qualified Data.Oberon.Internal.Schema as Sch
+import           Data.Text                   (Text, replicate)
+import qualified Data.Text                   as T
+import qualified Data.Text.Lazy              as TL
+import qualified Data.Text.Lazy.Builder      as B
+import qualified Data.Time.Format            as TF
+import           Lens.Micro                  (Lens', over, to, (%~), (^.))
+import qualified Text.URI                    as URI
+import qualified Data.Oberon.Internal.Kinds as JLD
 
 
 -- Global runtime configuration
@@ -116,33 +118,12 @@ buildJSON = \case
               Expr.Date      date  -> tell $ escapeString $ T.pack $ TF.formatTime  TF.defaultTimeLocale "%Y-%m-%dT%H:%M:%SZ" date
               Expr.Null            -> tell "null"
               Expr.BlankNode blank -> tell $ escapeString $ "_:" <> blank
+              Expr.EmptyArr        -> tell $ "[]"
+              Expr.EmptyObj        -> tell $ "{}"
+              Expr.EmptyMeta       -> tell "null"
 
               -- Structural Closures
-              Expr.Context schema inner -> do
-                                           let Schema directives = schema
-                                           modify (activeDirectivesL %~ (++ directives))
-                                           buildContextBlock directives inner
-
-              Expr.Reverse inner -> do
-                                    tell "{\n"
-                                    nested $ do
-                                             emitIndent
-                                             tell "\"@reverse\": "
-                                             buildJSON inner
-                                    tell "\n"
-                                    emitIndent
-                                    tell "}"
-
-
-              -- Bondary Tags
-              Expr.Object props _body -> case Expr.flattenProps props of
-                                             [] -> pure ()
-                                             ps -> do
-                                                   tell "{\n"
-                                                   nested $ intercalateM ",\n" (map renderProperty ps)
-                                                   tell "\n"
-                                                   emitIndent
-                                                   tell "}"
+              Expr.Object metadata body -> renderFlatObject metadata body
 
               Expr.Array elems -> case Expr.flattenArray elems of
                                       [] -> tell "[]"
@@ -221,31 +202,41 @@ emitIndent = do
              tell $ B.fromText (Data.Text.replicate (level * spacing ) " ")
 
 
--- Serializes a JSON-LD block by flattening object properties inline alongside its '@context' keys.
-buildContextBlock :: [SchemaDirective] -> Expr t -> Printer ()
-buildContextBlock directives inner = do
-    tell "{\n"
-    nested $ do
-             emitIndent
-             tell "\"@context\": "
-             renderSchemaInline directives
+-- Serializes a flat JSON-LD Object block by unifying its metadata leaf
+-- and data body fields into a single key-value brace block.
+renderFlatObject :: Expr 'JLD.Meta -> Expr 'JLD.List -> Printer ()
+renderFlatObject metadata body = do
+                                 let bodyPairs = Expr.flattenProps body
 
-             -- Pull out the object properties to sit inline alongside the context keys
-             case inner of
-                 Expr.Object props _ -> case Expr.flattenProps props of
-                                            [] -> pure ()
-                                            ps -> do
-                                                  tell ",\n"
-                                                  intercalateM ",\n" (map renderProperty ps)
-                 other -> do
-                          tell ",\n"
-                          emitIndent
-                          tell "\"@graph\": "
-                          buildJSON other
+                                 case metadata of
+                                     -- Case A: Object has an atomic Context leaf
+                                     Expr.Context (Schema directives) -> do
+                                                                         modify (activeDirectivesL %~ (++ directives))
+                                                                         tell "{\n"
+                                                                         nested $ do
+                                                                                  emitIndent
+                                                                                  tell "\"@context\": "
+                                                                                  renderSchemaInline directives
 
-    tell "\n"
-    emitIndent
-    tell "}"
+                                                                                  -- Interleave data properties if they exist alongside the context keys
+                                                                                  case bodyPairs of
+                                                                                     [] -> pure ()
+                                                                                     ps -> do
+                                                                                           tell ",\n"
+                                                                                           intercalateM ",\n" (map renderProperty ps)
+                                                                         tell "\n"
+                                                                         emitIndent
+                                                                         tell "}"
+
+                                     -- Case B: Plain object with no schema metadata tracking
+                                     Expr.EmptyMeta -> case bodyPairs of
+                                                           [] -> tell "{}"
+                                                           ps -> do
+                                                                 tell "{\n"
+                                                                 nested $ intercalateM ",\n" (map renderProperty ps)
+                                                                 tell "\n"
+                                                                 emitIndent
+                                                                 tell "}"
 
 
 -- Formats an individual object key-value property pair with indentation alignment.

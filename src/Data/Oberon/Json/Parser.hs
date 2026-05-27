@@ -2,25 +2,25 @@
 {-# LANGUAGE GADTs             #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Data.HJLD.Parser where
+module Data.Oberon.Json.Parser where
 
-import           Control.Applicative        (empty)
-import           Data.HJLD.Internal.Expr    (Expr)
-import qualified Data.HJLD.Internal.Expr    as Expr
-import qualified Data.HJLD.Internal.Kinds   as JLD
-import           Data.HJLD.Internal.Schema  (Schema (..), SchemaDirective)
-import qualified Data.HJLD.Internal.Schema  as Schema
-import           Data.Maybe                 (listToMaybe)
-import           Data.Scientific            (toRealFloat)
-import           Data.Text                  (Text, pack)
-import           Data.Time.Format           (defaultTimeLocale, parseTimeM)
-import           Data.Void                  (Void)
-import           Text.Megaparsec            (ParseErrorBundle, Parsec, between,
-                                             choice, manyTill, parse, sepBy,
-                                             try, (<|>))
-import           Text.Megaparsec.Char       (char, space1, string)
-import qualified Text.Megaparsec.Char.Lexer as L
-import qualified Text.URI                   as URI
+import           Control.Applicative         (empty)
+import           Data.Maybe                  (listToMaybe)
+import           Data.Oberon.Internal.Expr   (Expr)
+import qualified Data.Oberon.Internal.Expr   as Expr
+import qualified Data.Oberon.Internal.Kinds  as JLD
+import           Data.Oberon.Internal.Schema (Schema (..), SchemaDirective)
+import qualified Data.Oberon.Internal.Schema as Schema
+import           Data.Scientific             (toRealFloat)
+import           Data.Text                   (Text, pack)
+import           Data.Time.Format            (defaultTimeLocale, parseTimeM)
+import           Data.Void                   (Void)
+import           Text.Megaparsec             (ParseErrorBundle, Parsec, between,
+                                              choice, manyTill, parse, sepBy,
+                                              try, (<|>))
+import           Text.Megaparsec.Char        (char, space1, string)
+import qualified Text.Megaparsec.Char.Lexer  as L
+import qualified Text.URI                    as URI
 
 
 
@@ -55,7 +55,7 @@ data KeyVal
     | DataKV Text (Expr 'JLD.Primitive)
 
 
--- Parse an Object where the Context closure executes outer precedence
+-- Parse an Object where Context acts as a clean, self-contained metadata leaf.
 pObject :: Parser (Expr 'JLD.Primitive)
 pObject = between (symbol "{") (symbol "}") $ do
     fields <- pObjectField `sepBy` symbol ","
@@ -63,15 +63,18 @@ pObject = between (symbol "{") (symbol "}") $ do
     let mSchema   = listToMaybe [ s | ContextField s <- fields ]
     let dataLists = [ d | DataField d <- fields ]
 
-    -- Because each 'd' is already an (Expr.Attr key val),
-    -- we just link the existing attributes together using Cons!
-    let propSpine = foldr Expr.Cons Expr.Nil dataLists
+    -- 1. Construct the sequential data body spine from the parsed object attributes
+    let bodySpine = foldr Expr.Cons Expr.Nil dataLists
 
-    let coreObject = Expr.Object propSpine Expr.Null
+    -- 2. Resolve the metadata block as an atomic leaf asset
+    let metadataBlock = case mSchema of
+            Just schema -> Expr.Context schema
+            Nothing     -> Expr.EmptyMeta
 
-    case mSchema of
-        Just schema -> return $ Expr.Context schema coreObject
-        Nothing     -> return coreObject
+    -- 3. Construct the clean, flat object structure:
+    --    Left slot:  The metadata leaf block (Expr 'JLD.Meta)
+    --    Right slot: The core data payload backbone (Expr 'JLD.List)
+    return $ Expr.Object metadataBlock bodySpine
 
 
 -- An intermediate type to separate the structural processing
@@ -91,6 +94,7 @@ pObjectField = choice
 
 pQuotedURI :: Parser URI.URI
 pQuotedURI = between (char '"') (char '"') URI.parser
+
 
 pSchema :: Parser Schema
 pSchema = choice
