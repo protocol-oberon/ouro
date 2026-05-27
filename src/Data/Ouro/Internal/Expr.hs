@@ -3,11 +3,11 @@
 {-# LANGUAGE GADTs          #-}
 {-# LANGUAGE KindSignatures #-}
 
-module Data.Oberon.Internal.Expr where
+module Data.Ouro.Internal.Expr where
 
-import qualified Data.Oberon.Internal.Kinds  as JLD
-import           Data.Oberon.Internal.Schema (Schema)
 import           Data.List                 (intercalate)
+import qualified Data.Ouro.Internal.Kinds  as JLD
+import           Data.Ouro.Internal.Schema (Schema)
 import           Data.Text                 (Text, unpack)
 import           Data.Time                 (UTCTime)
 import qualified Text.URI                  as MURI

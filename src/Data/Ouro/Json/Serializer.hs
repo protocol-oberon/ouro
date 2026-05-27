@@ -1,24 +1,24 @@
-{-# LANGUAGE GADTs #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE GADTs     #-}
 
-module Data.Oberon.Json.Serializer where
+module Data.Ouro.Json.Serializer where
 
-import           Control.Monad.Identity      (Identity, runIdentity)
-import           Control.Monad.Reader        (MonadReader (..), ReaderT (..),
-                                              asks)
-import           Control.Monad.State         (MonadState, StateT (..), modify)
-import           Data.Oberon.Internal.Expr   (Expr)
-import qualified Data.Oberon.Internal.Expr   as Expr
-import           Data.Oberon.Internal.Schema (Schema (..), SchemaDirective)
-import qualified Data.Oberon.Internal.Schema as Sch
-import           Data.Text                   (Text, replicate)
-import qualified Data.Text                   as T
-import qualified Data.Text.Lazy              as TL
-import qualified Data.Text.Lazy.Builder      as B
-import qualified Data.Time.Format            as TF
-import           Lens.Micro                  (Lens', over, to, (%~), (^.))
-import qualified Text.URI                    as URI
-import qualified Data.Oberon.Internal.Kinds as JLD
+import           Control.Monad.Identity    (Identity, runIdentity)
+import           Control.Monad.Reader      (MonadReader (..), ReaderT (..),
+                                            asks)
+import           Control.Monad.State       (MonadState, StateT (..), modify)
+import           Data.Ouro.Internal.Expr   (Expr)
+import qualified Data.Ouro.Internal.Expr   as Expr
+import qualified Data.Ouro.Internal.Kinds  as JLD
+import           Data.Ouro.Internal.Schema (Schema (..), SchemaDirective)
+import qualified Data.Ouro.Internal.Schema as Sch
+import           Data.Text                 (Text, replicate)
+import qualified Data.Text                 as T
+import qualified Data.Text.Lazy            as TL
+import qualified Data.Text.Lazy.Builder    as B
+import qualified Data.Time.Format          as TF
+import           Lens.Micro                (Lens', over, to, (%~), (^.))
+import qualified Text.URI                  as URI
 
 
 -- Global runtime configuration
@@ -220,10 +220,10 @@ renderFlatObject metadata body = do
 
                                                                                   -- Interleave data properties if they exist alongside the context keys
                                                                                   case bodyPairs of
-                                                                                     [] -> pure ()
-                                                                                     ps -> do
-                                                                                           tell ",\n"
-                                                                                           intercalateM ",\n" (map renderProperty ps)
+                                                                                      [] -> pure ()
+                                                                                      ps -> do
+                                                                                            tell ",\n"
+                                                                                            intercalateM ",\n" (map renderProperty ps)
                                                                          tell "\n"
                                                                          emitIndent
                                                                          tell "}"

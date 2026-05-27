@@ -1,5 +1,5 @@
 
-module Data.Oberon.Lisp.Tokens where
+module Data.Ouro.Lisp.Tokens where
 
 import           Data.Text           (Text)
 import           GHC.Generics        (Generic)
@@ -13,7 +13,7 @@ data Token = Token
     , tokenType :: !TokenType
     } deriving (Show, Eq, Generic)
 
--- The complete inventory of terminal symbols recognized by the Oberon Lisp tokenizer.
+-- The complete inventory of terminal symbols recognized by the Ouro Lisp tokenizer.
 data TokenType
     -- Structural Delims
     = OpenParen        -- '('

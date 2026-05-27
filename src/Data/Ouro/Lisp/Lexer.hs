@@ -1,7 +1,7 @@
 
-module Data.Oberon.Lisp.Lexer where
+module Data.Ouro.Lisp.Lexer where
 
-import qualified Data.Oberon.Lisp.Tokens    as Tkn
+import qualified Data.Ouro.Lisp.Tokens      as Tkn
 import           Data.Text                  (Text)
 import qualified Data.Text                  as T
 import           Data.Void                  (Void)

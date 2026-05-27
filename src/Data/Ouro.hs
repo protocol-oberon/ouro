@@ -1,6 +1,6 @@
 {-# LANGUAGE DataKinds #-}
 
-module Data.Oberon
+module Data.Ouro
 ( compile
 , validate
 , defaultOptions
@@ -8,20 +8,20 @@ module Data.Oberon
 , Ser.toJSON
 ) where
 
-import           Data.Function                ((&))
-import qualified Data.Oberon.Internal.Expr    as I
-import qualified Data.Oberon.Internal.Kinds   as JLD
-import qualified Data.Oberon.Json.Parser      as JP
-import           Data.Oberon.Json.Serializer  (PrinterOptions (..),
-                                               defaultOptions)
-import qualified Data.Oberon.Json.Serializer  as Ser
-import qualified Data.Oberon.Lisp.Canon       as Canon
-import qualified Data.Oberon.Lisp.Eval.Engine as EN
-import qualified Data.Oberon.Lisp.Lexer       as LX
-import qualified Data.Oberon.Lisp.Parser      as LP
-import           Data.Text                    (Text)
-import qualified Data.Text.Lazy               as TL
-import           Text.Megaparsec              (errorBundlePretty)
+import           Data.Function              ((&))
+import qualified Data.Ouro.Internal.Expr    as I
+import qualified Data.Ouro.Internal.Kinds   as JLD
+import qualified Data.Ouro.Json.Parser      as JP
+import           Data.Ouro.Json.Serializer  (PrinterOptions (..),
+                                             defaultOptions)
+import qualified Data.Ouro.Json.Serializer  as Ser
+import qualified Data.Ouro.Lisp.Canon       as Canon
+import qualified Data.Ouro.Lisp.Eval.Engine as EN
+import qualified Data.Ouro.Lisp.Lexer       as LX
+import qualified Data.Ouro.Lisp.Parser      as LP
+import           Data.Text                  (Text)
+import qualified Data.Text.Lazy             as TL
+import           Text.Megaparsec            (errorBundlePretty)
 
 
 -- Complete frontend pipeline compilation pass.

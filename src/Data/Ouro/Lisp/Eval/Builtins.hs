@@ -2,22 +2,21 @@
 {-# LANGUAGE GADTs             #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Data.Oberon.Lisp.Eval.Builtins
+module Data.Ouro.Lisp.Eval.Builtins
 ( builtinRegistry
 , parseISO8601
 , isNumber
 ) where
 
-import           Control.Monad               (foldM)
-import qualified Data.Oberon.Internal.Expr   as I
-import           Data.Oberon.Lisp.Eval.Types (PeriodUnit (..),
-                                              Value (Duration, Primitive, PrimitiveOp))
-import           Data.Text                   (Text)
-import           Data.Time                   (UTCTime (..))
-import           Data.Time.Calendar          (addDays,
-                                              addGregorianMonthsRollOver,
-                                              addGregorianYearsRollOver)
-import           Data.Time.Format            (defaultTimeLocale, parseTimeM)
+import           Control.Monad             (foldM)
+import qualified Data.Ouro.Internal.Expr   as I
+import           Data.Ouro.Lisp.Eval.Types (PeriodUnit (..),
+                                            Value (Duration, Primitive, PrimitiveOp))
+import           Data.Text                 (Text)
+import           Data.Time                 (UTCTime (..))
+import           Data.Time.Calendar        (addDays, addGregorianMonthsRollOver,
+                                            addGregorianYearsRollOver)
+import           Data.Time.Format          (defaultTimeLocale, parseTimeM)
 
 
 -- Maps syntax strings to their respective first-class execution handles

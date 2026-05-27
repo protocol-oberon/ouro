@@ -1,12 +1,12 @@
 
-module Data.Oberon.Lisp.Surface where
+module Data.Ouro.Lisp.Surface where
 
 import           Data.Text       (Text)
 import           Text.Megaparsec (SourcePos)
 
 -- Expr.
 --
--- An untyped, ergonomically flexible Abstract Syntax Tree for the Oberon Lisp surface syntax.
+-- An untyped, ergonomically flexible Abstract Syntax Tree for the Ouro Lisp surface syntax.
 -- Designed to prioritize lazy structural evaluation, recursive macro expansion, and developer ergonomics.
 --
 -- Unlike the rigid, type-indexed backbone of the internal core GADT, the surface AST is intentionally

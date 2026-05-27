@@ -1,22 +1,22 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs     #-}
 
-module Data.Oberon.Lisp.Eval.Engine where
+module Data.Ouro.Lisp.Eval.Engine where
 
-import qualified Data.Map.Strict                as Map
-import qualified Data.Oberon.Internal.Expr      as I
-import qualified Data.Oberon.Internal.Kinds     as JLD
-import           Data.Oberon.Internal.Schema    (Schema (..),
-                                                 SchemaDirective (..))
-import           Data.Oberon.Lisp.Eval.Builtins (builtinRegistry, parseISO8601)
-import           Data.Oberon.Lisp.Eval.Types    (Env (..), Value (..))
-import qualified Data.Oberon.Lisp.Surface      as S
-import           Data.Text                      (Text)
-import qualified Data.Text                      as T
-import           Data.Void                      (Void)
-import           Text.Megaparsec                (Parsec, errorBundlePretty,
-                                                 runParser)
-import qualified Text.URI                       as URI
+import qualified Data.Map.Strict              as Map
+import qualified Data.Ouro.Internal.Expr      as I
+import qualified Data.Ouro.Internal.Kinds     as JLD
+import           Data.Ouro.Internal.Schema    (Schema (..),
+                                               SchemaDirective (..))
+import           Data.Ouro.Lisp.Eval.Builtins (builtinRegistry, parseISO8601)
+import           Data.Ouro.Lisp.Eval.Types    (Env (..), Value (..))
+import qualified Data.Ouro.Lisp.Surface       as S
+import           Data.Text                    (Text)
+import qualified Data.Text                    as T
+import           Data.Void                    (Void)
+import           Text.Megaparsec              (Parsec, errorBundlePretty,
+                                               runParser)
+import qualified Text.URI                     as URI
 
 
 -- High-level engine entry point. Inspects a parsed AST node, handles routing,
@@ -356,6 +356,24 @@ buildDirective key val =
         "language" -> case val of
                           S.Literal _ (S.Str t) -> pure $ SetLanguage t
                           _                     -> Left "Type Error: 'language' requires a String literal."
+
+        "remote-context"
+            -> case val of
+                   -- Scenario A: Value is explicitly tagged via the #uri macro
+                   S.Tagged _ S.Uri (S.Literal _ (S.Str t))
+                       -> case runParser (URI.parser :: Parsec Void Text URI.URI) "#uri validation" t of
+                              Right u  -> pure $ RemoteContext u
+                              Left err -> Left $ "Type Error: Explicit #uri failed to satisfy specification layout:\n"
+                                              ++ errorBundlePretty err
+
+                   -- Scenario B: Value is a raw String literal (parse it inline as a RemoteContext URI)
+                   S.Literal _ (S.Str t)
+                       -> case runParser (URI.parser :: Parsec Void Text URI.URI) "inline string context validation" t of
+                              Right u  -> pure $ RemoteContext u
+                              Left err -> Left $ "Type Error: Inline context string failed to satisfy URI specification layout:\n"
+                                              ++ errorBundlePretty err
+
+                   _ -> Left "Type Error: 'context' requires a valid #uri tag or raw String reference layout."
 
         _ -> Left $ "Unknown context directive: " ++ T.unpack key
 

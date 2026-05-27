@@ -1,5 +1,5 @@
 
-module Data.Oberon.Internal.Schema where
+module Data.Ouro.Internal.Schema where
 
 import           Data.List (intercalate)
 import           Data.Text (Text)

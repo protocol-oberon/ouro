@@ -1,5 +1,5 @@
 
-module Data.Oberon.Internal.Kinds where
+module Data.Ouro.Internal.Kinds where
 
 -- Type.
 --

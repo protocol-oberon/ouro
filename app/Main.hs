@@ -3,16 +3,15 @@
 module Main (main) where
 
 import           Data.Char           (toLower)
-import           Data.Oberon           (PrinterOptions (..), defaultOptions)
-import qualified Data.Oberon         as Ob
+import           Data.Ouro           (PrinterOptions (..), defaultOptions)
+import qualified Data.Ouro           as Ob
 import qualified Data.Text.IO        as TIO
 import qualified Data.Text.Lazy      as TL
 import qualified Data.Text.Lazy.IO   as TLIO
-import           Options.Applicative (Parser, argument,
-                                      auto, command, customExecParser,
-                                      eitherReader, fullDesc, header, help,
-                                      helper, info, long, metavar, option,
-                                      optional, prefs, progDesc, short,
+import           Options.Applicative (Parser, argument, auto, command,
+                                      customExecParser, eitherReader, fullDesc,
+                                      header, help, helper, info, long, metavar,
+                                      option, optional, prefs, progDesc, short,
                                       showHelpOnEmpty, showHelpOnError, str,
                                       strOption, subparser, switch, value,
                                       (<**>))
@@ -44,14 +43,14 @@ data TargetTransform
 -- Main Parser directly returns an Command
 pCommand :: Parser Command
 pCommand = subparser
-         (  command "compile"  (info pCompile  (progDesc "Compile JSON-LD to Oberon"))
+         (  command "compile"  (info pCompile  (progDesc "Compile JSON-LD to Ouro"))
          <> command "validate" (info pValidate (progDesc "Validate JSON-LD"))
          )
 
 
 pCompile :: Parser Command
 pCompile =  Compile
-        <$> pObnFile
+        <$> pOuroFile
         <*> optional pOutputDirOption
 
 
@@ -99,12 +98,12 @@ pJsonFile = argument (eitherReader validateJsonPath) (metavar "file")
                                 False -> Left $ "Invalid input file '" ++ path ++ "'. Input must be a .json file."
 
 
-pObnFile :: Parser FilePath
-pObnFile = argument (eitherReader validateObnPath) (metavar "SOURCE_FILE")
+pOuroFile :: Parser FilePath
+pOuroFile = argument (eitherReader validateOuroPath) (metavar "SOURCE_FILE")
     where
-    validateObnPath path = case map toLower (takeExtension path) == ".obn" of
+    validateOuroPath path = case map toLower (takeExtension path) == ".ouro" of
                                True  -> Right path
-                               False -> Left $ "Invalid compiler source target '" ++ path ++ "'. Input must be an Oberon Lisp (.obn) file."
+                               False -> Left $ "Invalid compiler source target '" ++ path ++ "'. Input must be an Ouro Lisp (.ouro) file."
 
 
 runParser :: IO Command
@@ -112,7 +111,7 @@ runParser = customExecParser pPrefs pInfo
     where
     pPrefs = prefs $ showHelpOnError <> showHelpOnEmpty
     pInfo  = info (pCommand <**> helper)
-           $ header "Oberon v0.0.1"
+           $ header "Ouro v0.0.1"
           <> fullDesc
 
 
@@ -121,7 +120,7 @@ runCompile :: FilePath -> Maybe FilePath -> IO ()
 runCompile ifp mOutDir = do
                          -- 1. Calculate the actual output file path dynamically
                          let ofp = case mOutDir of
-                                      Just dir -> dir </> replaceExtension (takeFileName ifp) "obn"
+                                      Just dir -> dir </> replaceExtension (takeFileName ifp) "ouro"
                                       Nothing  -> replaceExtension ifp "json"
 
                          -- 2. Read and process the input file
@@ -140,38 +139,39 @@ runCompile ifp mOutDir = do
 
 
 runValidate :: ValidateCommand -> IO ()
-runValidate (ValidateCommand fp op sp sc) = do
-                                            content <- TIO.readFile fp
-                                            let targetOutPath = case op of
-                                                                    Just o  -> o
-                                                                    Nothing -> fp
-                                            case sc of
-                                                Just (Indent i) -> do
-                                                                   let opts = PrinterOptions { indentSpacing = i }
-                                                                   case Ob.validate fp content opts of
-                                                                       Left  err  -> putStrLn $ "Compilation Error:\n" ++ err
-                                                                       Right json -> do
-                                                                                     putStrLn $ "Validated JLD JSON for: " ++ fp
-                                                                                     case sp of
-                                                                                         True  -> TIO.putStrLn $ TL.toStrict json
-                                                                                         False -> pure ()
+runValidate (ValidateCommand fp op sp sc) =
+    do
+    content <- TIO.readFile fp
+    let targetOutPath = case op of
+                            Just o  -> o
+                            Nothing -> fp
+    case sc of
+        Just (Indent i) -> do
+                           let opts = PrinterOptions { indentSpacing = i }
+                           case Ob.validate fp content opts of
+                               Left  err  -> putStrLn $ "Compilation Error:\n" ++ err
+                               Right json -> do
+                                             putStrLn $ "Validated JLD JSON for: " ++ fp
+                                             case sp of
+                                                 True  -> TIO.putStrLn $ TL.toStrict json
+                                                 False -> pure ()
 
-                                                                                     TLIO.writeFile targetOutPath json
+                                             TLIO.writeFile targetOutPath json
 
-                                                Just (Merge _)  -> do
-                                                                   -- TODO!
-                                                                   pure ()
+        Just (Merge _)  -> do
+                           -- TODO!
+                           pure ()
 
-                                                Nothing         -> do
-                                                                   case Ob.validate fp content defaultOptions of
-                                                                       Left  err  -> putStrLn $ "Compilation Error:\n" ++ err
-                                                                       Right json -> do
-                                                                                     putStrLn $ "Validated JLD JSON for: " ++ fp
-                                                                                     case sp of
-                                                                                         True  -> TIO.putStrLn $ TL.toStrict json
-                                                                                         False -> pure ()
+        Nothing         -> do
+                           case Ob.validate fp content defaultOptions of
+                               Left  err  -> putStrLn $ "Compilation Error:\n" ++ err
+                               Right json -> do
+                                             putStrLn $ "Validated JLD JSON for: " ++ fp
+                                             case sp of
+                                                 True  -> TIO.putStrLn $ TL.toStrict json
+                                                 False -> pure ()
 
-                                                                                     TLIO.writeFile targetOutPath json
+                                             TLIO.writeFile targetOutPath json
 
 
 main :: IO ()

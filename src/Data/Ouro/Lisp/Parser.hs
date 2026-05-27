@@ -1,8 +1,8 @@
-module Data.Oberon.Lisp.Parser where
+module Data.Ouro.Lisp.Parser where
 
 import           Control.Monad.State.Strict
-import qualified Data.Oberon.Lisp.Surface   as S
-import qualified Data.Oberon.Lisp.Tokens    as Tkn
+import qualified Data.Ouro.Lisp.Surface     as S
+import qualified Data.Ouro.Lisp.Tokens      as Tkn
 import           Text.Megaparsec            (SourcePos)
 
 -- A simple compiler tracking state holding our remaining token stream

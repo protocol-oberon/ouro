@@ -1,19 +1,19 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs     #-}
 
-module Data.Oberon.Lisp.Eval.Types
+module Data.Ouro.Lisp.Eval.Types
 ( Env(..)
 , defaultEnv
 , Value(..)
 , PeriodUnit(..)
 ) where
 
-import qualified Data.Map.Strict             as Map
-import qualified Data.Oberon.Internal.Expr   as I
-import qualified Data.Oberon.Internal.Kinds  as JLD
-import           Data.Oberon.Internal.Schema (Schema)
-import qualified Data.Oberon.Lisp.Surface    as S
-import           Data.Text                   (Text)
+import qualified Data.Map.Strict           as Map
+import qualified Data.Ouro.Internal.Expr   as I
+import qualified Data.Ouro.Internal.Kinds  as JLD
+import           Data.Ouro.Internal.Schema (Schema)
+import qualified Data.Ouro.Lisp.Surface    as S
+import           Data.Text                 (Text)
 
 
 -- Env.

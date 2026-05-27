@@ -2,25 +2,25 @@
 {-# LANGUAGE GADTs             #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Data.Oberon.Json.Parser where
+module Data.Ouro.Json.Parser where
 
-import           Control.Applicative         (empty)
-import           Data.Maybe                  (listToMaybe)
-import           Data.Oberon.Internal.Expr   (Expr)
-import qualified Data.Oberon.Internal.Expr   as Expr
-import qualified Data.Oberon.Internal.Kinds  as JLD
-import           Data.Oberon.Internal.Schema (Schema (..), SchemaDirective)
-import qualified Data.Oberon.Internal.Schema as Schema
-import           Data.Scientific             (toRealFloat)
-import           Data.Text                   (Text, pack)
-import           Data.Time.Format            (defaultTimeLocale, parseTimeM)
-import           Data.Void                   (Void)
-import           Text.Megaparsec             (ParseErrorBundle, Parsec, between,
-                                              choice, manyTill, parse, sepBy,
-                                              try, (<|>))
-import           Text.Megaparsec.Char        (char, space1, string)
-import qualified Text.Megaparsec.Char.Lexer  as L
-import qualified Text.URI                    as URI
+import           Control.Applicative        (empty)
+import           Data.Maybe                 (listToMaybe)
+import           Data.Ouro.Internal.Expr    (Expr)
+import qualified Data.Ouro.Internal.Expr    as Expr
+import qualified Data.Ouro.Internal.Kinds   as JLD
+import           Data.Ouro.Internal.Schema  (Schema (..), SchemaDirective)
+import qualified Data.Ouro.Internal.Schema  as Schema
+import           Data.Scientific            (toRealFloat)
+import           Data.Text                  (Text, pack)
+import           Data.Time.Format           (defaultTimeLocale, parseTimeM)
+import           Data.Void                  (Void)
+import           Text.Megaparsec            (ParseErrorBundle, Parsec, between,
+                                             choice, manyTill, parse, sepBy,
+                                             try, (<|>))
+import           Text.Megaparsec.Char       (char, space1, string)
+import qualified Text.Megaparsec.Char.Lexer as L
+import qualified Text.URI                   as URI
 
 
 
