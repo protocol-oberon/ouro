@@ -1,26 +1,36 @@
 module Data.Ouro.Lisp.Parser where
 
-import           Control.Monad.State.Strict
+import           Control.Monad.State.Strict (MonadState (get, put),
+                                             MonadTrans (lift),
+                                             StateT (runStateT))
+import           Data.Ouro.Error.Types      (ErrorContext (..), OuroError (..),
+                                             SyntaxError (..))
 import qualified Data.Ouro.Lisp.Surface     as S
 import qualified Data.Ouro.Lisp.Tokens      as Tkn
+import qualified Data.Text                  as T
 import           Text.Megaparsec            (SourcePos)
+import qualified Text.Megaparsec.Pos        as M
+
 
 -- A simple compiler tracking state holding our remaining token stream
 type ParseState = [Tkn.Token]
 
-type Parser a = StateT ParseState (Either String) a
+type Parser a = StateT ParseState (Either OuroError) a
 
 
 -- Top-level entry point
-parse :: [Tkn.Token] -> Either String S.Expr
+parse :: [Tkn.Token] -> Either OuroError S.Expr
 parse tokens = do
-            (expr, remaining) <- runStateT pExpr tokens
-            case remaining of
-                []    -> Right expr
-                (t:_) -> Left $ "Unexpected trailing token at line "
-                             ++ show (Tkn.pos t)
-                             ++ ": "
-                             ++ show (Tkn.tokenType t)
+    (expr, remaining) <- runStateT pExpr tokens
+    case remaining of
+        []    -> Right expr
+        (t:_) -> let pos     = Tkn.pos t
+                     tType   = Tkn.tokenType t
+                     context = Syntax UnbalancedDelimiter
+                                 { expectedDelim = "EOF (End of File) or structural closing boundary"
+                                 , actualDelim   = T.pack (show tType)
+                                 }
+                 in Left (OuroError pos context)
 
 
 -- Recursive Expr Router
@@ -28,7 +38,13 @@ pExpr :: Parser S.Expr
 pExpr = do
         tokens <- get
         case tokens of
-            []     -> lift $ Left "Unexpected End of File while parsing expression."
+            -- For a sudden EOF, we generate an unclosed delimiter payload
+            []     -> let pos     = M.initialPos "unknown-source" -- Or pass down the last known token's position
+                          context = Syntax UnbalancedDelimiter
+                                    { expectedDelim = "Expression node layout component"
+                                    , actualDelim   = "EOF (End of File)"
+                                    }
+                      in lift $ Left (OuroError pos context)
             (t:ts) -> let capture n = put ts >> pure n
                       in case Tkn.tokenType t of
                              -- Open boundaries push processing down into structural lookahead groups
@@ -70,8 +86,17 @@ pExpr = do
                              Tkn.TagArrEmpty    -> capture (S.Literal (Tkn.pos t) S.EmptyArr)
 
                              -- Unbalanced Boundaries are immediate semantic loop violations
-                             Tkn.CloseParen     -> lift $ Left $ "Mismatched closing parenthesis at " ++ show (Tkn.pos t)
-                             Tkn.CloseBracket   -> lift $ Left $ "Mismatched closing bracket at "     ++ show (Tkn.pos t)
+                             Tkn.CloseParen -> let context = Syntax UnbalancedDelimiter
+                                                             { expectedDelim = "Opening Form Boundary '('"
+                                                             , actualDelim   = "Orphaned Closing Parenthesis ')'"
+                                                             }
+                                               in lift $ Left (OuroError (Tkn.pos t) context)
+
+                             Tkn.CloseBracket -> let context = Syntax UnbalancedDelimiter
+                                                               { expectedDelim = "Opening Array Boundary '['"
+                                                               , actualDelim   = "Orphaned Closing Bracket ']'"
+                                                               }
+                                                 in lift $ Left (OuroError (Tkn.pos t) context)
 
 
 -- Lookahead Container Accumulators
@@ -100,15 +125,24 @@ parseTaggedNode tagPos tagType = do
 
 
 -- Parsing Stream State Helpers
+-- | Collects expressions sequentially until a targeted closing delimiter is reached.
 collectUntil :: Tkn.TokenType -> Parser [S.Expr]
-collectUntil targetDelim = do
-                           stream <- get
-                           case stream of
-                               []     -> lift $ Left $ "Missing closing delimiter: expected " ++ show targetDelim
-                               (t:ts) | Tkn.tokenType t == targetDelim -> do
-                                            put ts  -- Pop closing token out of stream state
-                                            pure []
-                                      | otherwise -> do
-                                            current <- pExpr
-                                            rest    <- collectUntil targetDelim
-                                            pure (current : rest)
+collectUntil targetDelim =
+    do
+    stream <- get
+    case stream of
+        -- The token stream ran dry before finding the matching delimiter.
+        [] -> let pos     = M.initialPos "unknown-source" -- Or pass parent context position down
+                  context = Syntax UnbalancedDelimiter
+                              { expectedDelim = T.pack (show targetDelim)
+                              , actualDelim   = "Unexpected EOF (End of File)"
+                              }
+              in lift $ Left (OuroError pos context)
+
+        (t:ts) | Tkn.tokenType t == targetDelim -> do
+                    put ts  -- Pop the matching closing token out of stream state
+                    pure []
+               | otherwise -> do
+                    current <- pExpr
+                    rest    <- collectUntil targetDelim
+                    pure (current : rest)

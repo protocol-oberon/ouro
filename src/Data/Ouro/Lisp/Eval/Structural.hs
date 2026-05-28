@@ -1,0 +1,262 @@
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE GADTs     #-}
+
+module Data.Ouro.Lisp.Eval.Structural where
+
+import           Data.Function               ((&))
+import qualified Data.Map                    as Map
+import           Data.Ouro.Error.Diagnostics (missingPathKey, typeMismatch,
+                                              typeMismatchBlurb,
+                                              unboundIdentifier, withBlurb)
+import           Data.Ouro.Error.Types       (OuroError (..))
+import qualified Data.Ouro.Internal.Expr     as I
+import qualified Data.Ouro.Internal.Kinds    as JLD
+import           Data.Ouro.Internal.Utils    (rankBySimilarity)
+import           Data.Ouro.Lisp.Eval.Schema  (parseContextDirectives)
+import           Data.Ouro.Lisp.Eval.Scope   (buildLazyEnv)
+import           Data.Ouro.Lisp.Eval.Types   (Env (..), Value (..), allEnvKeys,
+                                              humanReadableType)
+import qualified Data.Ouro.Lisp.Surface      as S
+import qualified Data.Set                    as Set
+import           Data.Text                   (Text)
+
+
+-- compileScope.
+--
+-- Compiles a physical Lisp block into a self-contained, knot-tied lexical environment frame.
+-- Manages local symbol mapping, dynamic property lazy evaluation, and JSON-LD schema context routing.
+--
+-- This worker serves as the critical transition boundary between surface form expressions and structural,
+-- type-safe graph layers. Rather than applying standard top-down sequential evaluation, it operates in three distinct,
+-- highly deliberate stages to enforce declarative order-independence within the local block:
+--
+--   1. Sweeping & Binding: It first passes over the fields using 'buildLazyEnv' to pull out all un-evaluated
+--      attributes and definitions, organizing them into a flat local dictionary.
+--   2. Environment Isolation & Knot-Tying: It constructs a fresh lexical 'Env' frame. By linking this frame
+--      as its own parent and passing it downward, variables inside the block can lazily reference sibling
+--      properties or forward-declare definitions seamlessly without triggering early-evaluation crashes.
+--   3. Semantic Extraction & Context Lowering: It evaluates the properties into a core GADT structural list.
+compileScope
+    :: (Env -> S.Expr -> Either OuroError Value)
+    -> Env
+    -> [S.Expr]
+    -> Either OuroError Value
+compileScope evaluator env fields = do
+    -- Step 1: Gather raw, un-evaluated structural maps from the block fields
+    rawMap <- buildLazyEnv env fields
+
+    -- Step 2: Spin up the dynamic knot-tied environment using our completed map
+    let isolatedEnv = Env { localScope = rawMap, parentEnv = Just env }
+
+    -- Step 3: Evaluate properties inline, dynamically distilling both the
+    -- metadata leaf layer and the physical object data body spine at once!
+    (metadataLeaf, bodySpine) <- emitProps evaluator isolatedEnv fields
+
+    -- Step 4: Construct the unified, type-safe JLD Object frame
+    pure $ Primitive (I.Object metadataLeaf bodySpine)
+
+
+-- Iterates through a stream of tokens to filter and evaluate physical properties into a GADT List.
+emitProps
+    :: (Env -> S.Expr -> Either OuroError Value)
+    -> Env
+    -> [S.Expr]
+    -> Either OuroError (I.Expr 'JLD.Meta, I.Expr 'JLD.List)
+emitProps evaluator env expressions = go I.EmptyMeta expressions
+    where
+    go :: I.Expr 'JLD.Meta -> [S.Expr] -> Either OuroError (I.Expr 'JLD.Meta, I.Expr 'JLD.List)
+    go metaAcc = \case
+                  [] -> pure (metaAcc, I.Nil)
+
+                  -- A. Intercept ANY context form variant at the top-level and route to the schema engine
+                  S.Form _ (S.Symbol _ "context" : directives) : remaining -> do
+                                                                               localSchema <- parseContextDirectives directives
+                                                                               go (I.Context localSchema) remaining
+
+                  -- B. Define Blocks are explicitly erased from the output JSON graph at comptime
+                  S.Form _ (S.Symbol _ "define" : _) : rest -> go metaAcc rest
+
+                  -- C. Extract valid body pairs. Supports lazy nesting compilation inline.
+                  S.Attr _ key : valExpr : rest | not (isStructuralExpr valExpr)
+                          -> do
+                             restVal            <- evaluator env valExpr
+                             (finalMeta, nextL) <- go metaAcc rest
+                             case restVal of
+                                 Primitive prim -> pure (finalMeta, I.Cons (I.Attr key prim) nextL)
+                                  -- If it evaluates to an entire sub-object, pass it downstream safely
+                                 otherVal
+                                    -> typeMismatch
+                                            "a valid property value (like a primitive or nested object)"
+                                            (humanReadableType otherVal)
+                                       & withBlurb (humanReadableType otherVal)
+                                       & OuroError (S.exprPos valExpr)
+                                       & Left
+
+                  -- D. If it's a loose keyword modifier layout, safely drop it and keep moving
+                  S.Attr {} : rest -> go metaAcc rest
+
+                  -- E. Erase exactly ONE unbound item element sequence loop and keep moving
+                  _ : rest -> go metaAcc rest
+
+    -- Helper layout guard to prevent key-value snatching across macro envelopes
+    isStructuralExpr :: S.Expr -> Bool
+    isStructuralExpr = \case
+                        S.Attr _ _                          -> True
+                        S.Form _ (S.Symbol _ "context" : _) -> True
+                        S.Form _ (S.Symbol _ "define" : _)  -> True
+                        _                                   -> False
+
+
+-- Compiles a collection of nested Lisp blocks into a uniform sequence array of Objects
+compileArry
+    :: (Env -> S.Expr -> Either OuroError Value)
+    -> Env
+    -> [S.Expr]
+    -> Either OuroError Value
+compileArry evaluator env elements = do
+                         gadtList <- compileElements elements
+                         pure $ Primitive (I.Array gadtList)
+
+    where
+    compileElements :: [S.Expr] -> Either OuroError (I.Expr 'JLD.List)
+    compileElements = \case
+                      []                     -> pure I.Nil
+                      -- A. TRUE ERASURE: Skip define blocks completely inside arrays
+                      S.Form _ (S.Symbol _ "define" : _) : xs -> compileElements xs
+
+                      -- B. TRUE ERASURE: Skip context blocks completely inside arrays
+                      S.Form _ [S.Symbol _ "context", S.Form _ _] : xs -> compileElements xs
+
+                      S.Form pos fields : xs -> do
+                                              evaledItem <- compileScope evaluator env fields
+                                              restL      <- compileElements xs
+                                              case evaledItem of
+                                                  -- Object record graph node
+                                                  Primitive (I.Object props body) -> pure $ I.Cons (I.Object props body) restL
+                                                  -- Standard scalar primitive (String, Number, Date, etc.)
+                                                  Primitive standardPrim          -> pure $ I.Cons standardPrim restL
+                                                  otherVal
+                                                      -> typeMismatch
+                                                             "a valid nested Object block or a single value"
+                                                             (humanReadableType otherVal)
+                                                         & withBlurb (typeMismatchBlurb otherVal)
+                                                         & OuroError pos
+                                                         & Left
+
+                      otherExpr : xs -> do
+                                       evaledVal <- evaluator env otherExpr
+                                       restL     <- compileElements xs
+                                       case evaledVal of
+                                           Primitive standardPrim -> pure $ I.Cons standardPrim restL
+                                           otherVal
+                                               -> typeMismatch
+                                                      "a plain data value (like a String, Number, or Boolean)"
+                                                      (humanReadableType otherVal)
+                                                  & withBlurb (typeMismatchBlurb otherVal)
+                                                  & OuroError (S.exprPos otherExpr)
+                                                  & Left
+
+
+-- Data type representing the structural target resolved by lookahead routing.
+data BlockTarget
+    = TargetObject
+    | TargetList
+    | TargetFunctionApp
+
+-- Inspects incoming form tokens to determine if they compose an Object or a List.
+determineBlockTarget :: [S.Expr] -> BlockTarget
+determineBlockTarget = \case
+                        -- Rules for Object Detection
+                        S.Attr {} : _                                   -> TargetObject
+                        S.Form _ [S.Symbol _ "context", S.Form _ _] : _ -> TargetObject
+                        S.Form _ (S.Symbol _ "define" : _) : _          -> TargetObject
+
+                        -- Rules for List/Array Detection
+                        S.Form _ [S.Form _ [S.Symbol _ "context", S.Form _ _]] : _ -> TargetList
+                        S.Form _ [S.Form _ (S.Symbol _ "define" : _)] : _          -> TargetList
+                        S.Form _ (S.Attr {} : _) : _                               -> TargetList
+
+                        -- Fallback: If it's a standard list starting with a function/operator symbol
+                        _ -> TargetFunctionApp
+
+
+-- resolvePath.
+--
+-- Recursively traverses raw surface syntax structural envelopes to isolate a specific node target.
+-- Resolves path routes by matching structural keys against forms, lists, and variable scope bindings.
+--
+-- This function serves as the declarative execution engine underlying the macro 'get' subsystem.
+-- Instead of resolving paths using pre-computed, flattened value objects, it walks un-evaluated
+-- structural expressions directly. It operates across three distinct evaluation patterns to trace
+-- data branches without accidentally forcing global block evaluation side effects:
+--
+--   1. Scope Resolution Pointer Hoisting: Encountering symbols triggers a dynamic lookUp walk. It checks
+--      local maps and scales parent frames, updating the active environment context dynamically.
+--   2. Stream Lookahead Piercing: When tracing key segments through structured blocks, it leverages
+--      'matchTokenStream' to track assignments down and bypass metadata or compile-time wrappers.
+--   3. Defensive Boundary Isolation: Terminal primitive leafs or missing path segments safely trigger
+--      failures via 'missingPathKey' before deep internal evaluation can result in invalid mutations.
+resolvePath :: Env -> S.Expr -> [Text] -> Either OuroError S.Expr
+resolvePath fullEnv originalExpr pathKeys = go fullEnv originalExpr pathKeys
+    where
+    go _   currentExpr [] = pure currentExpr
+    go env currentExpr (targetKey : remainingKeys) =
+        case currentExpr of
+            -- Strategy 1: Resolve symbol pointers out of environment frames
+            S.Symbol pos varName
+                -> case Map.lookup varName (localScope env) of
+                       Just linkedExpr -> go env linkedExpr (targetKey : remainingKeys)
+                       Nothing         -> case parentEnv env of
+                                              Just pEnv -> go pEnv currentExpr (targetKey : remainingKeys)
+                                              Nothing   ->
+                                                  let keys       = Set.toList $ allEnvKeys fullEnv
+                                                      suggestion = case rankBySimilarity varName keys of
+                                                                       ((bestMatch, score) : _) | score <= 3
+                                                                           -> "\n\nPerhaps you meant: '" <> bestMatch <> "'?"
+                                                                       _   -> ""
+                                                  in unboundIdentifier varName
+                                                       & withBlurb
+                                                            ( "The evaluator attempted to lookup the value for '" <> varName <> "', "
+                                                           <> "but the identifier failed to resolve within any active scope chain."
+                                                           <> suggestion
+                                                            )
+                                                       & OuroError pos
+                                                       & Left
+
+            -- Strategy 2: Scan Form wrappers using our strict token matching rules
+            S.Form pos elements
+                -> case matchTokenStream targetKey elements of
+                       Just matchedValue -> go env matchedValue remainingKeys
+                       Nothing           -> missingPathKey targetKey [k | S.Attr _ k <- elements]
+                                              & withBlurb ("The path resolution engine could not locate the key '" <> targetKey <> "' inside the active form structure.\n\nPerhaps you misspelled the property handle?")
+                                              & OuroError pos
+                                              & Left
+
+            -- Strategy 3: Scan Bracket wrappers identically
+            S.Bracket pos elements
+                -> case matchTokenStream targetKey elements of
+                       Just matchedValue -> go env matchedValue remainingKeys
+                       Nothing           -> missingPathKey targetKey [k | S.Attr _ k <- elements]
+                                              & withBlurb ("The path resolution engine could not locate the key '" <> targetKey <> "' inside the active bracket matrix.\n\nPerhaps you misspelled the property handle?")
+                                              & OuroError pos
+                                              & Left
+
+            -- Catch-all for premature scalar leaf nodes
+            other -> missingPathKey targetKey []
+                       & withBlurb ("The path resolution engine attempted to dig into the key '" <> targetKey <> "', but hit a terminal primitive scalar leaf value instead.\n\nPerhaps the schema mapping layout has changed?")
+                       & OuroError (S.exprPos other)
+                       & Left
+
+    -- Un-nested peer worker function
+    matchTokenStream :: Text -> [S.Expr] -> Maybe S.Expr
+    matchTokenStream targetKey stream =
+        case stream of
+            [] -> Nothing
+            (S.Attr _ k : valExpr : _)
+                | k == targetKey -> Just valExpr
+
+            (S.Symbol _ "define" : S.Attr _ varName : S.Form _ innerBody : _)
+                | varName == targetKey -> matchTokenStream targetKey innerBody
+
+            (_ : rest) -> matchTokenStream targetKey rest
+

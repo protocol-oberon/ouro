@@ -73,3 +73,13 @@ data ReaderTag
     | ObjEmpty
     | ArrEmpty
     deriving (Show, Eq)
+
+
+exprPos :: Expr -> SourcePos
+exprPos = \case
+           Attr    pos _   -> pos
+           Symbol  pos _   -> pos
+           Literal pos _   -> pos
+           Tagged  pos _ _ -> pos
+           Form    pos _   -> pos
+           Bracket pos _   -> pos

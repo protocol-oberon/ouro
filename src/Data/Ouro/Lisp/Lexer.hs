@@ -1,18 +1,24 @@
 
 module Data.Ouro.Lisp.Lexer where
 
+import qualified Data.List.NonEmpty         as NE
+import           Data.Ouro.Error.Types      (ErrorContext (..), OuroError (..),
+                                             SyntaxError (..))
 import qualified Data.Ouro.Lisp.Tokens      as Tkn
 import           Data.Text                  (Text)
 import qualified Data.Text                  as T
 import           Data.Void                  (Void)
+import qualified Text.Megaparsec            as M
 import           Text.Megaparsec            (MonadParsec (eof, lookAhead),
-                                             Parsec, choice, getSourcePos, many,
-                                             manyTill, oneOf, runParser, some,
-                                             try, (<|>))
+                                             ParseError (..), Parsec, choice,
+                                             getSourcePos, many, manyTill,
+                                             oneOf, runParser, some, try, (<|>))
 import           Text.Megaparsec.Char       (alphaNumChar, char, letterChar,
                                              space1, string)
 import qualified Text.Megaparsec.Char.Lexer as L
-import           Text.Megaparsec.Error      (ParseErrorBundle)
+import           Text.Megaparsec.Error      (ErrorItem (Tokens),
+                                             ParseErrorBundle)
+
 
 
 type Parser = Parsec Void Text
@@ -72,9 +78,13 @@ pAttributes = lexeme . withPos $ do
 
 
 -- Reader Macros starting with '#'
+-- Reader Macros starting with '#'
 pReaderTags :: Parser Tkn.Token
 pReaderTags = lexeme . withPos $ do
-                                 _      <- char '#'
+                                 -- Grab the absolute stream offset BEFORE we consume any characters
+                                 startOffset <- M.getOffset
+
+                                 _      <- try (char '#')
                                  rawTag <- some (alphaNumChar <|> char '-')
                                  case rawTag of
                                      "uri"       -> pure Tkn.TagUri
@@ -84,7 +94,8 @@ pReaderTags = lexeme . withPos $ do
                                      "bool"      -> pure Tkn.TagBool
                                      "obj-empty" -> pure Tkn.TagObjectEmpty
                                      "arr-empty" -> pure Tkn.TagArrEmpty
-                                     other       -> fail ("Unknown reader tag: #" ++ other)
+                                     other       -> M.region (\err -> M.setErrorOffset startOffset err)
+                                                             (fail ("Invalid type assertion tag: #" ++ other))
 
 
 -- Standard Data Literals (Strings, Numbers, Bools, Null)
@@ -95,23 +106,24 @@ pLiterals = lexeme . withPos $ choice
                                , pBoolean
                                , Tkn.Null <$ string "null"
                                ]
-                               where
-                               pString :: Parser Tkn.TokenType
-                               pString = do
-                                         _   <- char '"'
-                                         txt <- manyTill L.charLiteral (char '"')
-                                         pure (Tkn.String (T.pack txt))
 
-                               pNumber :: Parser Tkn.TokenType
-                               pNumber = do
-                                         num <- (try L.float) <|> (fromIntegral <$> L.decimal)
-                                         pure (Tkn.Number num)
+   where
+   pString :: Parser Tkn.TokenType
+   pString = do
+             _   <- char '"'
+             txt <- manyTill L.charLiteral (char '"')
+             pure (Tkn.String (T.pack txt))
 
-                               pBoolean :: Parser Tkn.TokenType
-                               pBoolean = choice
-                                          [ Tkn.Boolean True  <$ string "true"
-                                          , Tkn.Boolean False <$ string "false"
-                                          ]
+   pNumber :: Parser Tkn.TokenType
+   pNumber = do
+             num <- (try L.float) <|> (fromIntegral <$> L.decimal)
+             pure (Tkn.Number num)
+
+   pBoolean :: Parser Tkn.TokenType
+   pBoolean = choice
+              [ Tkn.Boolean True  <$ string "true"
+              , Tkn.Boolean False <$ string "false"
+              ]
 
 
 
@@ -132,6 +144,37 @@ pSingleToken =  pDelims
             <|> pSymbol
 
 
--- The top level entry point for Lexer.hs
-tokenize :: String -> Text -> Either (ParseErrorBundle Text Void) [Tkn.Token]
-tokenize filename input = runParser (sc *> many pSingleToken <* eof) filename input
+-- Unified entry point for the lexical scanner pass.
+-- Maps Megaparsec internal error data directly into our zero-allocation OuroError matrix.
+tokenize :: String -> Text -> Either OuroError [Tkn.Token]
+tokenize filename input =
+    case runParser (sc *> many pSingleToken <* eof) filename input of
+        Right tokens -> Right tokens
+        Left bundle  -> Left (translateLexError bundle)
+
+    where
+    translateLexError :: ParseErrorBundle T.Text Void -> OuroError
+    translateLexError bundle =
+        let -- 1. Extract the primary parsing error sequence
+            firstErr NE.:| _ = M.bundleErrors bundle
+
+            -- 2. Traverse the bundle states to compute the exact SourcePos where the error hit.
+            ((_, pos) NE.:| _, _) = M.attachSourcePos M.errorOffset (M.bundleErrors bundle) (M.bundlePosState bundle)
+
+            -- 3. Extract the exact un-lexable context or custom failure reason
+            context = case firstErr of
+                          -- Matches explicit 'fail "..."' calls from your tokenizers (e.g., #poo)
+                          -- We map over the ErrorFancy Set cleanly using standard elements
+                          FancyError _ fancySet ->
+                              case foldr (\x _ -> Just x) Nothing fancySet of
+                                  Just (M.ErrorFail msg) -> Syntax LexicalError { rawLexeme = T.pack msg }
+                                  _                      -> Syntax LexicalError { rawLexeme = "Malformed lexical sequence." }
+
+                          -- Matches unexpected literal tokens/characters caught automatically by Megaparsec
+                          TrivialError _ (Just (Tokens unexpectedChars)) _
+                              -> Syntax LexicalError { rawLexeme = "Unexpected token: '" <> T.pack (NE.toList unexpectedChars) <> "'" }
+
+                          TrivialError _ _ _
+                              -> Syntax LexicalError { rawLexeme = "Malformed or unrecognized lexical token sequence." }
+
+        in OuroError pos context

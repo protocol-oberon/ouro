@@ -63,14 +63,21 @@ library
 
     -- Modules included in this library but not exported.
     other-modules:
+        Data.Ouro.Error.Diagnostics
+        Data.Ouro.Error.Linter
+        Data.Ouro.Error.Types
         Data.Ouro.Internal.Expr
         Data.Ouro.Internal.Kinds
         Data.Ouro.Internal.Schema
+        Data.Ouro.Internal.Utils
         Data.Ouro.Json.Parser
         Data.Ouro.Json.Serializer
         Data.Ouro.Lisp.Canon
         Data.Ouro.Lisp.Eval.Builtins
         Data.Ouro.Lisp.Eval.Engine
+        Data.Ouro.Lisp.Eval.Schema
+        Data.Ouro.Lisp.Eval.Scope
+        Data.Ouro.Lisp.Eval.Structural
         Data.Ouro.Lisp.Eval.Types
         Data.Ouro.Lisp.Lexer
         Data.Ouro.Lisp.Parser
@@ -111,7 +118,11 @@ executable ouro
     main-is:          Main.hs
 
     -- Modules included in this executable, other than Main.
-    -- other-modules:
+    other-modules:
+        CLI.Parser
+        CLI.Printer
+        CLI.Runner
+        CLI.Types
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
@@ -122,11 +133,14 @@ executable ouro
 
     -- Other library packages from which modules are imported.
     build-depends:
-        filepath             ^>=1.5.4.0,
-        text                 ^>=2.1.3,
-        base                 ^>=4.20.2.0,
-        optparse-applicative ^>= 0.19,
-        ansi-terminal        ^>= 1.1,
+        ansi-terminal              ^>= 1.1,
+        base                       ^>=4.20.2.0,
+        filepath                   ^>=1.5.4.0,
+        megaparsec                  >= 9.2 && < 10.0,
+        optparse-applicative       ^>= 0.19,
+        prettyprinter               >= 1.7.0,
+        prettyprinter-ansi-terminal >= 1.1.2,
+        text                       ^>=2.1.3,
         ouro
 
     -- Directories containing source files.

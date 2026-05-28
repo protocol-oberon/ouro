@@ -1,19 +1,17 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs     #-}
 
-module Data.Ouro.Lisp.Eval.Types
-( Env(..)
-, defaultEnv
-, Value(..)
-, PeriodUnit(..)
-) where
+module Data.Ouro.Lisp.Eval.Types where
 
 import qualified Data.Map.Strict           as Map
+import           Data.Ouro.Error.Types     (OuroError)
 import qualified Data.Ouro.Internal.Expr   as I
 import qualified Data.Ouro.Internal.Kinds  as JLD
 import           Data.Ouro.Internal.Schema (Schema)
 import qualified Data.Ouro.Lisp.Surface    as S
+import qualified Data.Set                  as Set
 import           Data.Text                 (Text)
+import           Text.Megaparsec           (SourcePos)
 
 
 -- Env.
@@ -47,6 +45,17 @@ defaultEnv = Env
     , parentEnv  = Nothing
     }
 
+-- Traverses the entire environment scope chain to collect every active
+-- bind handle currently available to the evaluator context.
+allEnvKeys :: Env -> Set.Set Text
+allEnvKeys env = go env Set.empty
+    where
+    go current acc =
+        let localKeys  = Map.keysSet (localScope current)
+            updatedAcc = Set.union localKeys acc
+        in case parentEnv current of
+               Nothing     -> updatedAcc
+               Just parent -> go parent updatedAcc
 
 -- Value.
 --
@@ -79,7 +88,7 @@ data Value where
     Metadata    :: I.Expr 'JLD.Meta -> Value
     Duration    :: PeriodUnit -> Int -> Value
     Array       :: I.Expr 'JLD.List -> Value
-    PrimitiveOp :: ([Value] -> Either String Value) -> Value
+    PrimitiveOp :: (SourcePos -> [Value] -> Either OuroError Value) -> Value
     Closure     :: Env -> Text -> S.Expr -> Value
 
 
@@ -89,3 +98,32 @@ data PeriodUnit
     | Months
     | Days
     deriving (Show, Eq)
+
+
+humanReadableType :: Value -> Text
+humanReadableType =
+    \case
+     Primitive   p     -> "a " <> describePrimitive p
+     SchemaVal   _     -> "Schema definition directive"
+     Metadata    _     -> "Metadata block"
+     Duration    _ _   -> "Duration time period"
+     Array       _     -> "List layout"
+     PrimitiveOp _     -> "Built-in function"
+     Closure     _ _ _ -> "An unexecuted function (lambda)"
+
+
+-- Helper to describe the inner Primitive
+describePrimitive :: I.Expr 'JLD.Primitive -> Text
+describePrimitive =
+    \case
+     I.String    _    -> "String"
+     I.Number    _    -> "Number"
+     I.Boolean   _    -> "Boolean"
+     I.URI       _    -> "URI"
+     I.Date      _    -> "Date"
+     I.Null           -> "Null value"
+     I.BlankNode _    -> "BlankNode"
+     I.EmptyArr       -> "Empty Array"
+     I.EmptyObj       -> "Empty Object"
+     I.Object    _ _  -> "Object"
+     I.Array     _    -> "Array"
