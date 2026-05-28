@@ -23,7 +23,7 @@ import           Data.Text                 (Text)
 --
 -- The Env record facilitates nested, lexically isolated visibility bubbles across the interpreter. By combining
 -- a strictly evaluated local symbol table with a structural link to an optional outer layer, it establishes
--- a scope chain that matches the physical layout of your source blocks. Variable resolution uses an upside-down
+-- a scope chain that matches the physical layout of source blocks. Variable resolution uses an upside-down
 -- traversal strategy: the engine searches the immediate 'localScope' layer first, and recursively steps up into
 -- the 'parentEnv' pointer frame until it either hits a binding or touches the root layer fallback.
 --

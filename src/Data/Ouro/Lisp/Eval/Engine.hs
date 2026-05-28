@@ -72,7 +72,6 @@ compileScope env fields = do
 
 
 -- Iterates through a stream of tokens to filter and evaluate physical properties into a GADT List.
--- Iterates through a stream of tokens to filter and evaluate physical properties into a GADT List.
 emitProps :: Env -> [S.Expr] -> Either String (I.Expr 'JLD.Meta, I.Expr 'JLD.List)
 emitProps env expressions = go I.EmptyMeta expressions
     where
@@ -88,14 +87,16 @@ emitProps env expressions = go I.EmptyMeta expressions
                   -- B. Define Blocks are explicitly erased from the output JSON graph at comptime
                   S.Form _ (S.Symbol _ "define" : _) : rest -> go metaAcc rest
 
-                  -- C. FIXED: Extract valid property pairs. Ensure valExpr is NOT a structural macro or another key.
+                  -- C. Extract valid body pairs. Supports lazy nesting compilation inline.
                   S.Attr _ key : valExpr : rest
-                      | not (isStructuralExpr valExpr) -> do
-                                                          restVal            <- evalExpr env valExpr
-                                                          (finalMeta, nextL) <- go metaAcc rest
-                                                          case restVal of
-                                                              Primitive prim -> pure (finalMeta, I.Cons (I.Attr key prim) nextL)
-                                                              _              -> Left "Type Error: Nested structures require lookahead routing."
+                      | not (isStructuralExpr valExpr)
+                          -> do
+                             restVal            <- evalExpr env valExpr
+                             (finalMeta, nextL) <- go metaAcc rest
+                             case restVal of
+                                 Primitive prim -> pure (finalMeta, I.Cons (I.Attr key prim) nextL)
+                                  -- If it evaluates to an entire sub-object, pass it downstream safely!
+                                 _              -> Left "Type Error: Object layout mismatch encountered during property assignment pass."
 
                   -- D. If it's a loose keyword modifier layout, safely drop it and keep moving
                   S.Attr {} : rest -> go metaAcc rest
@@ -106,10 +107,10 @@ emitProps env expressions = go I.EmptyMeta expressions
     -- Helper layout guard to prevent key-value snatching across macro envelopes
     isStructuralExpr :: S.Expr -> Bool
     isStructuralExpr = \case
-        S.Attr {} -> True
-        S.Form _ (S.Symbol _ "context" : _) -> True
-        S.Form _ (S.Symbol _ "define" : _)  -> True
-        _                                   -> False
+                        S.Attr _ _                          -> True
+                        S.Form _ (S.Symbol _ "context" : _) -> True
+                        S.Form _ (S.Symbol _ "define" : _)  -> True
+                        _                                   -> False
 
 
 -- evalExpr.
@@ -185,7 +186,7 @@ evalExpr env expr =
 
                                          _  -> Left "Compile Error: Unsupported semantic tag payload type."
 
-        -- Variables (Now handles variable properties AND dynamic function resolution fallback!)
+        -- Variables (Now handles variable properties AND dynamic function resolution fallback)
         S.Symbol _ name -> lookupVar name env
 
         -- --- INTERCEPT SPECIAL FORMS ---
@@ -194,6 +195,21 @@ evalExpr env expr =
                                                                 pure $ Metadata (I.Context localSchema)
 
         S.Form _ (S.Symbol _ "define" : _) -> Left "Compile Error: Definition blocks are erasure forms and cannot be used as terminal values."
+
+        S.Form _ (S.Symbol _ "get" : rootTarget : pathExpressions)
+            -> do
+               -- Convert trailing arguments into a clean lookup stack of Text tokens inline
+               pathKeys <- mapM (\case
+                                  S.Symbol _ k -> pure k
+                                  S.Attr   _ _ -> Left "Syntax Error: The root target of a 'get' operation must be a Symbol, not an Attr."
+                                  _            -> Left "Path Error: Arguments to 'get' must be valid symbols or attributes."
+                                ) pathExpressions
+
+               -- Navigate down through the un-evaluated syntax blocks inside the Env
+               leafExpr <- resolvePath env rootTarget pathKeys
+
+               -- Eagerly evaluate only the selected leaf target node
+               evalExpr env leafExpr
 
         -- Idiomatic Lisp Scoping Form: (context (directives...) scopedFields...)
         -- Complex Form Sequences: Evaluates structural routing targets based on nested depth indicators
@@ -221,21 +237,21 @@ data BlockTarget
     | TargetList
     | TargetFunctionApp
 
--- | Inspects incoming form tokens to determine if they compose an Object or a List.
+-- Inspects incoming form tokens to determine if they compose an Object or a List.
 determineBlockTarget :: [S.Expr] -> BlockTarget
 determineBlockTarget = \case
-    -- Rules for Object Detection
-    S.Attr {} : _                                   -> TargetObject
-    S.Form _ [S.Symbol _ "context", S.Form _ _] : _ -> TargetObject
-    S.Form _ (S.Symbol _ "define" : _) : _          -> TargetObject
+                        -- Rules for Object Detection
+                        S.Attr {} : _                                   -> TargetObject
+                        S.Form _ [S.Symbol _ "context", S.Form _ _] : _ -> TargetObject
+                        S.Form _ (S.Symbol _ "define" : _) : _          -> TargetObject
 
-    -- Rules for List/Array Detection
-    S.Form _ [S.Form _ [S.Symbol _ "context", S.Form _ _]] : _ -> TargetList
-    S.Form _ [S.Form _ (S.Symbol _ "define" : _)] : _          -> TargetList
-    S.Form _ (S.Attr {} : _) : _                               -> TargetList
+                        -- Rules for List/Array Detection
+                        S.Form _ [S.Form _ [S.Symbol _ "context", S.Form _ _]] : _ -> TargetList
+                        S.Form _ [S.Form _ (S.Symbol _ "define" : _)] : _          -> TargetList
+                        S.Form _ (S.Attr {} : _) : _                               -> TargetList
 
-    -- Fallback: If it's a standard list starting with a function/operator symbol
-    _ -> TargetFunctionApp
+                        -- Fallback: If it's a standard list starting with a function/operator symbol
+                        _ -> TargetFunctionApp
 
 
 -- Compiles a collection of nested Lisp blocks into a uniform sequence array of Objects
@@ -392,3 +408,52 @@ lookupVar name env =
                        Nothing       -> case parentEnv env of
                                             Just pEnv -> lookupVar name pEnv
                                             Nothing   -> Left $ "Scope Error: Unbound variable " ++ T.unpack name
+
+
+-- | Traverses raw surface syntax blocks recursively using direct case statements.
+resolvePath :: Env -> S.Expr -> [Text] -> Either String S.Expr
+resolvePath _   currentExpr [] = pure currentExpr
+resolvePath env currentExpr (targetKey : remainingKeys) =
+    case currentExpr of
+        -- Strategy 1: Resolve symbol pointers out of environment frames
+        S.Symbol pos varName ->
+            case Map.lookup varName (localScope env) of
+                Just linkedExpr -> resolvePath env linkedExpr (targetKey : remainingKeys)
+                Nothing         -> case parentEnv env of
+                                     Just pEnv -> resolvePath pEnv currentExpr (targetKey : remainingKeys)
+                                     Nothing   -> Left $ "Scope Error at " ++ show pos
+                                                    ++ ": Bound block '" ++ T.unpack varName ++ "' not found."
+
+        -- Strategy 2: Scan Form wrappers using our strict token matching rules
+        S.Form pos elements ->
+            case matchTokenStream elements of
+                Just matchedValue -> resolvePath env matchedValue remainingKeys
+                Nothing           -> Left $ "Compile Error at " ++ show pos
+                                       ++ ": Key path segment '" ++ T.unpack targetKey ++ "' does not exist in block layout."
+
+        -- Strategy 3: Scan Bracket wrappers identically
+        S.Bracket pos elements ->
+            case matchTokenStream elements of
+                Just matchedValue -> resolvePath env matchedValue remainingKeys
+                Nothing           -> Left $ "Compile Error at " ++ show pos
+                                       ++ ": Key path segment '" ++ T.unpack targetKey ++ "' does not exist in block layout."
+
+        -- Catch-all for premature scalar leaf nodes
+        other -> Left $ "Cannot navigate path component '" ++ T.unpack targetKey
+                     ++ "' into a scalar literal leaf node."
+
+  where
+    -- Direct token stream lookup case runner
+    matchTokenStream stream =
+        case stream of
+            [] -> Nothing
+
+            -- Match A: Target text string (from our get symbol) matches the defined Attr key
+            (S.Attr _ k : valExpr : _) | k == targetKey -> Just valExpr
+
+            -- Match B: Bypass the define scaffolding intact if stored completely in the env
+            (S.Symbol _ "define" : S.Attr _ varName : S.Form _ innerBody : _) | varName == targetKey ->
+                matchTokenStream innerBody
+
+            -- Fallback: Step forward sequentially
+            (_ : rest) -> matchTokenStream rest

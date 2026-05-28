@@ -70,7 +70,7 @@ handleSubtraction = \case
                      (baseVal : modifiers) -> foldM applySubtraction baseVal modifiers
 
     where
-    -- A tiny custom subtraction worker that leverages your existing type system
+    -- A tiny custom subtraction worker that leverages the existing type system
     applySubtraction :: Value -> Value -> Either String Value
     applySubtraction base modif =
         case (base, modif) of

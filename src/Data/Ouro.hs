@@ -27,15 +27,18 @@ import           Text.Megaparsec            (errorBundlePretty)
 -- Complete frontend pipeline compilation pass.
 compile :: String -> Text -> Either String (I.Expr 'JLD.Primitive)
 compile filename input = do
-                         -- 1. Lexical Pass (Map Megaparsec errors to Strings)
+                         -- 1. Lexical Pass
                          tokens     <- LX.tokenize filename input
                                        & either (Left . errorBundlePretty) Right
                          -- 2. Syntactic Pass
                          surfaceAST <- LP.parse tokens
-                         -- Insert your brand new canonicalization pass here!
+                         -- 2.5 Desugar syntax
                          let cleanAST = Canon.construct surfaceAST
+
                          -- 3. Semantic Pass (Routing, Lazy Env Bindings, and Type Verifications)
+                         -- EN.evaluateRoot (traceShowId cleanAST)
                          EN.evaluateRoot cleanAST
+
 
 
 validate :: String -> Text -> PrinterOptions -> Either String TL.Text

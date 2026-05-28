@@ -164,7 +164,7 @@ pAttr = do
     pure $ Expr.Attr key val
 
 
--- Directly parses the "id" key and a strict URI value into your Attr spine constructor
+-- Directly parses the "id" key and a strict URI value into Attr spine constructor
 pURIAttr :: Parser ObjectField
 pURIAttr = do
            _   <- symbol "\"id\""
@@ -183,7 +183,6 @@ pURIAttr = do
                             str <- manyTill L.charLiteral (char '"')
                             pure . Expr.BlankNode . pack $ "_:" ++ str
 
-           -- Reuses the exact same logic as your remote context validation!
            pURICase :: Parser (Expr 'JLD.Primitive)
            pURICase = Expr.URI <$> pQuotedURI
 

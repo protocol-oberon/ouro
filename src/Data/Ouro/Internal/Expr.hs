@@ -63,7 +63,7 @@ data Expr (t :: JLD.Type) where
 
     -- Boundary Gates
     -- The first slot is strictly bound to a metadata type index.
-    -- The second slot captures your data sequence payload spine.
+    -- The second slot captures data sequence payload spine.
     Object  :: Expr 'JLD.Meta -> Expr 'JLD.List -> Expr 'JLD.Primitive
     Array   :: Expr 'JLD.List                   -> Expr 'JLD.Primitive
 
