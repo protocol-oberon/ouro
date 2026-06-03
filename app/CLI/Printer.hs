@@ -9,7 +9,6 @@ import           Data.Char                     (isAlphaNum)
 import           Data.Ouro                     (ErrorContext (..),
                                                 InternalError (..),
                                                 LinterWarning (..),
-                                                OuroDiagnostic (..),
                                                 OuroError (..),
                                                 OuroWarning (..),
                                                 PathError (..), ScopeError (..),
@@ -31,7 +30,7 @@ import           Prettyprinter                 (Doc, LayoutOptions (..),
                                                 indent, layoutSmart, nest,
                                                 reAnnotateS, sep, vsep)
 import           Prettyprinter.Render.Terminal (AnsiStyle, Color (..), bold,
-                                                color, renderIO)
+                                                color, renderIO, colorDull)
 import           System.IO                     (stderr)
 import           Text.Megaparsec               (SourcePos)
 import           Text.Megaparsec.Pos           (sourceColumn, sourceLine, unPos)
@@ -50,34 +49,32 @@ data OuroStyle
 styleToAnsi :: OuroStyle -> AnsiStyle
 styleToAnsi = \case
                Code     -> mempty
-               Warning  -> color Yellow  <> bold
-               Error    -> color Red     <> bold
-               Gutter   -> color Cyan
-               Pointer  -> color Red     <> bold
-               Type     -> color Magenta <> bold
-               NoteBody -> color White   <> bold
+               Error    -> colorDull Red     <> bold
+               Pointer  -> colorDull Red     <> bold
+               Type     -> colorDull Magenta <> bold
+               Gutter   -> colorDull Cyan
+               Warning  -> colorDull Yellow  <> bold
+               NoteBody -> mempty
 
 
-pintDiagnostic :: FilePath -> String -> OuroDiagnostic -> IO ()
+pintDiagnostic :: FilePath -> String -> Either OuroWarning OuroError -> IO ()
 pintDiagnostic fp sourceContent diagnostic = do
     -- Phase 1: Source Coordinate and Frame Metric Extraction
-    -- Extract absolute textual positions from the token source position mapping.
-    -- The gutter width is dynamically computed based on the string representation
-    -- of the active line number to ensure uniform padding across variable magnitude values.
     let (pos, headerStyle, codeText, title, details, mBlurb) = case diagnostic of
-            DiagnosticError (OuroError pos context)
+            -- Right handles your standalone OuroError type
+            Right (OuroError ePos context)
                 -> let (errTitle, errDetails, errBlurb) = splitErrorContext context
-                   in (pos, Error, smartErrorCode context, errTitle, errDetails, errBlurb)
+                   in (ePos, Error, smartErrorCode context, errTitle, errDetails, errBlurb)
 
-            DiagnosticWarning (OuroWarning pos context)
+            -- Left handles your standalone OuroWarning type
+            Left (OuroWarning wPos context)
                 -> let (warnTitle, warnDetails, warnBlurb) = splitWarningContext context
-                   in (pos, Warning, smartWarningCode context, warnTitle, warnDetails, warnBlurb)
+                   in (wPos, Warning, smartWarningCode context, warnTitle, warnDetails, warnBlurb)
 
     let lineNum     = unPos (sourceLine pos)
         colNum      = unPos (sourceColumn pos)
         lineStr     = annotate Gutter (pretty $ show lineNum)
         gutterWidth = length (show lineNum)
-
 
     -- Phase 2: Source Code Buffering
     -- Safely retrieve the raw source string matching the target line index.
@@ -284,7 +281,7 @@ highlightDiagnostic txt =
                                 -- If the line is purely empty space or an extracted newline gap, preserve it
                                 True  -> ""
                                 -- Otherwise, tokenize the single line horizontally using fillSep
-                                -- to allow text-wrapping within the 80-char boundaries!
+                                -- to allow text-wrapping within the 80-char boundaries
                                 False -> fillSep (map renderToken (tokenizeErrorString lineStr))
 
     renderToken :: DiagnosticToken -> Doc OuroStyle

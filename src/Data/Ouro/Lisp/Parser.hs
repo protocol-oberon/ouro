@@ -48,7 +48,7 @@ pExpr = do
             (t:ts) -> let capture n = put ts >> pure n
                       in case Tkn.tokenType t of
                              -- Open boundaries push processing down into structural lookahead groups
-                             -- Note: We intentionally pop 'ts' here to advance past the open delimiter!
+                             -- Note: We intentionally pop 'ts' here to advance past the open delimiter
                              Tkn.OpenParen      -> put ts >> parseFormContainer (Tkn.pos t)
                              Tkn.OpenBracket    -> put ts >> parseBracketContainer (Tkn.pos t)
 
@@ -117,15 +117,15 @@ parseBracketContainer startPos = do
 parseTaggedNode :: SourcePos -> S.ReaderTag -> Parser S.Expr
 parseTaggedNode tagPos tagType = do
                                  -- Dynamically pull the next full S-expression in the stream
-                                 -- (Could be a string literal, symbol, or list form!)
+                                 -- (Could be a string literal, symbol, or list form)
                                  nextExpr <- pExpr
 
-                                 -- Construct the Tagged node using the expression directly!
+                                 -- Construct the Tagged node using the expression directly
                                  pure $ S.Tagged tagPos tagType nextExpr
 
 
 -- Parsing Stream State Helpers
--- | Collects expressions sequentially until a targeted closing delimiter is reached.
+-- Collects expressions sequentially until a targeted closing delimiter is reached.
 collectUntil :: Tkn.TokenType -> Parser [S.Expr]
 collectUntil targetDelim =
     do

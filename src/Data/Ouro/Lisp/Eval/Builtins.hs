@@ -8,174 +8,212 @@ module Data.Ouro.Lisp.Eval.Builtins
 , isNumber
 ) where
 
-import           Control.Monad             (foldM)
-import           Data.Ouro.Error.Types     (ErrorContext (..), OuroError (..),
-                                            SyntaxError (..), TypeError (..))
-import qualified Data.Ouro.Internal.Expr   as I
-import           Data.Ouro.Lisp.Eval.Types (PeriodUnit (..),
-                                            Value (Duration, Primitive, PrimitiveOp))
-import qualified Data.Ouro.Lisp.Eval.Types as Ty
-import           Data.Text                 (Text)
-import           Data.Time                 (UTCTime (..))
-import           Data.Time.Calendar        (addDays, addGregorianMonthsRollOver,
-                                            addGregorianYearsRollOver)
-import           Data.Time.Format          (defaultTimeLocale, parseTimeM)
-import           Text.Megaparsec           (SourcePos)
+import           Control.Monad               (foldM)
+import           Control.Monad.Reader        (Reader)
+import           Data.Function               ((&))
+import           Data.Ouro.Error.Diagnostics (binaryOpMismatchBlurb,
+                                              typeMismatch, withBlurb)
+import           Data.Ouro.Error.Types       (ErrorContext (..), OuroError (..),
+                                              SyntaxError (..))
+import qualified Data.Ouro.Internal.Expr     as I
+import           Data.Ouro.Lisp.Eval.Types   (Env, PeriodUnit (..),
+                                              humanReadableType)
+import qualified Data.Ouro.Lisp.Eval.Types   as L
+import           Data.Text                   (Text)
+import           Data.Time                   (UTCTime (..))
+import           Data.Time.Calendar          (addDays,
+                                              addGregorianMonthsRollOver,
+                                              addGregorianYearsRollOver)
+import           Data.Time.Format            (defaultTimeLocale, parseTimeM)
+import           Text.Megaparsec             (SourcePos)
 
 
 -- Maps syntax strings to their respective first-class execution handles
-builtinRegistry :: Text -> Maybe Value
+builtinRegistry :: Text -> Maybe L.Expr
 builtinRegistry = \case
-                   "+"      -> Just $ PrimitiveOp handleAddition
-                   "-"      -> Just $ PrimitiveOp handleSubtraction
-                   "*"      -> Just $ PrimitiveOp handleMultiplication
-                   "/"      -> Just $ PrimitiveOp handleDivision
-                   "years"  -> Just $ PrimitiveOp handleYearsModifier
-                   "months" -> Just $ PrimitiveOp handleMonthsModifier
-                   "days"   -> Just $ PrimitiveOp handleDaysModifier
+                   "+"      -> Just $ L.PrimitiveOp handleAddition
+                   "-"      -> Just $ L.PrimitiveOp handleSubtraction
+                   "*"      -> Just $ L.PrimitiveOp handleMultiplication
+                   "/"      -> Just $ L.PrimitiveOp handleDivision
+                   "years"  -> Just $ L.PrimitiveOp handleYearsModifier
+                   "months" -> Just $ L.PrimitiveOp handleMonthsModifier
+                   "days"   -> Just $ L.PrimitiveOp handleDaysModifier
                    _        -> Nothing
 
 
 --- Core Math & String Accumulators ---
--- Variadic addition operator. Folds across integers, string structures,
--- and handles polymorphic datetime shifting.
-handleAddition :: SourcePos -> [Value] -> Either OuroError Value
-handleAddition pos =
-    \case
-     [] -> let context = Syntax MalformedTagPayload
-                         { activeTag      = "+"
-                         , foundNodeShape = "The addition operator requires at least one argument."
-                         }
-           in Left (OuroError pos context)
+--  handleAddition.
+--
+-- Variadic addition operator. Folds across numbers, string concatenations,
+-- and polymorphic datetime shifts. Operates purely within EvalM.
+handleAddition :: SourcePos -> [L.Expr] -> Reader Env L.Expr
+handleAddition pos args =
+    case args of
+        [] -> pure $ L.EvalError $ OuroError pos $ Syntax $ MalformedTagPayload
+                { activeTag      = "+"
+                , foundNodeShape = "The addition operator requires at least one argument."
+                }
 
-     -- Pure Numerical Addition Fallback
-     nums | all isNumber nums -> do
-                                 let sumVals = sum [n | Primitive (I.Number n) <- nums]
-                                 pure $ Primitive (I.Number sumVals)
+        -- Pure Numerical Addition Fallback
+        nums | all isNumber nums ->
+            pure $ L.Primitive $ I.Number $ sum [n | L.Primitive (I.Number n) <- nums]
 
-     -- Time-Shift Folding (e.g., Date + Duration + Duration)
-     (baseVal : modifiers) -> foldM applyModifier baseVal modifiers
+        -- Time-Shift or String Folding
+        (baseVal : modifiers) -> foldM applyModifier baseVal modifiers
 
     where
-    -- The inner fold for type-inference
-    applyModifier :: Value -> Value -> Either OuroError Value
+    applyModifier :: L.Expr -> L.Expr -> Reader Env L.Expr
     applyModifier base modif =
         case (base, modif) of
-            (Primitive (I.Date utc),    Duration unit amt)         -> pure $ Primitive (I.Date (applyDuration utc unit amt))
-            (Primitive (I.String str1), Primitive (I.String str2)) -> pure $ Primitive (I.String (str1 <> str2))
-            (Duration unit amt,         Primitive (I.Date utc))    -> pure $ Primitive (I.Date (applyDuration utc unit amt))
-            (Primitive (I.Number n1),   Primitive (I.Number n2))   -> pure $ Primitive (I.Number (n1 + n2))
-            _ -> let context = Typing TypeMismatch
-                               { expectedType = "Matching numeric, string, or date/duration pairs for addition"
-                               , actualType   = Ty.humanReadableType base <> " + " <> Ty.humanReadableType modif
-                               }
-                 in Left (OuroError pos context)
+            (L.Primitive (I.Date utc),   L.Duration unit amt) -> pure $ L.Primitive (I.Date (applyDuration utc unit amt))
+            (L.Primitive (I.String s1),  L.Primitive (I.String s2)) -> pure $ L.Primitive (I.String (s1 <> s2))
+            (L.Duration unit amt,        L.Primitive (I.Date utc))  -> pure $ L.Primitive (I.Date (applyDuration utc unit amt))
+            (L.Primitive (I.Number n1),  L.Primitive (I.Number n2)) -> pure $ L.Primitive (I.Number (n1 + n2))
+
+            -- Error propagation
+            (err@(L.EvalError _), _) -> pure err
+            (_, err@(L.EvalError _)) -> pure err
+
+            _ -> pure $ L.EvalError $ OuroError pos $
+                   typeMismatch "Matching numeric, string, or date/duration pairs"
+                                (humanReadableType base <> " + " <> humanReadableType modif)
+                   & withBlurb (binaryOpMismatchBlurb base modif)
 
 
--- Variadic subtraction operator. Handles unary inversion and backward calendar traversal.
-handleSubtraction :: SourcePos -> [Value] -> Either OuroError Value
-handleSubtraction pos =
-    \case
-     []          -> let context = Syntax MalformedTagPayload
-                                  { activeTag      = "-"
-                                  , foundNodeShape = "The minus operator requires at least one argument."
-                                  }
-                    in Left (OuroError pos context)
+-- handleSubtraction.
+--
+-- Variadic subtraction operator. Handles unary inversion and backward calendar
+-- traversal. Operates purely within the Reader monad.
+handleSubtraction :: SourcePos -> [L.Expr] -> Reader Env L.Expr
+handleSubtraction pos args =
+    case args of
+        [] -> pure $ L.EvalError $ OuroError pos $ Syntax $ MalformedTagPayload
+                { activeTag      = "-"
+                , foundNodeShape = "The minus operator requires at least one argument."
+                }
 
-     [singleVal] -> case singleVal of
-                        Primitive (I.Number n) -> pure $ Primitive (I.Number (-n))
-                        badArg                 -> let context = Typing TypeMismatch
-                                                                { expectedType = "A plain Number for unary negation"
-                                                                , actualType   = (Ty.humanReadableType badArg)
-                                                                }
-                                                  in Left (OuroError pos context)
+        [singleVal] -> case singleVal of
+            L.Primitive (I.Number n) -> pure $ L.Primitive (I.Number (-n))
+            err@(L.EvalError _)      -> pure err
+            badArg                   -> typeMismatch "A plain Number for unary negation"
+                                                     (humanReadableType badArg)
+                                        & withBlurb ( "Unary negation is only supported for numeric types. "
+                                                   <> "Ensure the value is a number or check your scope."
+                                                   )
+                                        & OuroError pos
+                                        & L.EvalError
+                                        & pure
 
-     (baseVal : modifiers) -> foldM applySubtraction baseVal modifiers
+        (baseVal : modifiers) -> foldM applySubtraction baseVal modifiers
 
     where
-    -- A tiny custom subtraction worker that leverages the existing type system
-    applySubtraction :: Value -> Value -> Either OuroError Value
+    applySubtraction :: L.Expr -> L.Expr -> Reader Env L.Expr
     applySubtraction base modif =
         case (base, modif) of
-            (Primitive (I.Number n1), Primitive (I.Number n2)) -> pure $ Primitive (I.Number (n1 - n2))
-            -- Subtracting a duration moves the calendar backward (negate the amount)
-            (Primitive (I.Date utc),  Duration unit amt)       -> pure $ Primitive (I.Date (applyDuration utc unit (-amt)))
-            _ -> let context = Typing TypeMismatch
-                                { expectedType = "Matching numeric values or a Date minus a Duration"
-                                , actualType   = Ty.humanReadableType base <> " - " <> Ty.humanReadableType modif
-                                }
-                 in Left (OuroError pos context)
+            (L.Primitive (I.Number n1), L.Primitive (I.Number n2))
+                -> pure $ L.Primitive (I.Number (n1 - n2))
+
+            -- Subtracting a duration moves the calendar backward
+            (L.Primitive (I.Date utc), L.Duration unit amt)
+                -> pure $ L.Primitive (I.Date (applyDuration utc unit (-amt)))
+
+            -- Error propagation
+            (err@(L.EvalError _), _) -> pure err
+            (_, err@(L.EvalError _)) -> pure err
+
+            _ -> pure $ L.EvalError $ OuroError pos $
+                    typeMismatch "Matching numeric values or a Date minus a L.Duration"
+                                 (humanReadableType base <> " - " <> humanReadableType modif)
+                    & withBlurb ("The '-' operator expects either two numbers or a Date and a L.Duration. "
+                              <> "Please verify the types of your operands.")
 
 
--- Variadic multiplication operator.
-handleMultiplication :: SourcePos -> [Value] -> Either OuroError Value
-handleMultiplication  pos = \case
-                             [] -> let context = Syntax MalformedTagPayload
-                                                 { activeTag      = "*"
-                                                 , foundNodeShape = "The multiplication operator requires at least one argument."
-                                                 }
-                                   in Left (OuroError pos context)
-                             (baseVal : modifiers) -> foldM applyMul baseVal modifiers
+-- handleMultiplication.
+--
+-- Variadic multiplication operator. Folds across numeric values.
+-- Operates purely within the Reader monad.
+handleMultiplication :: SourcePos -> [L.Expr] -> Reader Env L.Expr
+handleMultiplication pos args =
+    case args of
+        [] -> pure $ L.EvalError $ OuroError pos $ Syntax $ MalformedTagPayload
+                { activeTag      = "*"
+                , foundNodeShape = "The multiplication operator requires at least one argument."
+                }
+
+        (baseVal : modifiers) -> foldM applyMul baseVal modifiers
 
     where
-    applyMul :: Value -> Value -> Either OuroError Value
-    applyMul base modif = case (base, modif) of
-                              (Primitive (I.Number n1), Primitive (I.Number n2)) -> pure $ Primitive (I.Number (n1 * n2))
-                              _ -> let context = Typing TypeMismatch
-                                                 { expectedType = "Matching numeric values for multiplication"
-                                                 , actualType   = Ty.humanReadableType base <> " * " <> Ty.humanReadableType modif
-                                                 }
-                                   in Left (OuroError pos context)
+    applyMul :: L.Expr -> L.Expr -> Reader Env L.Expr
+    applyMul base modif =
+        case (base, modif) of
+            (L.Primitive (I.Number n1), L.Primitive (I.Number n2))
+                -> pure $ L.Primitive (I.Number (n1 * n2))
+
+            -- Error propagation
+            (err@(L.EvalError _), _) -> pure err
+            (_, err@(L.EvalError _)) -> pure err
+
+            _ -> pure $ L.EvalError $ OuroError pos $
+                    typeMismatch "Matching numeric values for multiplication"
+                                 (humanReadableType base <> " * " <> humanReadableType modif)
+                    & withBlurb ("Multiplication is only supported for numeric values. "
+                              <> "Please ensure all operands are Numbers.")
 
 
+-- handleDivision.
+--
 -- Variadic division operator. Supports Lisp-style reciprocal syntax (/ x).
-handleDivision :: SourcePos -> [Value] -> Either OuroError Value
-handleDivision pos =
-    \case
-     []          -> let context = Syntax MalformedTagPayload
-                                  { activeTag      = "/"
-                                  , foundNodeShape = "The division operator requires at least one argument."
-                                  }
-                    in Left (OuroError pos context)
-     -- Idiomatic Lisp: (/ 2) means 1 divided by 2 (reciprocal)
-     [singleVal] -> case singleVal of
-                        Primitive (I.Number 0) -> let context = Typing TypeMismatch
-                                                                { expectedType = "A non-zero Number for reciprocal division"
-                                                                , actualType   = "a zero (0)"
-                                                                }
-                                                  in Left (OuroError pos context)
-                        Primitive (I.Number n) -> pure $ Primitive (I.Number (1.0 / n))
-                        badArg                 -> let context = Typing TypeMismatch
-                                                                { expectedType = "A plain Number for reciprocal division"
-                                                                , actualType   = (Ty.humanReadableType badArg)
-                                                                }
-                                                  in Left (OuroError pos context)
+-- Operates purely within the Reader monad.
+handleDivision :: SourcePos -> [L.Expr] -> Reader Env L.Expr
+handleDivision pos args =
+    case args of
+        [] -> pure $ L.EvalError $ OuroError pos $ Syntax $ MalformedTagPayload
+                { activeTag      = "/"
+                , foundNodeShape = "The division operator requires at least one argument."
+                }
 
-     (baseVal : modifiers) -> foldM applyDiv baseVal modifiers
+        -- Idiomatic Lisp: (/ 2) means 1 / 2 (reciprocal)
+        [singleVal] -> case singleVal of
+            L.Primitive (I.Number 0) -> pure $ L.EvalError $ OuroError pos $
+                                        typeMismatch "A non-zero Number for reciprocal division" "a zero (0)"
+                                        & withBlurb "Division by zero is undefined in Ouro numeric arithmetic."
+            L.Primitive (I.Number n) -> pure $ L.Primitive (I.Number (1.0 / n))
+            err@(L.EvalError _)      -> pure err
+            badArg                   -> pure $ L.EvalError $ OuroError pos $
+                                        typeMismatch "A plain Number for reciprocal division" (humanReadableType badArg)
+                                        & withBlurb "The division operator expects a numeric value."
+
+        (baseVal : modifiers) -> foldM applyDiv baseVal modifiers
 
     where
-    applyDiv :: Value -> Value -> Either OuroError Value
-    applyDiv base modif = case (base, modif) of
-                              (Primitive (I.Number _),  Primitive (I.Number 0))  -> let context = Typing TypeMismatch
-                                                                                                  { expectedType = "A non-zero Number divisor"
-                                                                                                  , actualType   = "a zero (0)"
-                                                                                                  }
-                                                                                    in Left (OuroError pos context)
-                              (Primitive (I.Number n1), Primitive (I.Number n2)) -> pure $ Primitive (I.Number (n1 / n2))
-                              _ -> let context = Typing TypeMismatch
-                                                 { expectedType = "Matching numeric values for division"
-                                                 , actualType   = Ty.humanReadableType base <> " / " <> Ty.humanReadableType modif
-                                                 }
-                                   in Left (OuroError pos context)
+    applyDiv :: L.Expr -> L.Expr -> Reader Env L.Expr
+    applyDiv base modif =
+        case (base, modif) of
+            (L.Primitive (I.Number _), L.Primitive (I.Number 0))
+                -> pure $ L.EvalError $ OuroError pos $
+                         typeMismatch "A non-zero Number divisor" "a zero (0)"
+                         & withBlurb "Attempted division by zero."
+
+            (L.Primitive (I.Number n1), L.Primitive (I.Number n2))
+                -> pure $ L.Primitive (I.Number (n1 / n2))
+
+            -- Error propagation
+            (err@(L.EvalError _), _) -> pure err
+            (_, err@(L.EvalError _)) -> pure err
+
+            _ -> pure $ L.EvalError $ OuroError pos $
+                    typeMismatch "Matching numeric values for division"
+                                 (humanReadableType base <> " / " <> humanReadableType modif)
+                    & withBlurb "The division operator only supports numeric operands."
 
 
-isNumber :: Value -> Bool
+isNumber :: L.Expr -> Bool
 isNumber = \case
-            (Primitive (I.Number _)) -> True
-            _                        -> False
+            (L.Primitive (I.Number _)) -> True
+            _                          -> False
 
 
---- Time Shifting & Duration Modifiers ---
+--- Time Shifting & L.Duration Modifiers ---
 -- Direct calendar shifting calendar logic
 applyDuration :: Integral a => UTCTime -> PeriodUnit -> a -> UTCTime
 applyDuration utc unit amt = case unit of
@@ -184,55 +222,33 @@ applyDuration utc unit amt = case unit of
                                  Days   -> utc { utctDay = addDays (fromIntegral amt) (utctDay utc) }
 
 
--- Handle for the (years <num>) duration modifier
-handleYearsModifier :: SourcePos -> [Value] -> Either OuroError Value
-handleYearsModifier pos =
-    \case
-     [Primitive (I.Number n)] -> pure $ Duration Years (floor n)
-     [badArg]                 -> let context = Typing TypeMismatch
-                                               { expectedType = "A Number representing the amount of years"
-                                               , actualType   = (Ty.humanReadableType badArg)
-                                               }
-                                 in Left (OuroError pos context)
-     _                        -> let context = Syntax MalformedTagPayload
-                                               { activeTag      = "years"
-                                               , foundNodeShape = "The (years) modifier expects exactly one numeric argument."
-                                               }
-                                 in Left (OuroError pos context)
+-- Shared helper for duration modifiers to ensure consistent error handling.
+mkDurationHandler :: Text -> PeriodUnit -> SourcePos -> [L.Expr] -> Reader Env L.Expr
+mkDurationHandler tagName unit pos args =
+    case args of
+        [L.Primitive (I.Number n)] -> pure $ L.Duration unit (floor n)
+        [badArg]                   -> typeMismatch ("A Number representing the amount of " <> tagName)
+                                                   (humanReadableType badArg)
+                                      & withBlurb ( "The (" <> tagName <> ") modifier expects a single numeric argument "
+                                                 <> "representing the duration period."
+                                                  )
+                                      & OuroError pos
+                                      & L.EvalError
+                                      & pure
 
+        _ ->
+            pure $ L.EvalError $ OuroError pos $ Syntax $ MalformedTagPayload
+                { activeTag      = tagName
+                , foundNodeShape = "The (" <> tagName <> ") modifier expects exactly one numeric argument."
+                }
 
--- Handle for the (months <num>) duration modifier
-handleMonthsModifier :: SourcePos -> [Value] -> Either OuroError Value
-handleMonthsModifier pos =
-    \case
-     [Primitive (I.Number n)] -> pure $ Duration Months (floor n)
-     [badArg]                 -> let context = Typing TypeMismatch
-                                               { expectedType = "A Number representing the amount of months"
-                                               , actualType   = (Ty.humanReadableType badArg)
-                                               }
-                                 in Left (OuroError pos context)
-     _                        -> let context = Syntax MalformedTagPayload
-                                               { activeTag      = "months"
-                                               , foundNodeShape = "The (months) modifier expects exactly one numeric argument."
-                                               }
-                                 in Left (OuroError pos context)
+-- | Implementation of handlers using the helper
+handleYearsModifier, handleMonthsModifier, handleDaysModifier
+    :: SourcePos -> [L.Expr] -> Reader Env L.Expr
 
-
--- Handle for the (days <num>) duration modifier
-handleDaysModifier :: SourcePos -> [Value] -> Either OuroError Value
-handleDaysModifier pos =
-    \case
-     [Primitive (I.Number n)] -> pure $ Duration Days (floor n)
-     [badArg]                 -> let context = Typing TypeMismatch
-                                               { expectedType = "A Number representing the amount of days"
-                                               , actualType   = (Ty.humanReadableType badArg)
-                                               }
-                                 in Left (OuroError pos context)
-     _                        -> let context = Syntax MalformedTagPayload
-                                               { activeTag      = "days"
-                                               , foundNodeShape = "The (days) modifier expects exactly one numeric argument."
-                                               }
-                                 in Left (OuroError pos context)
+handleYearsModifier  = mkDurationHandler "years"  Years
+handleMonthsModifier = mkDurationHandler "months" Months
+handleDaysModifier   = mkDurationHandler "days"   Days
 
 
 --- Shared Utility Predicates ---

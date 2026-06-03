@@ -6,9 +6,8 @@ module CLI.Runner
 import           CLI.Printer       (pintDiagnostic)
 import           CLI.Types         (Command (..), TargetTransform (..),
                                     ValidateCommand (..))
-import           Data.Ouro         (OuroDiagnostic (..), PrinterOptions (..),
-                                    defaultOptions)
-import qualified Data.Ouro         as Ob
+import           Data.Ouro         (PrinterOptions (..), defaultOptions)
+import qualified Data.Ouro         as O
 import qualified Data.Text         as T
 import qualified Data.Text.IO      as TIO
 import qualified Data.Text.Lazy    as TL
@@ -22,7 +21,6 @@ runCommand = \case
                Validate c       -> runValidate c
 
 
--- Update the signature: the second argument is now Maybe FilePath (the output directory)
 runCompile :: FilePath -> Maybe FilePath -> IO ()
 runCompile ifp mOutDir = do
     -- 1. Calculate the actual output file path dynamically
@@ -33,21 +31,27 @@ runCompile ifp mOutDir = do
     putStrLn $ "Compiling: " <> ifp <> "..."
     -- 2. Read and process the input file
     content <- TIO.readFile ifp
-    case Ob.compile ifp content of
-        Left err -> do
-            -- Wrap the fatal failure in the unified DiagnosticError constructor
-            pintDiagnostic ifp (T.unpack content) (DiagnosticError err)
 
-        Right (warnings, code) -> do
-            -- 3. Print all accumulated non-fatal lint diagnostics first
-            mapM_ (pintDiagnostic ifp (T.unpack content)) warnings
+    case O.compile ifp content of
+        O.Success warnings code
+            -> do
+               -- Print all accumulated diagnostics (both warnings and non-fatal/harvested errors) up front
+               mapM_ (pintDiagnostic ifp (T.unpack content). Left) warnings
 
-            -- 4. Proceed with serialization and saving output
-            let opts = defaultOptions
-            putStrLn $ "Compilation Success: " ++ ifp ++ " -> " ++ ofp
-            -- print code
-            TLIO.writeFile ofp (Ob.toJSON opts code)
+               -- Proceed with serialization
+               let opts = defaultOptions
+               putStrLn $ "Compilation Success: " ++ ifp ++ " -> " ++ ofp
+               TLIO.writeFile ofp (O.toJSON opts code)
 
+        O.Failure warnings errors
+            -> do
+               -- Even in failure, print the warnings gathered up to the crash point
+               mapM_ (pintDiagnostic ifp (T.unpack content) . Left) warnings
+
+               -- Print the full harvest of architectural errors
+               mapM_ (pintDiagnostic ifp (T.unpack content). Right) errors
+
+               putStrLn $ "Compilation Failed: " ++ ifp ++ " due to compiler errors."
 
 
 runValidate :: ValidateCommand -> IO ()
@@ -60,7 +64,7 @@ runValidate (ValidateCommand fp op sp sc) =
     case sc of
         Just (Indent i) -> do
                            let opts = PrinterOptions { indentSpacing = i }
-                           case Ob.validate fp content opts of
+                           case O.validate fp content opts of
                                Left  err  -> putStrLn $ "Compilation Error:\n" ++ err
                                Right json -> do
                                              putStrLn $ "Validated JLD JSON for: " ++ fp
@@ -75,7 +79,7 @@ runValidate (ValidateCommand fp op sp sc) =
                            pure ()
 
         Nothing         -> do
-                           case Ob.validate fp content defaultOptions of
+                           case O.validate fp content defaultOptions of
                                Left  err  -> putStrLn $ "Compilation Error:\n" ++ err
                                Right json -> do
                                              putStrLn $ "Validated JLD JSON for: " ++ fp

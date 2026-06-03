@@ -3,9 +3,12 @@
 
 module Data.Ouro.Lisp.Eval.Engine where
 
+import           Control.Monad.Reader           (MonadReader (..), Reader,
+                                                 runReader)
 import           Data.Function                  ((&))
 import qualified Data.Map.Strict                as Map
-import           Data.Ouro.Error.Diagnostics    (targetMismatch, typeMismatch,
+import           Data.Ouro.Error.Diagnostics    (internalValueLeak,
+                                                 targetMismatch, typeMismatch,
                                                  typeMismatchBlurb,
                                                  unbalancedDelimiter,
                                                  unboundIdentifier, withBlurb)
@@ -18,42 +21,43 @@ import qualified Data.Ouro.Internal.Kinds       as JLD
 import           Data.Ouro.Lisp.Eval.Builtins   (parseISO8601)
 import           Data.Ouro.Lisp.Eval.Schema     (parseContextDirectives)
 import           Data.Ouro.Lisp.Eval.Scope      (lookupVar)
-import           Data.Ouro.Lisp.Eval.Structural (BlockTarget (..), compileArry,
+import           Data.Ouro.Lisp.Eval.Structural (BlockTarget (..), compileArray,
                                                  compileScope,
                                                  determineBlockTarget,
                                                  resolvePath)
-import           Data.Ouro.Lisp.Eval.Types      (Env (..), Value (..),
+import           Data.Ouro.Lisp.Eval.Types      (Env (..), Expr (..),
                                                  humanReadableType)
-import qualified Data.Ouro.Lisp.Eval.Types      as Types
+import qualified Data.Ouro.Lisp.Eval.Types      as L
 import qualified Data.Ouro.Lisp.Surface         as S
 import           Data.Text                      (Text)
 import qualified Data.Text                      as T
+import           Text.Megaparsec                (SourcePos)
 import qualified Text.URI                       as URI
 
 
--- High-level engine entry point. Inspects a parsed AST node, handles routing,
--- and unboxes the underlying GADT primitive value directly.
-evaluate :: S.Expr -> Either OuroError (I.Expr 'JLD.Primitive)
-evaluate rootExpr = do
-                    let baseEnv = Env { localScope = Map.empty, parentEnv = Nothing }
+-- No State monad is required because errors are handled as Data in the L.Expr tree.
+type EvalM = Reader Env
 
-                    -- 1. Route the evaluation based on the structural shape of the root expression
-                    evaluatedVal <- case rootExpr of
-                                        S.Form _ allFields -> case determineBlockTarget allFields of
-                                                                  TargetList        -> compileArry  evalExpr baseEnv allFields
-                                                                  TargetObject      -> compileScope evalExpr baseEnv allFields
-                                                                  TargetFunctionApp -> evalExpr baseEnv rootExpr
-                                        otherExpr -> evalExpr baseEnv otherExpr
+-- High-level engine entry point.
+-- Inspects a parsed AST node, handles routing, and returns the result as a L.Expr.
+-- Errors are now contained within the returned L.Expr graph, not lifted to Either.
+evaluate :: S.Expr -> L.Expr
+evaluate rootExpr = runReader (evalExpr rootExpr) baseEnv
+    where
+    baseEnv = Env { localScope = Map.empty, parentEnv = Nothing }
 
-                    -- 2. Enforce that the output successfully reduced down to a valid primitive schema graph
-                    case evaluatedVal of
-                        Primitive finalGadtTree -> pure finalGadtTree
-                        otherVal                -> let pos     = S.exprPos rootExpr
-                                                       context = Typing TypeMismatch
-                                                                 { expectedType = "a top-level data Object or a plain value configuration"
-                                                                 , actualType   = Types.humanReadableType otherVal
-                                                                 }
-                                                    in Left (OuroError pos context)
+-- Helper to extract the primitive tree or the error from the result.
+-- This bridges the lazy engine to the typed static target.
+evaluateToPrimitive :: S.Expr -> Either OuroError (I.Expr 'JLD.Primitive)
+evaluateToPrimitive rootExpr =
+    case evaluate rootExpr of
+        Primitive finalGadtTree -> Right finalGadtTree
+        EvalError err           -> Left err
+        otherVal                -> Left $ OuroError (S.exprPos rootExpr) $
+                                     typeMismatch
+                                       "a top-level data Object or a plain value configuration"
+                                       (humanReadableType otherVal)
+                                     & withBlurb (typeMismatchBlurb otherVal)
 
 
 -- evalExpr.
@@ -67,186 +71,162 @@ evaluate rootExpr = do
 --
 --   * Literal Normalization: Translates raw, un-indexed syntax leaf tokens directly into their matching
 --     type-safe internal GADT representations, mapping primitives (Strings, Numbers, Booleans) and empty collections.
---   * Type Assertion & Schema Coercion: Intercepts 'Tagged' constructors to enforce runtime validation boundaries.
---     It evaluates nested payloads and strictly checks or parses them into specific GADT leaf indices—such as
---     running external Megaparsec routines to cast strings into structural URLs (#uri), or verifying date formats (#date).
---   * Lexical Block Grouping: Processes classic Lisp '(let [bindings...] body)' syntax by sweeping assignments lazily,
---     generating an isolated environment frame linked to the current scope, and evaluating the inner body block within that frame.
---   * Function Application Mechanics: Evaluates compound structural forms by treating the head expression as an invokable operator.
---     It resolves the operator down to an executable handle (like a native platform 'PrimitiveOp'), eagerly evaluates trailing
---     arguments from left to right, and applies the parameters directly to compute the final result block.
-evalExpr :: Env -> S.Expr -> Either OuroError Value
-evalExpr env expr =
+--   * Type Assertion Redirection: Flags tagged nodes and offloads validation logic directly to 'assertTag'
+--     to preserve clean separation between AST routing layers and deep textual serialization checks.
+--   * Intercepting Special Forms: Catches explicit keyword structures (like contextual schemas or metadata lookups)
+--     to compute lazy properties or isolated navigation coordinates before evaluation loops spin up.
+--   * Function Application Mechanics: Delegates composite call structures down to the 'applyFunction' handler,
+--     resolving operational heads into native platform hooks and forcing left-to-right argument processing.
+evalExpr :: S.Expr -> EvalM L.Expr
+evalExpr expr = do
+    env <- ask
     case expr of
-        S.Literal _ (S.Str txt)  -> pure $ Primitive (I.String txt)
-        S.Literal _ (S.Num val)  -> pure $ Primitive (I.Number val)
-        S.Literal _ (S.Bool b)   -> pure $ Primitive (I.Boolean b)
-        S.Literal _ S.Null       -> pure $ Primitive I.Null
-        S.Literal _ S.EmptyArr   -> pure $ Primitive I.EmptyArr
-        S.Literal _ S.EmptyObj   -> pure $ Primitive I.EmptyObj
-        S.Tagged  _ tag payload
-            -> case tag of
-                   -- Explicit URL Type Assertion
-                   S.Uri  -> do
-                             evaluatedVal <- evalExpr env payload
-                             case evaluatedVal of
-                                 Primitive (I.String rawText)
-                                     -> case URI.mkURI rawText of
-                                            Left _ -> typeMismatch
-                                                        "a String matching URI layout with a scheme included (https:)"
-                                                        "a String in an invalid URI format"
-                                                    & withBlurb (typeMismatchBlurb (Primitive (I.String rawText)))
-                                                    & OuroError (S.exprPos payload)
-                                                    & Left
+        S.Literal _ (S.Str txt) -> pure $ Primitive (I.String txt)
+        S.Literal _ (S.Num val) -> pure $ Primitive (I.Number val)
+        S.Literal _ (S.Bool b)  -> pure $ Primitive (I.Boolean b)
+        S.Literal _ S.Null      -> pure $ Primitive I.Null
+        S.Literal _ S.EmptyArr  -> pure $ Primitive I.EmptyArr
+        S.Literal _ S.EmptyObj  -> pure $ Primitive I.EmptyObj
 
-                                            Right uri -> case URI.uriScheme uri of
-                                                             Just _  -> pure $ Primitive (I.URI uri)
-                                                             Nothing -> typeMismatch
-                                                                            "a String matching a URI layout with a scheme included (https:)"
-                                                                            "a String in an invalid URI format"
-                                                                         & withBlurb (typeMismatchBlurb (Primitive (I.String rawText)))
-                                                                         & OuroError (S.exprPos payload)
-                                                                         &Left
+        S.Tagged _   tag  payload -> assertTag tag payload
+        S.Symbol pos name         -> lookupVar evalExpr pos name env
 
-
-                                 otherVal
-                                     -> typeMismatch
-                                            "a String matching a URI layout with a scheme included (https:)"
-                                            (humanReadableType otherVal)
-                                        & withBlurb (typeMismatchBlurb otherVal)
-                                        & OuroError (S.exprPos payload)
-                                        & Left
-
-                   -- Explicit Date Type Assertion
-                   S.Date -> do
-                             evaluatedVal <- evalExpr env payload
-                             case evaluatedVal of
-                                 Primitive (I.String rawText) ->
-                                     case parseISO8601 (T.unpack rawText) of
-                                         Just utcTime -> pure $ Primitive (I.Date utcTime)
-                                         Nothing
-                                             -> typeMismatch
-                                                    "a String matching ISO-8601 layout (YYYY-MM-DDTHH:mm:ssZ)"
-                                                    "a String in an invalid Date format"
-                                                & withBlurb (typeMismatchBlurb (Primitive (I.String rawText)))
-                                                & OuroError (S.exprPos payload)
-                                                & Left
-
-                                 otherVal -> typeMismatch
-                                                 "a String matching ISO-8601 layout (YYYY-MM-DDTHH:mm:ssZ)"
-                                                 (humanReadableType otherVal)
-                                             & withBlurb (typeMismatchBlurb otherVal)
-                                             & OuroError (S.exprPos payload)
-                                             & Left
-
-                   -- Explicit String Type Assertion
-                   S.StrTag -> do
-                               evaluatedVal <- evalExpr env payload
-                               case evaluatedVal of
-                                   Primitive (I.String _) -> pure evaluatedVal
-                                   otherVal               -> typeMismatch
-                                                                 "a String"
-                                                                 (humanReadableType otherVal)
-                                                             & withBlurb (typeMismatchBlurb otherVal)
-                                                             & OuroError (S.exprPos payload)
-                                                             & Left
-
-                   -- Explicit Numeric Type Assertion
-                   S.NumTag -> do
-                               evaluatedVal <- evalExpr env payload
-                               case evaluatedVal of
-                                   Primitive (I.Number _) -> pure evaluatedVal
-                                   otherVal               -> typeMismatch
-                                                                 "a Number"
-                                                                 (humanReadableType otherVal)
-                                                             & withBlurb (typeMismatchBlurb otherVal)
-                                                             & OuroError (S.exprPos payload)
-                                                             & Left
-
-                   -- Explicit Boolean Type Assertion
-                   S.BoolTag -> do
-                                evaluatedVal <- evalExpr env payload
-                                case evaluatedVal of
-                                    Primitive (I.Boolean _) -> pure evaluatedVal
-                                    otherVal                -> typeMismatch
-                                                                   "a Boolean"
-                                                                   (humanReadableType otherVal)
-                                                               & withBlurb (typeMismatchBlurb otherVal)
-                                                               & OuroError (S.exprPos payload)
-                                                               & Left
-
-                   _ -> let context = Syntax $ MalformedTagPayload
-                                      { activeTag      = T.pack (show tag)
-                                      , foundNodeShape = "You cannot type assert that an expression evaluates to an emtyp object or array"
-                                      }
-                        in Left (OuroError (S.exprPos payload) context)
-
-        -- Variables (Now handles variable properties AND dynamic function resolution fallback)
-        S.Symbol pos name -> lookupVar evalExpr pos name env
-
-        -- --- INTERCEPT SPECIAL FORMS ---
-        S.Form _ [S.Symbol _ "context", S.Form _ directives] -> do
-                                                                localSchema <- parseContextDirectives directives
-                                                                pure $ Metadata (I.Context localSchema)
+        --- INTERCEPT SPECIAL FORMS ---
+        S.Form pos [S.Symbol _ "context", S.Form _ directives]
+            -> do
+               val <- parseContextDirectives directives
+               case val of
+                   SchemaVal s -> pure $ Metadata (I.Context s)
+                   EvalError e -> pure $ EvalError e
+                   actual      -> pure $ EvalError $ OuroError pos
+                                        $ typeMismatch "Schema" (humanReadableType actual)
 
         S.Form _ (S.Symbol _ "get" : rootTarget : pathExpressions)
             -> do
-               -- Convert trailing arguments into a clean lookup stack of Text tokens inline
-               pathKeys <- validatePathKeys pathExpressions
+               case validatePathKeys pathExpressions of
+                   EvalError err     -> pure (EvalError err)
+                   -- Match on the open ArrayVal superset node instead of the old frozen GADT variant
+                   Array     pathVal -> case resolvePath evalExpr env rootTarget pathVal of
+                                              EvalError err -> pure (EvalError err)
+                                              -- The path resolved cleanly to a final L.Expr, pass it forward
+                                              resolvedVal   -> pure resolvedVal
+                   _ -> internalValueLeak "Path validation returned an unexpected L.Expr variant."
+                        & OuroError (S.exprPos rootTarget)
+                        & EvalError
+                        & pure
 
-               -- Navigate down through the un-evaluated syntax blocks inside the Env
-               leafExpr <- resolvePath env rootTarget pathKeys
-
-               -- Eagerly evaluate only the selected leaf target node
-               evalExpr env leafExpr
-
-        -- Idiomatic Lisp Scoping Form: (context (directives...) scopedFields...)
-        -- Complex Form Sequences: Evaluates structural routing targets based on nested depth indicators
-        S.Form pos allFields
-            -> case determineBlockTarget allFields of
-                   -- Structural
-                   TargetObject -> compileScope evalExpr env allFields
-                   TargetList   -> compileArry  evalExpr env allFields
-                   -- Functions
-                   TargetFunctionApp
-                       -> case allFields of
-                              (operatorExpr : argumentExprs)
-                                  -> do
-                                     resolvedOp <- evalExpr env operatorExpr
-                                     case resolvedOp of
-                                         PrimitiveOp nativeFunc -> do
-                                                                   evaledArgs <- mapM (evalExpr env) argumentExprs
-                                                                   nativeFunc pos evaledArgs
-                                         otherVal
-                                             -- SCOPE/EXECUTION VIOLATION: The lookup handle resolved to a non-callable term
-                                             -> unboundIdentifier (humanReadableType otherVal)
-                                                & withBlurb
-                                                      ( "The evaluator attempted to invoke the form head as a callable function handle, "
-                                                     <> "but the identifier resolved to an immutable "
-                                                         <> humanReadableType otherVal
-                                                         <> " primitive instead.\n\n"
-                                                     <> "Perhaps check that target value is in scope."
-                                                      )
-                                                & OuroError (S.exprPos operatorExpr)
-                                                & Left
-
-                              [] -> unbalancedDelimiter
-                                        "an active form operator symbol"
-                                        "Empty Brackets"
-                                    & withBlurb
-                                          ( "Empty structural framing brackets are invalid executable values in Ouro."
-                                         <> "An execution group must contain at least a primary invocation symbol or operator key."
-                                          )
-                                    & OuroError pos
-                                    & Left
+        S.Form pos allFields -> do
+            let wrappedEvaluator currentEnv expr' = runReader (evalExpr expr') currentEnv
+            case determineBlockTarget allFields of
+                TargetObject      -> pure (compileScope wrappedEvaluator env allFields)
+                TargetList        -> pure (compileArray wrappedEvaluator env allFields)
+                TargetFunctionApp -> applyFunction pos allFields
 
         otherNode
             -> let pos     = S.exprPos otherNode
                    context = Typing $ TypeMismatch
-                             { expectedType = "a valid runtime configuration primitive value"
-                             , actualType   = "an unrecognized compiler macro token shape"
-                             }
-               in Left (OuroError pos context)
+                               { expectedType = "a valid runtime configuration primitive value"
+                               , actualType   = "an unrecognized compiler macro token shape"
+                               }
+               in pure $ EvalError $ OuroError pos context
+
+
+-- assertTag.
+--
+-- Validates, coerces, and casts runtime primitive values against strict structural type assertions.
+-- Isolates external text serialization and parsing dependencies away from the core execution engine loop.
+assertTag :: S.ReaderTag -> S.Expr -> EvalM L.Expr
+assertTag tag payload = do
+    evaluatedVal <- evalExpr payload
+    let mkErr pos context = pure $ EvalError (OuroError pos context)
+
+    case tag of
+        S.Uri -> case evaluatedVal of
+            Primitive (I.String rawText)
+                -> case URI.mkURI rawText of
+                       Left _    -> mkErr (S.exprPos payload)
+                                       (typeMismatch "a String matching URI layout" "invalid URI format"
+                                           & withBlurb (typeMismatchBlurb evaluatedVal))
+                       Right uri -> case URI.uriScheme uri of
+                           Just _  -> pure $ Primitive (I.URI uri)
+                           Nothing -> mkErr (S.exprPos payload)
+                                           (typeMismatch "a String matching a URI layout with a scheme included (https:)"
+                                                       "a String in an invalid URI format"
+                                           & withBlurb (typeMismatchBlurb (Primitive (I.String rawText))))
+            otherVal -> mkErr (S.exprPos payload)
+                                (typeMismatch "a String matching a URI layout with a scheme included (https:)"
+                                              (humanReadableType otherVal)
+                                 & withBlurb (typeMismatchBlurb otherVal))
+
+        S.Date -> case evaluatedVal of
+            Primitive (I.String rawText) ->
+                case parseISO8601 (T.unpack rawText) of
+                    Just utcTime -> pure $ Primitive (I.Date utcTime)
+                    Nothing      -> mkErr (S.exprPos payload)
+                                          (typeMismatch "a String matching ISO-8601 layout (YYYY-MM-DDTHH:mm:ssZ)"
+                                                        "a String in an invalid Date format"
+                                           & withBlurb (typeMismatchBlurb (Primitive (I.String rawText))))
+            otherVal -> mkErr (S.exprPos payload)
+                              (typeMismatch "a String matching ISO-8601 layout (YYYY-MM-DDTHH:mm:ssZ)"
+                                            (humanReadableType otherVal)
+                               & withBlurb (typeMismatchBlurb otherVal))
+
+        S.StrTag  -> case evaluatedVal of
+            Primitive (I.String _) -> pure evaluatedVal
+            otherVal               -> mkErr (S.exprPos payload)
+                                            (typeMismatch "a String" (humanReadableType otherVal)
+                                             & withBlurb (typeMismatchBlurb otherVal))
+
+        S.NumTag  -> case evaluatedVal of
+            Primitive (I.Number _) -> pure evaluatedVal
+            otherVal               -> mkErr (S.exprPos payload)
+                                            (typeMismatch "a Number" (humanReadableType otherVal)
+                                             & withBlurb (typeMismatchBlurb otherVal))
+
+        S.BoolTag -> case evaluatedVal of
+            Primitive (I.Boolean _) -> pure evaluatedVal
+            otherVal                -> mkErr (S.exprPos payload)
+                                             (typeMismatch "a Boolean" (humanReadableType otherVal)
+                                              & withBlurb (typeMismatchBlurb otherVal))
+
+        _ -> mkErr (S.exprPos payload)
+                   (Syntax $ MalformedTagPayload
+                     { activeTag      = T.pack (show tag)
+                     , foundNodeShape = "You cannot type assert an empty object or array"
+                     })
+
+
+-- applyFunction.
+--
+-- Unpacks evaluated argument vectors and triggers platform-native executors.
+-- Operates entirely within the pure Reader monad (EvalM).
+applyFunction :: SourcePos -> [S.Expr] -> EvalM L.Expr
+applyFunction pos fields =
+    case fields of
+        (operatorExpr : argumentExprs) -> do
+            resolvedOp <- evalExpr operatorExpr
+            case resolvedOp of
+                PrimitiveOp nativeFunc -> do
+                    evaledArgs <- mapM evalExpr argumentExprs
+                    env        <- ask
+                    pure $ runReader (nativeFunc pos evaledArgs) env
+
+                err@(EvalError _) -> pure err
+
+                otherVal -> pure $ EvalError $
+                    unboundIdentifier (humanReadableType otherVal)
+                    & withBlurb ("The evaluator attempted to invoke the form head as a callable function handle, "
+                              <> "but the identifier resolved to an immutable "
+                              <> humanReadableType otherVal
+                              <> " primitive instead.\n\n"
+                              <> "Perhaps check that target value is in scope.")
+                    & OuroError pos
+
+        [] -> pure $ EvalError $
+            unbalancedDelimiter "an active form operator symbol" "Empty Brackets"
+            & withBlurb ("Empty structural framing brackets are invalid executable values in Ouro. "
+                      <> "An execution group must contain at least a primary invocation symbol or operator key.")
+            & OuroError pos
 
 
 -- validatePathKeys.
@@ -263,30 +243,29 @@ evalExpr env expr =
 --      (:key) sneaks into a parameter slot, offering localized syntax correction hints.
 --   3. Form Fallthrough Protection: Blocks complex nested s-expression sub-trees or macros from
 --      corrupting horizontal layout lookups by intercepting structural nodes immediately.
-validatePathKeys :: [S.Expr] -> Either OuroError [Text]
-validatePathKeys = mapM (\case
-    S.Symbol _ k -> pure k
+validatePathKeys :: [S.Expr] -> L.Expr
+validatePathKeys exprs = go exprs []
+    where
+    go :: [S.Expr] -> [Text] -> L.Expr
+    go es acc = case es of
+        -- Build an open, resilient ArrayVal list of dynamic L.Exprs to support the new superset layout
+        [] -> Array (map (Primitive . I.String) (reverse acc))
 
-    -- SYNTAX VIOLATION: An active attribute binder was passed where a raw path identifier belongs
-    S.Attr aPos rawAttr
-        -> targetMismatch "a lookup Symbol path component" (":" <> rawAttr)
-            & withBlurb
-                (  "The 'get' path operator expects bare lookup symbols (e.g., properties) "
-                <> "to traverse target graph layers. You provided a colon-prefixed attribute identifier.\n\n"
-                <> "Perhaps remove the leading colon operator from '" <> ":" <> rawAttr <> "' to "
-                <> "transition the token from a property key to an active navigation handle."
-                )
-            & OuroError aPos
-            & Left
+        (S.Symbol _ k : xs) -> go xs (k : acc)
 
-    -- SYNTAX VIOLATION: A compound structural form or primitive literal was passed instead of a symbol
-    badNode
-        -> targetMismatch "a lookup Symbol property identifier" "a structural node form"
-            & withBlurb
-                ( "Path navigation parameters following the target node must evaluate "
-               <> "strictly to atomic path components. Compound S-Expression trees, macro tags, "
-               <> "and loose primitive objects cannot be read as horizontal layout lookup slots."
-                )
-            & OuroError (S.exprPos badNode)
-            & Left
-    )
+        (S.Attr aPos rawAttr : _) ->
+            EvalError $ targetMismatch "a lookup Symbol path component" (":" <> rawAttr)
+                        & withBlurb ( "The 'get' path operator expects bare lookup symbols (e.g., properties) "
+                                   <> "to traverse target graph layers. You provided a colon-prefixed attribute identifier.\n\n"
+                                   <> "Perhaps remove the leading colon operator from '" <> ":" <> rawAttr <> "' to "
+                                   <> "transition the token from a property key to an active navigation handle."
+                                    )
+                        & OuroError aPos
+
+        (badNode : _)
+            -> EvalError $ targetMismatch "a lookup Symbol property identifier" "a structural node form"
+                           & withBlurb ( "Path navigation parameters following the target node must evaluate "
+                                      <> "strictly to atomic path components. Compound S-Expression trees, macro tags, "
+                                      <> "and loose primitive objects cannot be read as horizontal layout lookup slots."
+                                       )
+                           & OuroError (S.exprPos badNode)

@@ -19,7 +19,6 @@ levenshtein s1 s2 = last $ foldl' transform [0 .. T.length s2] (T.unpack s1)
 
 
 -- Ranks a list of candidate strings by similarity to a target string.
--- Exactly drops into your existing lookupVar pipeline!
 rankBySimilarity :: Text -> [Text] -> [(Text, Int)]
 rankBySimilarity target candidates =
     let unrankedPairs = map (\cand -> (cand, levenshtein target cand)) candidates

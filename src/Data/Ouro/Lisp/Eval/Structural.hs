@@ -3,10 +3,11 @@
 
 module Data.Ouro.Lisp.Eval.Structural where
 
+import           Control.Monad.Reader        (Reader, runReader)
 import           Data.Function               ((&))
 import qualified Data.Map                    as Map
-import           Data.Ouro.Error.Diagnostics (missingPathKey, typeMismatch,
-                                              typeMismatchBlurb,
+import           Data.Ouro.Error.Diagnostics (internalValueLeak, missingPathKey,
+                                              typeMismatch, typeMismatchBlurb,
                                               unboundIdentifier, withBlurb)
 import           Data.Ouro.Error.Types       (OuroError (..))
 import qualified Data.Ouro.Internal.Expr     as I
@@ -14,8 +15,9 @@ import qualified Data.Ouro.Internal.Kinds    as JLD
 import           Data.Ouro.Internal.Utils    (rankBySimilarity)
 import           Data.Ouro.Lisp.Eval.Schema  (parseContextDirectives)
 import           Data.Ouro.Lisp.Eval.Scope   (buildLazyEnv)
-import           Data.Ouro.Lisp.Eval.Types   (Env (..), Value (..), allEnvKeys,
+import           Data.Ouro.Lisp.Eval.Types   (Env (..), Expr (..), allEnvKeys,
                                               humanReadableType)
+import qualified Data.Ouro.Lisp.Eval.Types   as L
 import qualified Data.Ouro.Lisp.Surface      as S
 import qualified Data.Set                    as Set
 import           Data.Text                   (Text)
@@ -37,60 +39,85 @@ import           Data.Text                   (Text)
 --      properties or forward-declare definitions seamlessly without triggering early-evaluation crashes.
 --   3. Semantic Extraction & Context Lowering: It evaluates the properties into a core GADT structural list.
 compileScope
-    :: (Env -> S.Expr -> Either OuroError Value)
+    :: (Env -> S.Expr -> L.Expr)
     -> Env
     -> [S.Expr]
-    -> Either OuroError Value
-compileScope evaluator env fields = do
-    -- Step 1: Gather raw, un-evaluated structural maps from the block fields
-    rawMap <- buildLazyEnv env fields
-
-    -- Step 2: Spin up the dynamic knot-tied environment using our completed map
-    let isolatedEnv = Env { localScope = rawMap, parentEnv = Just env }
-
-    -- Step 3: Evaluate properties inline, dynamically distilling both the
-    -- metadata leaf layer and the physical object data body spine at once!
-    (metadataLeaf, bodySpine) <- emitProps evaluator isolatedEnv fields
-
-    -- Step 4: Construct the unified, type-safe JLD Object frame
-    pure $ Primitive (I.Object metadataLeaf bodySpine)
+    -> L.Expr
+compileScope evaluator env fields =
+    case buildLazyEnv env fields of
+        -- Dynamic environment allocation failures still represent a catastrophic scope break
+        Left  err    -> EvalError err
+        Right rawMap -> let isolatedEnv = Env { localScope = rawMap, parentEnv = Just env }
+                        -- emitProps now naturally handles error harvesting inside its returned L.Expr tree
+                        in emitProps evaluator isolatedEnv fields
 
 
--- Iterates through a stream of tokens to filter and evaluate physical properties into a GADT List.
+-- Iterates through a stream of tokens to filter and evaluate physical properties into a L.Expr superset tree.
 emitProps
-    :: (Env -> S.Expr -> Either OuroError Value)
+    :: (Env -> S.Expr -> L.Expr)
     -> Env
     -> [S.Expr]
-    -> Either OuroError (I.Expr 'JLD.Meta, I.Expr 'JLD.List)
+    -> L.Expr
 emitProps evaluator env expressions = go I.EmptyMeta expressions
     where
-    go :: I.Expr 'JLD.Meta -> [S.Expr] -> Either OuroError (I.Expr 'JLD.Meta, I.Expr 'JLD.List)
+    go :: I.Expr 'JLD.Meta -> [S.Expr] -> L.Expr
     go metaAcc = \case
-                  [] -> pure (metaAcc, I.Nil)
+                  [] -> Object metaAcc []
 
                   -- A. Intercept ANY context form variant at the top-level and route to the schema engine
-                  S.Form _ (S.Symbol _ "context" : directives) : remaining -> do
-                                                                               localSchema <- parseContextDirectives directives
-                                                                               go (I.Context localSchema) remaining
+                  S.Form _ (S.Symbol pos "context" : directives) : remaining
+                      -> case runReader (parseContextDirectives directives) env of
+                             EvalError err
+                                 -> case go metaAcc remaining of
+                                        Object finalMeta nextPairs -> Object finalMeta (("@context", EvalError err) : nextPairs)
+                                        otherVal                   -> otherVal
+
+                             SchemaVal localSchema -> go (I.Context localSchema) remaining
+
+                             otherVal
+                                 -> let leakErr = internalValueLeak "emitProps context block resolution"
+                                                  & withBlurb ("Expected a SchemaVal, but leaked: " <> humanReadableType otherVal)
+                                                  & OuroError pos
+                                    in case go metaAcc remaining of
+                                          Object finalMeta nextPairs -> Object finalMeta (("@context", EvalError leakErr) : nextPairs)
+                                          ov                         -> ov
 
                   -- B. Define Blocks are explicitly erased from the output JSON graph at comptime
                   S.Form _ (S.Symbol _ "define" : _) : rest -> go metaAcc rest
 
                   -- C. Extract valid body pairs. Supports lazy nesting compilation inline.
-                  S.Attr _ key : valExpr : rest | not (isStructuralExpr valExpr)
-                          -> do
-                             restVal            <- evaluator env valExpr
-                             (finalMeta, nextL) <- go metaAcc rest
-                             case restVal of
-                                 Primitive prim -> pure (finalMeta, I.Cons (I.Attr key prim) nextL)
-                                  -- If it evaluates to an entire sub-object, pass it downstream safely
-                                 otherVal
-                                    -> typeMismatch
-                                            "a valid property value (like a primitive or nested object)"
-                                            (humanReadableType otherVal)
-                                       & withBlurb (humanReadableType otherVal)
-                                       & OuroError (S.exprPos valExpr)
-                                       & Left
+                  (S.Attr _ key : valExpr : rest) | not (isStructuralExpr valExpr)
+                      -> case go metaAcc rest of
+                             Object finalMeta nextPairs
+                                 -> case evaluator env valExpr of
+                                        -- 1. Catch error leaves completely independently
+                                        EvalError err -> Object finalMeta ((key, EvalError err) : nextPairs)
+
+                                        -- 2. Clean primitive values (frozen GADTs)
+                                        Primitive prim -> Object finalMeta ((key, Primitive prim) : nextPairs)
+
+                                        -- 3. Accept nested object configurations
+                                        Object m p -> Object finalMeta ((key, Object m p) : nextPairs)
+
+                                        -- 4. Accept array configurations
+                                        Array elements -> Object finalMeta ((key, Array elements) : nextPairs)
+
+                                        -- 5. Pass-through for valid domain primitives (Durations, Closures, Schemas, etc.)
+                                        Duration u v  -> Object finalMeta ((key, Duration u v) : nextPairs)
+                                        SchemaVal s   -> Object finalMeta ((key, SchemaVal s) : nextPairs)
+                                        Directive d   -> Object finalMeta ((key, Directive d) : nextPairs)
+                                        PrimitiveOp o -> Object finalMeta ((key, PrimitiveOp o) : nextPairs)
+                                        Closure e n x -> Object finalMeta ((key, Closure e n x) : nextPairs)
+
+                                        -- Real type violations fall here (Metadata context blocks cannot be property values)
+                                        otherVal -> let err = typeMismatch
+                                                                  "a valid property value (like a primitive or nested object)"
+                                                                  (humanReadableType otherVal)
+                                                                  & withBlurb (humanReadableType otherVal)
+                                                                  & OuroError (S.exprPos valExpr)
+                                                    in Object finalMeta ((key, EvalError err) : nextPairs)
+
+                             otherVal -> otherVal
 
                   -- D. If it's a loose keyword modifier layout, safely drop it and keep moving
                   S.Attr {} : rest -> go metaAcc rest
@@ -108,53 +135,68 @@ emitProps evaluator env expressions = go I.EmptyMeta expressions
 
 
 -- Compiles a collection of nested Lisp blocks into a uniform sequence array of Objects
-compileArry
-    :: (Env -> S.Expr -> Either OuroError Value)
+-- Compiles a collection of nested Lisp blocks into a uniform sequence array of Objects
+compileArray
+    :: (Env -> S.Expr -> L.Expr)
     -> Env
     -> [S.Expr]
-    -> Either OuroError Value
-compileArry evaluator env elements = do
-                         gadtList <- compileElements elements
-                         pure $ Primitive (I.Array gadtList)
-
+    -> L.Expr
+compileArray evaluator env elements = Array (compileElements elements)
     where
-    compileElements :: [S.Expr] -> Either OuroError (I.Expr 'JLD.List)
-    compileElements = \case
-                      []                     -> pure I.Nil
-                      -- A. TRUE ERASURE: Skip define blocks completely inside arrays
-                      S.Form _ (S.Symbol _ "define" : _) : xs -> compileElements xs
+    compileElements :: [S.Expr] -> [L.Expr]
+    compileElements exprs =
+        case exprs of
+            [] -> []
 
-                      -- B. TRUE ERASURE: Skip context blocks completely inside arrays
-                      S.Form _ [S.Symbol _ "context", S.Form _ _] : xs -> compileElements xs
+            -- A. TRUE ERASURE: Skip define blocks completely inside arrays
+            S.Form _ (S.Symbol _ "define" : _) : xs -> compileElements xs
 
-                      S.Form pos fields : xs -> do
-                                              evaledItem <- compileScope evaluator env fields
-                                              restL      <- compileElements xs
-                                              case evaledItem of
-                                                  -- Object record graph node
-                                                  Primitive (I.Object props body) -> pure $ I.Cons (I.Object props body) restL
-                                                  -- Standard scalar primitive (String, Number, Date, etc.)
-                                                  Primitive standardPrim          -> pure $ I.Cons standardPrim restL
-                                                  otherVal
-                                                      -> typeMismatch
-                                                             "a valid nested Object block or a single value"
-                                                             (humanReadableType otherVal)
-                                                         & withBlurb (typeMismatchBlurb otherVal)
-                                                         & OuroError pos
-                                                         & Left
+            -- B. TRUE ERASURE: Skip context blocks completely inside arrays
+            S.Form _ [S.Symbol _ "context", S.Form _ _] : xs -> compileElements xs
 
-                      otherExpr : xs -> do
-                                       evaledVal <- evaluator env otherExpr
-                                       restL     <- compileElements xs
-                                       case evaledVal of
-                                           Primitive standardPrim -> pure $ I.Cons standardPrim restL
-                                           otherVal
-                                               -> typeMismatch
-                                                      "a plain data value (like a String, Number, or Boolean)"
-                                                      (humanReadableType otherVal)
-                                                  & withBlurb (typeMismatchBlurb otherVal)
-                                                  & OuroError (S.exprPos otherExpr)
-                                                  & Left
+            -- C. Process structured nested forms (Objects or trailing list matrices)
+            (S.Form pos fields : xs)
+                -> let evaledItem = compileScope evaluator env fields
+                       restL      = compileElements xs
+                    in case evaledItem of
+                        -- Retain independent error leaves found inside nested scopes safely
+                        EvalError err -> EvalError err : restL
+
+                        -- Seamlessly capture the open object superset node
+                        Object m p -> Object m p : restL
+
+                        Primitive p   -> Primitive p : restL
+
+                        otherVal      -> let err = typeMismatch
+                                                        "a valid nested Object block or a single value"
+                                                        (humanReadableType otherVal)
+                                                        & withBlurb (typeMismatchBlurb otherVal)
+                                                        & OuroError pos
+                                            in EvalError err : restL
+
+            -- D. Process flat scalar fields or variables evaluated within the element stream
+            (otherExpr : xs)
+                -> let evaledVal = evaluator env otherExpr
+                       restL     = compileElements xs
+                    in case evaledVal of
+                        EvalError err  -> EvalError err  : restL
+                        Primitive prim -> Primitive prim : restL
+
+                        -- Accept nested layouts or expressions inside the stream
+                        Object      m  p   -> Object      m  p   : restL
+                        Array       ls     -> Array       ls     : restL
+                        Duration    u  v   -> Duration    u  v   : restL
+                        SchemaVal   s      -> SchemaVal   s      : restL
+                        Directive   d      -> Directive   d      : restL
+                        PrimitiveOp o      -> PrimitiveOp o      : restL
+                        Closure     e  n x -> Closure     e  n x : restL
+
+                        otherVal -> let err = typeMismatch
+                                                    "a plain data value (like a String, Number, or Boolean)"
+                                                    (humanReadableType otherVal)
+                                                & withBlurb (typeMismatchBlurb otherVal)
+                                                & OuroError (S.exprPos otherExpr)
+                                    in EvalError err : restL
 
 
 -- Data type representing the structural target resolved by lookahead routing.
@@ -196,67 +238,101 @@ determineBlockTarget = \case
 --      'matchTokenStream' to track assignments down and bypass metadata or compile-time wrappers.
 --   3. Defensive Boundary Isolation: Terminal primitive leafs or missing path segments safely trigger
 --      failures via 'missingPathKey' before deep internal evaluation can result in invalid mutations.
-resolvePath :: Env -> S.Expr -> [Text] -> Either OuroError S.Expr
-resolvePath fullEnv originalExpr pathKeys = go fullEnv originalExpr pathKeys
+resolvePath
+    :: (S.Expr -> Reader Env L.Expr)
+    -> Env
+    -> S.Expr
+    -> [L.Expr]
+    -> L.Expr
+resolvePath evaluator fullEnv originalExpr pathVals = go fullEnv originalExpr (extractKeys pathVals)
     where
-    go _   currentExpr [] = pure currentExpr
-    go env currentExpr (targetKey : remainingKeys) =
-        case currentExpr of
-            -- Strategy 1: Resolve symbol pointers out of environment frames
-            S.Symbol pos varName
-                -> case Map.lookup varName (localScope env) of
+    -- Extract bare Text strings from the newly provisioned Array superset layout
+    extractKeys :: [L.Expr] -> [Text]
+    extractKeys elements = concatMap (
+                             \case
+                             Primitive (I.String k) -> [k]
+                             _                      -> []
+                           ) elements
+
+    go :: Env -> S.Expr -> [Text] -> L.Expr
+    go env currentExpr keys = case keys of
+        [] -> runReader (evaluator currentExpr) env
+
+        (targetKey : remainingKeys)
+            -> case currentExpr of
+                   -- Strategy 1: Resolve symbol pointers out of environment frames
+                   S.Symbol pos varName -> case Map.lookup varName (localScope env) of
                        Just linkedExpr -> go env linkedExpr (targetKey : remainingKeys)
-                       Nothing         -> case parentEnv env of
-                                              Just pEnv -> go pEnv currentExpr (targetKey : remainingKeys)
-                                              Nothing   ->
-                                                  let keys       = Set.toList $ allEnvKeys fullEnv
-                                                      suggestion = case rankBySimilarity varName keys of
-                                                                       ((bestMatch, score) : _) | score <= 3
-                                                                           -> "\n\nPerhaps you meant: '" <> bestMatch <> "'?"
-                                                                       _   -> ""
-                                                  in unboundIdentifier varName
-                                                       & withBlurb
-                                                            ( "The evaluator attempted to lookup the value for '" <> varName <> "', "
-                                                           <> "but the identifier failed to resolve within any active scope chain."
+                       Nothing
+                           -> case parentEnv env of
+                               Just pEnv -> go pEnv currentExpr (targetKey : remainingKeys)
+                               Nothing   -> let allKeys    = Set.toList $ allEnvKeys fullEnv
+                                                suggestion = case rankBySimilarity varName allKeys of
+                                                               ((bestMatch, score) : _) | score <= 3
+                                                                   -> "\n\nPerhaps you meant: '"
+                                                                   <> bestMatch
+                                                                   <> "'?"
+                                                               _   -> ""
+                                           in unboundIdentifier varName
+                                               & withBlurb ( "The evaluator attempted to lookup the value for '"
+                                                           <> varName <> "', "
+                                                           <> "but the identifier failed to resolve"
+                                                           <> " within any active scope chain."
                                                            <> suggestion
-                                                            )
-                                                       & OuroError pos
-                                                       & Left
+                                                           )
+                                               & OuroError pos
+                                               & EvalError
 
-            -- Strategy 2: Scan Form wrappers using our strict token matching rules
-            S.Form pos elements
-                -> case matchTokenStream targetKey elements of
-                       Just matchedValue -> go env matchedValue remainingKeys
-                       Nothing           -> missingPathKey targetKey [k | S.Attr _ k <- elements]
-                                              & withBlurb ("The path resolution engine could not locate the key '" <> targetKey <> "' inside the active form structure.\n\nPerhaps you misspelled the property handle?")
-                                              & OuroError pos
-                                              & Left
+                   -- Strategy 2: Scan Form wrappers using our strict token matching rules
+                   S.Form pos elements
+                       -> scanEnv env targetKey remainingKeys elements
+                                   (missingPathKey targetKey [k | S.Attr _ k <- elements]
+                                   & withBlurb ( "The path resolution engine could not locate the key '"
+                                               <> targetKey
+                                               <> "' inside the active form structure."
+                                               <> "\n\nPerhaps you misspelled the property handle?"
+                                               )
+                                   & OuroError pos
+                                   )
 
-            -- Strategy 3: Scan Bracket wrappers identically
-            S.Bracket pos elements
-                -> case matchTokenStream targetKey elements of
-                       Just matchedValue -> go env matchedValue remainingKeys
-                       Nothing           -> missingPathKey targetKey [k | S.Attr _ k <- elements]
-                                              & withBlurb ("The path resolution engine could not locate the key '" <> targetKey <> "' inside the active bracket matrix.\n\nPerhaps you misspelled the property handle?")
-                                              & OuroError pos
-                                              & Left
+                   -- Strategy 3: Scan Bracket wrappers identically
+                   S.Bracket pos elements
+                       -> scanEnv env targetKey remainingKeys elements
+                               (missingPathKey targetKey [k | S.Attr _ k <- elements]
+                               & withBlurb ( "The path resolution engine could not locate the key '"
+                                           <> targetKey
+                                           <> "' inside the active bracket matrix."
+                                           <> "\n\nPerhaps you misspelled the property handle?"
+                                           )
+                               & OuroError pos
+                               )
 
-            -- Catch-all for premature scalar leaf nodes
-            other -> missingPathKey targetKey []
-                       & withBlurb ("The path resolution engine attempted to dig into the key '" <> targetKey <> "', but hit a terminal primitive scalar leaf value instead.\n\nPerhaps the schema mapping layout has changed?")
-                       & OuroError (S.exprPos other)
-                       & Left
+                   -- Catch-all for premature scalar leaf nodes
+                   other -> missingPathKey targetKey []
+                           & withBlurb ( "The path resolution engine attempted to dig into the key '"
+                                       <> targetKey
+                                       <> "', but hit a terminal primitive scalar leaf value instead.\n\n"
+                                       <> "Perhaps the schema mapping layout has changed?"
+                                       )
+                           & OuroError (S.exprPos other)
+                           & EvalError
 
-    -- Un-nested peer worker function
-    matchTokenStream :: Text -> [S.Expr] -> Maybe S.Expr
-    matchTokenStream targetKey stream =
-        case stream of
-            [] -> Nothing
-            (S.Attr _ k : valExpr : _)
-                | k == targetKey -> Just valExpr
+    scanEnv :: Env -> Text -> [Text] -> [S.Expr] -> OuroError -> L.Expr
+    scanEnv env trgt rest exprs err =
+        case matchTokenStream trgt exprs of
+            Just matchedVal -> go env matchedVal rest
+            Nothing         -> EvalError $ err
 
-            (S.Symbol _ "define" : S.Attr _ varName : S.Form _ innerBody : _)
-                | varName == targetKey -> matchTokenStream targetKey innerBody
 
-            (_ : rest) -> matchTokenStream targetKey rest
+matchTokenStream :: Text -> [S.Expr] -> Maybe S.Expr
+matchTokenStream targetKey stream =
+    case stream of
+        [] -> Nothing
+        (S.Attr _ k : valExpr : _)
+            | k == targetKey -> Just valExpr
+
+        (S.Symbol _ "define" : S.Attr _ varName : S.Form _ innerBody : _)
+            | varName == targetKey -> matchTokenStream targetKey innerBody
+
+        (_ : rest) -> matchTokenStream targetKey rest
 

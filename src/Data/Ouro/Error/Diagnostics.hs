@@ -13,7 +13,8 @@ import           Data.Ouro.Error.Types     (ErrorContext (..),
                                             VocabularyWarning (..),
                                             WarningContext (..))
 import qualified Data.Ouro.Internal.Expr   as I
-import           Data.Ouro.Lisp.Eval.Types (Value (..))
+import           Data.Ouro.Lisp.Eval.Types (humanReadableType)
+import qualified Data.Ouro.Lisp.Eval.Types as L
 import           Data.Text                 (Text)
 import qualified Data.Text                 as T
 import           GHC.Generics              (C1, D1, Generic (from), M1 (..),
@@ -126,12 +127,12 @@ instance GConstructorCount (C1 c a) where
 --- Diagnostics Messages ---
 
 -- Type Error
-typeMismatchBlurb :: Value -> Text
+typeMismatchBlurb :: L.Expr -> Text
 typeMismatchBlurb =
     let blurb = "Ouro evaluates type tags as strict domain assertions. When layout constraints fail, the engine isolates the node to protect the structural integrity of the compiled JSON."
     in \case
-        (Primitive p) -> let suggestion   = blurb <> "\n\nPerhaps use the type assertion tag "
-                             cannotAssert = blurb <> "\n\nYou cannot make a type assertion for "
+        (L.Primitive p) -> let suggestion   = blurb <> "\n\nPerhaps use the type assertion tag "
+                               cannotAssert = blurb <> "\n\nYou cannot make a type assertion for "
                          in case p of
                                 -- Primitives
                                 I.BlankNode _ -> cannotAssert <> "a blank node"
@@ -148,7 +149,7 @@ typeMismatchBlurb =
                                 I.Object _ _  -> cannotAssert <> "a object"
 
         _ -> blurb
-          <> "\nYou can only make type assertions on primitive values. Supported types include:"
+          <> "You can only make type assertions on primitive values. Supported types include:"
           <> "\n  String  -> #str"
           <> "\n  Number  -> #num"
           <> "\n  URI     -> #uri"
@@ -156,10 +157,13 @@ typeMismatchBlurb =
           <> "\n  Date    -> #date"
 
 
--- targetMismatchBlurb :: Value -> Text
--- targetMismatchBlurb =
---     let blurb = "Ouro evaluates types"
-
+binaryOpMismatchBlurb :: L.Expr -> L.Expr -> Text
+binaryOpMismatchBlurb base modif =
+    "Ouro evaluates type tags as strict domain assertions. "
+    <> "The provided operands " <> humanReadableType base
+    <> " and " <> humanReadableType modif
+    <> " do not support the requested operation. "
+    <> "Verify that your input data matches the expected structural schema."
 
 
 --- Builder for Linter Warnings ---
@@ -215,7 +219,7 @@ warningBlurb = \case
         -> "Ouro evaluates floating values inside array and object layers as unanchored literals. "
         <> "Because this value is positioned directly next to " <> tag <> ", it has no semantic binding key "
         <> "and will be completely erased from properties at compile time.\n\n"
-        <> "Fix: If this data was intended to be saved, assign it to a property attribute key (e.g., :label " <> formatSmartLiteral val <> ")."
+        <> "Perhaps assign it to a property attribute key (e.g., :label " <> formatSmartLiteral val <> "), if it is intendented to be saved."
 
     Lint (DeprecatedSyntax feature)
         -> "The structural pattern '" <> feature <> "' has been designated as obsolete legacy syntax. "

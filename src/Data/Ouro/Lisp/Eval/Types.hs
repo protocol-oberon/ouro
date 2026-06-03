@@ -3,15 +3,18 @@
 
 module Data.Ouro.Lisp.Eval.Types where
 
+import           Control.Monad.Reader      (Reader)
 import qualified Data.Map.Strict           as Map
 import           Data.Ouro.Error.Types     (OuroError)
 import qualified Data.Ouro.Internal.Expr   as I
 import qualified Data.Ouro.Internal.Kinds  as JLD
-import           Data.Ouro.Internal.Schema (Schema)
+import           Data.Ouro.Internal.Schema (Schema, SchemaDirective)
 import qualified Data.Ouro.Lisp.Surface    as S
 import qualified Data.Set                  as Set
 import           Data.Text                 (Text)
+import qualified Data.Text                 as T
 import           Text.Megaparsec           (SourcePos)
+import           Unsafe.Coerce             (unsafeCoerce)
 
 
 -- Env.
@@ -57,39 +60,85 @@ allEnvKeys env = go env Set.empty
                Nothing     -> updatedAcc
                Just parent -> go parent updatedAcc
 
--- Value.
+-- Expr.
 --
--- A monomorphic runtime value wrapper utilized across all compiler evaluation passes.
--- Acts as the foundational bridge between dynamic Lisp runtime types and the strictly-typed Internal GADT.
+-- A resilient evaluation superset utilized across all Ouro compiler passes.
+-- Acts as the primary execution surface for the interpreter, holding valid data
+-- nodes, structural scaffolding, and isolated error leaves simultaneously.
 --
--- While the compilation engine processes untyped surface syntax trees, it requires a unified,
--- type-erased representation to hold intermediate data, execution frames, and native hooks. The Value
--- sum type provides this uniform interface, wrapping deeply typed structures into a singular type space
--- so they can be passed, bound, and accumulated dynamically inside the interpreter's lexical environments.
+-- Unlike traditional compilers that terminate on the first semantic mismatch,
+-- Ouro's Expr superset allows for "partial evaluation." By wrapping every structural
+-- branch and primitive leaf in a unified type space, the engine can continue
+-- evaluating sibling nodes even when specific branches have collapsed into EvalError.
 --
--- Core terminal nodes transition directly into the permanent internal GADT layout:
---   * Primitive injects fully evaluated, strongly-typed JSON-LD leaf elements (like Strings and Numbers).
---   * Array packages compiled sequence blocks, ensuring structural lists are lifted cleanly into terminal positions.
+-- Architectural Role:
+--   * Resilient Scaffolding: Object and Array represent the "open" structural
+--     layout of the graph. These structures hold recursive 'Expr' branches,
+--     maintaining the tree topology even if child nodes are invalid.
+--   * Fault Isolation: The 'EvalError' constructor serves as a universal terminal
+--     node that allows the harvester to sweep through a partially-failed tree and
+--     aggregate all diagnostic issues in a single pass.
+--   * Domain Modeling: Retains explicit handles for functional abstractions (Closure,
+--     PrimitiveOp) and intermediate domain logic (Duration, SchemaVal) that have
+--     not yet been collapsed into the final, frozen JSON-LD GADT ('I.Expr').
 --
--- Specialized evaluation metadata and temporal components are tracked explicitly:
---   * SchemaVal retains active, compiled schema directives and context layout markers used during graph resolution.
---   * Duration serves as an intermediate domain model for calendar math, tracking date-shifting deltas before
---     collapsing them onto concrete timeline objects via the built-in operators.
---
--- Functional abstraction and execution mechanics are treated as first-class primitives:
---   * PrimitiveOp exposes a direct handle to host-platform Haskell functions, serving as the execution vehicle
---     for the standard library registry (such as variadic addition or calendar offset transformations).
---   * Closure captures a user-defined lambda block, structurally closing over its parent environment frame
---     alongside its parameter signature and body. This guarantees full lexical scoping, ensuring variables
---     resolve according to where the function was declared rather than where it is ultimately applied.
-data Value where
-    Primitive   :: I.Expr 'JLD.Primitive -> Value
-    SchemaVal   :: Schema -> Value
-    Metadata    :: I.Expr 'JLD.Meta -> Value
-    Duration    :: PeriodUnit -> Int -> Value
-    Array       :: I.Expr 'JLD.List -> Value
-    PrimitiveOp :: (SourcePos -> [Value] -> Either OuroError Value) -> Value
-    Closure     :: Env -> Text -> S.Expr -> Value
+-- Terminal Resolution:
+--   The 'Primitive' and 'Metadata' constructors serve as the final transition
+--   anchors. Once the evaluation loop completes and all errors are harvested,
+--   these nodes verify that the evaluated 'Expr' tree satisfies the strict
+--   Internal GADT constraints required for final serialization.
+data Expr where
+    -- 1. Pristine Frozen Targets (The pure GADTs)
+    Primitive   :: I.Expr 'JLD.Primitive -> Expr
+    Metadata    :: I.Expr 'JLD.Meta -> Expr
+
+    -- 2. Resilient Compilation Scaffolding (The Superset Nodes)
+    -- These maintain the open tree structure during evaluation, allowing
+    -- errors to be embedded at any depth.
+    Object      :: I.Expr 'JLD.Meta -> [(Text, Expr)] -> Expr
+    Array       :: [Expr] -> Expr
+
+    -- 3. Dedicated Evaluation Leaves
+    Duration    :: PeriodUnit -> Int -> Expr
+    SchemaVal   :: Schema -> Expr
+    Directive   :: SchemaDirective -> Expr
+    PrimitiveOp :: NativeFunction -> Expr
+    Closure     :: Env -> Text -> S.Expr -> Expr
+
+    -- The Universal Error Leaf: Allows the engine to bypass crashes
+    -- and continue evaluating sibling nodes.
+    EvalError   :: OuroError -> Expr
+
+type NativeFunction = SourcePos -> [Expr] -> Reader Env Expr
+
+
+freeze :: Expr -> I.Expr 'JLD.Primitive
+freeze = \case
+          Primitive   p -> p
+          Object    m p -> (I.Object m (foldObjectToGADT p))
+          Array       p -> (I.Array (foldArrayToGADT p))
+          other         -> error $ "Invariant: Non-serializable node type: " ++ (T.unpack $ humanReadableType other)
+
+    where
+    -- Convert [(Text, Expr)] to I.Expr 'JLD.List
+    foldObjectToGADT :: [(Text, Expr)] -> I.Expr 'JLD.List
+    foldObjectToGADT = foldr (\(k, v) acc -> I.Cons (I.Attr k (foldExprToAny v)) acc) I.Nil
+
+    -- Convert [Expr] to I.Expr 'JLD.List
+    foldArrayToGADT :: [Expr] -> I.Expr 'JLD.List
+    foldArrayToGADT = foldr (\v acc -> I.Cons (foldExprToAny v) acc) I.Nil
+
+    -- Helper: Existential bridge to I.Expr any
+    -- This promotes the primitive value to the existential type required by Attr.
+    foldExprToAny :: Expr -> I.Expr any
+    foldExprToAny expr = case expr of
+        Primitive p    -> unsafeCoerce p  -- We know this is safe post-harvest
+        Object m p     -> unsafeCoerce (I.Object m (foldObjectToGADT p))
+        Array els      -> unsafeCoerce (I.Array (foldArrayToGADT els))
+
+        -- Safety Guards
+        EvalError err  -> error $ "Invariant: EvalError survived harvest: " ++ show err
+        other          -> error $ "Invariant: Non-serializable node type: " ++ (T.unpack $ humanReadableType other)
 
 
 -- Calendar tracking metrics for time-shift date math engine
@@ -100,16 +149,19 @@ data PeriodUnit
     deriving (Show, Eq)
 
 
-humanReadableType :: Value -> Text
+humanReadableType :: Expr -> Text
 humanReadableType =
     \case
      Primitive   p     -> "a " <> describePrimitive p
      SchemaVal   _     -> "Schema definition directive"
+     Directive   _     -> "Schema configuration directive"
      Metadata    _     -> "Metadata block"
      Duration    _ _   -> "Duration time period"
      Array       _     -> "List layout"
      PrimitiveOp _     -> "Built-in function"
-     Closure     _ _ _ -> "An unexecuted function (lambda)"
+     Closure     _ _ _ -> "an unexecuted function (lambda)"
+     EvalError   _     -> "an Error"
+     Object      _ _   -> "an Object block"
 
 
 -- Helper to describe the inner Primitive

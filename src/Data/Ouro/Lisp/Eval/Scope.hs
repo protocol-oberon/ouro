@@ -1,13 +1,15 @@
 
 module Data.Ouro.Lisp.Eval.Scope where
 
+import           Control.Monad.Reader         (Reader)
 import           Data.Function                ((&))
 import qualified Data.Map                     as Map
 import           Data.Ouro.Error.Diagnostics  (unboundIdentifier, withBlurb)
 import           Data.Ouro.Error.Types        (OuroError (..))
 import           Data.Ouro.Internal.Utils     (rankBySimilarity)
 import           Data.Ouro.Lisp.Eval.Builtins (builtinRegistry)
-import           Data.Ouro.Lisp.Eval.Types    (Env (..), Value, allEnvKeys)
+import           Data.Ouro.Lisp.Eval.Types    (Env (..), allEnvKeys)
+import qualified Data.Ouro.Lisp.Eval.Types    as L
 import qualified Data.Ouro.Lisp.Surface       as S
 import qualified Data.Set                     as Set
 import           Data.Text                    (Text)
@@ -26,7 +28,7 @@ import           Text.Megaparsec              (SourcePos)
 --
 --   * Local Block Expansion: Processes nested macro blocks like '(define (:key val ...))' by recursively unrolling
 --     and harvesting their inner assignments, then merging them cleanly into the local scope layer.
---   * Keyword-Value Pairing: Identifies 'S.Attr' structural keys, capturing the trailing expression and binding it
+--   * Keyword-L.Expr Pairing: Identifies 'S.Attr' structural keys, capturing the trailing expression and binding it
 --     directly into the accumulating dictionary while skipping across structural delimiters.
 --   * Stream Sanitization & Compaction: Acts as a compile-time filter that strips away hanging keywords or loose
 --     unbound elements, ensuring only valid symbol-to-expression associations persist inside the generated frame.
@@ -66,37 +68,37 @@ buildLazyEnv = curry $ \case
 
 
 -- Resolves dynamic lookups via local maps, builtins fallbacks, or stepping up into parent scopes.
--- Takes an explicit runner function `(Env -> S.Expr -> Either OuroError Value)`
--- to decouple scoping lookup loops from the evaluation engine internals.
+-- Now operates purely within the Reader monad to maintain consistency with the engine.
 lookupVar
-  :: (Env -> S.Expr -> Either OuroError Value)
+  :: (S.Expr -> Reader Env L.Expr)
   -> SourcePos
   -> Text
   -> Env
-  -> Either OuroError Value
+  -> Reader Env L.Expr
 lookupVar evaluator pos name fullEnv = go fullEnv
   where
     go env = case Map.lookup name (localScope env) of
-        -- Evaluate lazy surface expression
-        Just surfaceExpr -> evaluator fullEnv surfaceExpr
+        -- Evaluate lazy surface expression using the ambient Reader context
+        Just surfaceExpr -> evaluator surfaceExpr
 
         -- Field lookup else check if it matches a native function handle
         Nothing -> case builtinRegistry name of
                        Just nativeOp -> pure nativeOp
                        -- Look up to the nesting parent environment if not a built in function
                        Nothing       -> case parentEnv env of
-                                            Just pEnv -> go pEnv
-                                            Nothing   ->
-                                                let keys = Set.toList $ allEnvKeys fullEnv
-                                                    suggestion = case rankBySimilarity name keys of
-                                                                     ((bestMatch, score) : _) | score <= 3
-                                                                         -> "\n\nPerhaps you meant: '" <> bestMatch <> "'?"
-                                                                     _   -> ""
-                                                in unboundIdentifier name
+                                           Just pEnv -> go pEnv
+                                           Nothing   ->
+                                               let keys       = Set.toList $ allEnvKeys fullEnv
+                                                   suggestion = case rankBySimilarity name keys of
+                                                                    ((bestMatch, score) : _) | score <= 3
+                                                                        -> "\n\nPerhaps you meant: '" <> bestMatch <> "'?"
+                                                                    _   -> ""
+                                               in unboundIdentifier name
                                                       & withBlurb
-                                                           ( "The evaluator attempted to lookup the value for '" <> name <> "', "
-                                                          <> "but the identifier failed to resolve within any active scope chain."
-                                                          <> suggestion
-                                                           )
+                                                            ( "The evaluator attempted to lookup the value for '" <> name <> "', "
+                                                           <> "but the identifier failed to resolve within any active scope chain."
+                                                           <> suggestion
+                                                            )
                                                       & OuroError pos
-                                                      & Left
+                                                      & L.EvalError
+                                                      & pure
