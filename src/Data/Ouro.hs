@@ -32,6 +32,7 @@ module Data.Ouro
 
 import           Control.Monad.Except        (ExceptT, runExceptT, throwError)
 import           Control.Monad.Writer        (Writer, runWriter, tell)
+import           Data.List.NonEmpty          (NonEmpty (..), nonEmpty)
 import           Data.Ouro.Error.Diagnostics (smartErrorCode, smartWarningCode,
                                               warningBlurb, warningSummary)
 import qualified Data.Ouro.Error.Linter      as LN
@@ -62,12 +63,13 @@ import           Text.Megaparsec             (errorBundlePretty)
 
 
 data CompilationResult
-    = CompilationSuccess [OuroWarning] (I.Expr 'JLD.Primitive)
-    | CompilationFailure [OuroWarning] [OuroError]
+    = CompilationSuccess [OuroWarning] (I.Expr   'JLD.Primitive)
+    | CompilationFailure [OuroWarning] (NonEmpty OuroError)
 
 -- Type alias representing the dual-track compiler sandbox.
 -- Errors accumulate in the ExceptT track, Warnings accumulate in the Writer track.
-type CompilerM = ExceptT [OuroError] (Writer [OuroWarning])
+type CompilerM = ExceptT (NonEmpty OuroError) (Writer [OuroWarning])
+
 
 compile :: String -> Text -> CompilationResult
 compile filename content = compilationResult . runWriter . runExceptT $ compile'
@@ -76,7 +78,7 @@ compile filename content = compilationResult . runWriter . runExceptT $ compile'
     compile' = do
                -- Pass 1: Lexical Tokenization
                tokens <- case LX.tokenize filename content of
-                             Left  lexErr -> throwError [lexErr]
+                             Left  lexErr -> throwError $ pure lexErr
                              Right tkns   -> return tkns
 
                -- Pass 2: Linting
@@ -84,16 +86,16 @@ compile filename content = compilationResult . runWriter . runExceptT $ compile'
 
                -- Pass 3: Synatic Parsing
                surfaceAST <- case LP.parse tokens of
-                                 Left  parseErr -> throwError [parseErr]
+                                 Left  parseErr -> throwError $ pure parseErr
                                  Right ast      -> return ast
 
                -- Pass 4: Evaluation
                let evalTree = EN.evaluate (Canon.construct surfaceAST)
-               case harvestErrors evalTree of
-                   []   -> return (freeze evalTree)
-                   errs -> throwError errs
+               case nonEmpty $ harvestErrors evalTree of
+                   Nothing      -> return (freeze evalTree)
+                   Just    errs -> throwError errs
 
-    compilationResult :: (Either [OuroError] (I.Expr 'JLD.Primitive), [OuroWarning]) -> CompilationResult
+    compilationResult :: (Either(NonEmpty OuroError) (I.Expr 'JLD.Primitive), [OuroWarning]) -> CompilationResult
     compilationResult = \case
                          (Right ast, warnings) -> CompilationSuccess warnings ast
                          (Left errs, warnings) -> CompilationFailure warnings errs
