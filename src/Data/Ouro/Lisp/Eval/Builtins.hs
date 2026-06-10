@@ -35,6 +35,7 @@ builtinRegistry = \case
                    "-"      -> Just $ L.PrimitiveOp handleSubtraction
                    "*"      -> Just $ L.PrimitiveOp handleMultiplication
                    "/"      -> Just $ L.PrimitiveOp handleDivision
+                   "eq"     -> Just $ L.PrimitiveOp handleEquality
                    "years"  -> Just $ L.PrimitiveOp handleYearsModifier
                    "months" -> Just $ L.PrimitiveOp handleMonthsModifier
                    "days"   -> Just $ L.PrimitiveOp handleDaysModifier
@@ -205,6 +206,52 @@ handleDivision pos args =
                     typeMismatch "Matching numeric values for division"
                                  (humanReadableType base <> " / " <> humanReadableType modif)
                     & withBlurb "The division operator only supports numeric operands."
+
+
+-- handleEquality.
+--
+-- Variadic structural equality operator (eq x y z ...).
+handleEquality :: SourcePos -> [L.Expr] -> Reader Env L.Expr
+handleEquality pos args =
+    case args of
+        [] -> pure $ L.EvalError $ OuroError pos $ Syntax $ MalformedTagPayload
+                { activeTag      = "eq"
+                , foundNodeShape = "The equality operator requires at least one argument."
+                }
+
+        -- Idiomatic Lisp: A single item is vacuously equal to itself
+        [singleVal] -> case singleVal of
+            err@(L.EvalError _) -> pure err
+            _                   -> pure $ L.Primitive (I.Boolean True)
+
+        (baseVal : modifiers) -> checkRemaining baseVal modifiers
+
+    where
+    -- Iterates through the modifiers, ensuring every element matches the base element
+    checkRemaining :: L.Expr -> [L.Expr] -> Reader Env L.Expr
+    checkRemaining base =
+        \case
+         [] -> pure $ L.Primitive (I.Boolean True)
+         (modif : ms) -> case (base, modif) of
+                             -- Error propagation takes absolute precedence
+                             (err@(L.EvalError _), _) -> pure err
+                             (_, err@(L.EvalError _)) -> pure err
+
+                             -- Structural comparison using our custom Eq instances
+                             (v1, v2) -> case v1 == v2 of
+                                             True  -> checkRemaining base ms
+                                             False -> scanForErrors ms (L.Primitive (I.Boolean False))
+
+    -- If a mismatch occurs, continue to scan the rest of the arguments.
+    -- If a downstream sibling argument is an EvalError, we must bubble that error up
+    -- instead of silently returning 'False'
+    scanForErrors :: [L.Expr] -> L.Expr -> Reader Env L.Expr
+    scanForErrors elements fallback =
+        case elements of
+            [] -> pure fallback
+            (x : xs) -> case x of
+                err@(L.EvalError _) -> pure err
+                _                   -> scanForErrors xs fallback
 
 
 isNumber :: L.Expr -> Bool

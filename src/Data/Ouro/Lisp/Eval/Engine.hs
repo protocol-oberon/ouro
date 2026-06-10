@@ -1,5 +1,6 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE GADTs     #-}
+{-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE DataKinds      #-}
+{-# LANGUAGE GADTs          #-}
 
 module Data.Ouro.Lisp.Eval.Engine where
 
@@ -110,10 +111,10 @@ evalExpr expr = do
                                               EvalError err -> pure (EvalError err)
                                               -- The path resolved cleanly to a final L.Expr, pass it forward
                                               resolvedVal   -> pure resolvedVal
-                   _ -> internalValueLeak "Path validation returned an unexpected L.Expr variant."
-                        & OuroError (S.exprPos rootTarget)
-                        & EvalError
-                        & pure
+                   _unexpectedExpr -> internalValueLeak "Path validation returned an unexpected L.Expr variant."
+                                      & OuroError (S.exprPos rootTarget)
+                                      & EvalError
+                                      & pure
 
         S.Form pos allFields -> do
             let wrappedEvaluator currentEnv expr' = runReader (evalExpr expr') currentEnv
@@ -138,62 +139,90 @@ evalExpr expr = do
 assertTag :: S.ReaderTag -> S.Expr -> EvalM L.Expr
 assertTag tag payload = do
     evaluatedVal <- evalExpr payload
-    let mkErr pos context = pure $ EvalError (OuroError pos context)
+    let pos = S.exprPos payload
 
-    case tag of
-        S.Uri -> case evaluatedVal of
-            Primitive (I.String rawText)
-                -> case URI.mkURI rawText of
-                       Left _    -> mkErr (S.exprPos payload)
-                                       (typeMismatch "a String matching URI layout" "invalid URI format"
-                                           & withBlurb (typeMismatchBlurb evaluatedVal))
-                       Right uri -> case URI.uriScheme uri of
-                           Just _  -> pure $ Primitive (I.URI uri)
-                           Nothing -> mkErr (S.exprPos payload)
-                                           (typeMismatch "a String matching a URI layout with a scheme included (https:)"
-                                                       "a String in an invalid URI format"
-                                           & withBlurb (typeMismatchBlurb (Primitive (I.String rawText))))
-            otherVal -> mkErr (S.exprPos payload)
-                                (typeMismatch "a String matching a URI layout with a scheme included (https:)"
-                                              (humanReadableType otherVal)
-                                 & withBlurb (typeMismatchBlurb otherVal))
+    case evaluatedVal of
+        err@(EvalError _) -> pure err
+        _notError         -> case tag of
+                                 S.Uri     -> assertUri  pos evaluatedVal
+                                 S.Date    -> assertDate pos evaluatedVal
+                                 S.StrTag  -> isString   pos evaluatedVal
+                                 S.NumTag  -> isNumber   pos evaluatedVal
+                                 S.BoolTag -> isBoolean  pos evaluatedVal
+                                 _badTag   -> Syntax MalformedTagPayload
+                                                      { activeTag      = T.pack (show tag)
+                                                      , foundNodeShape = "You cannot type assert an empty object or array"
+                                                      }
+                                                      & OuroError pos
+                                                      & EvalError
+                                                      & pure
 
-        S.Date -> case evaluatedVal of
-            Primitive (I.String rawText) ->
-                case parseISO8601 (T.unpack rawText) of
-                    Just utcTime -> pure $ Primitive (I.Date utcTime)
-                    Nothing      -> mkErr (S.exprPos payload)
-                                          (typeMismatch "a String matching ISO-8601 layout (YYYY-MM-DDTHH:mm:ssZ)"
-                                                        "a String in an invalid Date format"
-                                           & withBlurb (typeMismatchBlurb (Primitive (I.String rawText))))
-            otherVal -> mkErr (S.exprPos payload)
-                              (typeMismatch "a String matching ISO-8601 layout (YYYY-MM-DDTHH:mm:ssZ)"
-                                            (humanReadableType otherVal)
-                               & withBlurb (typeMismatchBlurb otherVal))
+    where
+    -- Typed Primitive Helpers
+    isString pos v = case v of
+                         Primitive (I.String _) -> pure v
+                         other                  -> failMismatch pos "a String" (humanReadableType other) other
 
-        S.StrTag  -> case evaluatedVal of
-            Primitive (I.String _) -> pure evaluatedVal
-            otherVal               -> mkErr (S.exprPos payload)
-                                            (typeMismatch "a String" (humanReadableType otherVal)
-                                             & withBlurb (typeMismatchBlurb otherVal))
+    isNumber pos v = case v of
+                         Primitive (I.Number _) -> pure v
+                         other                  -> failMismatch pos "a Number" (humanReadableType other) other
 
-        S.NumTag  -> case evaluatedVal of
-            Primitive (I.Number _) -> pure evaluatedVal
-            otherVal               -> mkErr (S.exprPos payload)
-                                            (typeMismatch "a Number" (humanReadableType otherVal)
-                                             & withBlurb (typeMismatchBlurb otherVal))
+    isBoolean pos v = case v of
+                          Primitive (I.Boolean _) -> pure v
+                          other                   -> failMismatch pos "a Boolean" (humanReadableType other) other
 
-        S.BoolTag -> case evaluatedVal of
-            Primitive (I.Boolean _) -> pure evaluatedVal
-            otherVal                -> mkErr (S.exprPos payload)
-                                             (typeMismatch "a Boolean" (humanReadableType otherVal)
-                                              & withBlurb (typeMismatchBlurb otherVal))
+    -- Complex Parsers
+    assertUri :: SourcePos -> L.Expr -> EvalM L.Expr
+    assertUri pos = \case
+        Primitive (I.String rawText)
+            -> case URI.mkURI rawText of
+                   Left _
+                       -> failMismatch pos
+                              "a String matching URI layout"
+                              "invalid URI format"
+                              (Primitive $ I.String rawText)
 
-        _ -> mkErr (S.exprPos payload)
-                   (Syntax $ MalformedTagPayload
-                     { activeTag      = T.pack (show tag)
-                     , foundNodeShape = "You cannot type assert an empty object or array"
-                     })
+                   Right uri
+                       -> case URI.uriScheme uri of
+                              Just _
+                                  -> pure $ Primitive (I.URI uri)
+                              Nothing
+                                  -> failMismatch pos
+                                         "a String matching a URI layout with a scheme included (https:)"
+                                         "a String in an invalid URI format"
+                                         (Primitive $ I.String rawText)
+
+        otherVal
+            -> failMismatch pos
+                   "a String matching a URI layout with a scheme included (https:)"
+                   (humanReadableType otherVal)
+                   otherVal
+
+    assertDate :: SourcePos -> L.Expr -> EvalM L.Expr
+    assertDate pos =
+        \case
+         Primitive (I.String rawText)
+             -> case parseISO8601 (T.unpack rawText) of
+                    Just    utcTime -> pure $ Primitive (I.Date utcTime)
+                    Nothing         -> failMismatch pos
+                                           "a String matching ISO-8601 layout (YYYY-MM-DDTHH:mm:ssZ)"
+                                           "a String in an invalid Date format"
+                                           (Primitive $ I.String rawText)
+
+         otherVal
+             -> failMismatch pos
+                    "a String matching ISO-8601 layout (YYYY-MM-DDTHH:mm:ssZ)"
+                    (humanReadableType otherVal)
+                    otherVal
+
+    -- Reusable Validation Helpers
+    failMismatch :: SourcePos -> Text -> Text -> L.Expr -> EvalM L.Expr
+    failMismatch pos expected actual valForBlurb =
+        typeMismatch expected actual
+        & withBlurb (typeMismatchBlurb valForBlurb)
+        & OuroError pos
+        & EvalError
+        & pure
 
 
 -- applyFunction.

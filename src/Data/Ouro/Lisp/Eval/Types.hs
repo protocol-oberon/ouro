@@ -5,6 +5,7 @@
 module Data.Ouro.Lisp.Eval.Types where
 
 import           Control.Monad.Reader      (Reader)
+import           Data.List                 (sortOn)
 import qualified Data.Map.Strict           as Map
 import           Data.Ouro.Error.Types     (OuroError)
 import qualified Data.Ouro.Internal.Expr   as I
@@ -19,7 +20,6 @@ import           Lens.Micro                ((^.))
 import           Lens.Micro.TH             (makeLenses)
 import           Text.Megaparsec           (SourcePos)
 import           Unsafe.Coerce             (unsafeCoerce)
-import Data.List (sortOn)
 
 
 -- Env.
