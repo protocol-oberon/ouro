@@ -40,7 +40,6 @@ pValidate = Validate <$> pValidateCommand
                    <*> switch (long "print" <> short 'p' <> help "Print validation results")
                    <*> optional pTargetTransform
 
-    -- The subcommands now ONLY parse their specific configuration settings
     pTargetTransform :: Parser TargetTransform
     pTargetTransform = subparser
                      (  command "indent" (info pIndent (progDesc "Format the JSON with specific indentation"))
@@ -65,7 +64,7 @@ pOutputFileOption :: Parser FilePath
 pOutputFileOption = strOption (long "output" <> short 'o' <> metavar "FILE" <> help "Output file")
 
 
--- This now validates that the provided string is a path ending in .json
+-- Validates that the provided string is a path ending in .json
 pJsonFile :: Parser FilePath
 pJsonFile = argument (eitherReader validateJsonPath) (metavar "file")
     where

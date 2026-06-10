@@ -59,14 +59,12 @@ styleToAnsi = \case
 
 pintDiagnostic :: FilePath -> String -> Either OuroWarning OuroError -> IO ()
 pintDiagnostic fp sourceContent diagnostic = do
-    -- Phase 1: Source Coordinate and Frame Metric Extraction
+    -- Source Coordinate and Frame Metric Extraction
     let (pos, headerStyle, codeText, title, details, mBlurb) = case diagnostic of
-            -- Right handles your standalone OuroError type
             Right (OuroError ePos context)
                 -> let (errTitle, errDetails, errBlurb) = splitErrorContext context
                    in (ePos, Error, smartErrorCode context, errTitle, errDetails, errBlurb)
 
-            -- Left handles your standalone OuroWarning type
             Left (OuroWarning wPos context)
                 -> let (warnTitle, warnDetails, warnBlurb) = splitWarningContext context
                    in (wPos, Warning, smartWarningCode context, warnTitle, warnDetails, warnBlurb)
@@ -76,7 +74,7 @@ pintDiagnostic fp sourceContent diagnostic = do
         lineStr     = annotate Gutter (pretty $ show lineNum)
         gutterWidth = length (show lineNum)
 
-    -- Phase 2: Source Code Buffering
+    -- Source Code Buffering
     -- Safely retrieve the raw source string matching the target line index.
     -- An empty string fallback is provided to prevent index out of bounds errors.
     let rawLine = case lineNum <= length (lines sourceContent) of
@@ -85,7 +83,7 @@ pintDiagnostic fp sourceContent diagnostic = do
 
     let maxWidth = 100
 
-    -- Phase 3: Source Viewport Window Slicing
+    -- Source Viewport Window Slicing
     -- Evaluates whether the source segment length exceeds the absolute layout boundary limit.
     -- If configuration constraints are exceeded, a bounded slice is extracted centering the
     -- offending target column within the layout viewport window.
@@ -105,29 +103,29 @@ pintDiagnostic fp sourceContent diagnostic = do
                          actualVisualCol = (colNum - startIdx) + length prefix
                      in (prefix ++ window ++ suffix, actualVisualCol)
 
-    -- Phase 4: Gutter and Structural Border Configurations
+    -- Gutter and Structural Border Configurations
     -- Defines the core horizontal spacing primitives. Pre-calculates fixed structural lines
     -- to enforce linear invariance down the terminal margin, preventing raw layout leakage.
     let mkGutter l    = l <> " │ "
         mkEmptyGutter = pretty (replicate gutterWidth ' ') <> " │ "
 
-    -- Phase 5: Subsystem Error Detail Layout Formatting
+    -- Subsystem Error Detail Layout Formatting
     -- Prepends an invariant empty gutter tracking margin directly onto the left rail edge,
     -- then inserts a hardcoded column indentation sequence to match the caret pointer index.
     let alignedDetails = map (\d -> mkEmptyGutter <> pretty (replicate (visualColNum - 1) ' ') <> d) details
 
-    -- Phase 6: Educational Diagnostic Blurb Processing
+    -- Educational Diagnostic Blurb Processing
     -- Routes the trailing paragraph metadata through the line tokenizer pipeline.
     let blurbDoc = case mBlurb of
                        Nothing        -> []
                        Just blurbText -> [ "", highlightDiagnostic blurbText, "" ]
 
-    -- Phase 7: Dynamic Layout Width Compensation
+    -- Dynamic Layout Width Compensation
     -- Expands the total target calculation constraint dynamically by adding the active caret offset index.
     -- This guarantees that text forced past the caret positioning will retain its intended wrapping width canvas.
     let adjustedWidth = maxWidth + visualColNum
 
-    -- Phase 8: Layout Document Generation and Output Streaming
+    -- Layout Document Generation and Output Streaming
     -- Assembles the component diagnostic vectors sequentially into a single unified stream.
     -- Caret tracking preserves raw source alignment offsets while the textual description
     -- components maintain strict alignment layout bounds relative to the vertical fence.
@@ -147,7 +145,7 @@ pintDiagnostic fp sourceContent diagnostic = do
                     [] -> [mkEmptyGutter, mempty]
                     _  -> [mkEmptyGutter] ++ blurbDoc)
 
-    -- Phase 9: Rendering Pipe
+    -- Rendering Pipe
     -- Instructs the layout engine to execute text-wrapping computations under an adjusted
     -- line constraint before converting annotations to ANSI terminal stream codes.
     let layoutOptions = LayoutOptions (AvailablePerLine adjustedWidth 1.0)
@@ -248,7 +246,7 @@ data DiagnosticToken
 
 
 -- Strips characters chunk-by-chunk using simple guards and recursion.
--- | Tokenizes by words to prevent fillSep spacing blowups around quotes.
+-- Tokenizes by words to prevent fillSep spacing blowups around quotes.
 tokenizeErrorString :: Text -> [DiagnosticToken]
 tokenizeErrorString t = map classify (T.words t)
     where

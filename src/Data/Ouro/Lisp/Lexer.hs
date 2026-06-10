@@ -155,13 +155,13 @@ tokenize filename input =
     where
     translateLexError :: ParseErrorBundle T.Text Void -> OuroError
     translateLexError bundle =
-        let -- 1. Extract the primary parsing error sequence
+        let -- Extract the primary parsing error sequence
             firstErr NE.:| _ = M.bundleErrors bundle
 
-            -- 2. Traverse the bundle states to compute the exact SourcePos where the error hit.
+            -- Traverse the bundle states to compute the exact SourcePos where the error hit.
             ((_, pos) NE.:| _, _) = M.attachSourcePos M.errorOffset (M.bundleErrors bundle) (M.bundlePosState bundle)
 
-            -- 3. Extract the exact un-lexable context or custom failure reason
+            -- Extract the exact un-lexable context or custom failure reason
             context = case firstErr of
                           -- Matches explicit 'fail "..."' calls from your tokenizers (e.g., #poo)
                           -- We map over the ErrorFancy Set cleanly using standard elements

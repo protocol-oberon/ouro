@@ -34,29 +34,34 @@ import           Text.Megaparsec              (SourcePos)
 --     unbound elements, ensuring only valid symbol-to-expression associations persist inside the generated frame.
 buildLazyEnv :: Env -> [S.Expr] -> Either OuroError (Map.Map Text S.Expr)
 buildLazyEnv = curry $ \case
-                        (_,   []) -> pure Map.empty
+                        (_,   [])
+                            -> pure Map.empty
 
-                        -- A. Ensure BOTH layout variants of context forms are safely ignored by lazy scoping passes
-                        (env, S.Form _ (S.Symbol _ "context" : _) : xs) ->
-                            buildLazyEnv env xs
+                        -- Case A: Ensure BOTH layout variants of context forms are safely ignored by lazy scoping passes
+                        (env, S.Form _ (S.Symbol _ "context" : _) : xs)
+                            -> buildLazyEnv env xs
 
-                        -- B. Standard block scope variable group processing
-                        (env, S.Form _ (S.Symbol _ "define" : rest) : xs) -> do
-                                                                             innerVars <- buildLazyEnv env rest
-                                                                             outerVars <- buildLazyEnv env xs
-                                                                             pure $ Map.union innerVars outerVars
+                        -- Case B: Standard block scope variable group processing
+                        (env, S.Form _ (S.Symbol _ "define" : rest) : xs)
+                            -> do
+                               innerVars <- buildLazyEnv env rest
+                               outerVars <- buildLazyEnv env xs
+                               pure $ Map.union innerVars outerVars
 
-                        -- C. FIXED: Standard attribute mapping accumulation pass (with structural layout check guards)
+                        -- Case C: Standard attribute mapping accumulation pass (with structural layout check guards)
                         (env, S.Attr _ key : valExpr : rest)
-                            | not (isStructuralExpr valExpr) -> do
-                                                                next <- buildLazyEnv env rest
-                                                                pure $ Map.insert key valExpr next
+                            | not (isStructuralExpr valExpr)
+                            -> do
+                               next <- buildLazyEnv env rest
+                               pure $ Map.insert key valExpr next
 
-                        -- D. FIXED: Safely drop lone attribute tokens without eating sibling expressions
-                        (env, S.Attr {} : rest) -> buildLazyEnv env rest
+                        -- Case D: Safely drop lone attribute tokens without eating sibling expressions
+                        (env, S.Attr {} : rest)
+                            -> buildLazyEnv env rest
 
-                        -- E. Erase exactly ONE unbound element and keep moving
-                        (env, (_ : rest)) -> buildLazyEnv env rest
+                        -- Case E: Erase exactly 1 unbound element and keep moving
+                        (env, (_ : rest))
+                            -> buildLazyEnv env rest
 
     where
     isStructuralExpr :: S.Expr -> Bool
@@ -64,7 +69,7 @@ buildLazyEnv = curry $ \case
                         S.Attr {} -> True
                         S.Form _ (S.Symbol _ "context" : _) -> True
                         S.Form _ (S.Symbol _ "define" : _)  -> True
-                        _                                   -> False
+                        _otherForm                          -> False
 
 
 -- Resolves dynamic lookups via local maps, builtins fallbacks, or stepping up into parent scopes.

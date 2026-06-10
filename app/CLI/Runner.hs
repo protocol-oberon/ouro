@@ -23,17 +23,17 @@ runCommand = \case
 
 runCompile :: FilePath -> Maybe FilePath -> IO ()
 runCompile ifp mOutDir = do
-    -- 1. Calculate the actual output file path dynamically
+    -- Calculate the actual output file path dynamically
     let ofp = case mOutDir of
                   Just dir -> dir </> replaceExtension (takeFileName ifp) "ouro"
                   Nothing  -> replaceExtension ifp "json"
 
     putStrLn $ "Compiling: " <> ifp <> "..."
-    -- 2. Read and process the input file
+    -- Read and process the input file
     content <- TIO.readFile ifp
 
     case O.compile ifp content of
-        O.Success warnings code
+        O.CompilationSuccess warnings code
             -> do
                -- Print all accumulated diagnostics (both warnings and non-fatal/harvested errors) up front
                mapM_ (pintDiagnostic ifp (T.unpack content). Left) warnings
@@ -43,7 +43,7 @@ runCompile ifp mOutDir = do
                putStrLn $ "Compilation Success: " ++ ifp ++ " -> " ++ ofp
                TLIO.writeFile ofp (O.toJSON opts code)
 
-        O.Failure warnings errors
+        O.CompilationFailure warnings errors
             -> do
                -- Even in failure, print the warnings gathered up to the crash point
                mapM_ (pintDiagnostic ifp (T.unpack content) . Left) warnings

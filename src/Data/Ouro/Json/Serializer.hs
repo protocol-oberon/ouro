@@ -205,38 +205,41 @@ emitIndent = do
 -- Serializes a flat JSON-LD Object block by unifying its metadata leaf
 -- and data body fields into a single key-value brace block.
 renderFlatObject :: Expr 'JLD.Meta -> Expr 'JLD.List -> Printer ()
-renderFlatObject metadata body = do
-                                 let bodyPairs = Expr.flattenProps body
+renderFlatObject metadata body =
+    do
+    let bodyPairs = Expr.flattenProps body
 
-                                 case metadata of
-                                     -- Case A: Object has an atomic Context leaf
-                                     Expr.Context (Schema directives) -> do
-                                                                         modify (activeDirectivesL %~ (++ directives))
-                                                                         tell "{\n"
-                                                                         nested $ do
-                                                                                  emitIndent
-                                                                                  tell "\"@context\": "
-                                                                                  renderSchemaInline directives
+    case metadata of
+        -- Case A: Object has an atomic Context leaf
+        Expr.Context (Schema directives)
+            -> do
+               modify (activeDirectivesL %~ (++ directives))
+               tell "{\n"
+               nested $ do
+                       emitIndent
+                       tell "\"@context\": "
+                       renderSchemaInline directives
 
-                                                                                  -- Interleave data properties if they exist alongside the context keys
-                                                                                  case bodyPairs of
-                                                                                      [] -> pure ()
-                                                                                      ps -> do
-                                                                                            tell ",\n"
-                                                                                            intercalateM ",\n" (map renderProperty ps)
-                                                                         tell "\n"
-                                                                         emitIndent
-                                                                         tell "}"
+                       -- Interleave data properties if they exist alongside the context keys
+                       case bodyPairs of
+                           [] -> pure ()
+                           ps -> do
+                               tell ",\n"
+                               intercalateM ",\n" (map renderProperty ps)
+               tell "\n"
+               emitIndent
+               tell "}"
 
-                                     -- Case B: Plain object with no schema metadata tracking
-                                     Expr.EmptyMeta -> case bodyPairs of
-                                                           [] -> tell "{}"
-                                                           ps -> do
-                                                                 tell "{\n"
-                                                                 nested $ intercalateM ",\n" (map renderProperty ps)
-                                                                 tell "\n"
-                                                                 emitIndent
-                                                                 tell "}"
+        -- Case B: Plain object with no schema metadata tracking
+        Expr.EmptyMeta
+            -> case bodyPairs of
+                   [] -> tell "{}"
+                   ps -> do
+                           tell "{\n"
+                           nested $ intercalateM ",\n" (map renderProperty ps)
+                           tell "\n"
+                           emitIndent
+                           tell "}"
 
 
 -- Formats an individual object key-value property pair with indentation alignment.

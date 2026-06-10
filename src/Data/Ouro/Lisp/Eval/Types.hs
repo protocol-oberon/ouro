@@ -112,6 +112,7 @@ data Expr where
 type NativeFunction = SourcePos -> [Expr] -> Reader Env Expr
 
 
+-- Type collapses L.Expr into internal I.Expr
 freeze :: Expr -> I.Expr 'JLD.Primitive
 freeze = \case
           Primitive   p -> p

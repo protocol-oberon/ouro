@@ -62,14 +62,14 @@ import           Text.Megaparsec             (errorBundlePretty)
 
 
 data CompilationResult
-    = Success [OuroWarning] (I.Expr 'JLD.Primitive)
-    | Failure [OuroWarning] [OuroError]
+    = CompilationSuccess [OuroWarning] (I.Expr 'JLD.Primitive)
+    | CompilationFailure [OuroWarning] [OuroError]
 
 -- Type alias representing the dual-track compiler sandbox.
 -- Errors accumulate in the ExceptT track, Warnings accumulate in the Writer track.
 type CompilerM = ExceptT [OuroError] (Writer [OuroWarning])
 
-compile :: FilePath -> Text -> CompilationResult
+compile :: String -> Text -> CompilationResult
 compile filename content = compilationResult . runWriter . runExceptT $ compile'
     where
     compile' :: CompilerM (I.Expr 'JLD.Primitive)
@@ -95,8 +95,8 @@ compile filename content = compilationResult . runWriter . runExceptT $ compile'
 
     compilationResult :: (Either [OuroError] (I.Expr 'JLD.Primitive), [OuroWarning]) -> CompilationResult
     compilationResult = \case
-                         (Right ast, warnings) -> Success warnings ast
-                         (Left errs, warnings) -> Failure warnings errs
+                         (Right ast, warnings) -> CompilationSuccess warnings ast
+                         (Left errs, warnings) -> CompilationFailure warnings errs
 
 
 -- Walks the evaluated L.Expr tree to extract any embedded dynamic EvalErrors

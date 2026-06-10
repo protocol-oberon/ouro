@@ -64,7 +64,7 @@ emitProps evaluator env expressions = go I.EmptyMeta expressions
     go metaAcc = \case
                   [] -> Object metaAcc []
 
-                  -- A. Intercept ANY context form variant at the top-level and route to the schema engine
+                  -- Case A: Intercept ANY context form variant at the top-level and route to the schema engine
                   S.Form _ (S.Symbol pos "context" : directives) : remaining
                       -> case runReader (parseContextDirectives directives) env of
                              EvalError err
@@ -72,7 +72,8 @@ emitProps evaluator env expressions = go I.EmptyMeta expressions
                                         Object finalMeta nextPairs -> Object finalMeta (("@context", EvalError err) : nextPairs)
                                         otherVal                   -> otherVal
 
-                             SchemaVal localSchema -> go (I.Context localSchema) remaining
+                             SchemaVal localSchema
+                                 -> go (I.Context localSchema) remaining
 
                              otherVal
                                  -> let leakErr = internalValueLeak "emitProps context block resolution"
@@ -82,10 +83,10 @@ emitProps evaluator env expressions = go I.EmptyMeta expressions
                                           Object finalMeta nextPairs -> Object finalMeta (("@context", EvalError leakErr) : nextPairs)
                                           ov                         -> ov
 
-                  -- B. Define Blocks are explicitly erased from the output JSON graph at comptime
+                  -- Case B: Define Blocks are explicitly erased from the output JSON graph at comptime
                   S.Form _ (S.Symbol _ "define" : _) : rest -> go metaAcc rest
 
-                  -- C. Extract valid body pairs. Supports lazy nesting compilation inline.
+                  -- Case C: Extract valid body pairs. Supports lazy nesting compilation inline.
                   (S.Attr _ key : valExpr : rest) | not (isStructuralExpr valExpr)
                       -> case go metaAcc rest of
                              Object finalMeta nextPairs
@@ -103,11 +104,11 @@ emitProps evaluator env expressions = go I.EmptyMeta expressions
                                         Array elements -> Object finalMeta ((key, Array elements) : nextPairs)
 
                                         -- 5. Pass-through for valid domain primitives (Durations, Closures, Schemas, etc.)
-                                        Duration u v  -> Object finalMeta ((key, Duration u v) : nextPairs)
-                                        SchemaVal s   -> Object finalMeta ((key, SchemaVal s) : nextPairs)
-                                        Directive d   -> Object finalMeta ((key, Directive d) : nextPairs)
-                                        PrimitiveOp o -> Object finalMeta ((key, PrimitiveOp o) : nextPairs)
-                                        Closure e n x -> Object finalMeta ((key, Closure e n x) : nextPairs)
+                                        Duration    u v   -> Object finalMeta ((key, Duration u v) : nextPairs)
+                                        SchemaVal   s     -> Object finalMeta ((key, SchemaVal s) : nextPairs)
+                                        Directive   d     -> Object finalMeta ((key, Directive d) : nextPairs)
+                                        PrimitiveOp o     -> Object finalMeta ((key, PrimitiveOp o) : nextPairs)
+                                        Closure     e n x -> Object finalMeta ((key, Closure e n x) : nextPairs)
 
                                         -- Real type violations fall here (Metadata context blocks cannot be property values)
                                         otherVal -> let err = typeMismatch
@@ -119,10 +120,10 @@ emitProps evaluator env expressions = go I.EmptyMeta expressions
 
                              otherVal -> otherVal
 
-                  -- D. If it's a loose keyword modifier layout, safely drop it and keep moving
+                  -- Case D: If it's a loose keyword modifier layout, safely drop it and keep moving
                   S.Attr {} : rest -> go metaAcc rest
 
-                  -- E. Erase exactly ONE unbound item element sequence loop and keep moving
+                  -- Case E: Erase exactly ONE unbound item element sequence loop and keep moving
                   _ : rest -> go metaAcc rest
 
     -- Helper layout guard to prevent key-value snatching across macro envelopes
@@ -130,11 +131,10 @@ emitProps evaluator env expressions = go I.EmptyMeta expressions
     isStructuralExpr = \case
                         S.Attr _ _                          -> True
                         S.Form _ (S.Symbol _ "context" : _) -> True
-                        S.Form _ (S.Symbol _ "define" : _)  -> True
-                        _                                   -> False
+                        S.Form _ (S.Symbol _ "define"  : _) -> True
+                        _otherForm                          -> False
 
 
--- Compiles a collection of nested Lisp blocks into a uniform sequence array of Objects
 -- Compiles a collection of nested Lisp blocks into a uniform sequence array of Objects
 compileArray
     :: (Env -> S.Expr -> L.Expr)
@@ -148,13 +148,13 @@ compileArray evaluator env elements = Array (compileElements elements)
         case exprs of
             [] -> []
 
-            -- A. TRUE ERASURE: Skip define blocks completely inside arrays
+            -- Case A: TRUE ERASURE: Skip define blocks completely inside arrays
             S.Form _ (S.Symbol _ "define" : _) : xs -> compileElements xs
 
-            -- B. TRUE ERASURE: Skip context blocks completely inside arrays
+            -- Case B: TRUE ERASURE: Skip context blocks completely inside arrays
             S.Form _ [S.Symbol _ "context", S.Form _ _] : xs -> compileElements xs
 
-            -- C. Process structured nested forms (Objects or trailing list matrices)
+            -- Case C: Process structured nested forms (Objects or trailing list matrices)
             (S.Form pos fields : xs)
                 -> let evaledItem = compileScope evaluator env fields
                        restL      = compileElements xs
@@ -174,7 +174,7 @@ compileArray evaluator env elements = Array (compileElements elements)
                                                         & OuroError pos
                                             in EvalError err : restL
 
-            -- D. Process flat scalar fields or variables evaluated within the element stream
+            -- Case D: Process flat scalar fields or variables evaluated within the element stream
             (otherExpr : xs)
                 -> let evaledVal = evaluator env otherExpr
                        restL     = compileElements xs
@@ -219,7 +219,7 @@ determineBlockTarget = \case
                         S.Form _ (S.Attr {} : _) : _                               -> TargetList
 
                         -- Fallback: If it's a standard list starting with a function/operator symbol
-                        _ -> TargetFunctionApp
+                        _otherForm -> TargetFunctionApp
 
 
 -- resolvePath.

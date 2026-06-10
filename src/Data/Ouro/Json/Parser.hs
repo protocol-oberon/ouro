@@ -63,15 +63,15 @@ pObject = between (symbol "{") (symbol "}") $ do
     let mSchema   = listToMaybe [ s | ContextField s <- fields ]
     let dataLists = [ d | DataField d <- fields ]
 
-    -- 1. Construct the sequential data body spine from the parsed object attributes
+    -- Construct the sequential data body spine from the parsed object attributes
     let bodySpine = foldr Expr.Cons Expr.Nil dataLists
 
-    -- 2. Resolve the metadata block as an atomic leaf asset
+    -- Resolve the metadata block as an atomic leaf asset
     let metadataBlock = case mSchema of
             Just schema -> Expr.Context schema
             Nothing     -> Expr.EmptyMeta
 
-    -- 3. Construct the clean, flat object structure:
+    -- Construct the clean, flat object structure:
     --    Left slot:  The metadata leaf block (Expr 'JLD.Meta)
     --    Right slot: The core data payload backbone (Expr 'JLD.List)
     return $ Expr.Object metadataBlock bodySpine
@@ -98,19 +98,19 @@ pQuotedURI = between (char '"') (char '"') URI.parser
 
 pSchema :: Parser Schema
 pSchema = choice
-    [ -- Scenario 1: Null context (Clear Context)
+    [ -- Case A: Null context (Clear Context)
       Schema [Schema.ClearContext] <$ symbol "null"
 
-      -- Scenario 2: A single remote context strict URI
+      -- Case B: A single remote context strict URI
     , do uri <- lexeme pQuotedURI
          return $ Schema [Schema.RemoteContext uri]
 
-      -- Scenario 3: An inline object mapping block e.g. {"crm": "..."}
+      -- Case C: An inline object mapping block e.g. {"crm": "..."}
     , between (symbol "{") (symbol "}") $ do
         directives <- pDirective `sepBy` symbol ","
         return $ Schema directives
 
-      -- Scenario 4: A list/array of multiple contexts e.g. ["url1", {"map": "url2"}]
+      -- Case D: A list/array of multiple contexts e.g. ["url1", {"map": "url2"}]
     , between (symbol "[") (symbol "]") $ do
         schemas <- pSchema `sepBy` symbol ","
         let flattenedDirectives = concatMap (\(Schema directives) -> directives) schemas
