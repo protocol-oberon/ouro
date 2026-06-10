@@ -82,7 +82,13 @@ cyclicDependency var = Scope $ CyclicDependencyError { variableName = var }
 
 -- Internal Violations
 internalValueLeak :: Text -> ErrorContext
-internalValueLeak block = Internal $ ErasureValueLeak { blockName = block }
+internalValueLeak block = Internal $ ErasureValueLeakError { blockName = block }
+
+astCorruption :: Text -> Text -> ErrorContext
+astCorruption active found = Internal $ ASTCorruptionError
+    { activeSymbol  = active
+    , foundASTShape = found
+    }
 
 
 --- Generic Error Code Generation ---

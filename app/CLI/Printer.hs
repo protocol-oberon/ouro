@@ -230,13 +230,22 @@ splitErrorContext = \case
            , Nothing
            )
 
-    Internal (ErasureValueLeak block)
+    Internal (ErasureValueLeakError block)
         -> ( "Compiler Internal Error"
            , [ labeled "Expected: " "nil (erased)"
              , labeled "Got:      " (pretty block)
              ]
            , Nothing
            )
+
+    Internal (ASTCorruptionError active found)
+            -> ( "Fatal Compiler Error"
+            , [ labeled "Active Symbol: " (pretty active)
+              , labeled "Reason:        " (pretty found)
+              ]
+            , Nothing
+            )
+
 
 
 -- Standardized labels without compounding layout padding
