@@ -1,0 +1,34 @@
+{
+  "@context": "https://linked.art/ns/v1/linked-art.json",
+  "id": "https://api.ouro.dev/v1/test-execution",
+  "type": "DiagnosticReport",
+  "_label": "Ouro Engine Integration Verification Profile",
+  "classified_as": [
+    {
+      "id": "https://api.ouro.dev/v1/vocab/test-object",
+      "type": "Type",
+      "_label": "Validation Test Object"
+    }
+  ],
+  "nested_manifest": {
+    "id": "https://api.ouro.dev/v1/dataset",
+    "created": "2026-05-28T12:00:00Z",
+    "meta": {
+      "version": "v2.1.0",
+      "release_code": 905.0,
+      "maintainer": {
+        "name": "Dev Team",
+        "is_valid": true
+      }
+    }
+  },
+  "status": "v2.1.0",
+  "runtime_check": true,
+  "execution_metrics": [
+    {
+      "null_field": null,
+      "math": 6.0
+    }
+  ],
+  "output": {}
+}

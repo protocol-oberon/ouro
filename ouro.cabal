@@ -59,10 +59,8 @@ library
     import:           warnings
 
     -- Modules exported by the library.
-    exposed-modules:  Data.Ouro
-
-    -- Modules included in this library but not exported.
-    other-modules:
+    exposed-modules:
+        Data.Ouro
         Data.Ouro.Error.Diagnostics
         Data.Ouro.Error.Linter
         Data.Ouro.Error.Types
@@ -83,6 +81,29 @@ library
         Data.Ouro.Lisp.Parser
         Data.Ouro.Lisp.Surface
         Data.Ouro.Lisp.Tokens
+
+    -- Modules included in this library but not exported.
+    -- other-modules:
+    --     Data.Ouro.Error.Diagnostics
+    --     Data.Ouro.Error.Linter
+    --     Data.Ouro.Error.Types
+    --     Data.Ouro.Internal.Expr
+    --     Data.Ouro.Internal.Kinds
+    --     Data.Ouro.Internal.Schema
+    --     Data.Ouro.Internal.Utils
+    --     Data.Ouro.Json.Parser
+    --     Data.Ouro.Json.Serializer
+    --     Data.Ouro.Lisp.Canon
+    --     Data.Ouro.Lisp.Eval.Builtins
+    --     Data.Ouro.Lisp.Eval.Engine
+    --     Data.Ouro.Lisp.Eval.Schema
+    --     Data.Ouro.Lisp.Eval.Scope
+    --     Data.Ouro.Lisp.Eval.Structural
+    --     Data.Ouro.Lisp.Eval.Types
+    --     Data.Ouro.Lisp.Lexer
+    --     Data.Ouro.Lisp.Parser
+    --     Data.Ouro.Lisp.Surface
+    --     Data.Ouro.Lisp.Tokens
 
     -- LANGUAGE extensions used by modules in this package.
     default-extensions:
@@ -158,7 +179,10 @@ test-suite ouro-test
     default-language: GHC2021
 
     -- Modules included in this executable, other than Main.
-    -- other-modules:
+    other-modules:
+        Utils
+        Ouro.EvaluationSpec
+
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
@@ -174,7 +198,11 @@ test-suite ouro-test
 
     -- Test dependencies.
     build-depends:
-        containers ^>=0.7,
         base       ^>=4.20.2.0,
+        containers ^>=0.7,
         hspec       >=2.11 && < 3.0,
+        text        >= 2.0,
         ouro
+
+    build-tool-depends:
+        hspec-discover:hspec-discover >= 2.11

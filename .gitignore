@@ -1,5 +1,3 @@
 dist-newstyle/
-*.json
-*.ouro
 .direnv
 .envrc

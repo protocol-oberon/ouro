@@ -1,0 +1,41 @@
+;; ===================================================================
+;; Advanced Linked Art Profile — Feature Stress-Test Documentation
+;; Demonstrates pipeline architecture transformations and evaluation passes
+;; ===================================================================
+;; FEATURE 1: Inline Context Sugar -> Canon.hs expands this token sequence
+;; directly into a structured:
+;; (context ((remote-context "https://linked.art/ns/v1/linked-art.json")))
+;; metadata form.
+(:context "https://linked.art/ns/v1/linked-art.json"
+
+ ;; FEATURE 2: Compile-Time Variable Erasure Block -> buildLazyEnv collects
+ ;; these bindings into an isolated environment frame during the first compiler pass.
+ ;; emitProps completely erases this form, preventing leakage into the JSON graph.
+ (define
+   :getty-uri      "http://vocab.getty.edu/aat/"
+   :linked-art-uri "https://linked.art/example/")
+
+ ;; FEATURE 3: Order-Independent Lazy Binding & Polymorphic Operator ->
+ ;; Resolves variables defined in the adjacent block using the variadic string '+'
+ ;; concatenation primitive, followed by strict Megaparsec #uri validation.
+ :id     #uri (+ linked-art-uri "object/spring/13")
+ :type   "HumanMadeObject"
+ :_label "Jeanne (Spring) by Manet"
+
+ ;; FEATURE 4: TargetList Array Form Routing -> The outer double parentheses '(('
+ ;; alter lookahead routing rules in determineBlockTarget. Because the form's head
+ ;; is an isolated nested object, it builds an array container instead of an object map.
+ :classified_as ((:id     #uri (+ getty-uri "300033618")
+                  :type   "Type"
+                  :_label "Painting"
+                  ;; FEATURE 5: Deep Structural Parenthetical Nesting -> Sub-objects
+                  ;; maintain environmental context visibility down the AST recursion chain.
+                  :classified_as ((:id     #uri (+ getty-uri "300435443")
+                                   :type   "Type"
+                                   :_label "Type of Work"))))
+
+ :identified_by ((:type    "Name"
+                  :content "Jeanne (Spring)"))
+
+ :member_of     ((:id   #uri (+ linked-art-uri "set/exhset")
+                  :type "Set")))

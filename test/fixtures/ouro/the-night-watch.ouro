@@ -1,0 +1,93 @@
+;; ===================================================================
+;; Advanced Linked Art Profile, Dynamic Operational Night Watch
+;; Demonstrates semantic syntax guiding and first-class provenance loops.
+;; ===================================================================
+;;
+;; PROVENANCE NAVIGATION NOTE:
+;; Ouro enforces a flat structural indentation style. By stripping out
+;; arbitrary JSON delimiters (like commas or curly brackets), your eyes are
+;; guided strictly by horizontal depth columns. Moving out to the left margin
+;; indicates tracking the parent identity lifecycle, while stepping inward
+;; descends into localized event metadata properties.
+
+(:context "https://linked.art/ns/v1/linked-art.json"
+
+ ;; FEATURE 1: Compile-Time Variable Erasure Block (Erased by Pass 2: emitProps)
+ ;; By isolating vocabulary roots up here, we prevent messy URI strings from
+ ;; cluttering the downstream lineage narrative below.
+ (define
+   :getty-aat     "http://vocab.getty.edu/aat/"
+   :linked-art    "https://linked.art/example/"
+   :rijks-access  "https://www.rijksmuseum.nl/en/stories/"
+   :w3-spec       "http://w3.org/TR/"
+
+   ;; SYNTAX GUIDE: We establish the primary physical origin point of the artifact.
+   ;; Every downstream digital event or record will pull on this thunk to anchor itself.
+   :piece-started #date "2019-07-19T00:00:00Z")
+
+ ;; SYNTAX GUIDE: The identity block sits prominently at the root level.
+ ;; Every Ouro document begins by explicitly declaring what entity it represents.
+ :id              #uri (+ linked-art "digital/operation_nw/1")
+ :type            "DigitalObject"
+ :_label          "Operation Night Watch Publication"
+
+ ;; FEATURE 2: TargetList Matrix Routing (Double Parenthesis Matrix: `(( ... ))`)
+ ;; This signals 'determineBlockTarget' to build a JSON array container.
+ ;; Used when classifying the object against formal museum vocabularies (Getty AAT).
+ :classified_as   ((:id            #uri (+ getty-aat "300264578")
+                    :type          "Type"
+                    :_label        "Web Page"))
+
+ :identified_by   ((:type          "Name"
+                    :content       "Operation Night Watch"))
+
+ ;; SYNTAX GUIDE: Deep structural nesting allows sub-objects to remain cleanly
+ ;; insulated while maintaining lexical scope visibility down the entire AST recursion chain.
+ :dimension       ((:type          "Dimension"
+                    :_label        "220 kb"
+                    :classified_as ((:id     #uri (+ getty-aat "300265863")
+                                     :type   "Type"
+                                     :_label "File Size"))
+
+                    ;; FEATURE 3: Direct Scientific Number Literal Tagging
+                    :value          220
+
+                    ;; FEATURE 4: TargetObject Record Routing (Single Parenthesis Layer: `(:key ...)`)
+                    ;; Signals a fallback to a direct nested JSON dictionary mapping.
+                    :unit          (:id     #uri (+ getty-aat "300265870")
+                                    :type   "MeasurementUnit"
+                                    :_label "kilobytes")))
+
+ :access_point    ((:id            #uri (+ rijks-access "operation-night-watch")
+                    :type          "DigitalObject"))
+
+ ;; FEATURE 5: Clean Inline Primitive Allocation
+ :format          "text/html"
+
+ :conforms_to     ((:id            #uri (+ w3-spec "html")
+                    :type          "InformationObject"))
+
+ ;; SYNTAX GUIDE: Provenance Tracking Event Layer
+ ;; The single paren layout isolates the dynamic 'Creation' event. Here, Ouro's
+ ;; compiler guides the developer to map the exact temporal window of execution.
+ :created_by      (:type           "Creation"
+                   :timespan       (:type               "TimeSpan"
+
+                                    ;; FEATURE 6: Type-Checked Polymorphic Date Arithmetic
+                                    ;; We reference the origin point thunk directly. The editor's eye can
+                                    ;; instantly trace the timeline back up to the '(define)' block.
+                                    :begin_of_the_begin  piece-started
+
+                                    ;; The compiler runs 'handleAddition' to project the range boundary safely.
+                                    :end_of_the_end      (+ piece-started (days 2)))
+
+                   :carried_out_by ((:id                #uri (+ linked-art "group/rijksmuseum")
+                                     :type              "Group"
+                                     :_label            "Rijksmuseum")))
+
+ ;; FEATURE 7: Bracket Wall Constraint
+ ;; The clean structural finale. The closing symbols pack tightly together: `)) )`
+ ;; This signals the formal, type-safe closure of all open recursive scopes.
+ :digitally_carries ((:id          #uri (+ linked-art "text/operation_nw_en")
+                      :type        "LinguisticObject"
+                      :_label      "Operation Night Watch in English")))

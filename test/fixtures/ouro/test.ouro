@@ -1,0 +1,49 @@
+;; ===================================================================
+;; Ouro Integration Test Suite — Validation Profile
+;; Verifies desugaring, lazy environment maps, and path lookup logic.
+;; ===================================================================
+
+(:context "https://linked.art/ns/v1/linked-art.json"
+
+ ;; FEATURE 1: Compile-Time Variable Erasure Block
+ ;; Bound lazily to the local scope env, then erased completely from properties.
+ (define
+   :api-root      "https://api.ouro.dev/v1/"
+   :target-value  "Success"
+   :ignored-value 42.0
+   :is-active     true)
+
+ ;; SYNTAX GUIDE: Core identity metadata declarations at root level
+ :id              #uri (+ api-root "test-execution")
+ :type            "DiagnosticReport"
+ :_label          "Ouro Engine Integration Verification Profile"
+
+ ;; FEATURE 2: TargetList Matrix Routing (Double Parenthesis Array Container)
+ :classified_as   ((:id      #uri (+ api-root "vocab/test-object")
+                    :type    "Type"
+                    :_label  "Validation Test Object"))
+
+ ;; FEATURE 3: TargetObject Record Routing (Single Parenthesis Dictionary Layer)
+ :nested_manifest (:id       #uri (+ api-root "dataset")
+                   :created  #date "2026-05-28T12:00:00Z"
+
+                   ;; Deep structural nesting path challenge
+                   :meta     (:version       "v2.1.0"
+                              :release_code  905
+                              :maintainer    (:name    "Dev Team"
+                                              :is_valid is-active)))
+
+ ;; FEATURE 4: Semantic Evaluator Navigation (Path Resolution Traversal)
+ ;; Triggers 'resolvePath' engine mechanisms to pull expressions out of the Env.
+ :status          (get nested_manifest meta version)
+ :runtime_check   (get nested_manifest meta maintainer is_valid)
+
+ ;; FEATURE 5: Inline Primitive Allocation Matrix
+ :execution_metrics ((:calculated_index  (define
+                                           :date 2026)
+                      :null_field    null
+                      :math (+ 1 2 3)))
+
+ ;; FEATURE 6: Structural Scope Finale
+ ;; Closing parentheses are packed tightly together, concluding all open scopes.
+ :output          (:resolved_status :status) )
