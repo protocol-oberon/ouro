@@ -19,6 +19,7 @@ import           Lens.Micro                ((^.))
 import           Lens.Micro.TH             (makeLenses)
 import           Text.Megaparsec           (SourcePos)
 import           Unsafe.Coerce             (unsafeCoerce)
+import Data.List (sortOn)
 
 
 -- Env.
@@ -99,17 +100,17 @@ allEnvKeys env = go env Set.empty
 --   these nodes verify that the evaluated 'Expr' tree satisfies the strict
 --   Internal GADT constraints required for final serialization.
 data Expr where
-    -- 1. Pristine Frozen Targets (The pure GADTs)
+    -- Pristine Frozen Targets (The pure GADTs)
     Primitive   :: I.Expr 'JLD.Primitive -> Expr
     Metadata    :: I.Expr 'JLD.Meta      -> Expr
 
-    -- 2. Resilient Compilation Scaffolding (The Superset Nodes)
+    -- Resilient Compilation Scaffolding (The Superset Nodes)
     -- These maintain the open tree structure during evaluation, allowing
     -- errors to be embedded at any depth.
     Object      :: I.Expr 'JLD.Meta -> [(Text, Expr)] -> Expr
     Array       :: [Expr]                             -> Expr
 
-    -- 3. Dedicated Evaluation Leaves
+    -- Dedicated Evaluation Leaves
     Duration    :: PeriodUnit -> Int -> Expr
 
     SchemaVal   :: Schema          -> Expr
@@ -123,6 +124,27 @@ data Expr where
     EvalError   :: OuroError -> Expr
 
 type NativeFunction = SourcePos -> [Expr] -> Reader Env Expr
+
+
+instance Eq Expr where
+    -- Frozen Targets
+    Primitive a == Primitive b = a == b
+    Metadata  a == Metadata  b = a == b
+
+    -- Compilation Scaffolding
+    Object a1 b1 == Object a2 b2 = a1 == a2 && sortOn fst b1 == sortOn fst b2
+    Array  a     == Array  b     = a == b
+
+    -- Eval only leaves
+    Duration    p1 i1   == Duration    p2 i2   = (p1 == p2) && (i1 == i2)
+    SchemaVal   a       == SchemaVal   b       = a == b
+    Directive   a       == Directive   b       = a == b
+    PrimitiveOp _       == PrimitiveOp _       = False
+    Closure     _  _  _ == Closure     _  _  _ = False
+    EvalError   a       == EvalError   b       = a == b
+
+    -- Catch-all for shape mismatches
+    _ == _ = False
 
 
 -- Type collapses L.Expr into internal I.Expr

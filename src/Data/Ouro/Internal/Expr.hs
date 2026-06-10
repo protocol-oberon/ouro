@@ -5,7 +5,7 @@
 
 module Data.Ouro.Internal.Expr where
 
-import           Data.List                 (intercalate)
+import           Data.List                 (intercalate, sortOn)
 import qualified Data.Ouro.Internal.Kinds  as JLD
 import           Data.Ouro.Internal.Schema (Schema)
 import           Data.Text                 (Text, unpack)
@@ -54,7 +54,7 @@ data Expr (t :: JLD.Type) where
     -- Structural Metadata Trees (Explicitly index as 'JLD.Meta)
     -- This acts as a strict compile-time guardian preventing metadata leaks.
     Context   :: Schema -> Expr 'JLD.Meta
-    EmptyMeta ::           Expr 'JLD.Meta  -- Replaces using 'Null' as a placeholder!
+    EmptyMeta ::           Expr 'JLD.Meta
 
     -- The Pure Binary Backbones
     Cons    :: Expr head -> Expr tail -> Expr 'JLD.List
@@ -68,11 +68,74 @@ data Expr (t :: JLD.Type) where
     Array   :: Expr 'JLD.List                   -> Expr 'JLD.Primitive
 
 
+instance Eq (Expr (t :: JLD.Type)) where
+    -- Leaves
+    String    a == String    b = a == b
+    Number    a == Number    b = a == b
+    Boolean   a == Boolean   b = a == b
+    URI       a == URI       b = a == b
+    Date      a == Date      b = a == b
+    Null        == Null        = True
+    BlankNode a == BlankNode b = a == b
+    EmptyArr    == EmptyArr    = True
+    EmptyObj    == EmptyObj    = True
+
+    -- Structural Metadata Trees
+    Context   a == Context   b = a == b
+    EmptyMeta   == EmptyMeta   = True
+
+    -- Pure Binary Backbones (Wrap in SomeExpr to satisfy the type checker!)
+    Cons h1 t1 == Cons h2 t2 = SomeExpr h1 == SomeExpr h2 && SomeExpr t1 == SomeExpr t2
+    Attr k1 v1 == Attr k2 v2 = k1 == k2 && SomeExpr v1 == SomeExpr v2
+    Nil        == Nil        = True
+
+    -- Boundary Gates
+    Object m1 l1 == Object m2 l2 =
+        -- Metadata must match exactly.
+        -- Properties are flattened, sorted alphabetically by key, and compared.
+        m1 == m2 && sortOn fst (flattenProps l1) == sortOn fst (flattenProps l2)
+
+    Array l1 == Array l2 =
+        -- Arrays are flattened into lists to handle nested/irregular Cons shapes linearly.
+        flattenArray l1 == flattenArray l2
+
+    -- Catch-all for structural mismatches sharing the same type index
+    -- (e.g., comparing an Attr to a Nil, both being 'JLD.List)
+    _ == _ = False
+
 
 -- An existential wrapper to securely erase GADT type indices solely for tree rendering.
 data SomeExpr where
     SomeExpr :: Expr t -> SomeExpr
 
+
+-- This allows for comparison between heterogeneous GADT branches (like existentials in Cons/Attr)
+-- by dropping their phantom types to runtime checks.
+instance Eq SomeExpr where
+    SomeExpr (String a)    == SomeExpr (String b)    = a == b
+    SomeExpr (Number a)    == SomeExpr (Number b)    = a == b
+    SomeExpr (Boolean a)   == SomeExpr (Boolean b)   = a == b
+    SomeExpr (URI a)       == SomeExpr (URI b)       = a == b
+    SomeExpr (Date a)      == SomeExpr (Date b)      = a == b
+    SomeExpr Null          == SomeExpr Null          = True
+    SomeExpr (BlankNode a) == SomeExpr (BlankNode b) = a == b
+    SomeExpr EmptyArr      == SomeExpr EmptyArr      = True
+    SomeExpr EmptyObj      == SomeExpr EmptyObj      = True
+
+    SomeExpr (Context a)   == SomeExpr (Context b)   = a == b
+    SomeExpr EmptyMeta     == SomeExpr EmptyMeta     = True
+
+    -- Existential unwrapping
+    SomeExpr (Cons h1 t1)  == SomeExpr (Cons h2 t2)  = SomeExpr h1 == SomeExpr h2 && SomeExpr t1 == SomeExpr t2
+    SomeExpr (Attr k1 v1)  == SomeExpr (Attr k2 v2)  = k1 == k2 && SomeExpr v1 == SomeExpr v2
+    SomeExpr Nil           == SomeExpr Nil           = True
+
+    -- Boundary delegation
+    SomeExpr (Object m1 l1)== SomeExpr (Object m2 l2)= SomeExpr m1 == SomeExpr m2 && sortOn fst (flattenProps l1) == sortOn fst (flattenProps l2)
+    SomeExpr (Array l1)    == SomeExpr (Array l2)    = flattenArray l1 == flattenArray l2
+
+    -- Shape/Type mismatches
+    _                      == _                      = False
 
 -- Util
 -- Recursively unrolls a binary Cons-chain backbone into a flat list of existentially wrapped expressions.
