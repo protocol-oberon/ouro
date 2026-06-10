@@ -7,7 +7,7 @@ module Data.Ouro.Error.Types where
 
 import           Data.Text       (Text)
 import           GHC.Generics    (Generic)
-import           Text.Megaparsec (SourcePos)
+import           Text.Megaparsec (SourcePos (sourceColumn, sourceLine), unPos)
 
 
 -- The single data type that represents any compiler diagnostic emission
@@ -20,7 +20,14 @@ data OuroDiagnostic
 data OuroError = OuroError
     { errPos     :: SourcePos
     , errContext :: ErrorContext
-    } deriving (Show, Eq, Generic)
+    } deriving (Eq, Generic)
+
+
+instance Show OuroError where
+    show (OuroError pos context) =
+        "OuroError at line " ++ show (unPos (sourceLine pos))
+        ++ ", col " ++ show (unPos (sourceColumn pos))
+        ++ ": " ++ show context
 
 
 -- ErrorContext.

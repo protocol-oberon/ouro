@@ -8,11 +8,10 @@ module Data.Ouro.Lisp.Eval.Builtins
 , isNumber
 ) where
 
-import           Control.Monad               (foldM)
 import           Control.Monad.Reader        (Reader)
 import           Data.Function               ((&))
 import           Data.Ouro.Error.Diagnostics (binaryOpMismatchBlurb,
-                                              typeMismatch, withBlurb)
+                                              typeMismatch, withBlurb, astCorruption)
 import           Data.Ouro.Error.Types       (ErrorContext (..), OuroError (..),
                                               SyntaxError (..))
 import qualified Data.Ouro.Internal.Expr     as I
@@ -35,7 +34,12 @@ builtinRegistry = \case
                    "-"      -> Just $ L.PrimitiveOp handleSubtraction
                    "*"      -> Just $ L.PrimitiveOp handleMultiplication
                    "/"      -> Just $ L.PrimitiveOp handleDivision
+                   ">="     -> Just $ L.PrimitiveOp handleGreaterEq
+                   ">"      -> Just $ L.PrimitiveOp handleGreater
+                   "<="     -> Just $ L.PrimitiveOp handleLessEq
+                   "<"      -> Just $ L.PrimitiveOp handleLess
                    "eq"     -> Just $ L.PrimitiveOp handleEquality
+                   "neq"    -> Just $ L.PrimitiveOp handleNeq
                    "years"  -> Just $ L.PrimitiveOp handleYearsModifier
                    "months" -> Just $ L.PrimitiveOp handleMonthsModifier
                    "days"   -> Just $ L.PrimitiveOp handleDaysModifier
@@ -43,90 +47,71 @@ builtinRegistry = \case
 
 
 --- Core Math & String Accumulators ---
---  handleAddition.
+-- Note: Variadic forms are unrolled during the compiler's desugar pass.
+
+-- handleAddition.
 --
--- Variadic addition operator. Folds across numbers, string concatenations,
--- and polymorphic datetime shifts. Operates purely within EvalM.
+-- Binary addition operator. Handles numbers, string concatenations,
+-- and polymorphic datetime shifts.
 handleAddition :: SourcePos -> [L.Expr] -> Reader Env L.Expr
-handleAddition pos args =
-    case args of
-        [] -> pure $ L.EvalError $ OuroError pos $ Syntax $ MalformedTagPayload
-                { activeTag      = "+"
-                , foundNodeShape = "The addition operator requires at least one argument."
-                }
+handleAddition pos =
+    \case
+     [a, b]
+         -> case (a, b) of
+                (L.Primitive (I.Date utc),   L.Duration unit amt)       -> pure $ L.Primitive (I.Date (applyDuration utc unit amt))
+                (L.Duration unit amt,        L.Primitive (I.Date utc))  -> pure $ L.Primitive (I.Date (applyDuration utc unit amt))
+                (L.Primitive (I.String s1),  L.Primitive (I.String s2)) -> pure $ L.Primitive (I.String (s1 <> s2))
+                (L.Primitive (I.Number n1),  L.Primitive (I.Number n2)) -> pure $ L.Primitive (I.Number (n1 + n2))
 
-        -- Pure Numerical Addition Fallback
-        nums | all isNumber nums ->
-            pure $ L.Primitive $ I.Number $ sum [n | L.Primitive (I.Number n) <- nums]
+                -- Error propagation
+                (err@(L.EvalError _), _) -> pure err
+                (_, err@(L.EvalError _)) -> pure err
 
-        -- Time-Shift or String Folding
-        (baseVal : modifiers) -> foldM applyModifier baseVal modifiers
+                _typeMismatch
+                    -> typeMismatch "Matching numeric, string, or date/duration pairs"
+                             (humanReadableType a <> " + " <> humanReadableType b)
+                       & withBlurb (binaryOpMismatchBlurb a b)
+                       & OuroError pos
+                       & L.EvalError
+                       & pure
 
-    where
-    applyModifier :: L.Expr -> L.Expr -> Reader Env L.Expr
-    applyModifier base modif =
-        case (base, modif) of
-            (L.Primitive (I.Date utc),   L.Duration unit amt) -> pure $ L.Primitive (I.Date (applyDuration utc unit amt))
-            (L.Primitive (I.String s1),  L.Primitive (I.String s2)) -> pure $ L.Primitive (I.String (s1 <> s2))
-            (L.Duration unit amt,        L.Primitive (I.Date utc))  -> pure $ L.Primitive (I.Date (applyDuration utc unit amt))
-            (L.Primitive (I.Number n1),  L.Primitive (I.Number n2)) -> pure $ L.Primitive (I.Number (n1 + n2))
-
-            -- Error propagation
-            (err@(L.EvalError _), _) -> pure err
-            (_, err@(L.EvalError _)) -> pure err
-
-            _ -> pure $ L.EvalError $ OuroError pos $
-                   typeMismatch "Matching numeric, string, or date/duration pairs"
-                                (humanReadableType base <> " + " <> humanReadableType modif)
-                   & withBlurb (binaryOpMismatchBlurb base modif)
+     -- Arity Fallback: The desugar pass failed to normalize the AST
+     _badAST
+         -> astCorruption "+" "Addition received non-binary arguments after desugaring."
+            & OuroError pos
+            & L.EvalError
+            & pure
 
 
 -- handleSubtraction.
 --
--- Variadic subtraction operator. Handles unary inversion and backward calendar
--- traversal. Operates purely within the Reader monad.
+-- Binary subtraction operator. Handles also handles backward calendar traversal.
 handleSubtraction :: SourcePos -> [L.Expr] -> Reader Env L.Expr
-handleSubtraction pos args =
-    case args of
-        [] -> pure $ L.EvalError $ OuroError pos $ Syntax $ MalformedTagPayload
-                { activeTag      = "-"
-                , foundNodeShape = "The minus operator requires at least one argument."
-                }
+handleSubtraction pos =
+    \case
+     [a, b] -> case (a , b) of
+                   (L.Primitive (I.Date utc),  L.Duration unit amt)       -> pure $ L.Primitive (I.Date (applyDuration utc unit (-amt)))
+                   (L.Duration unit amt,       L.Primitive (I.Date utc))  -> pure $ L.Primitive (I.Date (applyDuration utc unit (-amt)))
+                   (L.Primitive (I.Number n1), L.Primitive (I.Number n2)) -> pure $ L.Primitive (I.Number (n1 - n2))
 
-        [singleVal] -> case singleVal of
-            L.Primitive (I.Number n) -> pure $ L.Primitive (I.Number (-n))
-            err@(L.EvalError _)      -> pure err
-            badArg                   -> typeMismatch "A plain Number for unary negation"
-                                                     (humanReadableType badArg)
-                                        & withBlurb ( "Unary negation is only supported for numeric types. "
-                                                   <> "Ensure the value is a number or check your scope."
-                                                   )
-                                        & OuroError pos
-                                        & L.EvalError
-                                        & pure
+                   -- Error propagation
+                   (err@(L.EvalError _), _) -> pure err
+                   (_, err@(L.EvalError _)) -> pure err
 
-        (baseVal : modifiers) -> foldM applySubtraction baseVal modifiers
+                   _typeMismatch
+                       -> typeMismatch "Matching numeric values or a Date minus a L.Duration"
+                               (humanReadableType a <> " - " <> humanReadableType b)
+                          & withBlurb (binaryOpMismatchBlurb a b)
+                          & OuroError pos
+                          & L.EvalError
+                          & pure
 
-    where
-    applySubtraction :: L.Expr -> L.Expr -> Reader Env L.Expr
-    applySubtraction base modif =
-        case (base, modif) of
-            (L.Primitive (I.Number n1), L.Primitive (I.Number n2))
-                -> pure $ L.Primitive (I.Number (n1 - n2))
-
-            -- Subtracting a duration moves the calendar backward
-            (L.Primitive (I.Date utc), L.Duration unit amt)
-                -> pure $ L.Primitive (I.Date (applyDuration utc unit (-amt)))
-
-            -- Error propagation
-            (err@(L.EvalError _), _) -> pure err
-            (_, err@(L.EvalError _)) -> pure err
-
-            _ -> pure $ L.EvalError $ OuroError pos $
-                    typeMismatch "Matching numeric values or a Date minus a L.Duration"
-                                 (humanReadableType base <> " - " <> humanReadableType modif)
-                    & withBlurb ("The '-' operator expects either two numbers or a Date and a L.Duration. "
-                              <> "Please verify the types of your operands.")
+     -- Arity Fallback: The desugar pass failed to normalize the AST
+     _badAST
+         -> astCorruption "-" "Addition received non-binary arguments after desugaring."
+            & OuroError pos
+            & L.EvalError
+            & pure
 
 
 -- handleMultiplication.
@@ -134,130 +119,225 @@ handleSubtraction pos args =
 -- Variadic multiplication operator. Folds across numeric values.
 -- Operates purely within the Reader monad.
 handleMultiplication :: SourcePos -> [L.Expr] -> Reader Env L.Expr
-handleMultiplication pos args =
-    case args of
-        [] -> pure $ L.EvalError $ OuroError pos $ Syntax $ MalformedTagPayload
-                { activeTag      = "*"
-                , foundNodeShape = "The multiplication operator requires at least one argument."
-                }
+handleMultiplication pos =
+    \case
+     [a, b] -> case (a, b) of
+                   (L.Primitive (I.Number n1), L.Primitive (I.Number n2)) -> pure $ L.Primitive (I.Number (n1 * n2))
 
-        (baseVal : modifiers) -> foldM applyMul baseVal modifiers
+                   -- Error propagation
+                   (err@(L.EvalError _), _) -> pure err
+                   (_, err@(L.EvalError _)) -> pure err
 
-    where
-    applyMul :: L.Expr -> L.Expr -> Reader Env L.Expr
-    applyMul base modif =
-        case (base, modif) of
-            (L.Primitive (I.Number n1), L.Primitive (I.Number n2))
-                -> pure $ L.Primitive (I.Number (n1 * n2))
+                   _typeMismatch
+                       -> typeMismatch "Matching numeric values for multiplication"
+                               (humanReadableType a <> " * " <> humanReadableType b)
+                          & withBlurb (binaryOpMismatchBlurb a b)
+                          & OuroError pos
+                          & L.EvalError
+                          & pure
 
-            -- Error propagation
-            (err@(L.EvalError _), _) -> pure err
-            (_, err@(L.EvalError _)) -> pure err
-
-            _ -> pure $ L.EvalError $ OuroError pos $
-                    typeMismatch "Matching numeric values for multiplication"
-                                 (humanReadableType base <> " * " <> humanReadableType modif)
-                    & withBlurb ("Multiplication is only supported for numeric values. "
-                              <> "Please ensure all operands are Numbers.")
+     -- Arity Fallback: The desugar pass failed to normalize the AST
+     _badAST
+         -> astCorruption "*" "Addition received non-binary arguments after desugaring."
+            & OuroError pos
+            & L.EvalError
+            & pure
 
 
 -- handleDivision.
 --
--- Variadic division operator. Supports Lisp-style reciprocal syntax (/ x).
+-- Binary division operator. Expects exactly two arguments.
 -- Operates purely within the Reader monad.
 handleDivision :: SourcePos -> [L.Expr] -> Reader Env L.Expr
-handleDivision pos args =
-    case args of
-        [] -> pure $ L.EvalError $ OuroError pos $ Syntax $ MalformedTagPayload
-                { activeTag      = "/"
-                , foundNodeShape = "The division operator requires at least one argument."
-                }
+handleDivision pos =
+    \case
+     [a, b] -> case (a, b) of
+         -- Division by Zero check
+         (L.Primitive (I.Number _), L.Primitive (I.Number 0))
+             -> typeMismatch "A non-zero Number divisor" "a zero (0)"
+                & withBlurb "Attempted division by zero."
+                & OuroError pos
+                & L.EvalError
+                & pure
 
-        -- Idiomatic Lisp: (/ 2) means 1 / 2 (reciprocal)
-        [singleVal] -> case singleVal of
-            L.Primitive (I.Number 0) -> pure $ L.EvalError $ OuroError pos $
-                                        typeMismatch "A non-zero Number for reciprocal division" "a zero (0)"
-                                        & withBlurb "Division by zero is undefined in Ouro numeric arithmetic."
-            L.Primitive (I.Number n) -> pure $ L.Primitive (I.Number (1.0 / n))
-            err@(L.EvalError _)      -> pure err
-            badArg                   -> pure $ L.EvalError $ OuroError pos $
-                                        typeMismatch "A plain Number for reciprocal division" (humanReadableType badArg)
-                                        & withBlurb "The division operator expects a numeric value."
+         -- Successful Division
+         (L.Primitive (I.Number n1), L.Primitive (I.Number n2))
+             -> pure $ L.Primitive (I.Number (n1 / n2))
 
-        (baseVal : modifiers) -> foldM applyDiv baseVal modifiers
+         -- Error propagation
+         (err@(L.EvalError _), _) -> pure err
+         (_, err@(L.EvalError _)) -> pure err
 
-    where
-    applyDiv :: L.Expr -> L.Expr -> Reader Env L.Expr
-    applyDiv base modif =
-        case (base, modif) of
-            (L.Primitive (I.Number _), L.Primitive (I.Number 0))
-                -> pure $ L.EvalError $ OuroError pos $
-                         typeMismatch "A non-zero Number divisor" "a zero (0)"
-                         & withBlurb "Attempted division by zero."
+         -- Type Mismatch
+         _typeMismatch
+             -> typeMismatch "Matching numeric values for division"
+                             (humanReadableType a <> " / " <> humanReadableType b)
+                & withBlurb (binaryOpMismatchBlurb a b)
+                & OuroError pos
+                & L.EvalError
+                & pure
 
-            (L.Primitive (I.Number n1), L.Primitive (I.Number n2))
-                -> pure $ L.Primitive (I.Number (n1 / n2))
+     -- Arity Fallback: The desugar pass failed to normalize the AST
+     _badAST
+         -> astCorruption "/" "Division received non-binary arguments after desugaring."
+            & OuroError pos
+            & L.EvalError
+            & pure
 
-            -- Error propagation
-            (err@(L.EvalError _), _) -> pure err
-            (_, err@(L.EvalError _)) -> pure err
+handleGreater :: SourcePos -> [L.Expr] -> Reader Env L.Expr
+handleGreater pos =
+    \case
+     [a, b] -> case (a, b) of
+                   (L.Primitive (I.Number n1), L.Primitive (I.Number n2)) -> pure $ L.Primitive (I.Boolean (n1 > n2))
 
-            _ -> pure $ L.EvalError $ OuroError pos $
-                    typeMismatch "Matching numeric values for division"
-                                 (humanReadableType base <> " / " <> humanReadableType modif)
-                    & withBlurb "The division operator only supports numeric operands."
+                   -- Error propagation
+                   (err@(L.EvalError _), _) -> pure err
+                   (_, err@(L.EvalError _)) -> pure err
+
+                   _typeMismatch
+                       -> typeMismatch "Matching numeric values for greater than"
+                               (humanReadableType a <> " > " <> humanReadableType b)
+                          & withBlurb (binaryOpMismatchBlurb a b)
+                          & OuroError pos
+                          & L.EvalError
+                          & pure
+
+     -- Arity Fallback: The desugar pass failed to normalize the AST
+     _badAST
+         -> astCorruption ">" "Greater than received non-binary arguments after desugaring."
+            & OuroError pos
+            & L.EvalError
+            & pure
+
+
+handleGreaterEq :: SourcePos -> [L.Expr] -> Reader Env L.Expr
+handleGreaterEq pos =
+    \case
+     [a, b] -> case (a, b) of
+                   (L.Primitive (I.Number n1), L.Primitive (I.Number n2)) -> pure $ L.Primitive (I.Boolean (n1 >= n2))
+
+                   -- Error propagation
+                   (err@(L.EvalError _), _) -> pure err
+                   (_, err@(L.EvalError _)) -> pure err
+
+                   _typeMismatch
+                       -> typeMismatch "Matching numeric values for greater than or equal to"
+                               (humanReadableType a <> " >= " <> humanReadableType b)
+                          & withBlurb (binaryOpMismatchBlurb a b)
+                          & OuroError pos
+                          & L.EvalError
+                          & pure
+
+     -- Arity Fallback: The desugar pass failed to normalize the AST
+     _badAST
+         -> astCorruption ">=" "Greater than or equal to, received non-binary arguments after desugaring."
+            & OuroError pos
+            & L.EvalError
+            & pure
+
+
+handleLess :: SourcePos -> [L.Expr] -> Reader Env L.Expr
+handleLess pos =
+    \case
+     [a, b] -> case (a, b) of
+                   (L.Primitive (I.Number n1), L.Primitive (I.Number n2)) -> pure $ L.Primitive (I.Boolean (n1 < n2))
+
+                   -- Error propagation
+                   (err@(L.EvalError _), _) -> pure err
+                   (_, err@(L.EvalError _)) -> pure err
+
+                   _typeMismatch
+                       -> typeMismatch "Matching numeric values for less than"
+                               (humanReadableType a <> " < " <> humanReadableType b)
+                           & withBlurb (binaryOpMismatchBlurb a b)
+                           & OuroError pos
+                           & L.EvalError
+                           & pure
+
+     -- Arity Fallback
+     _badAST
+         -> astCorruption "<" "Less than received non-binary arguments after desugaring."
+            & OuroError pos
+            & L.EvalError
+            & pure
+
+
+handleLessEq :: SourcePos -> [L.Expr] -> Reader Env L.Expr
+handleLessEq pos =
+    \case
+     [a, b] -> case (a, b) of
+                   (L.Primitive (I.Number n1), L.Primitive (I.Number n2)) -> pure $ L.Primitive (I.Boolean (n1 <= n2))
+
+                   -- Error propagation
+                   (err@(L.EvalError _), _) -> pure err
+                   (_, err@(L.EvalError _)) -> pure err
+
+                   _typeMismatch
+                       -> typeMismatch "Matching numeric values for less than or equal to"
+                               (humanReadableType a <> " <= " <> humanReadableType b)
+                           & withBlurb (binaryOpMismatchBlurb a b)
+                           & OuroError pos
+                           & L.EvalError
+                           & pure
+
+     -- Arity Fallback
+     _badAST
+         -> astCorruption "<=" "Less than or equal to, received non-binary arguments after desugaring."
+            & OuroError pos
+            & L.EvalError
+            & pure
 
 
 -- handleEquality.
 --
--- Variadic structural equality operator (eq x y z ...).
+-- Binary equality operator. Expects exactly two arguments.
+-- Operates purely within the Reader monad.
 handleEquality :: SourcePos -> [L.Expr] -> Reader Env L.Expr
-handleEquality pos args =
-    case args of
-        [] -> pure $ L.EvalError $ OuroError pos $ Syntax $ MalformedTagPayload
-                { activeTag      = "eq"
-                , foundNodeShape = "The equality operator requires at least one argument."
-                }
+handleEquality pos =
+    \case
+     [a, b] -> case (a, b) of
+                   -- Error propagation
+                   (err@(L.EvalError _), _) -> pure err
+                   (_, err@(L.EvalError _)) -> pure err
 
-        -- Idiomatic Lisp: A single item is vacuously equal to itself
-        [singleVal] -> case singleVal of
-            err@(L.EvalError _) -> pure err
-            _                   -> pure $ L.Primitive (I.Boolean True)
+                   -- Comparison using structural equality
+                   (v1, v2) -> pure $ L.Primitive (I.Boolean (v1 == v2))
 
-        (baseVal : modifiers) -> checkRemaining baseVal modifiers
+     -- Arity Fallback: The desugar pass failed to normalize the AST
+     _badAST
+         -> astCorruption "eq" "Equality received non-binary arguments after desugaring."
+             & OuroError pos
+             & L.EvalError
+             & pure
 
-    where
-    -- Iterates through the modifiers, ensuring every element matches the base element
-    checkRemaining :: L.Expr -> [L.Expr] -> Reader Env L.Expr
-    checkRemaining base =
-        \case
-         [] -> pure $ L.Primitive (I.Boolean True)
-         (modif : ms) -> case (base, modif) of
-                             -- Error propagation takes absolute precedence
-                             (err@(L.EvalError _), _) -> pure err
-                             (_, err@(L.EvalError _)) -> pure err
 
-                             -- Structural comparison using our custom Eq instances
-                             (v1, v2) -> case v1 == v2 of
-                                             True  -> checkRemaining base ms
-                                             False -> scanForErrors ms (L.Primitive (I.Boolean False))
+-- handleNeq
+--
+-- Binary equality operator. Expects exactly two arguments.
+-- Operates purely within the Reader monad.
+handleNeq :: SourcePos -> [L.Expr] -> Reader Env L.Expr
+handleNeq pos =
+    \case
+     [a, b] -> case (a, b) of
+                   -- Error propagation
+                   (err@(L.EvalError _), _) -> pure err
+                   (_, err@(L.EvalError _)) -> pure err
 
-    -- If a mismatch occurs, continue to scan the rest of the arguments.
-    -- If a downstream sibling argument is an EvalError, we must bubble that error up
-    -- instead of silently returning 'False'
-    scanForErrors :: [L.Expr] -> L.Expr -> Reader Env L.Expr
-    scanForErrors elements fallback =
-        case elements of
-            [] -> pure fallback
-            (x : xs) -> case x of
-                err@(L.EvalError _) -> pure err
-                _                   -> scanForErrors xs fallback
+                   -- Comparison using structural equality
+                   (v1, v2) -> pure $ L.Primitive (I.Boolean (v1 /= v2))
+
+     -- Arity Fallback: The desugar pass failed to normalize the AST
+     _badAST
+         -> astCorruption "not" "Equality received non-binary arguments after desugaring."
+             & OuroError pos
+             & L.EvalError
+             & pure
 
 
 isNumber :: L.Expr -> Bool
 isNumber = \case
             (L.Primitive (I.Number _)) -> True
-            _                          -> False
+            _notANum                   -> False
 
 
 --- Time Shifting & L.Duration Modifiers ---

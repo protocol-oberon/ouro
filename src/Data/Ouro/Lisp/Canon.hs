@@ -38,7 +38,54 @@ desugar = \case
                   in canonicalBlock : desugar xs
 
             -- Deep Recurse: Normal nested list traversal pass
-           (S.Form pos items : xs) -> S.Form pos (desugar items) : desugar xs
+           (S.Form pos items : xs)
+               -> let unrolled = desugarBinOp (desugarComparison (S.Form pos items))
+               in case unrolled of
+                       S.Form p newItems -> S.Form p (desugar newItems) : desugar xs
+                       other             -> other : desugar xs
 
             -- Horizontal Pass-through
            (x : xs) -> x : desugar xs
+
+
+-- Unrolls variadic comparisons into nested binary 'and' checks.
+-- E.g., (eq 1 2 3) -> (and (eq 1 2) (eq 2 3))
+desugarComparison :: S.Expr -> S.Expr
+desugarComparison =
+    \case
+     -- Base Case: Exactly two arguments. Return as-is.
+     S.Form pos (opNode@(S.Symbol _ opName) : a : b : [])
+         | opName `elem` ["eq", ">", "<", ">=", "<="]
+             -> S.Form pos [opNode, a, b]
+
+     -- Recursive Case: Three or more arguments. Chain them.
+     S.Form pos (opNode@(S.Symbol sPos opName) : a : b : xs)
+         | opName `elem` ["eq", ">", "<", ">=", "<="]
+             -> let leftCheck  = S.Form pos [opNode, a, b]
+                    rightCheck = desugarComparison (S.Form pos (opNode : b : xs))
+                in S.Form pos [S.Symbol sPos "eq", leftCheck, rightCheck]
+
+     -- Pass-through for anything that isn't a comparison
+     otherVal
+         -> otherVal
+
+
+-- Unrolls variadic arithmetic into nested, left-associative binary operations.
+-- E.g., (+ 1 2 3) -> (+ (+ 1 2) 3)
+desugarBinOp :: S.Expr -> S.Expr
+desugarBinOp =
+    \case
+     -- Base Case: Exactly two arguments. Return as-is
+     S.Form pos (opNode@(S.Symbol _ opName) : a : b : [])
+         | opName `elem` ["+", "-", "*", "/"]
+             -> S.Form pos [opNode, a, b]
+
+     -- Recursive Case: Three or more arguments. Left-associative fold.
+     S.Form pos (opNode@(S.Symbol _ opName) : a : b : xs)
+         | opName `elem` ["+", "-", "*", "/"]
+             -> let inner = S.Form pos [opNode, a, b]
+                in desugarBinOp (S.Form pos (opNode : inner : xs))
+
+     -- Pass-through for anything that isn't a variadic math operation
+     otherVal
+         -> otherVal

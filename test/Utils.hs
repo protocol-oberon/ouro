@@ -9,6 +9,8 @@ import qualified Data.Ouro.Internal.Expr  as I
 import qualified Data.Ouro.Internal.Kinds as JLD
 import qualified Data.Text                as T
 import           Test.Hspec               (expectationFailure, shouldBe)
+import Data.Maybe (fromJust)
+import Data.Ouro.Lisp.Eval.Builtins (parseISO8601)
 
 
 runCompileInline :: String -> CompilationResult
@@ -39,3 +41,7 @@ mkObj pairs = I.Object I.EmptyMeta (mkSpine pairs)
 mkSpine :: [(String, I.Expr 'JLD.Primitive)] -> I.Expr 'JLD.List
 mkSpine [] = I.Nil
 mkSpine ((k, val):xs) = I.Cons (I.Attr (T.pack k) val) (mkSpine xs)
+
+
+mkDate :: String -> UTC.Time
+mkDate s = I.Date (fromJust $ parseISO8601 s)

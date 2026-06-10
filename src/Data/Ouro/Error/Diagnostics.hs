@@ -168,12 +168,10 @@ typeMismatchBlurb =
 
 
 binaryOpMismatchBlurb :: L.Expr -> L.Expr -> Text
-binaryOpMismatchBlurb base modif =
-    "Ouro evaluates type tags as strict domain assertions. "
-    <> "The provided operands " <> humanReadableType base
-    <> " and " <> humanReadableType modif
-    <> " do not support the requested operation. "
-    <> "Verify that your input data matches the expected structural schema."
+binaryOpMismatchBlurb base modif = "The provided operands " <> humanReadableType base
+                                <> " and " <> humanReadableType modif
+                                <> " do not support the requested operation. "
+                                <> "Verify that your input data matches the expected structural schema."
 
 
 --- Builder for Linter Warnings ---

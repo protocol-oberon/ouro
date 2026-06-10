@@ -82,29 +82,6 @@ library
         Data.Ouro.Lisp.Surface
         Data.Ouro.Lisp.Tokens
 
-    -- Modules included in this library but not exported.
-    -- other-modules:
-    --     Data.Ouro.Error.Diagnostics
-    --     Data.Ouro.Error.Linter
-    --     Data.Ouro.Error.Types
-    --     Data.Ouro.Internal.Expr
-    --     Data.Ouro.Internal.Kinds
-    --     Data.Ouro.Internal.Schema
-    --     Data.Ouro.Internal.Utils
-    --     Data.Ouro.Json.Parser
-    --     Data.Ouro.Json.Serializer
-    --     Data.Ouro.Lisp.Canon
-    --     Data.Ouro.Lisp.Eval.Builtins
-    --     Data.Ouro.Lisp.Eval.Engine
-    --     Data.Ouro.Lisp.Eval.Schema
-    --     Data.Ouro.Lisp.Eval.Scope
-    --     Data.Ouro.Lisp.Eval.Structural
-    --     Data.Ouro.Lisp.Eval.Types
-    --     Data.Ouro.Lisp.Lexer
-    --     Data.Ouro.Lisp.Parser
-    --     Data.Ouro.Lisp.Surface
-    --     Data.Ouro.Lisp.Tokens
-
     -- LANGUAGE extensions used by modules in this package.
     default-extensions:
         LambdaCase,
@@ -181,7 +158,7 @@ test-suite ouro-test
     -- Modules included in this executable, other than Main.
     other-modules:
         Utils
-        Ouro.EvaluationSpec
+        Ouro.IntergrationSpec
 
 
     -- LANGUAGE extensions used by modules in this package.
