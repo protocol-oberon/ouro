@@ -1,5 +1,6 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE GADTs     #-}
+{-# LANGUAGE DataKinds       #-}
+{-# LANGUAGE GADTs           #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Data.Ouro.Lisp.Eval.Types where
 
@@ -10,9 +11,12 @@ import qualified Data.Ouro.Internal.Expr   as I
 import qualified Data.Ouro.Internal.Kinds  as JLD
 import           Data.Ouro.Internal.Schema (Schema, SchemaDirective)
 import qualified Data.Ouro.Lisp.Surface    as S
+import           Data.Set                  (Set)
 import qualified Data.Set                  as Set
 import           Data.Text                 (Text)
 import qualified Data.Text                 as T
+import           Lens.Micro                ((^.))
+import           Lens.Micro.TH             (makeLenses)
 import           Text.Megaparsec           (SourcePos)
 import           Unsafe.Coerce             (unsafeCoerce)
 
@@ -37,15 +41,20 @@ import           Unsafe.Coerce             (unsafeCoerce)
 --   * defaultEnv instantiates a clean, terminal root scope layer containing zero localized bindings and no
 --     parent fallback link, anchoring the absolute bottom of the variable resolution ladder.
 data Env = Env
-    { localScope :: Map.Map Text S.Expr
-    , parentEnv  :: Maybe Env
+    { _localScope    :: Map.Map Text S.Expr
+    , _parentEnv     :: Maybe Env
+    , _activeLookups :: Set Text
     }
+
+makeLenses ''Env
+
 
 -- Default root environment.
 defaultEnv :: Env
 defaultEnv = Env
-    { localScope = Map.empty
-    , parentEnv  = Nothing
+    { _localScope    = Map.empty
+    , _parentEnv     = Nothing
+    , _activeLookups = Set.empty
     }
 
 -- Traverses the entire environment scope chain to collect every active
@@ -54,11 +63,13 @@ allEnvKeys :: Env -> Set.Set Text
 allEnvKeys env = go env Set.empty
     where
     go current acc =
-        let localKeys  = Map.keysSet (localScope current)
-            updatedAcc = Set.union localKeys acc
-        in case parentEnv current of
-               Nothing     -> updatedAcc
-               Just parent -> go parent updatedAcc
+            -- Use ^. to extract the local map from the current environment context
+            let localKeys  = Map.keysSet (current ^. localScope)
+                updatedAcc = Set.union localKeys acc
+            in case current ^. parentEnv of
+                   Nothing     -> updatedAcc
+                   Just parent -> go parent updatedAcc
+
 
 -- Expr.
 --
@@ -90,18 +101,20 @@ allEnvKeys env = go env Set.empty
 data Expr where
     -- 1. Pristine Frozen Targets (The pure GADTs)
     Primitive   :: I.Expr 'JLD.Primitive -> Expr
-    Metadata    :: I.Expr 'JLD.Meta -> Expr
+    Metadata    :: I.Expr 'JLD.Meta      -> Expr
 
     -- 2. Resilient Compilation Scaffolding (The Superset Nodes)
     -- These maintain the open tree structure during evaluation, allowing
     -- errors to be embedded at any depth.
     Object      :: I.Expr 'JLD.Meta -> [(Text, Expr)] -> Expr
-    Array       :: [Expr] -> Expr
+    Array       :: [Expr]                             -> Expr
 
     -- 3. Dedicated Evaluation Leaves
     Duration    :: PeriodUnit -> Int -> Expr
-    SchemaVal   :: Schema -> Expr
+
+    SchemaVal   :: Schema          -> Expr
     Directive   :: SchemaDirective -> Expr
+
     PrimitiveOp :: NativeFunction -> Expr
     Closure     :: Env -> Text -> S.Expr -> Expr
 

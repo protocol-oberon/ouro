@@ -44,7 +44,7 @@ type EvalM = Reader Env
 evaluate :: S.Expr -> L.Expr
 evaluate rootExpr = runReader (evalExpr rootExpr) baseEnv
     where
-    baseEnv = Env { localScope = Map.empty, parentEnv = Nothing }
+    baseEnv = L.defaultEnv
 
 -- Helper to extract the primitive tree or the error from the result.
 -- This bridges the lazy engine to the typed static target.

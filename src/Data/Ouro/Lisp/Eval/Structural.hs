@@ -21,6 +21,7 @@ import qualified Data.Ouro.Lisp.Eval.Types   as L
 import qualified Data.Ouro.Lisp.Surface      as S
 import qualified Data.Set                    as Set
 import           Data.Text                   (Text)
+import           Lens.Micro                  ((.~), (^.))
 
 
 -- compileScope.
@@ -47,8 +48,10 @@ compileScope evaluator env fields =
     case buildLazyEnv env fields of
         -- Dynamic environment allocation failures still represent a catastrophic scope break
         Left  err    -> EvalError err
-        Right rawMap -> let isolatedEnv = Env { localScope = rawMap, parentEnv = Just env }
-                        -- emitProps now naturally handles error harvesting inside its returned L.Expr tree
+        Right rawMap -> let isolatedEnv = env
+                                & L.localScope .~ rawMap
+                                -- Knot-tying: the parent of the isolated scope is the ambient env
+                                & L.parentEnv  .~ Just env
                         in emitProps evaluator isolatedEnv fields
 
 
@@ -261,10 +264,10 @@ resolvePath evaluator fullEnv originalExpr pathVals = go fullEnv originalExpr (e
         (targetKey : remainingKeys)
             -> case currentExpr of
                    -- Strategy 1: Resolve symbol pointers out of environment frames
-                   S.Symbol pos varName -> case Map.lookup varName (localScope env) of
+                   S.Symbol pos varName -> case Map.lookup varName (env ^. L.localScope) of
                        Just linkedExpr -> go env linkedExpr (targetKey : remainingKeys)
                        Nothing
-                           -> case parentEnv env of
+                           -> case env ^. L.parentEnv of
                                Just pEnv -> go pEnv currentExpr (targetKey : remainingKeys)
                                Nothing   -> let allKeys    = Set.toList $ allEnvKeys fullEnv
                                                 suggestion = case rankBySimilarity varName allKeys of

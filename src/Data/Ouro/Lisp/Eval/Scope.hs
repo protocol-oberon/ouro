@@ -1,10 +1,11 @@
 
 module Data.Ouro.Lisp.Eval.Scope where
 
-import           Control.Monad.Reader         (Reader)
+import           Control.Monad.Reader         (Reader, local)
 import           Data.Function                ((&))
 import qualified Data.Map                     as Map
-import           Data.Ouro.Error.Diagnostics  (unboundIdentifier, withBlurb)
+import           Data.Ouro.Error.Diagnostics  (cyclicDependency,
+                                               unboundIdentifier, withBlurb)
 import           Data.Ouro.Error.Types        (OuroError (..))
 import           Data.Ouro.Internal.Utils     (rankBySimilarity)
 import           Data.Ouro.Lisp.Eval.Builtins (builtinRegistry)
@@ -13,6 +14,7 @@ import qualified Data.Ouro.Lisp.Eval.Types    as L
 import qualified Data.Ouro.Lisp.Surface       as S
 import qualified Data.Set                     as Set
 import           Data.Text                    (Text)
+import           Lens.Micro                   ((%~), (^.))
 import           Text.Megaparsec              (SourcePos)
 
 
@@ -80,30 +82,51 @@ lookupVar
   -> Text
   -> Env
   -> Reader Env L.Expr
-lookupVar evaluator pos name fullEnv = go fullEnv
-  where
-    go env = case Map.lookup name (localScope env) of
+lookupVar evaluator pos name fullEnv =
+    case Set.member name (fullEnv ^. L.activeLookups) of
+        True  -> cyclicDependency name
+                 & withBlurb ( "An infinite lookup loop was detected. The identifier '" <> name
+                            <> "' directly or indirectly references itself during evaluation." )
+                 & OuroError pos
+                 & L.EvalError
+                 & pure
+        False -> go fullEnv
+
+    where
+    go env = case Map.lookup name (env ^. L.localScope) of
         -- Evaluate lazy surface expression using the ambient Reader context
-        Just surfaceExpr -> evaluator surfaceExpr
+        Just surfaceExpr
+            -> local (L.activeLookups %~ Set.insert name) (evaluator surfaceExpr)
 
         -- Field lookup else check if it matches a native function handle
-        Nothing -> case builtinRegistry name of
-                       Just nativeOp -> pure nativeOp
-                       -- Look up to the nesting parent environment if not a built in function
-                       Nothing       -> case parentEnv env of
-                                           Just pEnv -> go pEnv
-                                           Nothing   ->
-                                               let keys       = Set.toList $ allEnvKeys fullEnv
-                                                   suggestion = case rankBySimilarity name keys of
-                                                                    ((bestMatch, score) : _) | score <= 3
-                                                                        -> "\n\nPerhaps you meant: '" <> bestMatch <> "'?"
-                                                                    _   -> ""
-                                               in unboundIdentifier name
-                                                      & withBlurb
-                                                            ( "The evaluator attempted to lookup the value for '" <> name <> "', "
-                                                           <> "but the identifier failed to resolve within any active scope chain."
-                                                           <> suggestion
-                                                            )
-                                                      & OuroError pos
-                                                      & L.EvalError
-                                                      & pure
+        Nothing
+            -> case builtinRegistry name of
+                   Just nativeOp -> pure nativeOp
+                   Nothing       -> lookupBuiltin name env
+
+    -- Field lookup else check if it matches a native function handle
+    lookupBuiltin :: Text -> Env -> Reader Env L.Expr
+    lookupBuiltin name' env = case builtinRegistry name' of
+                                 Just nativeOp -> pure nativeOp
+                                 Nothing       -> lookupField name env
+
+
+    -- Look up to the nesting parent environment if not a built in function
+    lookupField :: Text -> Env -> Reader Env L.Expr
+    lookupField name' env =
+        case env ^. L.parentEnv of
+            Just pEnv -> go pEnv
+            Nothing   -> let keys      = Set.toList $ allEnvKeys fullEnv
+                             suggestion = case rankBySimilarity name' keys of
+                                              ((bestMatch, score) : _) | score <= 3
+                                                  -> "\n\nPerhaps you meant: '" <> bestMatch <> "'?"
+                                              _   -> ""
+                         in unboundIdentifier name'
+                            & withBlurb
+                                ( "the evaluator attempted to lookup the value for '" <> name' <> "', "
+                                <> "but the identifier failed to resolve within any active scope chain."
+                                <> suggestion
+                                )
+                            & OuroError pos
+                            & L.EvalError
+                            & pure

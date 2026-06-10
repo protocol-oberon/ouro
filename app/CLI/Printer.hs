@@ -222,6 +222,14 @@ splitErrorContext = \case
            , Nothing
            )
 
+    Scope (CyclicDependencyError var)
+        -> ("Circular Reference"
+           , [ labeled "Expected :" "an independent expression or an outer-scope identifier"
+             , labeled "Got:      " (pretty var)
+             ]
+           , Nothing
+           )
+
     Internal (ErasureValueLeak block)
         -> ( "Compiler Internal Error"
            , [ labeled "Expected: " "nil (erased)"

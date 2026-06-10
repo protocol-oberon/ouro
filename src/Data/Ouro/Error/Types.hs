@@ -134,6 +134,10 @@ data ScopeError
     = ScopeError
         { variableName :: Text  -- The unbound identifier string that triggered the frame search failure
         }
+
+    | CyclicDependencyError
+      { variableName :: Text -- The indentifier causing a infinate loop
+      }
     deriving (Show, Eq, Generic)
 
 

@@ -76,6 +76,10 @@ unboundIdentifier :: Text -> ErrorContext
 unboundIdentifier var = Scope $ ScopeError { variableName = var }
 
 
+cyclicDependency :: Text -> ErrorContext
+cyclicDependency var = Scope $ CyclicDependencyError { variableName = var }
+
+
 -- Internal Violations
 internalValueLeak :: Text -> ErrorContext
 internalValueLeak block = Internal $ ErasureValueLeak { blockName = block }
