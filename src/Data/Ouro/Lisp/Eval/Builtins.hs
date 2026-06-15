@@ -19,7 +19,7 @@ import           Data.Ouro.Lisp.Eval.Types   (Env, PeriodUnit (..),
                                               humanReadableType)
 import qualified Data.Ouro.Lisp.Eval.Types   as L
 import           Data.Text                   (Text)
-import           Data.Time                   (UTCTime (..))
+import           Data.Time                   (UTCTime (..), addUTCTime)
 import           Data.Time.Calendar          (addDays,
                                               addGregorianMonthsRollOver,
                                               addGregorianYearsRollOver)
@@ -30,20 +30,23 @@ import           Text.Megaparsec             (SourcePos)
 -- Maps syntax strings to their respective first-class execution handles
 builtinRegistry :: Text -> Maybe L.Expr
 builtinRegistry = \case
-                   "+"      -> Just $ L.PrimitiveOp handleAddition
-                   "-"      -> Just $ L.PrimitiveOp handleSubtraction
-                   "*"      -> Just $ L.PrimitiveOp handleMultiplication
-                   "/"      -> Just $ L.PrimitiveOp handleDivision
-                   ">="     -> Just $ L.PrimitiveOp handleGreaterEq
-                   ">"      -> Just $ L.PrimitiveOp handleGreater
-                   "<="     -> Just $ L.PrimitiveOp handleLessEq
-                   "<"      -> Just $ L.PrimitiveOp handleLess
-                   "eq"     -> Just $ L.PrimitiveOp handleEquality
-                   "neq"    -> Just $ L.PrimitiveOp handleNeq
-                   "years"  -> Just $ L.PrimitiveOp handleYearsModifier
-                   "months" -> Just $ L.PrimitiveOp handleMonthsModifier
-                   "days"   -> Just $ L.PrimitiveOp handleDaysModifier
-                   _        -> Nothing
+                   "+"       -> Just $ L.PrimitiveOp handleAddition
+                   "-"       -> Just $ L.PrimitiveOp handleSubtraction
+                   "*"       -> Just $ L.PrimitiveOp handleMultiplication
+                   "/"       -> Just $ L.PrimitiveOp handleDivision
+                   ">="      -> Just $ L.PrimitiveOp handleGreaterEq
+                   ">"       -> Just $ L.PrimitiveOp handleGreater
+                   "<="      -> Just $ L.PrimitiveOp handleLessEq
+                   "<"       -> Just $ L.PrimitiveOp handleLess
+                   "eq"      -> Just $ L.PrimitiveOp handleEquality
+                   "neq"     -> Just $ L.PrimitiveOp handleNeq
+                   "years"   -> Just $ L.PrimitiveOp handleYearsModifier
+                   "months"  -> Just $ L.PrimitiveOp handleMonthsModifier
+                   "days"    -> Just $ L.PrimitiveOp handleDaysModifier
+                   "hours"   -> Just $ L.PrimitiveOp handleHoursModifier
+                   "minutes" -> Just $ L.PrimitiveOp handleMinutesModifier
+                   "seconds" -> Just $ L.PrimitiveOp handleSecondsModifier
+                   _         -> Nothing
 
 
 --- Core Math & String Accumulators ---
@@ -344,10 +347,12 @@ isNumber = \case
 -- Direct calendar shifting calendar logic
 applyDuration :: Integral a => UTCTime -> PeriodUnit -> a -> UTCTime
 applyDuration utc unit amt = case unit of
-                                 Years  -> utc { utctDay = addGregorianYearsRollOver (fromIntegral amt) (utctDay utc) }
-                                 Months -> utc { utctDay = addGregorianMonthsRollOver (fromIntegral amt) (utctDay utc) }
-                                 Days   -> utc { utctDay = addDays (fromIntegral amt) (utctDay utc) }
-
+                                 Years   -> utc { utctDay = addGregorianYearsRollOver (fromIntegral amt) (utctDay utc) }
+                                 Months  -> utc { utctDay = addGregorianMonthsRollOver (fromIntegral amt) (utctDay utc) }
+                                 Days    -> utc { utctDay = addDays (fromIntegral amt) (utctDay utc) }
+                                 Hours   -> addUTCTime (fromIntegral amt * 3600) utc
+                                 Minutes -> addUTCTime (fromIntegral amt * 60) utc
+                                 Seconds -> addUTCTime (fromIntegral amt) utc
 
 -- Shared helper for duration modifiers to ensure consistent error handling.
 mkDurationHandler :: Text -> PeriodUnit -> SourcePos -> [L.Expr] -> Reader Env L.Expr
@@ -369,13 +374,17 @@ mkDurationHandler tagName unit pos args =
                 , foundNodeShape = "The (" <> tagName <> ") modifier expects exactly one numeric argument."
                 }
 
--- | Implementation of handlers using the helper
-handleYearsModifier, handleMonthsModifier, handleDaysModifier
+
+handleYearsModifier, handleMonthsModifier, handleDaysModifier,
+  handleHoursModifier, handleMinutesModifier, handleSecondsModifier
     :: SourcePos -> [L.Expr] -> Reader Env L.Expr
 
-handleYearsModifier  = mkDurationHandler "years"  Years
-handleMonthsModifier = mkDurationHandler "months" Months
-handleDaysModifier   = mkDurationHandler "days"   Days
+handleYearsModifier   = mkDurationHandler "years"   Years
+handleMonthsModifier  = mkDurationHandler "months"  Months
+handleDaysModifier    = mkDurationHandler "days"    Days
+handleHoursModifier   = mkDurationHandler "hours"   Hours
+handleMinutesModifier = mkDurationHandler "minutes" Minutes
+handleSecondsModifier = mkDurationHandler "seconds" Seconds
 
 
 --- Shared Utility Predicates ---

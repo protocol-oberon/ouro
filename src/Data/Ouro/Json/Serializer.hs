@@ -97,7 +97,10 @@ toJSON opts expr =
 
         -- Run the underlying transformer stack transformations layers
         (_, finalState) = runIdentity $ runStateT (runReaderT (runPrinterP (buildJSON expr)) initEnv) initState
-    in B.toLazyText (outputBuffer finalState)
+
+        -- Append POSIX trailing newline
+        finalBuffer = outputBuffer finalState <> "\n"
+    in B.toLazyText finalBuffer
 
 
 -- buildJSON.

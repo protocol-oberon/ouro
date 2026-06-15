@@ -1,0 +1,25 @@
+
+(:context "https://linked.art/ns/v1/linked-art.json"
+ (define
+   :linked-art "https://linked.art/example/"
+   :getty-att  "http://vocab.getty.edu/aat/"
+   :getty-ulan "http://vocab.getty.edu/ulan/")
+
+ :id            #uri (+ linked-art "object/bust/1")
+ :type          "HumanMadeObject"
+ :_label        "Bust of a Man"
+ :classified_as ((:id     #uri (+ getty-att "300047090")
+                  :type   "Type"
+                  :_label "Sculpture"
+                  :classified_as ((:id     #uri (+ getty-att "300435443")
+                                   :type   "Type"
+                                   :_label "Type of Work"))))
+
+ :produced_by (:type           "Production"
+               :technique      ((:id     #uri (+ getty-att "300264383")
+                                 :type   "Type"
+                                 :_label "Sculpting"))
+
+               :carried_out_by ((:id     #uri (+ getty-ulan "500015886")
+                                 :type   "Person"
+                                 :_label "Francis Harwood"))))

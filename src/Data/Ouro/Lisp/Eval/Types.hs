@@ -182,6 +182,9 @@ data PeriodUnit
     = Years
     | Months
     | Days
+    | Hours
+    | Minutes
+    | Seconds
     deriving (Show, Eq)
 
 

@@ -159,7 +159,7 @@ test-suite ouro-test
     other-modules:
         Utils
         Ouro.IntergrationSpec
-
+        Ouro.CanonicalSpec
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
