@@ -206,6 +206,12 @@ splitErrorContext = \case
            , Nothing
            )
 
+    Syntax (ShadowedVariableError _shadow)
+        -> ("Shadowed Attribute"
+           , [ labeled "This attribute key shadows an builtin function" ""]
+           , Nothing
+           )
+
     Path (MissingPathKey key keys)
         -> ( "Missing Path Key"
            , [ labeled "Missing:   " (pretty key)

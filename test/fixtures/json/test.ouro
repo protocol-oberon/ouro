@@ -15,7 +15,7 @@
     "created": "2026-05-28T12:00:00Z",
     "meta": {
       "version": "v2.1.0",
-      "release_code": 905.0,
+      "release_code": 905,
       "maintainer": {
         "name": "Dev Team",
         "is_valid": true
@@ -27,8 +27,9 @@
   "execution_metrics": [
     {
       "null_field": null,
-      "math": 6.0
+      "math": 6
     }
   ],
+  "add": "This should error",
   "output": {}
 }

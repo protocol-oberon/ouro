@@ -94,6 +94,18 @@ data SyntaxError
       { expected   :: Text  -- The token category expected by the evaluator (typically "Symbol")
       , actualAttr :: Text  -- The raw text identifier of the invalid attribute binder encountered
       }
+
+    -- SYNTAX VIOLATION: BUILTIN KEYWORD SHADOWING
+    -- Occurs when a structural layout configuration or user-defined assignment attempts
+    -- to bind a localized variable or graph attribute name to an identifier string
+    -- that is strictly reserved for core system primitives and evaluator keywords.
+    --
+    -- * Remediation: The compiler or editing layer must inform the user that core system
+    --   operators cannot be re-bound or overwritten, and suggest choosing a unique alternate
+    --   identifier name that does not conflict with the foundational engine registry.
+    | ShadowedVariableError
+      { shadows :: Text
+      }
     deriving (Show, Eq, Generic)
 
 

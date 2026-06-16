@@ -8,7 +8,7 @@ import           Data.Ouro.Error.Diagnostics  (cyclicDependency,
                                                unboundIdentifier, withBlurb)
 import           Data.Ouro.Error.Types        (OuroError (..))
 import           Data.Ouro.Internal.Utils     (rankBySimilarity)
-import           Data.Ouro.Lisp.Eval.Builtins (builtinRegistry)
+import           Data.Ouro.Lisp.Eval.Builtins (builtinRegistry, checkShadowing)
 import           Data.Ouro.Lisp.Eval.Types    (Env (..), allEnvKeys)
 import qualified Data.Ouro.Lisp.Eval.Types    as L
 import qualified Data.Ouro.Lisp.Surface       as S
@@ -51,9 +51,10 @@ buildLazyEnv = curry $ \case
                                pure $ Map.union innerVars outerVars
 
                         -- Case C: Standard attribute mapping accumulation pass (with structural layout check guards)
-                        (env, S.Attr _ key : valExpr : rest)
+                        (env, S.Attr pos key : valExpr : rest)
                             | not (isStructuralExpr valExpr)
                             -> do
+                               checkShadowing pos key
                                next <- buildLazyEnv env rest
                                pure $ Map.insert key valExpr next
 
@@ -95,21 +96,15 @@ lookupVar evaluator pos name fullEnv =
     where
     go env = case Map.lookup name (env ^. L.localScope) of
         -- Evaluate lazy surface expression using the ambient Reader context
-        Just surfaceExpr
-            -> local (L.activeLookups %~ Set.insert name) (evaluator surfaceExpr)
-
-        -- Field lookup else check if it matches a native function handle
-        Nothing
-            -> case builtinRegistry name of
-                   Just nativeOp -> pure nativeOp
-                   Nothing       -> lookupBuiltin name env
+        Just surfaceExpr -> local (L.activeLookups %~ Set.insert name) (evaluator surfaceExpr)
+        -- Must be a builtin function
+        Nothing          -> lookupBuiltin name env
 
     -- Field lookup else check if it matches a native function handle
     lookupBuiltin :: Text -> Env -> Reader Env L.Expr
-    lookupBuiltin name' env = case builtinRegistry name' of
+    lookupBuiltin name' env = case L.PrimitiveOp <$> Map.lookup name' builtinRegistry of
                                  Just nativeOp -> pure nativeOp
                                  Nothing       -> lookupField name env
-
 
     -- Look up to the nesting parent environment if not a built in function
     lookupField :: Text -> Env -> Reader Env L.Expr

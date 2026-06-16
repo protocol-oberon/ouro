@@ -7,16 +7,14 @@ module Data.Ouro.Lisp.Eval.Engine where
 import           Control.Monad.Reader           (MonadReader (..), Reader,
                                                  runReader)
 import           Data.Function                  ((&))
-import qualified Data.Map.Strict                as Map
 import           Data.Ouro.Error.Diagnostics    (internalValueLeak,
-                                                 targetMismatch, typeMismatch,
+                                                 malformedTag, targetMismatch,
+                                                 typeMismatch,
                                                  typeMismatchBlurb,
                                                  unbalancedDelimiter,
-                                                 unboundIdentifier, withBlurb, malformedTag)
+                                                 unboundIdentifier, withBlurb)
 import           Data.Ouro.Error.Types          (ErrorContext (..),
-                                                 OuroError (..),
-                                                 SyntaxError (..),
-                                                 TypeError (..))
+                                                 OuroError (..), TypeError (..))
 import qualified Data.Ouro.Internal.Expr        as I
 import qualified Data.Ouro.Internal.Kinds       as JLD
 import           Data.Ouro.Lisp.Eval.Builtins   (parseISO8601)

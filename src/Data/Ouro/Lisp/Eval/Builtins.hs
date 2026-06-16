@@ -4,14 +4,19 @@
 
 module Data.Ouro.Lisp.Eval.Builtins
 ( builtinRegistry
+, checkShadowing
 , parseISO8601
 , isNumber
 ) where
 
 import           Control.Monad.Reader        (Reader)
 import           Data.Function               ((&))
-import           Data.Ouro.Error.Diagnostics (binaryOpMismatchBlurb,
-                                              typeMismatch, withBlurb, astCorruption)
+import qualified Data.Map                    as Map
+import           Data.Ouro.Error.Diagnostics (astCorruption,
+                                              binaryOpMismatchBlurb,
+                                              shadowedVariable,
+                                              shadowedVariableBlurb,
+                                              typeMismatch, withBlurb)
 import           Data.Ouro.Error.Types       (ErrorContext (..), OuroError (..),
                                               SyntaxError (..))
 import qualified Data.Ouro.Internal.Expr     as I
@@ -19,7 +24,9 @@ import           Data.Ouro.Lisp.Eval.Types   (Env, PeriodUnit (..),
                                               humanReadableType)
 import qualified Data.Ouro.Lisp.Eval.Types   as L
 import           Data.Text                   (Text)
-import           Data.Time                   (UTCTime (..), addUTCTime, toGregorian, fromGregorian, gregorianMonthLength)
+import           Data.Time                   (UTCTime (..), addUTCTime,
+                                              fromGregorian,
+                                              gregorianMonthLength, toGregorian)
 import           Data.Time.Calendar          (addDays,
                                               addGregorianMonthsRollOver,
                                               addGregorianYearsRollOver)
@@ -28,28 +35,37 @@ import           Text.Megaparsec             (SourcePos)
 
 
 -- Maps syntax strings to their respective first-class execution handles
-builtinRegistry :: Text -> Maybe L.Expr
-builtinRegistry = \case
-                   "+"       -> Just $ L.PrimitiveOp handleAddition
-                   "-"       -> Just $ L.PrimitiveOp handleSubtraction
-                   "*"       -> Just $ L.PrimitiveOp handleMultiplication
-                   "/"       -> Just $ L.PrimitiveOp handleDivision
-                   ">="      -> Just $ L.PrimitiveOp handleGreaterEq
-                   ">"       -> Just $ L.PrimitiveOp handleGreater
-                   "<="      -> Just $ L.PrimitiveOp handleLessEq
-                   "<"       -> Just $ L.PrimitiveOp handleLess
-                   "eq"      -> Just $ L.PrimitiveOp handleEquality
-                   "neq"     -> Just $ L.PrimitiveOp handleNeq
-                   "years"   -> Just $ L.PrimitiveOp handleYearsModifier
-                   "months"  -> Just $ L.PrimitiveOp handleMonthsModifier
-                   "days"    -> Just $ L.PrimitiveOp handleDaysModifier
-                   "hours"   -> Just $ L.PrimitiveOp handleHoursModifier
-                   "minutes" -> Just $ L.PrimitiveOp handleMinutesModifier
-                   "seconds" -> Just $ L.PrimitiveOp handleSecondsModifier
-                   -- Runtime temporal handlers
-                   "years-end"  -> Just $ L.PrimitiveOp handleYearsEndModifier
-                   "months-end" -> Just $ L.PrimitiveOp handleMonthsEndModifier
-                   _         -> Nothing
+builtinRegistry :: Map.Map Text (SourcePos -> [L.Expr] -> Reader Env L.Expr)
+builtinRegistry = Map.fromList
+                      [ ("+",           handleAddition)
+                      , ("-",           handleSubtraction)
+                      , ("*",           handleMultiplication)
+                      , ("/",           handleDivision)
+                      , (">=",          handleGreaterEq)
+                      , (">",           handleGreater)
+                      , ("<=",          handleLessEq)
+                      , ("<",           handleLess)
+                      , ("eq",          handleEquality)
+                      , ("neq",         handleNeq)
+                      , ("years",       handleYearsModifier)
+                      , ("months",      handleMonthsModifier)
+                      , ("days",        handleDaysModifier)
+                      , ("hours",       handleHoursModifier)
+                      , ("minutes",     handleMinutesModifier)
+                      , ("seconds",     handleSecondsModifier)
+                      -- Runtime temporal handlers
+                      , ("years-end",   handleYearsEndModifier)
+                      , ("months-end",  handleMonthsEndModifier)
+                      ]
+
+
+checkShadowing :: SourcePos -> Text -> Either OuroError ()
+checkShadowing pos name = case Map.member name builtinRegistry of
+                              True  -> shadowedVariable name
+                                       & withBlurb (shadowedVariableBlurb name)
+                                       & OuroError pos
+                                       & Left
+                              False -> Right ()
 
 
 --- Core Math & String Accumulators ---

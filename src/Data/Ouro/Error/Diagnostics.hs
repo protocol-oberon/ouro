@@ -54,6 +54,9 @@ targetMismatch expected actual = Syntax $ TargetMismatchAttr
     , actualAttr = actual
     }
 
+shadowedVariable :: Text -> ErrorContext
+shadowedVariable = Syntax . ShadowedVariableError
+
 
 -- Type Errors
 typeMismatch :: Text -> Text -> ErrorContext
@@ -172,6 +175,12 @@ binaryOpMismatchBlurb base modif = "The provided operands " <> humanReadableType
                                 <> " and " <> humanReadableType modif
                                 <> " do not support the requested operation. "
                                 <> "Verify that your input data matches the expected structural schema."
+
+
+shadowedVariableBlurb :: Text -> Text
+shadowedVariableBlurb keyword = "The identifier '" <> keyword <> "' cannot be used as a local binding name "
+                             <> "because it is strictly reserved as a core system primitive. "
+                             <> "Please choose a unique, non-reserved name for your attribute."
 
 
 --- Builder for Linter Warnings ---
