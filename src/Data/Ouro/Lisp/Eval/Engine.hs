@@ -12,7 +12,7 @@ import           Data.Ouro.Error.Diagnostics    (internalValueLeak,
                                                  targetMismatch, typeMismatch,
                                                  typeMismatchBlurb,
                                                  unbalancedDelimiter,
-                                                 unboundIdentifier, withBlurb)
+                                                 unboundIdentifier, withBlurb, malformedTag)
 import           Data.Ouro.Error.Types          (ErrorContext (..),
                                                  OuroError (..),
                                                  SyntaxError (..),
@@ -149,13 +149,10 @@ assertTag tag payload = do
                                  S.StrTag  -> isString   pos evaluatedVal
                                  S.NumTag  -> isNumber   pos evaluatedVal
                                  S.BoolTag -> isBoolean  pos evaluatedVal
-                                 _badTag   -> Syntax MalformedTagPayload
-                                                      { activeTag      = T.pack (show tag)
-                                                      , foundNodeShape = "You cannot type assert an empty object or array"
-                                                      }
-                                                      & OuroError pos
-                                                      & EvalError
-                                                      & pure
+                                 _badTag   -> malformedTag (T.pack (show tag)) "You cannot type assert an empty object or array"
+                                              & OuroError pos
+                                              & EvalError
+                                              & pure
 
     where
     -- Typed Primitive Helpers
@@ -192,6 +189,9 @@ assertTag tag payload = do
                                          "a String in an invalid URI format"
                                          (Primitive $ I.String rawText)
 
+        Primitive (I.URI uri)
+            -> pure $ Primitive (I.URI uri)
+
         otherVal
             -> failMismatch pos
                    "a String matching a URI layout with a scheme included (https:)"
@@ -208,6 +208,9 @@ assertTag tag payload = do
                                            "a String matching ISO-8601 layout (YYYY-MM-DDTHH:mm:ssZ)"
                                            "a String in an invalid Date format"
                                            (Primitive $ I.String rawText)
+
+         Primitive (I.Date date)
+             -> pure $ Primitive (I.Date date)
 
          otherVal
              -> failMismatch pos

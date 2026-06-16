@@ -2,15 +2,19 @@
 module Data.Ouro.Lisp.Canon where
 
 import qualified Data.Ouro.Lisp.Surface as S
-import Text.Megaparsec (SourcePos)
+import           Text.Megaparsec        (SourcePos)
 
 
 -- Main API entry point for the pipeline
 construct :: S.Expr -> S.Expr
 construct = \case
-             S.Form    r exprs -> S.Form    r (desugar (map construct exprs))
-             S.Bracket r exprs -> S.Bracket r (desugar (map construct exprs))
-             leaf              -> leaf
+             S.Form    r   exprs -> S.Form    r   (desugar (map construct exprs))
+             S.Bracket r   exprs -> S.Bracket r   (desugar (map construct exprs))
+             S.Tagged  r t expr  -> S.Tagged  r t (construct expr)
+
+             node@(S.Attr    _ _) -> node
+             node@(S.Symbol  _ _) -> node
+             node@(S.Literal _ _) -> node
 
 
 -- Processes flat lists horizontally to rewrite syntax sugar
