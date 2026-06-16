@@ -17,8 +17,8 @@ import           System.FilePath   (replaceExtension, takeFileName, (</>))
 
 runCommand :: Command -> IO ()
 runCommand = \case
-               Compile  ifp ofp -> runCompile  ifp ofp
-               Validate c       -> runValidate c
+              Compile  ifp ofp -> runCompile  ifp ofp
+              Validate c       -> runValidate c
 
 
 runCompile :: FilePath -> Maybe FilePath -> IO ()

@@ -12,7 +12,7 @@ import           Options.Applicative (Parser, argument, auto, command,
                                       header, help, helper, info, long, metavar,
                                       option, optional, prefs, progDesc, short,
                                       showHelpOnEmpty, showHelpOnError, str,
-                                      strOption, subparser, switch, value,
+                                      strOption, subparser, switch, value, infoOption,
                                       (<**>))
 import           Paths_ouro          (version)
 import           System.FilePath     (takeExtension)
@@ -66,6 +66,13 @@ pValidate = Validate <$> pValidateCommand
                           <> help "The second JSON file to merge"
                            )
 
+pVersion :: Parser (a -> a)
+pVersion = infoOption ("Ouro v" <> showVersion version)
+           (  long "version"
+           <> short 'v'
+           <> help "Show Ouro version"
+           )
+
 
 -- Reusable primitive parsers
 pOutputDirOption :: Parser FilePath
@@ -109,6 +116,6 @@ runParser :: IO Command
 runParser = customExecParser pPrefs pInfo
     where
     pPrefs = prefs $ showHelpOnError <> showHelpOnEmpty
-    pInfo  = info (pCommand <**> helper)
+    pInfo  = info (pCommand <**> helper <**> pVersion)
            $ header ("Ouro v" ++ showVersion version)
           <> fullDesc
