@@ -19,7 +19,7 @@ import           Data.Ouro.Lisp.Eval.Types   (Env, PeriodUnit (..),
                                               humanReadableType)
 import qualified Data.Ouro.Lisp.Eval.Types   as L
 import           Data.Text                   (Text)
-import           Data.Time                   (UTCTime (..), addUTCTime)
+import           Data.Time                   (UTCTime (..), addUTCTime, toGregorian, fromGregorian, gregorianMonthLength)
 import           Data.Time.Calendar          (addDays,
                                               addGregorianMonthsRollOver,
                                               addGregorianYearsRollOver)
@@ -46,6 +46,9 @@ builtinRegistry = \case
                    "hours"   -> Just $ L.PrimitiveOp handleHoursModifier
                    "minutes" -> Just $ L.PrimitiveOp handleMinutesModifier
                    "seconds" -> Just $ L.PrimitiveOp handleSecondsModifier
+                   -- Runtime temporal handlers
+                   "years-end"  -> Just $ L.PrimitiveOp handleYearsEndModifier
+                   "months-end" -> Just $ L.PrimitiveOp handleMonthsEndModifier
                    _         -> Nothing
 
 
@@ -354,6 +357,19 @@ applyDuration utc unit amt = case unit of
                                  Minutes -> addUTCTime (fromIntegral amt * 60) utc
                                  Seconds -> addUTCTime (fromIntegral amt) utc
 
+                                 -- Runtime handles for dynamic calendar snapping
+                                 YearsToEnd -> let advancedDay = addGregorianYearsRollOver (fromIntegral amt) (utctDay utc)
+                                                   (y, _, _)   = toGregorian advancedDay
+                                               in utc { utctDay = fromGregorian y 12 31, utctDayTime = 86399 }
+
+                                 MonthsToEnd -> let advancedDay = addGregorianMonthsRollOver (fromIntegral amt) (utctDay utc)
+                                                    (y, m, _)   = toGregorian advancedDay
+                                                    lastDay     = gregorianMonthLength y m
+                                                in utc { utctDay = fromGregorian y m lastDay, utctDayTime = 86399 }
+
+
+
+
 -- Shared helper for duration modifiers to ensure consistent error handling.
 mkDurationHandler :: Text -> PeriodUnit -> SourcePos -> [L.Expr] -> Reader Env L.Expr
 mkDurationHandler tagName unit pos args =
@@ -376,7 +392,8 @@ mkDurationHandler tagName unit pos args =
 
 
 handleYearsModifier, handleMonthsModifier, handleDaysModifier,
-  handleHoursModifier, handleMinutesModifier, handleSecondsModifier
+  handleHoursModifier, handleMinutesModifier, handleSecondsModifier,
+  handleYearsEndModifier, handleMonthsEndModifier
     :: SourcePos -> [L.Expr] -> Reader Env L.Expr
 
 handleYearsModifier   = mkDurationHandler "years"   Years
@@ -386,6 +403,8 @@ handleHoursModifier   = mkDurationHandler "hours"   Hours
 handleMinutesModifier = mkDurationHandler "minutes" Minutes
 handleSecondsModifier = mkDurationHandler "seconds" Seconds
 
+handleYearsEndModifier  = mkDurationHandler "years-end"  YearsToEnd
+handleMonthsEndModifier = mkDurationHandler "months-end" MonthsToEnd
 
 --- Shared Utility Predicates ---
 parseISO8601 :: String -> Maybe UTCTime

@@ -185,6 +185,9 @@ data PeriodUnit
     | Hours
     | Minutes
     | Seconds
+    -- Rutime checks
+    | YearsToEnd
+    | MonthsToEnd
     deriving (Show, Eq)
 
 

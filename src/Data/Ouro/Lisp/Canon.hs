@@ -2,6 +2,7 @@
 module Data.Ouro.Lisp.Canon where
 
 import qualified Data.Ouro.Lisp.Surface as S
+import Text.Megaparsec (SourcePos)
 
 
 -- Main API entry point for the pipeline
@@ -37,19 +38,22 @@ desugar = \case
                       canonicalBlock = S.Form pos desugaredInner
                   in canonicalBlock : desugar xs
 
-            -- Deep Recurse: Normal nested list traversal pass
-           (S.Form pos items : xs)
-               -> let unrolled = desugarBinOp (desugarComparison (S.Form pos items))
-               in case unrolled of
-                       S.Form p newItems -> S.Form p (desugar newItems) : desugar xs
-                       other             -> other : desugar xs
+           -- Desugar end-of to max temporal duration for given duration type
+           (S.Form tPos [S.Symbol _ "thru", durationExpr] : rest)
+               -> desugarThru tPos durationExpr ++ desugar rest
 
-            -- Horizontal Pass-through
+           -- Deep Recurse: Bottom-Up evaluation pass
+           (S.Form pos items : xs)
+               -> let desugaredItems = desugar items  -- 1. Expand 'thru' and desugar children FIRST
+                      unrolled       = desugarBinOp (desugarComparison (S.Form pos desugaredItems)) -- 2. Unroll variadics
+                  in unrolled : desugar xs
+
+           -- Horizontal Pass-through (Safely passes over Tags, Symbols, and Literals)
            (x : xs) -> x : desugar xs
 
 
 -- Unrolls variadic comparisons into nested binary 'and' checks.
--- E.g., (eq 1 2 3) -> (and (eq 1 2) (eq 2 3))
+-- E.g., (eq 1 2 3) -> (eq (eq 1 2) (eq 2 3))
 desugarComparison :: S.Expr -> S.Expr
 desugarComparison =
     \case
@@ -89,3 +93,35 @@ desugarBinOp =
      -- Pass-through for anything that isn't a variadic math operation
      otherVal
          -> otherVal
+
+
+desugarThru :: SourcePos -> S.Expr -> [S.Expr]
+desugarThru pos target = case target of
+    -- Calendar Units: Need Runtime Checks.
+    S.Form _pos [S.Symbol _ "years", amt]  -> [ S.Form pos [S.Symbol pos "years-end", amt] ]
+    S.Form _pos [S.Symbol _ "months", amt] -> [ S.Form pos [S.Symbol pos "months-end", amt] ]
+
+    -- Absolute Units: Can be statically expanded.
+    S.Form _pos [S.Symbol _ "days", _amt]
+        -> [ target
+           , mkDur "hours" 23
+           , mkDur "minutes" 59
+           , mkDur "seconds" 59
+           ]
+
+    S.Form _pos [S.Symbol _ "hours", _amt]
+        -> [ target
+           , mkDur "minutes" 59
+           , mkDur "seconds" 59
+           ]
+
+    S.Form _pos [S.Symbol _ "minutes", _amt]
+        -> [ target
+           , mkDur "seconds" 59
+           ]
+
+    -- Catch malformed syntax and leave it for the runtime type-checker
+    other -> [other]
+
+    where
+    mkDur unit val = S.Form pos [ S.Symbol pos unit, S.Literal pos (S.Num val) ]
