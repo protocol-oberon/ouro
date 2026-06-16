@@ -160,9 +160,13 @@ test-suite ouro-test
         Utils
         Ouro.IntergrationSpec
         Ouro.CanonicalSpec
+        Ouro.StructuralSpec
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
+    default-extensions:
+        LambdaCase,
+        OverloadedStrings
 
     -- The interface type and version of the test suite.
     type:             exitcode-stdio-1.0
@@ -178,6 +182,7 @@ test-suite ouro-test
         base       ^>=4.20.2.0,
         containers ^>=0.7,
         hspec       >=2.11 && < 3.0,
+        megaparsec  >= 9.2 && < 10.0,
         text        >= 2.0,
         ouro
 

@@ -14,6 +14,7 @@ import qualified Data.Text                    as T
 import qualified Data.Text.IO                 as TIO
 import qualified Data.Text.Lazy.IO            as TLIO
 import           Test.Hspec                   (expectationFailure, shouldBe)
+import Text.Megaparsec (SourcePos, initialPos)
 
 
 runCompileInline :: String -> CompilationResult
@@ -58,12 +59,21 @@ fixture path = "./test/fixtures/" <> path
 mkObj :: [(String, I.Expr 'JLD.Primitive)] -> I.Expr 'JLD.Primitive
 mkObj pairs = I.Object I.EmptyMeta (mkSpine pairs)
 
-
 -- Helper to compile a list of raw pairs into binary 'JLD.List backbone.
 mkSpine :: [(String, I.Expr 'JLD.Primitive)] -> I.Expr 'JLD.List
 mkSpine []            = I.Nil
 mkSpine ((k, val):xs) = I.Cons (I.Attr (T.pack k) val) (mkSpine xs)
 
+mkArr :: [I.Expr 'JLD.Primitive] -> I.Expr 'JLD.Primitive
+mkArr elements = I.Array (mkArrSpine elements)
+
+-- Helper to compile a list of expressions into a binary 'JLD.List backbone.
+mkArrSpine :: [I.Expr 'JLD.Primitive] -> I.Expr 'JLD.List
+mkArrSpine []     = I.Nil
+mkArrSpine (x:xs) = I.Cons x (mkArrSpine xs)
 
 mkDate :: String -> I.Expr JLD.Primitive
 mkDate s = I.Date (fromJust $ parseISO8601 s)
+
+nullPos :: SourcePos
+nullPos = initialPos "test-suite"

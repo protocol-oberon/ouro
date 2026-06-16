@@ -158,24 +158,28 @@ compileArray evaluator env elements = Array (compileElements elements)
             S.Form _ [S.Symbol _ "context", S.Form _ _] : xs -> compileElements xs
 
             -- Case C: Process structured nested forms (Objects or trailing list matrices)
-            (S.Form pos fields : xs)
+            (_formExpr@(S.Form pos fields) : xs)
+                -- 1. Intercept Nested Arrays: recursively compile as a matrix
+                | TargetList <- determineBlockTarget fields
+                -> compileArray evaluator env fields : compileElements xs
+
+                -- 2. Intercept Nested Objects: compile using the object scope builder
+                | TargetObject <- determineBlockTarget fields
                 -> let evaledItem = compileScope evaluator env fields
                        restL      = compileElements xs
-                    in case evaledItem of
-                        -- Retain independent error leaves found inside nested scopes safely
-                        EvalError err -> EvalError err : restL
+                   in case evaledItem of
+                          -- Retain independent error leaves found inside nested scopes safely
+                          EvalError err -> EvalError err : restL
 
-                        -- Seamlessly capture the open object superset node
-                        Object m p -> Object m p : restL
-
-                        Primitive p   -> Primitive p : restL
-
-                        otherVal      -> let err = typeMismatch
-                                                        "a valid nested Object block or a single value"
-                                                        (humanReadableType otherVal)
-                                                        & withBlurb (typeMismatchBlurb otherVal)
-                                                        & OuroError pos
-                                            in EvalError err : restL
+                          -- Seamlessly capture the open object superset node
+                          Object m p    -> Object m p : restL
+                          Primitive p   -> Primitive p : restL
+                          otherVal      -> typeMismatch
+                                               "a valid nested Object block or a single value"
+                                               (humanReadableType otherVal)
+                                           & withBlurb (typeMismatchBlurb otherVal)
+                                           & OuroError pos
+                                           & (\e -> EvalError e : restL)
 
             -- Case D: Process flat scalar fields or variables evaluated within the element stream
             (otherExpr : xs)
@@ -207,23 +211,27 @@ data BlockTarget
     = TargetObject
     | TargetList
     | TargetFunctionApp
+    deriving (Show, Eq)
 
 -- Inspects incoming form tokens to determine if they compose an Object or a List.
 determineBlockTarget :: [S.Expr] -> BlockTarget
-determineBlockTarget = \case
-                        -- Rules for Object Detection
-                        S.Attr {} : _                                   -> TargetObject
-                        S.Form _ [S.Symbol _ "context", S.Form _ _] : _ -> TargetObject
-                        S.Form _ (S.Symbol _ "define" : _) : _          -> TargetObject
+determineBlockTarget =
+    \case
+     -- Rules for Object Detection (Immediate)
+     S.Attr {} : _                                   -> TargetObject
+     S.Form _ [S.Symbol _ "context", S.Form _ _] : _ -> TargetObject
+     S.Form _ (S.Symbol _ "define" : _) : _          -> TargetObject
 
-                        -- Rules for List/Array Detection
-                        S.Form _ [S.Form _ [S.Symbol _ "context", S.Form _ _]] : _ -> TargetList
-                        S.Form _ [S.Form _ (S.Symbol _ "define" : _)] : _          -> TargetList
-                        S.Form _ (S.Attr {} : _) : _                               -> TargetList
+     -- Rules for List/Array Detection (Immediate Scalars)
+     S.Literal _ _ : _          -> TargetList
+     -- Recursive structural inspection for nested blocks
+     S.Form _ innerContents : _ -> case determineBlockTarget innerContents of
+                                       TargetObject      -> TargetList  -- Array of Objects: ((:id 1) (:id 2))
+                                       TargetList        -> TargetList  -- Array of Lists (Nested): ((1 2) (3 4))
+                                       TargetFunctionApp -> TargetList  -- Array of Expressions: ((add 1 2) (sub 3 4))
 
-                        -- Fallback: If it's a standard list starting with a function/operator symbol
-                        _otherForm -> TargetFunctionApp
-
+     -- Fallback: Default to a standard function/operator invocation
+     _otherForm -> TargetFunctionApp
 
 -- resolvePath.
 --

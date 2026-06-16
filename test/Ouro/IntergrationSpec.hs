@@ -3,7 +3,7 @@ module Ouro.IntergrationSpec (spec) where
 
 import qualified Data.Ouro.Internal.Expr as I
 import           Test.Hspec
-import           Utils                   (mkDate, mkObj, shouldEvalTo)
+import           Utils                   (mkArr, mkDate, mkObj, shouldEvalTo)
 
 
 spec :: Spec
@@ -52,3 +52,14 @@ spec = do
             it "compares lists                  " $ "(:test (eq ((:a 1 :b 2) (:a 1 :b 3)) ((:a 1 :b 2) (:a 1 :b 3))))" `shouldEvalTo` mkObj [("test", I.Boolean True)]
             it "differentiates disparate types  " $ "(:test (neq 42 #str \"42\"))"                                     `shouldEvalTo` mkObj [("test", I.Boolean True)]
             it "differentiates nested attributes" $ "(:test (neq (:a 1 :b 2) (:a 1 :b 3)))"                            `shouldEvalTo` mkObj [("test", I.Boolean True)]
+
+
+        describe "Structural Block Inference" $ do
+            it "infers inline objects via attribute keys     " $ "(:test (:a 1 :b 2))"         `shouldEvalTo` mkObj [ ("test", mkObj [("a", I.Number 1), ("b", I.Number 2)]) ]
+            it "infers flat arrays via literal heads         " $ "(:test (1 2 3))"             `shouldEvalTo` mkObj [ ("test", mkArr [I.Number 1, I.Number 2, I.Number 3]) ]
+            it "infers strings and mixed literals as arrays  " $ "(:test (\"a\" true 3))"      `shouldEvalTo` mkObj [ ("test", mkArr [I.String "a", I.Boolean True, I.Number 3]) ]
+            it "infers nested arrays (matrices) recursively  " $ "(:test ((1 2) (3 4)))"       `shouldEvalTo` mkObj [ ("test", mkArr [ mkArr [I.Number 1, I.Number 2], mkArr [I.Number 3, I.Number 4] ]) ]
+            it "infers arrays of objects recursively         " $ "(:test ((:id 1) (:id 2)))"   `shouldEvalTo` mkObj [ ("test", mkArr [ mkObj [("id", I.Number 1)], mkObj [("id", I.Number 2)] ]) ]
+            it "infers arrays of computations via fallback   " $ "(:test ((+ 1 1) (+ 2 2)))"   `shouldEvalTo` mkObj [ ("test", mkArr [I.Number 2, I.Number 4]) ]
+            it "handles mixed-type structural streams safely " $ "(:test (1 (:id 2) (+ 1 2)))" `shouldEvalTo` mkObj [ ("test", mkArr [ I.Number 1, mkObj [("id", I.Number 2)], I.Number 3 ]) ]
+            it "handles infinitely nested structural depth   " $ "(:test (((:deep 1))))"       `shouldEvalTo` mkObj [ ("test", mkArr [ mkArr [ mkObj [("deep", I.Number 1)] ] ]) ]
