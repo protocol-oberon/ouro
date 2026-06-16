@@ -1,0 +1,51 @@
+(:context "https://linked.art/ns/v1/linked-art.json"
+
+ (define
+   :getty             "http://vocab.getty.edu/aat/"
+   :linked-art-object "https://linked.art/example/object/"
+   :linked-art-person "https://linked.art/example/person/")
+
+ :id             #uri "https://linked.art/example/provenance/manet_proust/1"
+ :type           "Activity"
+ :_label         "Purchase of Spring by Proust"
+
+ :classified_as ((:id     #uri (+ getty "300055863")
+                  :type   "Type"
+                  :_label "Provenance Activity"))
+
+ :identified_by ((:type          "Name"
+                  :classified_as ((:id     #uri (+ getty "300404670")
+                                   :type   "Type"
+                                   :_label "Primary Name"))
+                  :content       "Purchase of Spring by Proust from Manet"))
+
+ :timespan (:type "TimeSpan"
+            :begin_of_the_begin #date "1881-01-01T00:00:00Z"
+            :end_of_the_end     #date (+ begin_of_the_begin (thru (years 2))))
+
+ ;; A List of objects in Ouro is made from nested parens `(())`
+ :part ((:type   "Acquisition"
+         :_label "Ownership of Spring to Proust"
+         :transferred_title_of   ((:id     #uri (+ linked-art-object "spring")
+                                   :type   "HumanMadeObject"
+                                   :_label "Spring"))
+         :transferred_title_from ((:id     #uri (+ linked-art-person "manet")
+                                   :type   "Person"
+                                   :_label "Manet"))
+         :transferred_title_to   ((:id     #uri (+ linked-art-person "proust")
+                                   :type   "Person"
+                                   :_label "Proust")))
+
+        (:type        "Payment"
+         :_label      "3000 Francs to Manet"
+         :paid_amount (:type     "MonetaryAmount"
+                       :value    3000
+                       :currency  (:id     #uri (+ getty "300412016")
+                                   :type   "Currency"
+                                   :_label "French Francs"))
+        :paid_from    ((:id     #uri (+ linked-art-person "proust")
+                        :type   "Person"
+                        :_label "Proust"))
+        :paid_to      ((:id     #uri (+ linked-art-person "manet")
+                        :type   "Person"
+                        :_label "Manet")))))

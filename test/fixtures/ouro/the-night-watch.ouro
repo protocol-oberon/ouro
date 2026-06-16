@@ -10,7 +10,8 @@
                :timespan       (:type               "TimeSpan"
                                 :_label             "1642"
                                 :begin_of_the_begin piece-started
-                                :end_of_the_end     (+ piece-started (days 364) (hours 23) (minutes 59) (seconds 59)))
+                                ;; (thru (years 0)) moves temporally forward to end of the current year
+                                :end_of_the_end     #date (+ piece-started (thru (years 0))))
 
                :took_place_at  ((:id     #uri (+ linked-art "place/amsterdam")
                                 :type   "Place"

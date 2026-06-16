@@ -30,6 +30,12 @@ spec = do
             it "shifts date forward by seconds" $ ("(:test (+ " <> today <> " (seconds 45)))") `shouldEvalTo` mkObj [("test", mkDate "2026-06-14T00:00:45Z")]
             it "rolls day over via hours      " $ ("(:test (+ " <> today <> " (hours 25)))")   `shouldEvalTo` mkObj [("test", mkDate "2026-06-15T01:00:00Z")]
 
+            -- Thru-boundary snapping integration
+            it "snaps to end of current year  " $ ("(:test (+ " <> today <> " (thru (years 0))))") `shouldEvalTo` mkObj [("test", mkDate "2026-12-31T23:59:59Z")]
+            it "shifts and snaps to next year " $ ("(:test (+ " <> today <> " (thru (years 1))))") `shouldEvalTo` mkObj [("test", mkDate "2027-12-31T23:59:59Z")]
+            it "snaps to target month max days" $ ("(:test (+ " <> today <> " (thru (months 1))))") `shouldEvalTo` mkObj [("test", mkDate "2026-07-31T23:59:59Z")]
+            it "statically unrolls day windows" $ ("(:test (+ " <> today <> " (thru (days 19))))") `shouldEvalTo` mkObj [("test", mkDate "2026-07-03T23:59:59Z")]
+
         describe "Comparison" $ do
             it "checks greater than           " $ "(:test (> 10 5))"   `shouldEvalTo` mkObj [("test", I.Boolean True)]
             it "checks greater than or equal  " $ "(:test (>= 10 10))" `shouldEvalTo` mkObj [("test", I.Boolean True)]

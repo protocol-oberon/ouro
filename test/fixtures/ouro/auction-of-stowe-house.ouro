@@ -1,0 +1,31 @@
+(:context #uri "https://linked.art/ns/v1/linked-art.json"
+
+ ;; Variable definition
+ (define
+   :auction-start   #date "1848-08-01T00:00:00Z"
+   :auction-restart #date "1848-09-09T00:00:00Z"
+   :getty           "http://vocab.getty.edu/aat/")
+
+ :id            #uri "https://linked.art/example/event/stowe/1"
+ :type          "Activity"
+ :_label        "Auction of Stowe House"
+
+ :classified_as ((:id     #uri (+ getty "300054751")
+                  :type   "Type"
+                  :_label "Auction Event"))
+
+ :timespan      (:type               "TimeSpan"
+                 :identified_by      ((:type    "Name"
+                                       :content "40 days in August and September, 1848"))
+
+                 ;; Variadic temporal addition to start date of auction
+                 :begin_of_the_begin auction-start
+                 :end_of_the_begin   (+ begin_of_the_begin (thru (days 19)))
+                 :begin_of_the_end   auction-restart
+                 :end_of_the_end     (+ begin_of_the_end (thru (days 21)))
+
+                 :duration           (:type "Dimension"
+                                      :value 3
+                                      :unit  (:id     #uri (+ getty "300379242")
+                                              :type   "MeasurementUnit"
+                                              :_label "days"))))
