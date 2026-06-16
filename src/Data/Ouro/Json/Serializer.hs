@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs     #-}
+{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 
 module Data.Ouro.Json.Serializer where
 
@@ -19,6 +20,7 @@ import qualified Data.Text.Lazy.Builder    as B
 import qualified Data.Time.Format          as TF
 import           Lens.Micro                (Lens', over, to, (%~), (^.))
 import qualified Text.URI                  as URI
+import Data.List (isSuffixOf)
 
 
 -- Global runtime configuration
@@ -114,7 +116,12 @@ buildJSON :: Expr t -> Printer ()
 buildJSON = \case
               -- Primatives
               Expr.String    txt   -> tell $ escapeString txt
-              Expr.Number    n     -> tell $ B.fromString $ show n
+              Expr.Number    n     -> let strn = show n
+                                      in case ".0" `isSuffixOf` strn of
+                                             -- Suffix length will always be 2 due to I.Expr converting Ints to Doubles
+                                             True  -> tell $ B.fromString $ take (length strn - 2) strn
+                                             False -> tell $ B.fromString $ show n
+
               Expr.Boolean   True  -> tell "true"
               Expr.Boolean   False -> tell "false"
               Expr.URI       uri   -> tell $ escapeString $ URI.render uri
