@@ -15,7 +15,7 @@ import           Data.Ouro.Error.Types     (ErrorContext (..),
 import qualified Data.Ouro.Internal.Expr   as I
 import           Data.Ouro.Lisp.Eval.Types (humanReadableType)
 import qualified Data.Ouro.Lisp.Eval.Types as L
-import           Data.Text                 (Text)
+import           Data.Text                 (Text, isInfixOf)
 import qualified Data.Text                 as T
 import           GHC.Generics              (C1, D1, Generic (from), M1 (..),
                                             Rep, type (:+:) (..))
@@ -54,8 +54,24 @@ targetMismatch expected actual = Syntax $ TargetMismatchAttr
     , actualAttr = actual
     }
 
+
 shadowedVariable :: Text -> ErrorContext
 shadowedVariable = Syntax . ShadowedVariableError
+
+
+inexhaustiveCase :: Text -> Int -> ErrorContext
+inexhaustiveCase fallthrough attempts = Syntax $ InexhaustiveCase
+    { unmatchedTarget = fallthrough
+    , parsedBranches  = attempts
+    }
+
+
+malformedCaseBranch :: ErrorContext
+malformedCaseBranch = Syntax $ MalformedCaseBranch
+
+
+missingOtherwise :: ErrorContext
+missingOtherwise = Syntax $ MissingOtherwiseFallback
 
 
 -- Type Errors
@@ -181,6 +197,32 @@ shadowedVariableBlurb :: Text -> Text
 shadowedVariableBlurb keyword = "The identifier '" <> keyword <> "' cannot be used as a local binding name "
                              <> "because it is strictly reserved as a core system primitive. "
                              <> "Please choose a unique, non-reserved name for your attribute."
+
+
+inexhaustiveCaseBlurb :: Int -> Text
+inexhaustiveCaseBlurb attempts =
+    let baseBlurb = "Ouro requires absolute determinism for branch evaluation. Because every case form must completely map its input domain, a failure to match implies an incomplete data flow contract."
+        remediation = "\n\nRemediation: Append an explicit '(otherwise <fallback-expr>)' clause as the final branch of the case statement to safely handle unmatched states."
+    in case attempts of
+        -- Standard Fallthroughs
+        0 -> baseBlurb
+          <> "\n\nThe case block contained no evaluated branches."
+          <> remediation
+
+        1 -> baseBlurb
+          <> "\n\nThe evaluation engine sequentially verified 1 conditional branch, but it failed to match the target payload."
+          <> remediation
+
+        n -> baseBlurb
+          <> "\n\nThe evaluation engine sequentially verified " <> T.pack (show n) <> " conditional branches, but all failed to match the target payload."
+          <> remediation
+
+
+missingOtherwiseBlurb :: Text
+missingOtherwiseBlurb =
+    "Ouro enforces strict determinism at compile time. A 'case' statement was detected without a terminal 'otherwise' branch. "
+    <> "To guarantee that the compiled output never silently drops data due to an unhandled state, you must explicitly declare a fallback behavior."
+    <> "\n\nPerhaps append '(otherwise <fallback-expr>)' as the final branch."
 
 
 --- Builder for Linter Warnings ---

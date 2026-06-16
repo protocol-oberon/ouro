@@ -106,6 +106,36 @@ data SyntaxError
     | ShadowedVariableError
       { shadows :: Text
       }
+
+    -- SYNTAX VIOLATION: INEXHAUSTIVE CASE PATTERN MATCH
+    -- Occurs when a `case` branching expression is evaluated but none of the provided
+    -- structural patterns or boolean guards successfully match the target value, and
+    -- the block is missing the mandatory `otherwise` fallback clause.
+    --
+    -- * Remediation: The presentation layer should display the value that fell through
+    --   and instruct the user to append an explicit `(otherwise <fallback-expr>)`
+    --   branch to the end of the case block.
+    | InexhaustiveCase
+      { unmatchedTarget :: Text -- A human-readable string representation of the target value
+      , parsedBranches  :: Int  -- The number of branches that were sequentially attempted
+      }
+
+    -- SYNTAX VIOLATION: MALFORMED CASE BRANCH
+    -- Occurs during structural dispatch when a branch within a `case` block
+    -- fails to adhere to the strict `(<pattern> <body>)` bipartite tuple format.
+    -- This typically happens if a user provides a single expression without a
+    -- return body, or passes three or more expressions within the branch boundary.
+    --
+    -- * Remediation: The compiler or editing layer should highlight the offending
+    --   branch layout and instruct the user to ensure the branch contains exactly
+    --   two elements: the evaluation pattern (or guard) and its corresponding return
+    --   expression.
+    | MalformedCaseBranch
+
+    -- SYNTAX VIOLATION: MISSING OTHERWISE FALLBACK
+    -- Occurs during static analysis when a `case` branching expression lacks
+    -- an explicit `otherwise` branch at the very end of its branch list.
+    | MissingOtherwiseFallback
     deriving (Show, Eq, Generic)
 
 

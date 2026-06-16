@@ -49,11 +49,11 @@ data OuroStyle
 styleToAnsi :: OuroStyle -> AnsiStyle
 styleToAnsi = \case
                Code     -> mempty
-               Error    -> colorDull Red     <> bold
-               Pointer  -> colorDull Red     <> bold
-               Type     -> colorDull Magenta <> bold
-               Gutter   -> colorDull Cyan
-               Warning  -> colorDull Yellow  <> bold
+               Error    -> color Red     <> bold
+               Pointer  -> color Red     <> bold
+               Type     -> color Magenta <> bold
+               Gutter   -> color Cyan
+               Warning  -> color Yellow  <> bold
                NoteBody -> mempty
 
 
@@ -209,6 +209,27 @@ splitErrorContext = \case
     Syntax (ShadowedVariableError _shadow)
         -> ("Shadowed Attribute"
            , [ labeled "This attribute key shadows an builtin function" ""]
+           , Nothing
+           )
+
+    Syntax (InexhaustiveCase target branches)
+        -> ( "Inexhaustive Case Match"
+           , [ labeled "Unmatched Target: " (pretty target)
+             , labeled "Branches Checked: " (pretty branches)
+             ]
+           , Nothing
+           )
+
+    Syntax (MalformedCaseBranch)
+        -> ( "Malformed Case Branch"
+           , [ labeled "Invalid Branch, expected Form:  " "(<pattern> <body>)"
+             ]
+           , Nothing
+           )
+
+    Syntax MissingOtherwiseFallback
+        -> ( "Missing Case Fallback"
+           , [ labeled "Structural Rule: " "All case statements must end with an 'otherwise' branch." ]
            , Nothing
            )
 

@@ -12,12 +12,12 @@ import           Data.Ouro.Error.Diagnostics    (internalValueLeak,
                                                  typeMismatch,
                                                  typeMismatchBlurb,
                                                  unbalancedDelimiter,
-                                                 unboundIdentifier, withBlurb)
+                                                 unboundIdentifier, withBlurb, inexhaustiveCase, malformedCaseBranch, astCorruption, inexhaustiveCaseBlurb, missingOtherwise, missingOtherwiseBlurb)
 import           Data.Ouro.Error.Types          (ErrorContext (..),
                                                  OuroError (..), TypeError (..))
 import qualified Data.Ouro.Internal.Expr        as I
 import qualified Data.Ouro.Internal.Kinds       as JLD
-import           Data.Ouro.Lisp.Eval.Builtins   (parseISO8601)
+import           Data.Ouro.Lisp.Eval.Builtins   (parseISO8601, builtinRegistry)
 import           Data.Ouro.Lisp.Eval.Schema     (parseContextDirectives)
 import           Data.Ouro.Lisp.Eval.Scope      (lookupVar)
 import           Data.Ouro.Lisp.Eval.Structural (BlockTarget (..), compileArray,
@@ -32,6 +32,7 @@ import           Data.Text                      (Text)
 import qualified Data.Text                      as T
 import           Text.Megaparsec                (SourcePos)
 import qualified Text.URI                       as URI
+import qualified Data.Map as Map
 
 
 -- No State monad is required because errors are handled as Data in the L.Expr tree.
@@ -41,9 +42,8 @@ type EvalM = Reader Env
 -- Inspects a parsed AST node, handles routing, and returns the result as a L.Expr.
 -- Errors are now contained within the returned L.Expr graph, not lifted to Either.
 evaluate :: S.Expr -> L.Expr
-evaluate rootExpr = runReader (evalExpr rootExpr) baseEnv
-    where
-    baseEnv = L.defaultEnv
+evaluate rootExpr = runReader (evalExpr rootExpr) L.defaultEnv
+
 
 -- Helper to extract the primitive tree or the error from the result.
 -- This bridges the lazy engine to the typed static target.
@@ -91,7 +91,7 @@ evalExpr expr = do
         S.Symbol pos name         -> lookupVar evalExpr pos name env
 
         --- INTERCEPT SPECIAL FORMS ---
-        S.Form pos [S.Symbol _ "context", S.Form _ directives]
+        S.Form _ [S.Symbol pos "context", S.Form _ directives]
             -> do
                val <- parseContextDirectives directives
                case val of
@@ -101,8 +101,7 @@ evalExpr expr = do
                                         $ typeMismatch "Schema" (humanReadableType actual)
 
         S.Form _ (S.Symbol _ "get" : rootTarget : pathExpressions)
-            -> do
-               case validatePathKeys pathExpressions of
+            -> case validatePathKeys pathExpressions of
                    EvalError err     -> pure (EvalError err)
                    -- Match on the open ArrayVal superset node instead of the old frozen GADT variant
                    Array     pathVal -> case resolvePath evalExpr env rootTarget pathVal of
@@ -114,12 +113,28 @@ evalExpr expr = do
                                       & EvalError
                                       & pure
 
-        S.Form pos allFields -> do
-            let wrappedEvaluator currentEnv expr' = runReader (evalExpr expr') currentEnv
-            case determineBlockTarget allFields of
-                TargetObject      -> pure (compileScope wrappedEvaluator env allFields)
-                TargetList        -> pure (compileArray wrappedEvaluator env allFields)
-                TargetFunctionApp -> applyFunction pos allFields
+        S.Form _ (S.Symbol pos "case" : target : patterns)
+            -> do
+               case (hasValidOtherwise patterns) of
+                   True -> do
+                           evaluatedTarget <- evalExpr target
+                           case evaluatedTarget of
+                               EvalError err  -> pure $ EvalError err
+                               resolvedTarget -> dispatchCaseBranches evalExpr env pos resolvedTarget 0 patterns
+
+                   False -> missingOtherwise
+                            & withBlurb missingOtherwiseBlurb
+                            & OuroError pos
+                            & EvalError
+                            & pure
+
+        S.Form pos allFields
+            -> do
+               let wrappedEvaluator currentEnv expr' = runReader (evalExpr expr') currentEnv
+               case determineBlockTarget allFields of
+                   TargetObject      -> pure (compileScope wrappedEvaluator env allFields)
+                   TargetList        -> pure (compileArray wrappedEvaluator env allFields)
+                   TargetFunctionApp -> applyFunction pos allFields
 
         otherNode
             -> let pos     = S.exprPos otherNode
@@ -257,6 +272,88 @@ applyFunction pos fields =
             & withBlurb ("Empty structural framing brackets are invalid executable values in Ouro. "
                       <> "An execution group must contain at least a primary invocation symbol or operator key.")
             & OuroError pos
+
+
+dispatchCaseBranches
+    :: (S.Expr -> EvalM L.Expr)
+    -> Env
+    -> SourcePos
+    -> L.Expr
+    -> Int
+    -> [S.Expr]
+    -> EvalM L.Expr
+dispatchCaseBranches eval env pos target attempts branches =
+    case branches of
+        [] -> inexhaustiveCase "Case statement fell through" attempts
+              & withBlurb (inexhaustiveCaseBlurb attempts)
+              & OuroError pos
+              & EvalError
+              & pure
+
+        -- Deconstruct the next branch form
+        (S.Form _ [pattern, body] : rest)
+            -> do
+               -- Catch the otherwise reserved keyword
+               case pattern of
+                   S.Symbol _ "otherwise" -> eval body
+
+                   -- If the symbol is something that indecates a bool then
+                   -- case operates as a guard statement
+                   S.Form _ (S.Symbol opPos op : guardArgs) | op `elem` [">=", ">", "<=", "<", "eq", "neq"]
+                        -> do
+                           guardRes <- evalGuardCond op target guardArgs eval env opPos
+                           case guardRes of
+                               EvalError err              -> pure $ EvalError err
+                               Primitive (I.Boolean True) -> eval body
+                               _nextCase                  -> dispatchCaseBranches eval env pos target (attempts + 1) rest
+
+                   invalidPattern
+                       -> inexhaustiveCase "Guard condition operator missing from internal builtin registry." attempts
+                          & OuroError (S.exprPos invalidPattern)
+                          & EvalError
+                          & pure
+
+        (_malformed : _)
+            -> malformedCaseBranch
+               & OuroError pos
+               & EvalError
+               & pure
+
+
+hasValidOtherwise :: [S.Expr] -> Bool
+hasValidOtherwise branches =
+    case reverse branches of
+        -- Check the very last branch in the list (the first element of the reversed list)
+        (S.Form _ [S.Symbol _ "otherwise", _] : _) -> True
+        _noOtherwise                               -> False
+
+
+evalGuardCond
+    :: Text
+    -> L.Expr
+    -> [S.Expr]
+    -> (S.Expr -> EvalM L.Expr)
+    -> Env
+    -> SourcePos
+    -> EvalM L.Expr
+evalGuardCond op target runtimeArgs eval env pos =
+    case Map.lookup op builtinRegistry of
+        Just handler -> do
+                        evaledArgs <- mapM eval runtimeArgs
+
+                        -- Inject the target as the implicity first argument of the guard
+                        let allArgs = target : evaledArgs
+
+                        -- Reslove the builtin
+                        let res = runReader (handler pos allArgs) env
+
+                        -- Verify that the builtin resolved fully
+                        pure res
+
+        Nothing      -> astCorruption op "Guard condition operator missing from internal builtin registry."
+                        & OuroError pos
+                        & EvalError
+                        & pure
 
 
 -- validatePathKeys.

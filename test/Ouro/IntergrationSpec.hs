@@ -53,7 +53,6 @@ spec = do
             it "differentiates disparate types  " $ "(:test (neq 42 #str \"42\"))"                                     `shouldEvalTo` mkObj [("test", I.Boolean True)]
             it "differentiates nested attributes" $ "(:test (neq (:a 1 :b 2) (:a 1 :b 3)))"                            `shouldEvalTo` mkObj [("test", I.Boolean True)]
 
-
         describe "Structural Block Inference" $ do
             it "infers inline objects via attribute keys     " $ "(:test (:a 1 :b 2))"         `shouldEvalTo` mkObj [ ("test", mkObj [("a", I.Number 1), ("b", I.Number 2)]) ]
             it "infers flat arrays via literal heads         " $ "(:test (1 2 3))"             `shouldEvalTo` mkObj [ ("test", mkArr [I.Number 1, I.Number 2, I.Number 3]) ]
@@ -63,3 +62,11 @@ spec = do
             it "infers arrays of computations via fallback   " $ "(:test ((+ 1 1) (+ 2 2)))"   `shouldEvalTo` mkObj [ ("test", mkArr [I.Number 2, I.Number 4]) ]
             it "handles mixed-type structural streams safely " $ "(:test (1 (:id 2) (+ 1 2)))" `shouldEvalTo` mkObj [ ("test", mkArr [ I.Number 1, mkObj [("id", I.Number 2)], I.Number 3 ]) ]
             it "handles infinitely nested structural depth   " $ "(:test (((:deep 1))))"       `shouldEvalTo` mkObj [ ("test", mkArr [ mkArr [ mkObj [("deep", I.Number 1)] ] ]) ]
+
+        describe "Control Flow (Case)" $ do
+            it "matches an explicit equality guard            " $ "(:test (case 10 ((eq 5) 0) ((eq 10) 1) (otherwise 2)))"                          `shouldEvalTo` mkObj [("test", I.Number 1)]
+            it "matches a relational inequality guard         " $ "(:test (case 50 ((> 100) 1) ((> 40) 2) (otherwise 3)))"                          `shouldEvalTo` mkObj [("test", I.Number 2)]
+            it "falls through to the otherwise branch         " $ "(:test (case 5 ((> 10) 1) ((eq 8) 2) (otherwise 3)))"                            `shouldEvalTo` mkObj [("test", I.Number 3)]
+            it "evaluates computational expressions as targets" $ "(:test (case (+ 2 3) ((eq 5) (* 2 2)) (otherwise 0)))"                           `shouldEvalTo` mkObj [("test", I.Number 4)]
+            it "evaluates computations dynamically in bodies  " $ "(:test (case 1 ((eq 1) (:nested true)) (otherwise (:nested false))))"            `shouldEvalTo` mkObj [("test", mkObj [("nested", I.Boolean True)])]
+            it "routes safely via strict string comparison    " $ "(:test (case #str \"B\" ((eq #str \"A\") 1) ((eq #str \"B\") 2) (otherwise 3)))" `shouldEvalTo` mkObj [("test", I.Number 2)]
