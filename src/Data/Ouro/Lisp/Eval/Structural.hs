@@ -90,7 +90,7 @@ emitProps evaluator env expressions = go I.EmptyMeta expressions
                   S.Form _ (S.Symbol _ "define" : _) : rest -> go metaAcc rest
 
                   -- Case C: Extract valid body pairs. Supports lazy nesting compilation inline.
-                  (S.Attr _ key : valExpr : rest) | not (isStructuralExpr valExpr)
+                  (S.Attr attrPos key : valExpr : rest) | not (isStructuralExpr valExpr)
                       -> case go metaAcc rest of
                              Object finalMeta nextPairs
                                  -> case evaluator env valExpr of
@@ -99,6 +99,9 @@ emitProps evaluator env expressions = go I.EmptyMeta expressions
 
                                         -- 2. Clean primitive values (frozen GADTs)
                                         Primitive prim -> Object finalMeta ((key, Primitive prim) : nextPairs)
+
+                                        -- 2.5 Quotes
+                                        Quote q -> Object finalMeta ((key, Quote q) : nextPairs)
 
                                         -- 3. Accept nested object configurations
                                         Object m p -> Object finalMeta ((key, Object m p) : nextPairs)

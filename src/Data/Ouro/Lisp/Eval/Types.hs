@@ -123,6 +123,9 @@ data Expr where
     -- and continue evaluating sibling nodes.
     EvalError   :: OuroError -> Expr
 
+    -- Quote -> Stored Surface Expr
+    Quote       :: S.Expr -> Expr
+
 type NativeFunction = SourcePos -> [Expr] -> Reader Env Expr
 
 
@@ -141,7 +144,8 @@ instance Eq Expr where
     Directive   a       == Directive   b       = a == b
     PrimitiveOp _       == PrimitiveOp _       = False
     Closure     _  _  _ == Closure     _  _  _ = False
-    EvalError   a       == EvalError   b       = a == b
+    EvalError   a       == EvalError   b       = a  == b
+    Quote       q1      == Quote       q2      = q1 == q2
 
     -- Catch-all for shape mismatches
     _ == _ = False
@@ -203,6 +207,7 @@ humanReadableType =
      PrimitiveOp _     -> "Built-in function"
      Closure     _ _ _ -> "an unexecuted function (lambda)"
      EvalError   _     -> "an Error"
+     Quote       _     -> "an unevaluated expression"
      Object      _ _   -> "an Object block"
 
 

@@ -7,17 +7,23 @@ module Data.Ouro.Lisp.Eval.Engine where
 import           Control.Monad.Reader           (MonadReader (..), Reader,
                                                  runReader)
 import           Data.Function                  ((&))
-import           Data.Ouro.Error.Diagnostics    (internalValueLeak,
-                                                 malformedTag, targetMismatch,
-                                                 typeMismatch,
+import qualified Data.Map                       as Map
+import           Data.Ouro.Error.Diagnostics    (astCorruption,
+                                                 inexhaustiveCase,
+                                                 inexhaustiveCaseBlurb,
+                                                 internalValueLeak,
+                                                 malformedCaseBranch,
+                                                 malformedTag, missingOtherwise,
+                                                 missingOtherwiseBlurb,
+                                                 targetMismatch, typeMismatch,
                                                  typeMismatchBlurb,
                                                  unbalancedDelimiter,
-                                                 unboundIdentifier, withBlurb, inexhaustiveCase, malformedCaseBranch, astCorruption, inexhaustiveCaseBlurb, missingOtherwise, missingOtherwiseBlurb)
+                                                 unboundIdentifier, withBlurb)
 import           Data.Ouro.Error.Types          (ErrorContext (..),
                                                  OuroError (..), TypeError (..))
 import qualified Data.Ouro.Internal.Expr        as I
 import qualified Data.Ouro.Internal.Kinds       as JLD
-import           Data.Ouro.Lisp.Eval.Builtins   (parseISO8601, builtinRegistry)
+import           Data.Ouro.Lisp.Eval.Builtins   (builtinRegistry, parseISO8601)
 import           Data.Ouro.Lisp.Eval.Schema     (parseContextDirectives)
 import           Data.Ouro.Lisp.Eval.Scope      (lookupVar)
 import           Data.Ouro.Lisp.Eval.Structural (BlockTarget (..), compileArray,
@@ -32,7 +38,6 @@ import           Data.Text                      (Text)
 import qualified Data.Text                      as T
 import           Text.Megaparsec                (SourcePos)
 import qualified Text.URI                       as URI
-import qualified Data.Map as Map
 
 
 -- No State monad is required because errors are handled as Data in the L.Expr tree.
@@ -87,8 +92,9 @@ evalExpr expr = do
         S.Literal _ S.EmptyArr  -> pure $ Primitive I.EmptyArr
         S.Literal _ S.EmptyObj  -> pure $ Primitive I.EmptyObj
 
-        S.Tagged _   tag  payload -> assertTag tag payload
-        S.Symbol pos name         -> lookupVar evalExpr pos name env
+        S.Tagged _   tag     payload -> assertTag tag payload
+        S.Quoted _   quote           -> pure $ Quote quote
+        S.Symbol pos name            -> lookupVar evalExpr pos name env
 
         --- INTERCEPT SPECIAL FORMS ---
         S.Form _ [S.Symbol pos "context", S.Form _ directives]
@@ -117,10 +123,13 @@ evalExpr expr = do
             -> do
                case (hasValidOtherwise patterns) of
                    True -> do
-                           evaluatedTarget <- evalExpr target
-                           case evaluatedTarget of
-                               EvalError err  -> pure $ EvalError err
-                               resolvedTarget -> dispatchCaseBranches evalExpr env pos resolvedTarget 0 patterns
+                           case target of
+                               S.Quoted _ quote -> patternMatch evalExpr env pos quote 0 patterns
+                               _expr            -> do
+                                                   resolvedTarget <- evalExpr target
+                                                   case resolvedTarget of
+                                                        EvalError err  -> pure $ EvalError err
+                                                        res            -> evaluateGuards evalExpr env pos res 0 patterns
 
                    False -> missingOtherwise
                             & withBlurb missingOtherwiseBlurb
@@ -274,7 +283,7 @@ applyFunction pos fields =
             & OuroError pos
 
 
-dispatchCaseBranches
+evaluateGuards
     :: (S.Expr -> EvalM L.Expr)
     -> Env
     -> SourcePos
@@ -282,7 +291,7 @@ dispatchCaseBranches
     -> Int
     -> [S.Expr]
     -> EvalM L.Expr
-dispatchCaseBranches eval env pos target attempts branches =
+evaluateGuards eval env pos target attempts branches =
     case branches of
         [] -> inexhaustiveCase "Case statement fell through" attempts
               & withBlurb (inexhaustiveCaseBlurb attempts)
@@ -305,11 +314,54 @@ dispatchCaseBranches eval env pos target attempts branches =
                            case guardRes of
                                EvalError err              -> pure $ EvalError err
                                Primitive (I.Boolean True) -> eval body
-                               _nextCase                  -> dispatchCaseBranches eval env pos target (attempts + 1) rest
+                               _nextCase                  -> evaluateGuards eval env pos target (attempts + 1) rest
 
                    invalidPattern
                        -> inexhaustiveCase "Guard condition operator missing from internal builtin registry." attempts
                           & OuroError (S.exprPos invalidPattern)
+                          & EvalError
+                          & pure
+
+        (_malformed : _)
+            -> malformedCaseBranch
+               & OuroError pos
+               & EvalError
+               & pure
+
+
+patternMatch
+    :: (S.Expr -> EvalM L.Expr)
+    -> Env
+    -> SourcePos
+    -> S.Expr
+    -> Int
+    -> [S.Expr]
+    -> EvalM L.Expr
+patternMatch eval env pos qTrgt attempts branches =
+    case branches of
+        [] -> inexhaustiveCase "Case statement fell through" attempts
+              & withBlurb (inexhaustiveCaseBlurb attempts)
+              & OuroError pos
+              & EvalError
+              & pure
+
+        -- Deconstruct the next branch form
+        (S.Form _ [pattern, body] : rest)
+            -> do
+               -- Catch the otherwise reserved keyword
+               case pattern of
+                   S.Symbol _ "otherwise"
+                       -> eval body
+
+                   S.Quoted _ qPattern
+                       -> do
+                          case qTrgt `S.structuralEq` qPattern of
+                              True  -> eval body
+                              False -> patternMatch eval env pos qTrgt (attempts + 1) rest
+
+                   notAQuote
+                       -> inexhaustiveCase "PatternMatching requires quoted patterns" attempts
+                          & OuroError (S.exprPos notAQuote)
                           & EvalError
                           & pure
 

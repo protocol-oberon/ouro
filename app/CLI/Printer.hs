@@ -5,7 +5,7 @@
 
 module CLI.Printer (pintDiagnostic) where
 
-import           Data.Char                     (isAlphaNum)
+import           Data.Char                     (isAlphaNum, isLetter)
 import           Data.Ouro                     (ErrorContext (..),
                                                 InternalError (..),
                                                 LinterWarning (..),
@@ -295,21 +295,24 @@ tokenizeErrorString :: Text -> [DiagnosticToken]
 tokenizeErrorString t = map classify (T.words t)
     where
     classify w
-        -- 1. Catch quotes embedded in a word (e.g., "'date1',", "'date'?")
+        -- 1. Catch quotes embedded in a word
         | "'" `T.isInfixOf` w
         = case T.breakOn "'" w of
-              (before, rest)
-                  ->  case T.breakOn "'" (T.drop 1 rest) of
-                          (body, after) -> TagKeyword (before <> "'" <> body <> "'" <> T.drop 1 after)
+              (before, rest) ->
+                  let remainder = T.drop 1 rest
+                  in case T.breakOn "'" remainder of
+                         (_, "") | not (T.null before)         && not (T.null remainder)
+                                   && isLetter (T.last before) && isLetter (T.head remainder)
+                                   -> PlainText w
 
-        -- 2. Catch tag modifiers
-        | "#" `T.isPrefixOf` w
-        = TagKeyword w
+                             -- Otherwise, it's a syntax quote like "(')" or "'target". Color it!
+                             | otherwise -> TagKeyword w
 
-        -- 3. Everything else is standard layout prose
-        | otherwise
-        = PlainText w
+                         -- Two quotes found, safely reconstruct and tag it.
+                         (body, after) -> TagKeyword (before <> "'" <> body <> "'" <> T.drop 1 after)
 
+        | "#" `T.isPrefixOf` w = TagKeyword w
+        | otherwise            = PlainText w
 
 -- Post-processes a flat text string and applies dynamic type color highlighting
 highlightDiagnostic :: Text -> Doc OuroStyle

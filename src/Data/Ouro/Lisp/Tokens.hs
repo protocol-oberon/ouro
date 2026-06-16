@@ -48,4 +48,6 @@ data TokenType
     | TagBool          -- '#bool'      (enforces expression resolves to a Boolean)
     | TagObjectEmpty   -- '#obj-empty' (instantiates Object Nil Nil)
     | TagArrEmpty      -- '#arr-empty' (instantiates Array Nil)
+    -- Quote
+    | Quote
     deriving (Show, Eq, Generic)

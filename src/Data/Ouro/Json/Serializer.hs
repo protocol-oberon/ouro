@@ -8,6 +8,7 @@ import           Control.Monad.Identity    (Identity, runIdentity)
 import           Control.Monad.Reader      (MonadReader (..), ReaderT (..),
                                             asks)
 import           Control.Monad.State       (MonadState, StateT (..), modify)
+import           Data.List                 (isSuffixOf)
 import           Data.Ouro.Internal.Expr   (Expr)
 import qualified Data.Ouro.Internal.Expr   as Expr
 import qualified Data.Ouro.Internal.Kinds  as JLD
@@ -20,7 +21,6 @@ import qualified Data.Text.Lazy.Builder    as B
 import qualified Data.Time.Format          as TF
 import           Lens.Micro                (Lens', over, to, (%~), (^.))
 import qualified Text.URI                  as URI
-import Data.List (isSuffixOf)
 
 
 -- Global runtime configuration

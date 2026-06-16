@@ -32,9 +32,12 @@ module Data.Ouro
 
 import           Control.Monad.Except        (ExceptT, runExceptT, throwError)
 import           Control.Monad.Writer        (Writer, runWriter, tell)
-import           Data.List.NonEmpty          (NonEmpty (..), nonEmpty)
+import           Data.Function               ((&))
+import           Data.List.NonEmpty          (NonEmpty (..))
+import qualified Data.List.NonEmpty          as NE
 import           Data.Ouro.Error.Diagnostics (smartErrorCode, smartWarningCode,
-                                              warningBlurb, warningSummary)
+                                              typeMismatch, warningBlurb,
+                                              warningSummary, withBlurb)
 import qualified Data.Ouro.Error.Linter      as LN
 import           Data.Ouro.Error.Types       (ErrorContext (..),
                                               InternalError (..),
@@ -57,6 +60,9 @@ import           Data.Ouro.Lisp.Eval.Types   (Expr (..), freeze)
 import qualified Data.Ouro.Lisp.Eval.Types   as L
 import qualified Data.Ouro.Lisp.Lexer        as LX
 import qualified Data.Ouro.Lisp.Parser       as LP
+import qualified Data.Ouro.Lisp.Surface      as S
+import           Data.Set                    (Set)
+import qualified Data.Set                    as Set
 import           Data.Text                   (Text)
 import qualified Data.Text.Lazy              as TL
 import           Text.Megaparsec             (errorBundlePretty)
@@ -77,7 +83,7 @@ compile filename content = compilationResult . runWriter . runExceptT $ compile'
     compile' :: CompilerM (I.Expr 'JLD.Primitive)
     compile' = do
                -- Pass 1: Lexical Tokenization
-               tokens <- case LX.tokenize filename content of
+               tokens <- case LX.tokenize filename  content of
                              Left  lexErr -> throwError $ pure lexErr
                              Right tkns   -> return tkns
 
@@ -91,7 +97,7 @@ compile filename content = compilationResult . runWriter . runExceptT $ compile'
 
                -- Pass 4: Evaluation
                let evalTree = EN.evaluate (Canon.construct surfaceAST)
-               case nonEmpty $ harvestErrors evalTree of
+               case validateAST evalTree of
                    Nothing      -> return (freeze evalTree)
                    Just    errs -> throwError errs
 
@@ -101,16 +107,25 @@ compile filename content = compilationResult . runWriter . runExceptT $ compile'
                          (Left errs, warnings) -> CompilationFailure warnings errs
 
 
+validateAST :: L.Expr -> Maybe (NonEmpty OuroError)
+validateAST root = NE.nonEmpty (Set.toList $ validateAST' root)
+
 -- Walks the evaluated L.Expr tree to extract any embedded dynamic EvalErrors
-harvestErrors :: L.Expr -> [OuroError]
-harvestErrors valueGraph = case valueGraph of
-                               EvalError err  -> [err]
-                               -- Deeply traverse structural object field value branches
-                               Object _ pairs -> concatMap (harvestErrors . snd) pairs
-                               -- Deeply traverse open array value elements
-                               Array elements -> concatMap harvestErrors elements
-                               -- Pristine values, closures, and frozen GADTs have zero errors
-                               _              -> []
+validateAST' :: L.Expr -> Set OuroError
+validateAST' valueGraph = case valueGraph of
+                              EvalError err            -> Set.singleton err
+                              -- Deeply traverse structural object field value branches
+                              Object    _        pairs -> Set.unions (map (validateAST' . snd) pairs)
+                              Array     elements       -> Set.unions (map validateAST' elements)
+                              -- Unevaluated quotes cannot be present in the final AST
+                              Quote     payload        -> typeMismatch "a resolved type" "an unevaluated Quoted expression"
+                                                          & withBlurb ( "All expressions in Ouro must be evaluated before compilation can be finished."
+                                                                     <> "\n\nPerhaps remove the quote (\') from this expression to evaluate it."
+                                                                      )
+                                                          & OuroError (S.exprPos payload)
+                                                          & Set.singleton
+                              -- Pristine values, closures, and frozen GADTs have zero errors
+                              _primitve               -> Set.empty
 
 
 

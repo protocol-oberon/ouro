@@ -15,7 +15,7 @@ import           Data.Ouro.Error.Types     (ErrorContext (..),
 import qualified Data.Ouro.Internal.Expr   as I
 import           Data.Ouro.Lisp.Eval.Types (humanReadableType)
 import qualified Data.Ouro.Lisp.Eval.Types as L
-import           Data.Text                 (Text, isInfixOf)
+import           Data.Text                 (Text)
 import qualified Data.Text                 as T
 import           GHC.Generics              (C1, D1, Generic (from), M1 (..),
                                             Rep, type (:+:) (..))

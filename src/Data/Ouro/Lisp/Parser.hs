@@ -85,6 +85,9 @@ pExpr = do
                              Tkn.TagObjectEmpty -> capture (S.Literal (Tkn.pos t) S.EmptyObj)
                              Tkn.TagArrEmpty    -> capture (S.Literal (Tkn.pos t) S.EmptyArr)
 
+                             -- Quoted Expr
+                             Tkn.Quote          -> put ts >> parseQuotedNode (Tkn.pos t)
+
                              -- Unbalanced Boundaries are immediate semantic loop violations
                              Tkn.CloseParen -> let context = Syntax UnbalancedDelimiter
                                                              { expectedDelim = "Opening Form Boundary '('"
@@ -122,6 +125,11 @@ parseTaggedNode tagPos tagType = do
 
                                  -- Construct the Tagged node using the expression directly
                                  pure $ S.Tagged tagPos tagType nextExpr
+
+parseQuotedNode :: SourcePos -> Parser S.Expr
+parseQuotedNode startPos = do
+                           nextExpr <- pExpr
+                           pure $ S.Quoted startPos nextExpr
 
 
 -- Parsing Stream State Helpers

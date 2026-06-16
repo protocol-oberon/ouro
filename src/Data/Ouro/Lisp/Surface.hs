@@ -45,6 +45,7 @@ data Expr
     | Symbol  SourcePos Text            -- lambda, assertion, variable names
     | Literal SourcePos LiteralValue    -- Raw String, Number, Boolean, Null
     | Tagged  SourcePos ReaderTag Expr  -- #uri "...", #date "..."
+    | Quoted  SourcePos Expr
     | Form    SourcePos [Expr]          -- (...) nested lists
     | Bracket SourcePos [Expr]          -- [...] scoping or block grouping
     deriving (Show, Eq)
@@ -81,5 +82,16 @@ exprPos = \case
            Symbol  pos _   -> pos
            Literal pos _   -> pos
            Tagged  pos _ _ -> pos
+           Quoted  pos _   -> pos
            Form    pos _   -> pos
            Bracket pos _   -> pos
+
+
+structuralEq :: Expr -> Expr -> Bool
+structuralEq e1 e2 =
+    case (e1, e2) of
+        (Symbol  _ a,  Symbol  _ b)  -> a == b
+        (Literal _ a,  Literal _ b)  -> a == b
+        (Quoted  _ a,  Quoted  _ b)  -> structuralEq a b
+        (Form    _ xs, Form    _ ys) -> length xs == length ys && all (uncurry structuralEq) (zip xs ys)
+        _typeMismatch                -> False

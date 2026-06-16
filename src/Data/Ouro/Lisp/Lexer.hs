@@ -78,7 +78,6 @@ pAttributes = lexeme . withPos $ do
 
 
 -- Reader Macros starting with '#'
--- Reader Macros starting with '#'
 pReaderTags :: Parser Tkn.Token
 pReaderTags = lexeme . withPos $ do
                                  -- Grab the absolute stream offset BEFORE we consume any characters
@@ -96,6 +95,11 @@ pReaderTags = lexeme . withPos $ do
                                      "arr-empty" -> pure Tkn.TagArrEmpty
                                      other       -> M.region (\err -> M.setErrorOffset startOffset err)
                                                              (fail ("Invalid type assertion tag: #" ++ other))
+
+pQuote :: Parser Tkn.Token
+pQuote = lexeme . withPos $ do
+                            _  <- char '\''
+                            pure Tkn.Quote
 
 
 -- Standard Data Literals (Strings, Numbers, Bools, Null)
@@ -140,6 +144,7 @@ pSingleToken =  pDelims
             <|> pCoreKeywords
             <|> pAttributes
             <|> pReaderTags
+            <|> pQuote
             <|> pLiterals
             <|> pSymbol
 
