@@ -25,7 +25,7 @@ runCompile :: FilePath -> Maybe FilePath -> IO ()
 runCompile ifp mOutDir = do
     -- Calculate the actual output file path dynamically
     let ofp = case mOutDir of
-                  Just dir -> dir </> replaceExtension (takeFileName ifp) "ouro"
+                  Just dir -> dir </> replaceExtension (takeFileName ifp) "json"
                   Nothing  -> replaceExtension ifp "json"
 
     putStrLn $ "Compiling: " <> ifp <> "..."
