@@ -5,7 +5,7 @@ import           Control.Monad.Reader         (Reader, local)
 import           Data.Function                ((&))
 import qualified Data.Map                     as Map
 import           Data.Ouro.Error.Diagnostics  (cyclicDependency,
-                                               unboundIdentifier, withBlurb)
+                                               unboundIdentifier, withBlurb, invalidTemplateName, astCorruption)
 import           Data.Ouro.Error.Types        (OuroError (..))
 import           Data.Ouro.Internal.Utils     (rankBySimilarity)
 import           Data.Ouro.Lisp.Eval.Builtins (builtinRegistry, checkShadowing)
@@ -16,6 +16,7 @@ import qualified Data.Set                     as Set
 import           Data.Text                    (Text)
 import           Lens.Micro                   ((%~), (^.))
 import           Text.Megaparsec              (SourcePos)
+import qualified Data.Text as T
 
 
 -- buildLazyEnv.
@@ -70,10 +71,38 @@ buildLazyEnv = curry $ \case
     isStructuralExpr :: S.Expr -> Bool
     isStructuralExpr = \case
                         S.Attr {} -> True
-                        S.Form _ (S.Symbol _ "context" : _) -> True
-                        S.Form _ (S.Symbol _ "define" : _)  -> True
-                        _otherForm                          -> False
+                        S.Form _ (S.Symbol _ "context" : _)  -> True
+                        S.Form _ (S.Symbol _ "define" : _)   -> True
+                        S.Form _ (S.Symbol _ "template" : _) -> True
+                        _otherForm                           -> False
 
+
+buildTemplateRegistry :: Env -> [S.Expr] -> Either OuroError (Map.Map Text S.Expr)
+buildTemplateRegistry env =
+    \case
+     [] -> pure Map.empty
+
+     -- Case A: Intercept top-level template forms and index them by name
+     rawAst@(S.Form _ (S.Symbol _ "template" : S.Symbol namePos name : _)) : xs
+         -> do
+            case "!" `T.isSuffixOf` name of
+                True  -> Right ()
+                False -> invalidTemplateName name
+                         & OuroError namePos
+                         & Left
+
+            nextRegistry <- buildTemplateRegistry env xs
+            pure $ Map.insert name rawAst nextRegistry
+
+     -- Case B: Recurse into define blocks if they can contain local templates
+     S.Form _ (S.Symbol _ "define" : rest) : xs
+         -> do
+            innerTemplates <- buildTemplateRegistry env rest
+            outerTemplates <- buildTemplateRegistry env xs
+            pure $ Map.union innerTemplates outerTemplates
+
+     -- Case C: Safely ignore variables, contexts, and attributes
+     _ : xs -> buildTemplateRegistry env xs
 
 -- Resolves dynamic lookups via local maps, builtins fallbacks, or stepping up into parent scopes.
 -- Now operates purely within the Reader monad to maintain consistency with the engine.
@@ -111,7 +140,7 @@ lookupVar' mEvaluator pos name env =
 
 -- Quote lookup the same as lookupVar but returns a thunk
 quoteVar
-    :: SourcePos
+  :: SourcePos
   -> Text
   -> Env
   -> Reader Env L.Expr
@@ -150,7 +179,38 @@ lookupBuiltin
 lookupBuiltin scopeWalker mEvaluator pos name env =
     case L.PrimitiveOp <$> Map.lookup name builtinRegistry of
         Just nativeOp -> pure nativeOp
-        Nothing       -> lookupField scopeWalker mEvaluator pos name env
+        Nothing       -> lookupTemplate scopeWalker mEvaluator pos name env
+
+-- Resolves structural template blueprints.
+-- If found, wraps the AST in a first-class closure waiting for actual arguments.
+-- Otherwise, delegates up the chain to lookupField.
+lookupTemplate
+    :: (Maybe (S.Expr -> Reader Env L.Expr) -> SourcePos -> Text -> Env -> Reader Env L.Expr)
+    -> Maybe (S.Expr -> Reader Env L.Expr)
+    -> SourcePos
+    -> Text
+    -> Env
+    -> Reader Env L.Expr
+lookupTemplate scopeWalker mEvaluator pos name env =
+    case Map.lookup name (env ^. L.templateRegistry) of
+        Just rawAst@(S.Form _ (S.Symbol _ "template" : S.Symbol _ _ : S.Form _ argNodes : bodyExprs))
+            -> case mEvaluator of
+                   -- Standard path: Return a pure data closure carrying the lexical state
+                   Just _ -> do
+                             let params = map (\case S.Symbol _ p -> p; _ -> "") argNodes
+                             pure $ L.TemplateClosure env name params bodyExprs
+
+                   -- Quote path: If called via quoteVar, return the raw template AST
+                   Nothing -> pure $ L.Quote rawAst
+
+        -- Registry corruption check
+        Just _ -> astCorruption name "Corrupted template registry entry."
+                  & OuroError pos
+                  & L.EvalError
+                  & pure
+
+        -- Not found in local templates, continue the chain
+        Nothing -> lookupField scopeWalker mEvaluator pos name env
 
 
 -- Look up to the nesting parent environment if not a built in function

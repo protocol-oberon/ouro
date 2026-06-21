@@ -29,7 +29,7 @@ import           Data.Ouro.Lisp.Eval.Scope      (lookupVar, quoteVar)
 import           Data.Ouro.Lisp.Eval.Structural (BlockTarget (..), compileArray,
                                                  compileScope,
                                                  determineBlockTarget,
-                                                 resolvePath)
+                                                 resolvePath, compileTemplate)
 import           Data.Ouro.Lisp.Eval.Types      (Env (..), Expr (..),
                                                  humanReadableType)
 import qualified Data.Ouro.Lisp.Eval.Types      as L
@@ -136,13 +136,11 @@ evalExpr expr = do
         S.Form _ [S.Symbol _ "quote", payload]           -> pure $ Quote payload
 
         S.Form _ (S.Symbol pos "case" : target : patterns)
-            -> do
-               case (hasValidOtherwise patterns) of
-                   True -> do
-                           case runReader (evalExpr target) env of
-                               EvalError err  -> pure $ EvalError err
-                               Quote quote    -> patternMatch   evalExpr env pos quote          0 patterns
-                               resolvedTarget -> evaluateGuards evalExpr env pos resolvedTarget 0 patterns
+            -> case (hasValidOtherwise patterns) of
+                   True -> case runReader (evalExpr target) env of
+                               EvalError err   -> pure $ EvalError err
+                               Quote     quote -> patternMatch   evalExpr env pos quote          0 patterns
+                               resolvedTarget  -> evaluateGuards evalExpr env pos resolvedTarget 0 patterns
 
                    False -> missingOtherwise
                             & withBlurb missingOtherwiseBlurb
@@ -273,6 +271,9 @@ applyFunction pos fields =
         (operatorExpr : argumentExprs) -> do
             resolvedOp <- evalExpr operatorExpr
             case resolvedOp of
+                TemplateClosure closureEnv name params bodyExprs
+                    -> compileTemplate evalExpr closureEnv pos name params bodyExprs argumentExprs
+
                 PrimitiveOp nativeFunc -> do
                     evaledArgs <- mapM evalExpr argumentExprs
                     env        <- ask

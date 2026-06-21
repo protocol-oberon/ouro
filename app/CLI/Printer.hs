@@ -220,7 +220,7 @@ splitErrorContext = \case
            , Nothing
            )
 
-    Syntax (MalformedCaseBranch)
+    Syntax MalformedCaseBranch
         -> ( "Malformed Case Branch"
            , [ labeled "Invalid Branch, expected Form:  " "(<pattern> <body>)"
              ]
@@ -230,6 +230,13 @@ splitErrorContext = \case
     Syntax MissingOtherwiseFallback
         -> ( "Missing Case Fallback"
            , [ labeled "Structural Rule: " "All case statements must end with an 'otherwise' branch." ]
+           , Nothing
+           )
+
+    Syntax (InvalidTemplateName name)
+        -> ( "Invalid Template Name"
+           , [ labeled "Formating Rule: " "All template marco names must end with a '!'."
+             , labeled (pretty $ "Perhaps add '!' to the end of " <> name <> ".") ""]
            , Nothing
            )
 
@@ -253,6 +260,14 @@ splitErrorContext = \case
         -> ("Circular Reference"
            , [ labeled "Expected :" "an independent expression or an outer-scope identifier"
              , labeled "Got:      " (pretty var)
+             ]
+           , Nothing
+           )
+
+    Scope (IncorrectArity name exp act)
+        -> ("Incorrect Arity"
+           , [ labeled (pretty $ "The function '" <> name <> "' expects " <> (T.pack $ show exp) <> "number of arguments.") ""
+             , labeled (pretty $ "Got: " <> (T.pack $ show act) <> "number of argumnets instead.") ""
              ]
            , Nothing
            )

@@ -136,6 +136,10 @@ data SyntaxError
     -- Occurs during static analysis when a `case` branching expression lacks
     -- an explicit `otherwise` branch at the very end of its branch list.
     | MissingOtherwiseFallback
+
+
+    | InvalidTemplateName
+      { invalidName :: Text }
     deriving (Show, Eq, Ord, Generic)
 
 
@@ -186,6 +190,12 @@ data ScopeError
 
     | CyclicDependencyError
       { variableName :: Text -- The indentifier causing a infinate loop
+      }
+
+    | IncorrectArity
+      { nameOfFunc   :: Text
+      , expectNoArgs :: Int
+      , actualNoArgs :: Int
       }
     deriving (Show, Eq, Ord, Generic)
 

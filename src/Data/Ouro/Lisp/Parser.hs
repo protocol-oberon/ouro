@@ -55,6 +55,7 @@ pExpr = do
                              -- Primitive Leaf Node capture (+ source location)
                              Tkn.Let            -> capture (S.Symbol (Tkn.pos t) "let")
                              Tkn.Context        -> capture (S.Symbol (Tkn.pos t) "context")
+                             Tkn.Template       -> capture (S.Symbol (Tkn.pos t) "template")
                              Tkn.FlagVocab      -> capture (S.Attr   (Tkn.pos t) "vocab")
                              Tkn.FlagLanguage   -> capture (S.Attr   (Tkn.pos t) "language")
                              Tkn.FlagBase       -> capture (S.Attr   (Tkn.pos t) "base")

@@ -18,14 +18,14 @@ In JSON-LD, there are many datatypes which can look similar to a compiler. To en
 
 There are 7 type assertion tags:
 
-| Tag             | Description                                                                              |
-|:----------------|:-----------------------------------------------------------------------------------------|
-| `#uri`          | Ensures that any expression that evaluates to a URI is properly formed.                  |
-| `#date`         | Ensures valid ISO 8601 date-time formats and enables temporal desugaring (e.g., `thru`). |
-| `#num`          | Asserts that the evaluated result is a numeric primitive.                                |
-| `#str`          | Asserts that the evaluated result is a string literal.                                   |
-| `#bool`         | Asserts that the evaluated result is a boolean primitive.                                |
-| `#arr-empty`    | Conveys to the compiler that the targeted array structure contains zero elements.        |
+| Tag          | Description                                                                              |
+|:-------------|:-----------------------------------------------------------------------------------------|
+| `#uri`       | Ensures that any expression that evaluates to a URI is properly formed.                  |
+| `#date`      | Ensures valid ISO 8601 date-time formats and enables temporal desugaring (e.g., `thru`). |
+| `#num`       | Asserts that the evaluated result is a numeric primitive.                                |
+| `#str`       | Asserts that the evaluated result is a string literal.                                   |
+| `#bool`      | Asserts that the evaluated result is a boolean primitive.                                |
+| `#arr-empty` | Conveys to the compiler that the targeted array structure contains zero elements.        |
 | `#rec-empty` | Conveys to the compiler that the targeted graph node contains no key-value attributes.   |
 
 ## Special forms
@@ -89,13 +89,12 @@ The `(get)` special form allows for you traverse deeply nested structures and re
 :runtime_check   (get nested_manifest meta maintainer is_valid))
 ```
 
-It is also possible to retrieve the unevaluated ast of a deeply nested symbol using `get'`. Given a record 
+It is also possible to retrieve the un-evaluated AST of a deeply nested symbol using `get'`. Given a record 
 
 ```clojure
 (:trgt   (:nest (:nest_2 (+ 2 2)))
  :quoted (get' nest nest2))
 ```
-
 
 ### Case
 
@@ -104,14 +103,14 @@ The `(case)` special form serves as the Ouro's main mode of control flow, it exp
 ``` clojure
 (:trgt   99
  :result (case trgt
-               ((= 100)   ret1)
-               ((> 100)   ret2)
-               (otherwise default)))
+               ((= 100)   "fails")
+               ((> 100)   "fails")
+               (otherwise "fails")))
 ```
 
 `case` statements must always contain a default branch `otherwise`, to ensure totality. When a case statement is triggered, the target expr is eagerly evaluated, and passed into the first element of branch tuple of the branch as its first argument `((= trgt 100) ret1)`. If the resulting expression evaluates to `True`, then the second element of the branches tuple (the return value) is evaluated and returned.
 
-If a quoted expression is passed into a `case` statement as the target, then structural pattern matching can be performed. When pattern matching, the pattern for a branch must also be quoted. For cases where the entirety of the targeted structure isn't relevant, a whole type (**?**) can be used.
+If a quoted expression is passed into a `case` statement as the target, then structural pattern matching can be performed. When pattern matching, the pattern for a branch must also be quoted. For cases where the entirety of the targeted structure isn't relevant, a hole type (**?**) can be used.
 
 ```clojure
 (:trgt   ((+ 2 3) (- 2 2))
@@ -121,7 +120,7 @@ If a quoted expression is passed into a `case` statement as the target, then str
                (otherwise     "default")))
 ```
 
-Here we are pattern matching on a list of expressions and checking to see if the first expression in the list is addition. This block resolves to the following just before compilation:
+Here we are pattern matching on a list of expressions and checking to see if the operation of each element in the list is addition. This block resolves to the following just before compilation:
 
 ```clojure
 (:trgt   (5 0)
@@ -130,7 +129,7 @@ Here we are pattern matching on a list of expressions and checking to see if the
 
 ...which can then be serialised.
 
-### Builtin Functions
+## Builtin Functions
 
 Ouro has the following built in functions:
 
@@ -155,6 +154,10 @@ Ouro has the following built in functions:
 | **`<`**  | `(< 2 5 10)`   | Evaluates to `true` (Strictly increasing stream). |
 | **`<=`** | `(<= 5 5 10)`  | Evaluates to `true` (Increasing or equal stream). |
 
+## Syntax Sugar
+
+
+
 ## Canonical Example
 
 *Night Watch by Rembrandt*
@@ -177,7 +180,6 @@ Ouro has the following built in functions:
  :timespan      (:type               "TimeSpan"
                  :identified_by      ((:type    "Name"
                                        :content "40 days in August and September, 1848"))
-                 ;; Variance temporal addition to start date of auction
                  :begin_of_the_begin auction-start
                  :end_of_the_begin   (+ begin_of_the_begin (thru (days 19)))
                  :begin_of_the_end   auction-restart

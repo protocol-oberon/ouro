@@ -42,9 +42,10 @@ import           Unsafe.Coerce             (unsafeCoerce)
 --   * defaultEnv instantiates a clean, terminal root scope layer containing zero localized bindings and no
 --     parent fallback link, anchoring the absolute bottom of the variable resolution ladder.
 data Env = Env
-    { _localScope    :: Map.Map Text S.Expr
-    , _parentEnv     :: Maybe Env
-    , _activeLookups :: Set Text
+    { _localScope       :: Map.Map Text S.Expr
+    , _parentEnv        :: Maybe Env
+    , _activeLookups    :: Set Text
+    , _templateRegistry :: Map.Map Text S.Expr
     }
 
 makeLenses ''Env
@@ -53,23 +54,22 @@ makeLenses ''Env
 -- Default root environment.
 defaultEnv :: Env
 defaultEnv = Env
-    { _localScope    = Map.empty
-    , _parentEnv     = Nothing
-    , _activeLookups = Set.empty
+    { _localScope       = Map.empty
+    , _parentEnv        = Nothing
+    , _activeLookups    = Set.empty
+    , _templateRegistry = Map.empty
     }
 
 -- Traverses the entire environment scope chain to collect every active
 -- bind handle currently available to the evaluator context.
 allEnvKeys :: Env -> Set.Set Text
-allEnvKeys env = go env Set.empty
-    where
-    go current acc =
-            -- Use ^. to extract the local map from the current environment context
-            let localKeys  = Map.keysSet (current ^. localScope)
-                updatedAcc = Set.union localKeys acc
-            in case current ^. parentEnv of
-                   Nothing     -> updatedAcc
-                   Just parent -> go parent updatedAcc
+allEnvKeys env =
+    let localKeys  = Map.keysSet (env ^. localScope)
+        tmpltKeys  = Map.keysSet (env ^. templateRegistry)
+        currentSet = Set.union localKeys tmpltKeys
+    in case env ^. parentEnv of
+           Nothing     -> currentSet
+           Just parent -> Set.union currentSet (allEnvKeys parent)
 
 
 -- Expr.
@@ -119,6 +119,9 @@ data Expr where
     PrimitiveOp :: NativeFunction -> Expr
     Closure     :: Env -> Text -> S.Expr -> Expr
 
+    -- Template Macro Closure
+    TemplateClosure :: Env -> Text -> [Text] -> [S.Expr] -> Expr
+
     -- The Universal Error Leaf: Allows the engine to bypass crashes
     -- and continue evaluating sibling nodes.
     EvalError   :: OuroError -> Expr
@@ -146,6 +149,9 @@ instance Eq Expr where
     Closure     _  _  _ == Closure     _  _  _ = False
     EvalError   a       == EvalError   b       = a  == b
     Quote       q1      == Quote       q2      = q1 == q2
+
+    -- Template Macro
+    TemplateClosure _ _ _ _ == TemplateClosure _ _ _ _ = False
 
     -- Catch-all for shape mismatches
     _ == _ = False
@@ -209,6 +215,8 @@ humanReadableType =
      EvalError   _     -> "an Error"
      Quote       _     -> "an unevaluated expression"
      Record      _ _   -> "an Record block"
+
+     TemplateClosure _ _ _ _ -> "an unexecuted template macro"
 
 
 -- Helper to describe the inner Primitive

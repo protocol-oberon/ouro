@@ -8,13 +8,13 @@ import           Data.Function               ((&))
 import qualified Data.Map                    as Map
 import           Data.Ouro.Error.Diagnostics (internalValueLeak, missingPathKey,
                                               typeMismatch, typeMismatchBlurb,
-                                              unboundIdentifier, withBlurb)
+                                              unboundIdentifier, withBlurb, incorrectArity)
 import           Data.Ouro.Error.Types       (OuroError (..))
 import qualified Data.Ouro.Internal.Expr     as I
 import qualified Data.Ouro.Internal.Kinds    as JLD
 import           Data.Ouro.Internal.Utils    (rankBySimilarity)
 import           Data.Ouro.Lisp.Eval.Schema  (parseContextDirectives)
-import           Data.Ouro.Lisp.Eval.Scope   (buildLazyEnv)
+import           Data.Ouro.Lisp.Eval.Scope   (buildLazyEnv, buildTemplateRegistry)
 import           Data.Ouro.Lisp.Eval.Types   (Env (..), Expr (..), allEnvKeys,
                                               humanReadableType)
 import qualified Data.Ouro.Lisp.Eval.Types   as L
@@ -22,6 +22,7 @@ import qualified Data.Ouro.Lisp.Surface      as S
 import qualified Data.Set                    as Set
 import           Data.Text                   (Text)
 import           Lens.Micro                  ((.~), (^.))
+import Text.Megaparsec (SourcePos)
 
 
 -- compileScope.
@@ -33,11 +34,11 @@ import           Lens.Micro                  ((.~), (^.))
 -- type-safe graph layers. Rather than applying standard top-down sequential evaluation, it operates in three distinct,
 -- highly deliberate stages to enforce declarative order-independence within the local block:
 --
---   1. Sweeping & Binding: It first passes over the fields using 'buildLazyEnv' to pull out all un-evaluated
---      attributes and definitions, organizing them into a flat local dictionary.
---   2. Environment Isolation & Knot-Tying: It constructs a fresh lexical 'Env' frame. By linking this frame
---      as its own parent and passing it downward, variables inside the block can lazily reference sibling
---      properties or forward-declare definitions seamlessly without triggering early-evaluation crashes.
+--   1. Sweeping & Binding: It passes over the fields using both 'buildLazyEnv' and 'buildTemplateRegistry'
+--      to harvest un-evaluated attributes and macro-blueprints into isolated dictionaries.
+--   2. Environment Isolation & Knot-Tying: It constructs a fresh lexical 'Env' frame containing both scopes.
+--      By linking this frame as its own parent and passing it downward, variables and templates inside the block
+--      can lazily reference sibling properties seamlessly without triggering early-evaluation crashes.
 --   3. Semantic Extraction & Context Lowering: It evaluates the properties into a core GADT structural list.
 compileScope
     :: (Env -> S.Expr -> L.Expr)
@@ -45,15 +46,18 @@ compileScope
     -> [S.Expr]
     -> L.Expr
 compileScope evaluator env fields =
-    case buildLazyEnv env fields of
-        -- Dynamic environment allocation failures still represent a catastrophic scope break
-        Left  err    -> EvalError err
-        Right rawMap -> let isolatedEnv = env
-                                & L.localScope .~ rawMap
-                                -- Knot-tying: the parent of the isolated scope is the ambient env
-                                & L.parentEnv  .~ Just env
-                        in emitProps evaluator isolatedEnv fields
+    case (buildLazyEnv env fields, buildTemplateRegistry env fields) of
+        -- Dynamic environment allocation failures represent a catastrophic scope break
+        (Left err, _) -> EvalError err
+        (_, Left err) -> EvalError err
 
+        (Right rawMap, Right rawTemplates)
+            -> let isolatedEnv = env
+                    & L.localScope       .~ rawMap
+                    & L.templateRegistry .~ rawTemplates
+                    -- Knot-tying: the parent of the isolated scope is the ambient env
+                    & L.parentEnv        .~ Just env
+               in emitProps evaluator isolatedEnv fields
 
 -- Iterates through a stream of tokens to filter and evaluate physical properties into a L.Expr superset tree.
 emitProps
@@ -88,6 +92,9 @@ emitProps evaluator env expressions = go I.EmptyMeta expressions
 
                   -- Case B: Define Blocks are explicitly erased from the output JSON graph at comptime
                   S.Form _ (S.Symbol _ "define" : _) : rest -> go metaAcc rest
+
+                  -- Case B.5 Template Blocks are also explicity erased from output JSON graph at comptime
+                  S.Form _ (S.Symbol _ "template" : _) : rest -> go metaAcc rest
 
                   -- Case C: Extract valid body pairs. Supports lazy nesting compilation inline.
                   (S.Attr _ key : valExpr : rest) | not (isStructuralExpr valExpr)
@@ -157,6 +164,9 @@ compileArray evaluator env elements = Array (compileElements elements)
             -- Case A: TRUE ERASURE: Skip define blocks completely inside arrays
             S.Form _ (S.Symbol _ "define" : _) : xs -> compileElements xs
 
+            -- Skip Templates
+            S.Form _ (S.Symbol _ "template" : _) : xs -> compileElements xs
+
             -- Case B: TRUE ERASURE: Skip context blocks completely inside arrays
             S.Form _ [S.Symbol _ "context", S.Form _ _] : xs -> compileElements xs
 
@@ -218,23 +228,31 @@ data BlockTarget
 
 -- Inspects incoming form tokens to determine if they compose an Record or a List.
 determineBlockTarget :: [S.Expr] -> BlockTarget
-determineBlockTarget =
-    \case
-     -- Rules for Record Detection (Immediate)
-     S.Attr {} : _                                   -> TargetRecord
-     S.Form _ [S.Symbol _ "context", S.Form _ _] : _ -> TargetRecord
-     S.Form _ (S.Symbol _ "define" : _) : _          -> TargetRecord
+determineBlockTarget fields =
+    case fields of
+        []  -> TargetRecord
+        (x : xs)
+            -> case isFunctionApplication (x : xs) of
+                    True -> TargetFunctionApp
+                    False -> case any isStructuralField fields of
+                                True  -> TargetRecord
+                                False -> TargetList
+  where
+    isFunctionApplication :: [S.Expr] -> Bool
+    isFunctionApplication =
+        \case
+         (S.Symbol _ name : _) -> not (name `elem` ["template", "define", "context"])
+         _NotaFunc             -> False
 
-     -- Rules for List/Array Detection (Immediate Scalars)
-     S.Literal _ _ : _          -> TargetList
-     -- Recursive structural inspection for nested blocks
-     S.Form _ innerContents : _ -> case determineBlockTarget innerContents of
-                                       TargetRecord      -> TargetList  -- Array of Records: ((:id 1) (:id 2))
-                                       TargetList        -> TargetList  -- Array of Lists (Nested): ((1 2) (3 4))
-                                       TargetFunctionApp -> TargetList  -- Array of Expressions: ((add 1 2) (sub 3 4))
+    isStructuralField :: S.Expr -> Bool
+    isStructuralField =
+        \case
+         S.Attr {} -> True
+         S.Form _ (S.Symbol _ "template" : _) -> True
+         S.Form _ (S.Symbol _ "define" : _)   -> True
+         S.Form _ (S.Symbol _ "context" : _)  -> True
+         _other                               -> False
 
-     -- Fallback: Default to a standard function/operator invocation
-     _otherForm -> TargetFunctionApp
 
 -- resolvePath.
 --
@@ -352,3 +370,40 @@ matchTokenStream targetKey stream =
 
         (_ : rest) -> matchTokenStream targetKey rest
 
+
+-- compileTemplate.
+--
+-- Executes an AST blueprint within an isolated lexical bubble.
+-- By mapping formal parameters directly to un-evaluated argument expressions,
+-- this achieves macro-style lazy expansion without the messy string-substitution logic.
+compileTemplate
+    :: (S.Expr -> Reader Env L.Expr)  -- Core evaluator function
+    -> Env                            -- The current ambient environment (Call site)
+    -> SourcePos                      -- Callsite position
+    -> Text                           -- Template name
+    -> [Text]                         -- The template's formal parameters (e.g., (name year))
+    -> [S.Expr]                       -- The un-evaluated body expressions of the template
+    -> [S.Expr]                       -- The actual arguments passed at the call site
+    -> Reader Env L.Expr              -- The returned evaluated expr
+compileTemplate evaluator parentEnv pos name params bodyExprs actualArgs =
+    let parLen = length params
+        actLen = length actualArgs
+    in case parLen == actLen of
+           True  -> do
+                    let argMap      = Map.fromList (zip params actualArgs)
+                        templateEnv = parentEnv
+                                      & L.localScope       .~ argMap
+                                      & L.parentEnv        .~ Just parentEnv
+                                      & L.activeLookups    .~ Set.empty
+                                      & L.templateRegistry .~ (parentEnv ^. L.templateRegistry)
+
+                        -- Unwrap the Reader Monad to explict (Env -> S.Expr -> L.Expr)
+                        evaluator' currentEnv expr' = runReader (evaluator expr') currentEnv
+
+                    -- Pass the prepared environment down into the block compiler
+                    pure $ compileScope evaluator' templateEnv bodyExprs
+
+           False -> incorrectArity name parLen actLen
+                    & OuroError pos
+                    & L.EvalError
+                    & pure

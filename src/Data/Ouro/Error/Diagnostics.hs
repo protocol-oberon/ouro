@@ -20,6 +20,7 @@ import qualified Data.Text                 as T
 import           GHC.Generics              (C1, D1, Generic (from), M1 (..),
                                             Rep, type (:+:) (..))
 import           Text.Printf               (printf)
+import GHC.ExecutionStack (Location(functionName))
 
 
 -- Append an educational explanation block to any underlying error context.
@@ -74,6 +75,10 @@ missingOtherwise :: ErrorContext
 missingOtherwise = Syntax $ MissingOtherwiseFallback
 
 
+invalidTemplateName :: Text -> ErrorContext
+invalidTemplateName = Syntax . InvalidTemplateName
+
+
 -- Type Errors
 typeMismatch :: Text -> Text -> ErrorContext
 typeMismatch expected actual = Typing $ TypeMismatch
@@ -97,6 +102,14 @@ unboundIdentifier var = Scope $ ScopeError { variableName = var }
 
 cyclicDependency :: Text -> ErrorContext
 cyclicDependency var = Scope $ CyclicDependencyError { variableName = var }
+
+
+incorrectArity :: Text -> Int -> Int -> ErrorContext
+incorrectArity name argNo actNo = Scope $ IncorrectArity
+    { nameOfFunc   = name
+    , expectNoArgs = argNo
+    , actualNoArgs = actNo
+    }
 
 
 -- Internal Violations
@@ -223,6 +236,7 @@ missingOtherwiseBlurb =
     "Ouro enforces strict determinism at compile time. A 'case' statement was detected without a terminal 'otherwise' branch. "
     <> "To guarantee that the compiled output never silently drops data due to an unhandled state, you must explicitly declare a fallback behavior."
     <> "\n\nPerhaps append '(otherwise <fallback-expr>)' as the final branch."
+
 
 
 --- Builder for Linter Warnings ---

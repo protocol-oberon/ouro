@@ -23,6 +23,7 @@ data TokenType
     -- Core lang symbols
     | Let              -- 'let' (used for binding context scopes)
     | Context          -- 'Context' (the specific descriptor inside bindings)
+    | Template         -- Functions that return graph nodes
     -- Schema Context Specific Flags
     | FlagVocab        -- ':vocab'
     | FlagLanguage     -- ':language'
@@ -46,7 +47,7 @@ data TokenType
     | TagStr           -- '#str'       (enforces expression resolves to a String)
     | TagNum           -- '#num'       (enforces expression resolves to a Number)
     | TagBool          -- '#bool'      (enforces expression resolves to a Boolean)
-    | TagRecordEmpty   -- '#obj-empty' (instantiates Object Nil Nil)
+    | TagRecordEmpty   -- '#rec-empty' (instantiates Record Nil Nil)
     | TagArrEmpty      -- '#arr-empty' (instantiates Array Nil)
     -- Quote
     | Quote

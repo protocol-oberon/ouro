@@ -56,8 +56,9 @@ pDelims = lexeme . withPos $ choice
 -- Core Operational Keywords & Symbols
 pCoreKeywords :: Parser Tkn.Token
 pCoreKeywords = lexeme . withPos $ choice
-                                   [ Tkn.Let     <$ string "let"     <* choice [space1, () <$ lookAhead (oneOf ("()[]" :: String)), eof]
-                                   , Tkn.Context <$ string "Context" <* choice [space1, () <$ lookAhead (oneOf ("()[]" :: String)), eof]
+                                   [ Tkn.Let      <$ string "let"     <* choice [space1, () <$ lookAhead (oneOf ("()[]" :: String)), eof]
+                                   , Tkn.Context  <$ string "context" <* choice [space1, () <$ lookAhead (oneOf ("()[]" :: String)), eof]
+                                   , Tkn.Template <$ string "tempate" <* choice [space1, () <$ lookAhead (oneOf ("()[]" :: String)), eof]
                                    ]
 
 
