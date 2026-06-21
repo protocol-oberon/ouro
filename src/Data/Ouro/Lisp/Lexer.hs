@@ -12,9 +12,9 @@ import qualified Text.Megaparsec            as M
 import           Text.Megaparsec            (MonadParsec (eof, lookAhead),
                                              ParseError (..), Parsec, choice,
                                              getSourcePos, many, manyTill,
-                                             oneOf, runParser, some, try, (<|>))
+                                             oneOf, runParser, some, try, (<|>), notFollowedBy)
 import           Text.Megaparsec.Char       (alphaNumChar, char, letterChar,
-                                             space1, string)
+                                             space1, string, spaceChar)
 import qualified Text.Megaparsec.Char.Lexer as L
 import           Text.Megaparsec.Error      (ErrorItem (Tokens),
                                              ParseErrorBundle)
@@ -97,8 +97,9 @@ pReaderTags = lexeme . withPos $ do
                                                              (fail ("Invalid type assertion tag: #" ++ other))
 
 pQuote :: Parser Tkn.Token
-pQuote = lexeme . withPos $ do
+pQuote = lexeme . withPos . try $ do
                             _  <- char '\''
+                            notFollowedBy spaceChar
                             pure Tkn.Quote
 
 
@@ -106,7 +107,7 @@ pQuote = lexeme . withPos $ do
 pHole :: Parser Tkn.Token
 pHole = lexeme . withPos $ do
                            _    <- char '?'
-                           rest <- many (alphaNumChar <|> oneOf ("_-+*/<>=!?&|~" :: String))
+                           rest <- many (alphaNumChar <|> oneOf ("_-+*/<>=!?&|~'" :: String))
                            pure (Tkn.Hole (T.pack ('?' : rest)))
 
 
@@ -143,7 +144,7 @@ pLiterals = lexeme . withPos $ choice
 pSymbol :: Parser Tkn.Token
 pSymbol = lexeme . withPos $ do
                              first <- letterChar <|> oneOf ("_+-*/<>=!&|~" :: String)
-                             rest  <- many (alphaNumChar <|> oneOf ("_-+*/<>=!?&|~" :: String))
+                             rest  <- many (alphaNumChar <|> oneOf ("_-+*/<>=!?&|~'" :: String))
                              pure (Tkn.Symbol (T.pack (first : rest)))
 
 

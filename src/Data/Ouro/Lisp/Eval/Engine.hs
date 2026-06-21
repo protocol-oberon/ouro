@@ -106,7 +106,7 @@ evalExpr expr = do
                    actual      -> pure $ EvalError $ OuroError pos
                                         $ typeMismatch "Schema" (humanReadableType actual)
 
-        S.Form _ (S.Symbol _ "qget" : rootTarget : pathExpressions)
+        S.Form _ (S.Symbol _ "get'" : rootTarget : pathExpressions)
             -> case validatePathKeys pathExpressions of
                    EvalError err     -> pure (EvalError err)
                    -- Match on the open ArrayVal superset node instead of the old frozen GADT variant
