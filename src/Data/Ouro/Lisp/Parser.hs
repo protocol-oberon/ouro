@@ -88,6 +88,9 @@ pExpr = do
                              -- Quoted Expr
                              Tkn.Quote          -> put ts >> parseQuotedNode (Tkn.pos t)
 
+                             -- Hole Type
+                             Tkn.Hole txt       -> capture (S.Hole (Tkn.pos t) txt)
+
                              -- Unbalanced Boundaries are immediate semantic loop violations
                              Tkn.CloseParen -> let context = Syntax UnbalancedDelimiter
                                                              { expectedDelim = "Opening Form Boundary '('"

@@ -102,6 +102,14 @@ pQuote = lexeme . withPos $ do
                             pure Tkn.Quote
 
 
+-- Structural Holes for Pattern Matching (? or ?name)
+pHole :: Parser Tkn.Token
+pHole = lexeme . withPos $ do
+                           _    <- char '?'
+                           rest <- many (alphaNumChar <|> oneOf ("_-+*/<>=!?&|~" :: String))
+                           pure (Tkn.Hole (T.pack ('?' : rest)))
+
+
 -- Standard Data Literals (Strings, Numbers, Bools, Null)
 pLiterals :: Parser Tkn.Token
 pLiterals = lexeme . withPos $ choice
@@ -134,7 +142,7 @@ pLiterals = lexeme . withPos $ choice
 -- Fallback General Symbols (Variables, functions, operations)
 pSymbol :: Parser Tkn.Token
 pSymbol = lexeme . withPos $ do
-                             first <- letterChar <|> oneOf ("_+-*/<>=!?&|~" :: String)
+                             first <- letterChar <|> oneOf ("_+-*/<>=!&|~" :: String)
                              rest  <- many (alphaNumChar <|> oneOf ("_-+*/<>=!?&|~" :: String))
                              pure (Tkn.Symbol (T.pack (first : rest)))
 
@@ -145,6 +153,7 @@ pSingleToken =  pDelims
             <|> pAttributes
             <|> pReaderTags
             <|> pQuote
+            <|> pHole
             <|> pLiterals
             <|> pSymbol
 

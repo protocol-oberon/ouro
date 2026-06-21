@@ -46,6 +46,7 @@ data Expr
     | Literal SourcePos LiteralValue    -- Raw String, Number, Boolean, Null
     | Tagged  SourcePos ReaderTag Expr  -- #uri "...", #date "..."
     | Quoted  SourcePos Expr
+    | Hole    SourcePos Text
     | Form    SourcePos [Expr]          -- (...) nested lists
     | Bracket SourcePos [Expr]          -- [...] scoping or block grouping
     deriving (Show, Eq)
@@ -83,6 +84,7 @@ exprPos = \case
            Literal pos _   -> pos
            Tagged  pos _ _ -> pos
            Quoted  pos _   -> pos
+           Hole    pos _   -> pos
            Form    pos _   -> pos
            Bracket pos _   -> pos
 
@@ -90,9 +92,29 @@ exprPos = \case
 structuralEq :: Expr -> Expr -> Bool
 structuralEq e1 e2 =
     case (e1, e2) of
+        -- Hole Wildcard
+        (Hole _ _,     _)            -> True
+        (_,            Hole    _ _)  -> True
         (Symbol  _ a,  Symbol  _ b)  -> a == b
         (Attr    _ a,  Attr    _ b)  -> a == b
         (Literal _ a,  Literal _ b)  -> a == b
         (Quoted  _ a,  Quoted  _ b)  -> structuralEq a b
-        (Form    _ xs, Form    _ ys) -> length xs == length ys && all (uncurry structuralEq) (zip xs ys)
+        (Form    _ xs, Form    _ ys) -> matchForms xs ys
         _typeMismatch                -> False
+
+    where
+    matchForms :: [Expr] -> [Expr] -> Bool
+    matchForms xs ys =
+        case (xs, ys) of
+            -- Both empty: end of list reached simultaneously
+            ([], []) -> True
+
+            -- Hole at head: match remainder
+            (Hole _ _ : _, _) -> True
+            (_, Hole _ _ : _) -> True
+
+            -- Both have elements: check head, recurse on tail
+            (x:xs', y:ys') -> structuralEq x y && matchForms xs' ys'
+
+            -- Mismatched lengths
+            _ -> False

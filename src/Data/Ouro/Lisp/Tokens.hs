@@ -50,4 +50,6 @@ data TokenType
     | TagArrEmpty      -- '#arr-empty' (instantiates Array Nil)
     -- Quote
     | Quote
+    -- Hole
+    | Hole !Text
     deriving (Show, Eq, Generic)

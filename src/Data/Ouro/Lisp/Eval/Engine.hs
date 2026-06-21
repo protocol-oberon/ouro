@@ -367,8 +367,7 @@ patternMatch eval env pos qTrgt attempts branches =
                        -> eval body
 
                    S.Quoted _ qPattern
-                       -> do
-                          case qTrgt `S.structuralEq` qPattern of
+                       -> case qTrgt `S.structuralEq` qPattern of
                               True  -> eval body
                               False -> patternMatch eval env pos qTrgt (attempts + 1) rest
 

@@ -16,6 +16,7 @@ construct = \case
              node@(S.Symbol  _ _) -> node
              node@(S.Literal _ _) -> node
              node@(S.Quoted  _ _) -> node
+             node@(S.Hole    _ _) -> node
 
 
 -- Processes flat lists horizontally to rewrite syntax sugar
