@@ -129,11 +129,11 @@ buildJSON = \case
               Expr.Null            -> tell "null"
               Expr.BlankNode blank -> tell $ escapeString $ "_:" <> blank
               Expr.EmptyArr        -> tell $ "[]"
-              Expr.EmptyObj        -> tell $ "{}"
+              Expr.EmptyRec        -> tell $ "{}"
               Expr.EmptyMeta       -> tell "null"
 
               -- Structural Closures
-              Expr.Object metadata body -> renderFlatObject metadata body
+              Expr.Record metadata body -> renderFlatRecord metadata body
 
               Expr.Array elems -> case Expr.flattenArray elems of
                                       [] -> tell "[]"
@@ -212,15 +212,15 @@ emitIndent = do
              tell $ B.fromText (Data.Text.replicate (level * spacing ) " ")
 
 
--- Serializes a flat JSON-LD Object block by unifying its metadata leaf
+-- Serializes a flat JSON-LD Record block by unifying its metadata leaf
 -- and data body fields into a single key-value brace block.
-renderFlatObject :: Expr 'JLD.Meta -> Expr 'JLD.List -> Printer ()
-renderFlatObject metadata body =
+renderFlatRecord :: Expr 'JLD.Meta -> Expr 'JLD.List -> Printer ()
+renderFlatRecord metadata body =
     do
     let bodyPairs = Expr.flattenProps body
 
     case metadata of
-        -- Case A: Object has an atomic Context leaf
+        -- Case A: Record has an atomic Context leaf
         Expr.Context (Schema directives)
             -> do
                modify (activeDirectivesL %~ (++ directives))
@@ -318,7 +318,7 @@ escapeString txt = "\"" <> B.fromText txt <> "\""
 
 -- isNIl.
 --
--- Collections in our JLD (Arrays and Objects) are repesented as linked list, using Cons and Nil nodes.
+-- Collections in our JLD (Arrays and Records) are repesented as linked list, using Cons and Nil nodes.
 -- Expr.Nil is the explict base case, a terminal sentinel value.
 isNil :: Expr t -> Bool
 isNil = \case { Expr.Nil -> True; _ -> False }

@@ -91,7 +91,7 @@ pReaderTags = lexeme . withPos $ do
                                      "str"       -> pure Tkn.TagStr
                                      "num"       -> pure Tkn.TagNum
                                      "bool"      -> pure Tkn.TagBool
-                                     "obj-empty" -> pure Tkn.TagObjectEmpty
+                                     "rec-empty" -> pure Tkn.TagRecordEmpty
                                      "arr-empty" -> pure Tkn.TagArrEmpty
                                      other       -> M.region (\err -> M.setErrorOffset startOffset err)
                                                              (fail ("Invalid type assertion tag: #" ++ other))

@@ -39,9 +39,9 @@ symbol :: Text -> Parser Text
 symbol = L.symbol sc
 
 
--- Parse primitives (without pURI, since URI keys belong to Object scopes)
+-- Parse primitives (without pURI, since URI keys belong to Record scopes)
 pExpr :: Parser (Expr 'JLD.Primitive)
-pExpr = lexeme $  pObject
+pExpr = lexeme $  pRecord
               <|> pArray
               <|> pString
               <|> pNumber
@@ -55,10 +55,10 @@ data KeyVal
     | DataKV Text (Expr 'JLD.Primitive)
 
 
--- Parse an Object where Context acts as a clean, self-contained metadata leaf.
-pObject :: Parser (Expr 'JLD.Primitive)
-pObject = between (symbol "{") (symbol "}") $ do
-    fields <- pObjectField `sepBy` symbol ","
+-- Parse an Record where Context acts as a clean, self-contained metadata leaf.
+pRecord :: Parser (Expr 'JLD.Primitive)
+pRecord = between (symbol "{") (symbol "}") $ do
+    fields <- pRecordField `sepBy` symbol ","
 
     let mSchema   = listToMaybe [ s | ContextField s <- fields ]
     let dataLists = [ d | DataField d <- fields ]
@@ -74,17 +74,17 @@ pObject = between (symbol "{") (symbol "}") $ do
     -- Construct the clean, flat object structure:
     --    Left slot:  The metadata leaf block (Expr 'JLD.Meta)
     --    Right slot: The core data payload backbone (Expr 'JLD.List)
-    return $ Expr.Object metadataBlock bodySpine
+    return $ Expr.Record metadataBlock bodySpine
 
 
 -- An intermediate type to separate the structural processing
 -- directives (@context) from the underlying property data spine.
-data ObjectField
+data RecordField
     = ContextField Schema
     | DataField    (Expr 'JLD.List)
 
-pObjectField :: Parser ObjectField
-pObjectField = choice
+pRecordField :: Parser RecordField
+pRecordField = choice
     [ try (symbol "\"@context\"" *> symbol ":") *> (ContextField <$> pSchema)
     , try pURIAttr
     , try pDateAttr
@@ -165,7 +165,7 @@ pAttr = do
 
 
 -- Directly parses the "id" key and a strict URI value into Attr spine constructor
-pURIAttr :: Parser ObjectField
+pURIAttr :: Parser RecordField
 pURIAttr = do
            _   <- symbol "\"id\""
            _   <- symbol ":"
@@ -187,7 +187,7 @@ pURIAttr = do
            pURICase = Expr.URI <$> pQuotedURI
 
 
-pDateAttr :: Parser ObjectField
+pDateAttr :: Parser RecordField
 pDateAttr = do
             -- Match either target key string within quotes cleanly
             rawKey <- try (symbol "\"begin_of_the_begin\"") <|> try (symbol "\"end_of_the_end\"")

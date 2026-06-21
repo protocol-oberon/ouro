@@ -82,7 +82,7 @@ pExpr = do
                              Tkn.TagBool        -> put ts >> parseTaggedNode (Tkn.pos t) S.BoolTag
 
                              -- Empty Collections instantiate as direct fallback values
-                             Tkn.TagObjectEmpty -> capture (S.Literal (Tkn.pos t) S.EmptyObj)
+                             Tkn.TagRecordEmpty -> capture (S.Literal (Tkn.pos t) S.EmptyRec)
                              Tkn.TagArrEmpty    -> capture (S.Literal (Tkn.pos t) S.EmptyArr)
 
                              -- Quoted Expr

@@ -168,14 +168,14 @@ typeMismatchBlurb =
                                 I.Boolean   _ -> suggestion   <> "#bool"
                                 I.Date      _ -> suggestion   <> "#data"
                                 I.EmptyArr    -> suggestion   <> "#arr-empty"
-                                I.EmptyObj    -> suggestion   <> "#obj-empty"
+                                I.EmptyRec    -> suggestion   <> "#rec-empty"
                                 I.Null        -> cannotAssert <> "a null value"
                                 I.Number    _ -> suggestion   <> "#num"
                                 I.String    _ -> suggestion   <> "#str"
                                 I.URI       _ -> suggestion   <> "#uri"
                                 -- Structural Primitives
                                 I.Array  _    -> cannotAssert <> "an array"
-                                I.Object _ _  -> cannotAssert <> "a object"
+                                I.Record _ _  -> cannotAssert <> "a object"
 
         _ -> blurb
           <> "You can only make type assertions on primitive values. Supported types include:"

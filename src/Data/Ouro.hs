@@ -115,7 +115,7 @@ validateAST' :: L.Expr -> Set OuroError
 validateAST' valueGraph = case valueGraph of
                               EvalError err            -> Set.singleton err
                               -- Deeply traverse structural object field value branches
-                              Object    _        pairs -> Set.unions (map (validateAST' . snd) pairs)
+                              Record    _        pairs -> Set.unions (map (validateAST' . snd) pairs)
                               Array     elements       -> Set.unions (map validateAST' elements)
                               -- Unevaluated quotes cannot be present in the final AST
                               Quote     payload        -> typeMismatch "a resolved type" "an unevaluated Quoted expression"

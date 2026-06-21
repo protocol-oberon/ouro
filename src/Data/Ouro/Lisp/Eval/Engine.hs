@@ -59,7 +59,7 @@ evaluateToPrimitive rootExpr =
         EvalError err           -> Left err
         otherVal                -> Left $ OuroError (S.exprPos rootExpr) $
                                      typeMismatch
-                                       "a top-level data Object or a plain value configuration"
+                                       "a top-level data Record or a plain value configuration"
                                        (humanReadableType otherVal)
                                      & withBlurb (typeMismatchBlurb otherVal)
 
@@ -90,7 +90,7 @@ evalExpr expr = do
         S.Literal _ (S.Bool b)  -> pure $ Primitive (I.Boolean b)
         S.Literal _ S.Null      -> pure $ Primitive I.Null
         S.Literal _ S.EmptyArr  -> pure $ Primitive I.EmptyArr
-        S.Literal _ S.EmptyObj  -> pure $ Primitive I.EmptyObj
+        S.Literal _ S.EmptyRec  -> pure $ Primitive I.EmptyRec
 
         S.Tagged _   tag     payload -> assertTag tag payload
         S.Quoted _   quote           -> pure $ Quote quote
@@ -154,7 +154,7 @@ evalExpr expr = do
             -> do
                let wrappedEvaluator currentEnv expr' = runReader (evalExpr expr') currentEnv
                case determineBlockTarget allFields of
-                   TargetObject      -> pure (compileScope wrappedEvaluator env allFields)
+                   TargetRecord      -> pure (compileScope wrappedEvaluator env allFields)
                    TargetList        -> pure (compileArray wrappedEvaluator env allFields)
                    TargetFunctionApp -> applyFunction pos allFields
 

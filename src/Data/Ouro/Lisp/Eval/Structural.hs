@@ -65,14 +65,14 @@ emitProps evaluator env expressions = go I.EmptyMeta expressions
     where
     go :: I.Expr 'JLD.Meta -> [S.Expr] -> L.Expr
     go metaAcc = \case
-                  [] -> Object metaAcc []
+                  [] -> Record metaAcc []
 
                   -- Case A: Intercept ANY context form variant at the top-level and route to the schema engine
                   S.Form _ (S.Symbol pos "context" : directives) : remaining
                       -> case runReader (parseContextDirectives directives) env of
                              EvalError err
                                  -> case go metaAcc remaining of
-                                        Object finalMeta nextPairs -> Object finalMeta (("@context", EvalError err) : nextPairs)
+                                        Record finalMeta nextPairs -> Record finalMeta (("@context", EvalError err) : nextPairs)
                                         otherVal                   -> otherVal
 
                              SchemaVal localSchema
@@ -83,7 +83,7 @@ emitProps evaluator env expressions = go I.EmptyMeta expressions
                                                   & withBlurb ("Expected a SchemaVal, but leaked: " <> humanReadableType otherVal)
                                                   & OuroError pos
                                     in case go metaAcc remaining of
-                                          Object finalMeta nextPairs -> Object finalMeta (("@context", EvalError leakErr) : nextPairs)
+                                          Record finalMeta nextPairs -> Record finalMeta (("@context", EvalError leakErr) : nextPairs)
                                           ov                         -> ov
 
                   -- Case B: Define Blocks are explicitly erased from the output JSON graph at comptime
@@ -92,29 +92,29 @@ emitProps evaluator env expressions = go I.EmptyMeta expressions
                   -- Case C: Extract valid body pairs. Supports lazy nesting compilation inline.
                   (S.Attr _ key : valExpr : rest) | not (isStructuralExpr valExpr)
                       -> case go metaAcc rest of
-                             Object finalMeta nextPairs
+                             Record finalMeta nextPairs
                                  -> case evaluator env valExpr of
                                         -- 1. Catch error leaves completely independently
-                                        EvalError err -> Object finalMeta ((key, EvalError err) : nextPairs)
+                                        EvalError err -> Record finalMeta ((key, EvalError err) : nextPairs)
 
                                         -- 2. Clean primitive values (frozen GADTs)
-                                        Primitive prim -> Object finalMeta ((key, Primitive prim) : nextPairs)
+                                        Primitive prim -> Record finalMeta ((key, Primitive prim) : nextPairs)
 
                                         -- 2.5 Quotes
-                                        Quote q -> Object finalMeta ((key, Quote q) : nextPairs)
+                                        Quote q -> Record finalMeta ((key, Quote q) : nextPairs)
 
                                         -- 3. Accept nested object configurations
-                                        Object m p -> Object finalMeta ((key, Object m p) : nextPairs)
+                                        Record m p -> Record finalMeta ((key, Record m p) : nextPairs)
 
                                         -- 4. Accept array configurations
-                                        Array elements -> Object finalMeta ((key, Array elements) : nextPairs)
+                                        Array elements -> Record finalMeta ((key, Array elements) : nextPairs)
 
                                         -- 5. Pass-through for valid domain primitives (Durations, Closures, Schemas, etc.)
-                                        Duration    u v   -> Object finalMeta ((key, Duration u v) : nextPairs)
-                                        SchemaVal   s     -> Object finalMeta ((key, SchemaVal s) : nextPairs)
-                                        Directive   d     -> Object finalMeta ((key, Directive d) : nextPairs)
-                                        PrimitiveOp o     -> Object finalMeta ((key, PrimitiveOp o) : nextPairs)
-                                        Closure     e n x -> Object finalMeta ((key, Closure e n x) : nextPairs)
+                                        Duration    u v   -> Record finalMeta ((key, Duration u v) : nextPairs)
+                                        SchemaVal   s     -> Record finalMeta ((key, SchemaVal s) : nextPairs)
+                                        Directive   d     -> Record finalMeta ((key, Directive d) : nextPairs)
+                                        PrimitiveOp o     -> Record finalMeta ((key, PrimitiveOp o) : nextPairs)
+                                        Closure     e n x -> Record finalMeta ((key, Closure e n x) : nextPairs)
 
                                         -- Real type violations fall here (Metadata context blocks cannot be property values)
                                         otherVal -> let err = typeMismatch
@@ -122,7 +122,7 @@ emitProps evaluator env expressions = go I.EmptyMeta expressions
                                                                   (humanReadableType otherVal)
                                                                   & withBlurb (humanReadableType otherVal)
                                                                   & OuroError (S.exprPos valExpr)
-                                                    in Object finalMeta ((key, EvalError err) : nextPairs)
+                                                    in Record finalMeta ((key, EvalError err) : nextPairs)
 
                              otherVal -> otherVal
 
@@ -141,7 +141,7 @@ emitProps evaluator env expressions = go I.EmptyMeta expressions
                         _otherForm                          -> False
 
 
--- Compiles a collection of nested Lisp blocks into a uniform sequence array of Objects
+-- Compiles a collection of nested Lisp blocks into a uniform sequence array of Records
 compileArray
     :: (Env -> S.Expr -> L.Expr)
     -> Env
@@ -160,14 +160,14 @@ compileArray evaluator env elements = Array (compileElements elements)
             -- Case B: TRUE ERASURE: Skip context blocks completely inside arrays
             S.Form _ [S.Symbol _ "context", S.Form _ _] : xs -> compileElements xs
 
-            -- Case C: Process structured nested forms (Objects or trailing list matrices)
+            -- Case C: Process structured nested forms (Records or trailing list matrices)
             (_formExpr@(S.Form pos fields) : xs)
                 -- 1. Intercept Nested Arrays: recursively compile as a matrix
                 | TargetList <- determineBlockTarget fields
                 -> compileArray evaluator env fields : compileElements xs
 
-                -- 2. Intercept Nested Objects: compile using the object scope builder
-                | TargetObject <- determineBlockTarget fields
+                -- 2. Intercept Nested Records: compile using the object scope builder
+                | TargetRecord <- determineBlockTarget fields
                 -> let evaledItem = compileScope evaluator env fields
                        restL      = compileElements xs
                    in case evaledItem of
@@ -175,10 +175,10 @@ compileArray evaluator env elements = Array (compileElements elements)
                           EvalError err -> EvalError err : restL
 
                           -- Seamlessly capture the open object superset node
-                          Object m p    -> Object m p : restL
+                          Record m p    -> Record m p : restL
                           Primitive p   -> Primitive p : restL
                           otherVal      -> typeMismatch
-                                               "a valid nested Object block or a single value"
+                                               "a valid nested Record block or a single value"
                                                (humanReadableType otherVal)
                                            & withBlurb (typeMismatchBlurb otherVal)
                                            & OuroError pos
@@ -193,7 +193,7 @@ compileArray evaluator env elements = Array (compileElements elements)
                         Primitive prim -> Primitive prim : restL
 
                         -- Accept nested layouts or expressions inside the stream
-                        Object      m  p   -> Object      m  p   : restL
+                        Record      m  p   -> Record      m  p   : restL
                         Array       ls     -> Array       ls     : restL
                         Duration    u  v   -> Duration    u  v   : restL
                         SchemaVal   s      -> SchemaVal   s      : restL
@@ -211,25 +211,25 @@ compileArray evaluator env elements = Array (compileElements elements)
 
 -- Data type representing the structural target resolved by lookahead routing.
 data BlockTarget
-    = TargetObject
+    = TargetRecord
     | TargetList
     | TargetFunctionApp
     deriving (Show, Eq)
 
--- Inspects incoming form tokens to determine if they compose an Object or a List.
+-- Inspects incoming form tokens to determine if they compose an Record or a List.
 determineBlockTarget :: [S.Expr] -> BlockTarget
 determineBlockTarget =
     \case
-     -- Rules for Object Detection (Immediate)
-     S.Attr {} : _                                   -> TargetObject
-     S.Form _ [S.Symbol _ "context", S.Form _ _] : _ -> TargetObject
-     S.Form _ (S.Symbol _ "define" : _) : _          -> TargetObject
+     -- Rules for Record Detection (Immediate)
+     S.Attr {} : _                                   -> TargetRecord
+     S.Form _ [S.Symbol _ "context", S.Form _ _] : _ -> TargetRecord
+     S.Form _ (S.Symbol _ "define" : _) : _          -> TargetRecord
 
      -- Rules for List/Array Detection (Immediate Scalars)
      S.Literal _ _ : _          -> TargetList
      -- Recursive structural inspection for nested blocks
      S.Form _ innerContents : _ -> case determineBlockTarget innerContents of
-                                       TargetObject      -> TargetList  -- Array of Objects: ((:id 1) (:id 2))
+                                       TargetRecord      -> TargetList  -- Array of Records: ((:id 1) (:id 2))
                                        TargetList        -> TargetList  -- Array of Lists (Nested): ((1 2) (3 4))
                                        TargetFunctionApp -> TargetList  -- Array of Expressions: ((add 1 2) (sub 3 4))
 

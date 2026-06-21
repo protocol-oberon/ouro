@@ -84,7 +84,7 @@ allEnvKeys env = go env Set.empty
 -- evaluating sibling nodes even when specific branches have collapsed into EvalError.
 --
 -- Architectural Role:
---   * Resilient Scaffolding: Object and Array represent the "open" structural
+--   * Resilient Scaffolding: Record and Array represent the "open" structural
 --     layout of the graph. These structures hold recursive 'Expr' branches,
 --     maintaining the tree topology even if child nodes are invalid.
 --   * Fault Isolation: The 'EvalError' constructor serves as a universal terminal
@@ -107,7 +107,7 @@ data Expr where
     -- Resilient Compilation Scaffolding (The Superset Nodes)
     -- These maintain the open tree structure during evaluation, allowing
     -- errors to be embedded at any depth.
-    Object      :: I.Expr 'JLD.Meta -> [(Text, Expr)] -> Expr
+    Record      :: I.Expr 'JLD.Meta -> [(Text, Expr)] -> Expr
     Array       :: [Expr]                             -> Expr
 
     -- Dedicated Evaluation Leaves
@@ -135,7 +135,7 @@ instance Eq Expr where
     Metadata  a == Metadata  b = a == b
 
     -- Compilation Scaffolding
-    Object a1 b1 == Object a2 b2 = a1 == a2 && sortOn fst b1 == sortOn fst b2
+    Record a1 b1 == Record a2 b2 = a1 == a2 && sortOn fst b1 == sortOn fst b2
     Array  a     == Array  b     = a == b
 
     -- Eval only leaves
@@ -155,14 +155,14 @@ instance Eq Expr where
 freeze :: Expr -> I.Expr 'JLD.Primitive
 freeze = \case
           Primitive   p -> p
-          Object    m p -> (I.Object m (foldObjectToGADT p))
+          Record    m p -> (I.Record m (foldRecordToGADT p))
           Array       p -> (I.Array (foldArrayToGADT p))
           other         -> error $ "Invariant: Non-serializable node type: " ++ (T.unpack $ humanReadableType other)
 
     where
     -- Convert [(Text, Expr)] to I.Expr 'JLD.List
-    foldObjectToGADT :: [(Text, Expr)] -> I.Expr 'JLD.List
-    foldObjectToGADT = foldr (\(k, v) acc -> I.Cons (I.Attr k (foldExprToAny v)) acc) I.Nil
+    foldRecordToGADT :: [(Text, Expr)] -> I.Expr 'JLD.List
+    foldRecordToGADT = foldr (\(k, v) acc -> I.Cons (I.Attr k (foldExprToAny v)) acc) I.Nil
 
     -- Convert [Expr] to I.Expr 'JLD.List
     foldArrayToGADT :: [Expr] -> I.Expr 'JLD.List
@@ -173,7 +173,7 @@ freeze = \case
     foldExprToAny :: Expr -> I.Expr any
     foldExprToAny expr = case expr of
         Primitive p    -> unsafeCoerce p  -- We know this is safe post-harvest
-        Object m p     -> unsafeCoerce (I.Object m (foldObjectToGADT p))
+        Record m p     -> unsafeCoerce (I.Record m (foldRecordToGADT p))
         Array els      -> unsafeCoerce (I.Array (foldArrayToGADT els))
 
         -- Safety Guards
@@ -208,7 +208,7 @@ humanReadableType =
      Closure     _ _ _ -> "an unexecuted function (lambda)"
      EvalError   _     -> "an Error"
      Quote       _     -> "an unevaluated expression"
-     Object      _ _   -> "an Object block"
+     Record      _ _   -> "an Record block"
 
 
 -- Helper to describe the inner Primitive
@@ -223,6 +223,6 @@ describePrimitive =
      I.Null           -> "Null value"
      I.BlankNode _    -> "BlankNode"
      I.EmptyArr       -> "Empty Array"
-     I.EmptyObj       -> "Empty Object"
-     I.Object    _ _  -> "Object"
+     I.EmptyRec       -> "Empty Record"
+     I.Record    _ _  -> "Record"
      I.Array     _    -> "Array"

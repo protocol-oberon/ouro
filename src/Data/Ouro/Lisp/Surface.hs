@@ -58,7 +58,7 @@ data LiteralValue
     = Str  Text
     | Bool Bool
     | EmptyArr
-    | EmptyObj
+    | EmptyRec
     | Null
     | Num Double
     deriving (Show, Eq)
@@ -72,7 +72,7 @@ data ReaderTag
     | StrTag   -- For explicit string enforcement (#str variable)
     | NumTag   -- For numeric assertion (#num variable)
     | BoolTag  -- For boolean assertion (#bool variable)
-    | ObjEmpty
+    | RecEmpty
     | ArrEmpty
     deriving (Show, Eq)
 

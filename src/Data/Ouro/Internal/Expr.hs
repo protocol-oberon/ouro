@@ -36,7 +36,7 @@ import           Text.URI                  (URI)
 -- to preserve types across metadata wrappers. This allows the printer to freely descend
 -- deep structural scopes without altering or shifting the underlying node's type index.
 --
--- We use Object and Array constructors as strict boundary gates to transition the AST.
+-- We use Record and Array constructors as strict boundary gates to transition the AST.
 -- They ingest an internal sequence list and lift it back into a terminal primitive type,
 -- ensuring that only syntactically sound blocks are emitted to the final printer streamdata
 data Expr (t :: JLD.Type) where
@@ -49,7 +49,7 @@ data Expr (t :: JLD.Type) where
     Null      ::            Expr 'JLD.Primitive
     BlankNode :: Text    -> Expr 'JLD.Primitive
     EmptyArr  ::            Expr 'JLD.Primitive
-    EmptyObj  ::            Expr 'JLD.Primitive
+    EmptyRec  ::            Expr 'JLD.Primitive
 
     -- Structural Metadata Trees (Explicitly index as 'JLD.Meta)
     -- This acts as a strict compile-time guardian preventing metadata leaks.
@@ -64,7 +64,7 @@ data Expr (t :: JLD.Type) where
     -- Boundary Gates
     -- The first slot is strictly bound to a metadata type index.
     -- The second slot captures data sequence payload spine.
-    Object  :: Expr 'JLD.Meta -> Expr 'JLD.List -> Expr 'JLD.Primitive
+    Record  :: Expr 'JLD.Meta -> Expr 'JLD.List -> Expr 'JLD.Primitive
     Array   :: Expr 'JLD.List                   -> Expr 'JLD.Primitive
 
 
@@ -78,7 +78,7 @@ instance Eq (Expr (t :: JLD.Type)) where
     Null        == Null        = True
     BlankNode a == BlankNode b = a == b
     EmptyArr    == EmptyArr    = True
-    EmptyObj    == EmptyObj    = True
+    EmptyRec    == EmptyRec    = True
 
     -- Structural Metadata Trees
     Context   a == Context   b = a == b
@@ -90,7 +90,7 @@ instance Eq (Expr (t :: JLD.Type)) where
     Nil        == Nil        = True
 
     -- Boundary Gates
-    Object m1 l1 == Object m2 l2 =
+    Record m1 l1 == Record m2 l2 =
         -- Metadata must match exactly.
         -- Properties are flattened, sorted alphabetically by key, and compared.
         m1 == m2 && sortOn fst (flattenProps l1) == sortOn fst (flattenProps l2)
@@ -120,7 +120,7 @@ instance Eq SomeExpr where
     SomeExpr Null          == SomeExpr Null          = True
     SomeExpr (BlankNode a) == SomeExpr (BlankNode b) = a == b
     SomeExpr EmptyArr      == SomeExpr EmptyArr      = True
-    SomeExpr EmptyObj      == SomeExpr EmptyObj      = True
+    SomeExpr EmptyRec      == SomeExpr EmptyRec      = True
 
     SomeExpr (Context a)   == SomeExpr (Context b)   = a == b
     SomeExpr EmptyMeta     == SomeExpr EmptyMeta     = True
@@ -131,7 +131,7 @@ instance Eq SomeExpr where
     SomeExpr Nil           == SomeExpr Nil           = True
 
     -- Boundary delegation
-    SomeExpr (Object m1 l1)== SomeExpr (Object m2 l2)= SomeExpr m1 == SomeExpr m2 && sortOn fst (flattenProps l1) == sortOn fst (flattenProps l2)
+    SomeExpr (Record m1 l1)== SomeExpr (Record m2 l2)= SomeExpr m1 == SomeExpr m2 && sortOn fst (flattenProps l1) == sortOn fst (flattenProps l2)
     SomeExpr (Array l1)    == SomeExpr (Array l2)    = flattenArray l1 == flattenArray l2
 
     -- Shape/Type mismatches
@@ -171,7 +171,7 @@ instance Show (Expr t) where
                              Null         -> "Null"
                              BlankNode n  -> "BLANK "   ++ (unpack n)
                              EmptyArr     -> "[]"
-                             EmptyObj     -> "{}"
+                             EmptyRec     -> "{}"
 
                              -- Closures
                              Context schema -> let schemaStr      = show schema
@@ -191,7 +191,7 @@ instance Show (Expr t) where
                              Nil  -> "Nil"
 
                              -- Boundary tags
-                             Object ctx  body -> "Object\n" ++ renderChildren env [("context -> ", SomeExpr ctx), ("body -> ", SomeExpr body)]
+                             Record ctx  body -> "Record\n" ++ renderChildren env [("context -> ", SomeExpr ctx), ("body -> ", SomeExpr body)]
                              Array  list      -> "Array\n"  ++ renderChildren env [("elements -> ", SomeExpr list)]
 
 
