@@ -91,37 +91,90 @@ lookupVar evaluator pos name fullEnv =
                  & OuroError pos
                  & L.EvalError
                  & pure
-        False -> go fullEnv
+        False -> lookupVar' (Just evaluator) pos name fullEnv
 
-    where
-    go env = case Map.lookup name (env ^. L.localScope) of
-        -- Evaluate lazy surface expression using the ambient Reader context
-        Just surfaceExpr -> local (L.activeLookups %~ Set.insert name) (evaluator surfaceExpr)
-        -- Must be a builtin function
-        Nothing          -> lookupBuiltin name env
+lookupVar'
+    :: Maybe (S.Expr -> Reader Env L.Expr)
+    -> SourcePos
+    -> Text
+    -> Env
+    -> Reader Env L.Expr
+lookupVar' mEvaluator pos name env =
+    case Map.lookup name (env ^. L.localScope) of
+        Just surfaceExpr -> case mEvaluator of
+                                -- If we have an evaluator, run it with active cycle detection
+                                Just evaluator -> local (L.activeLookups %~ Set.insert name) (evaluator surfaceExpr)
+                                -- Safe fallback, though lookupVar' is always called with 'Just'
+                                Nothing        -> pure $ L.Quote surfaceExpr
+        Nothing          -> lookupBuiltin lookupVar' mEvaluator pos name env
 
-    -- Field lookup else check if it matches a native function handle
-    lookupBuiltin :: Text -> Env -> Reader Env L.Expr
-    lookupBuiltin name' env = case L.PrimitiveOp <$> Map.lookup name' builtinRegistry of
-                                 Just nativeOp -> pure nativeOp
-                                 Nothing       -> lookupField name env
 
-    -- Look up to the nesting parent environment if not a built in function
-    lookupField :: Text -> Env -> Reader Env L.Expr
-    lookupField name' env =
-        case env ^. L.parentEnv of
-            Just pEnv -> go pEnv
-            Nothing   -> let keys      = Set.toList $ allEnvKeys fullEnv
-                             suggestion = case rankBySimilarity name' keys of
-                                              ((bestMatch, score) : _) | score <= 3
-                                                  -> "\n\nPerhaps you meant: '" <> bestMatch <> "'?"
-                                              _   -> ""
-                         in unboundIdentifier name'
-                            & withBlurb
-                                ( "the evaluator attempted to lookup the value for '" <> name' <> "', "
-                                <> "but the identifier failed to resolve within any active scope chain."
-                                <> suggestion
-                                )
-                            & OuroError pos
-                            & L.EvalError
-                            & pure
+-- Quote lookup the same as lookupVar but returns a thunk
+quoteVar
+    :: SourcePos
+  -> Text
+  -> Env
+  -> Reader Env L.Expr
+quoteVar pos name fullEnv =
+    case Set.member name (fullEnv ^. L.activeLookups) of
+        True  -> cyclicDependency name
+                 & withBlurb ( "An infinite lookup loop was detected. The identifier '" <> name
+                            <> "' directly or indirectly references itself during evaluation." )
+                 & OuroError pos
+                 & L.EvalError
+                 & pure
+        False -> quoteVar' Nothing pos name fullEnv
+
+quoteVar'
+    :: Maybe (S.Expr -> Reader Env L.Expr)
+    -> SourcePos
+    -> Text
+    -> Env
+    -> Reader Env L.Expr
+quoteVar' mEvaluator pos name env =
+    case Map.lookup name (env ^. L.localScope) of
+        -- Directly wrap the surface AST, intentionally ignoring mEvaluator
+        Just surfaceAst -> pure $ L.Quote surfaceAst
+        -- Pass the walker and the polymorphic evaluator down the chain
+        Nothing         -> lookupBuiltin quoteVar' mEvaluator pos name env
+
+
+-- Field lookup else check if it matches a native function handle
+lookupBuiltin
+    :: (Maybe (S.Expr -> Reader Env L.Expr) -> SourcePos -> Text -> Env -> Reader Env L.Expr)
+    -> Maybe (S.Expr -> Reader Env L.Expr)
+    -> SourcePos
+    -> Text
+    -> Env
+    -> Reader Env L.Expr
+lookupBuiltin scopeWalker mEvaluator pos name env =
+    case L.PrimitiveOp <$> Map.lookup name builtinRegistry of
+        Just nativeOp -> pure nativeOp
+        Nothing       -> lookupField scopeWalker mEvaluator pos name env
+
+
+-- Look up to the nesting parent environment if not a built in function
+lookupField
+    :: (Maybe (S.Expr -> Reader Env L.Expr) -> SourcePos -> Text -> Env -> Reader Env L.Expr)
+    -> Maybe (S.Expr -> Reader Env L.Expr)
+    -> SourcePos
+    -> Text
+    -> Env
+    -> Reader Env L.Expr
+lookupField scopeWalker mEvaluator pos name env =
+    case env ^. L.parentEnv of
+        Just pEnv -> scopeWalker mEvaluator pos name pEnv
+        Nothing   -> let keys       = Set.toList $ allEnvKeys env
+                         suggestion = case rankBySimilarity name keys of
+                                        ((bestMatch, score) : _) | score <= 3
+                                            -> "\n\nPerhaps you meant: '" <> bestMatch <> "'?"
+                                        _   -> ""
+                     in unboundIdentifier name
+                        & withBlurb
+                            ( "The evaluator attempted to lookup the value for '" <> name <> "', "
+                            <> "but the identifier failed to resolve within any active scope chain."
+                            <> suggestion
+                            )
+                        & OuroError pos
+                        & L.EvalError
+                        & pure

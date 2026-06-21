@@ -91,6 +91,7 @@ structuralEq :: Expr -> Expr -> Bool
 structuralEq e1 e2 =
     case (e1, e2) of
         (Symbol  _ a,  Symbol  _ b)  -> a == b
+        (Attr    _ a,  Attr    _ b)  -> a == b
         (Literal _ a,  Literal _ b)  -> a == b
         (Quoted  _ a,  Quoted  _ b)  -> structuralEq a b
         (Form    _ xs, Form    _ ys) -> length xs == length ys && all (uncurry structuralEq) (zip xs ys)

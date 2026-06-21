@@ -25,7 +25,7 @@ import qualified Data.Ouro.Internal.Expr        as I
 import qualified Data.Ouro.Internal.Kinds       as JLD
 import           Data.Ouro.Lisp.Eval.Builtins   (builtinRegistry, parseISO8601)
 import           Data.Ouro.Lisp.Eval.Schema     (parseContextDirectives)
-import           Data.Ouro.Lisp.Eval.Scope      (lookupVar)
+import           Data.Ouro.Lisp.Eval.Scope      (lookupVar, quoteVar)
 import           Data.Ouro.Lisp.Eval.Structural (BlockTarget (..), compileArray,
                                                  compileScope,
                                                  determineBlockTarget,
@@ -106,11 +106,24 @@ evalExpr expr = do
                    actual      -> pure $ EvalError $ OuroError pos
                                         $ typeMismatch "Schema" (humanReadableType actual)
 
+        S.Form _ (S.Symbol _ "qget" : rootTarget : pathExpressions)
+            -> case validatePathKeys pathExpressions of
+                   EvalError err     -> pure (EvalError err)
+                   -- Match on the open ArrayVal superset node instead of the old frozen GADT variant
+                   Array     pathVal -> case resolvePath (Nothing) env rootTarget pathVal of
+                                              EvalError err -> pure (EvalError err)
+                                              -- The path resolved cleanly to a final Quote, pass it forward
+                                              quotedVal   -> pure quotedVal
+                   _unexpectedExpr -> internalValueLeak "Path validation returned an unexpected L.Expr variant."
+                                      & OuroError (S.exprPos rootTarget)
+                                      & EvalError
+                                      & pure
+
         S.Form _ (S.Symbol _ "get" : rootTarget : pathExpressions)
             -> case validatePathKeys pathExpressions of
                    EvalError err     -> pure (EvalError err)
                    -- Match on the open ArrayVal superset node instead of the old frozen GADT variant
-                   Array     pathVal -> case resolvePath evalExpr env rootTarget pathVal of
+                   Array     pathVal -> case resolvePath (Just evalExpr) env rootTarget pathVal of
                                               EvalError err -> pure (EvalError err)
                                               -- The path resolved cleanly to a final L.Expr, pass it forward
                                               resolvedVal   -> pure resolvedVal
@@ -119,17 +132,17 @@ evalExpr expr = do
                                       & EvalError
                                       & pure
 
+        S.Form _ [S.Symbol _ "quote", S.Symbol pos name] -> quoteVar pos name env
+        S.Form _ [S.Symbol _ "quote", payload]           -> pure $ Quote payload
+
         S.Form _ (S.Symbol pos "case" : target : patterns)
             -> do
                case (hasValidOtherwise patterns) of
                    True -> do
-                           case target of
-                               S.Quoted _ quote -> patternMatch evalExpr env pos quote 0 patterns
-                               _expr            -> do
-                                                   resolvedTarget <- evalExpr target
-                                                   case resolvedTarget of
-                                                        EvalError err  -> pure $ EvalError err
-                                                        res            -> evaluateGuards evalExpr env pos res 0 patterns
+                           case runReader (evalExpr target) env of
+                               EvalError err  -> pure $ EvalError err
+                               Quote quote    -> patternMatch   evalExpr env pos quote          0 patterns
+                               resolvedTarget -> evaluateGuards evalExpr env pos resolvedTarget 0 patterns
 
                    False -> missingOtherwise
                             & withBlurb missingOtherwiseBlurb

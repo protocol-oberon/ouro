@@ -90,7 +90,7 @@ emitProps evaluator env expressions = go I.EmptyMeta expressions
                   S.Form _ (S.Symbol _ "define" : _) : rest -> go metaAcc rest
 
                   -- Case C: Extract valid body pairs. Supports lazy nesting compilation inline.
-                  (S.Attr attrPos key : valExpr : rest) | not (isStructuralExpr valExpr)
+                  (S.Attr _ key : valExpr : rest) | not (isStructuralExpr valExpr)
                       -> case go metaAcc rest of
                              Object finalMeta nextPairs
                                  -> case evaluator env valExpr of
@@ -253,12 +253,12 @@ determineBlockTarget =
 --   3. Defensive Boundary Isolation: Terminal primitive leafs or missing path segments safely trigger
 --      failures via 'missingPathKey' before deep internal evaluation can result in invalid mutations.
 resolvePath
-    :: (S.Expr -> Reader Env L.Expr)
+    :: Maybe (S.Expr -> Reader Env L.Expr)
     -> Env
     -> S.Expr
     -> [L.Expr]
     -> L.Expr
-resolvePath evaluator fullEnv originalExpr pathVals = go fullEnv originalExpr (extractKeys pathVals)
+resolvePath shouldEval fullEnv originalExpr pathVals = go fullEnv originalExpr (extractKeys pathVals)
     where
     -- Extract bare Text strings from the newly provisioned Array superset layout
     extractKeys :: [L.Expr] -> [Text]
@@ -270,7 +270,9 @@ resolvePath evaluator fullEnv originalExpr pathVals = go fullEnv originalExpr (e
 
     go :: Env -> S.Expr -> [Text] -> L.Expr
     go env currentExpr keys = case keys of
-        [] -> runReader (evaluator currentExpr) env
+        [] -> case shouldEval of
+                  Just evaluator -> runReader (evaluator currentExpr) env
+                  Nothing        -> L.Quote currentExpr
 
         (targetKey : remainingKeys)
             -> case currentExpr of
