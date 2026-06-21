@@ -2,13 +2,13 @@
 
 Ouro is a domain-specific language (DSL) engineered for the ergonomic construction, validation, and serialisation of CIDOC-CRM knowledge graphs. It is designed to bridge the gap between human-readable data-modelling and strict Semantic Web standards. Ouro's compiler mathematically guarantees that compiled Ouro code produces well-formed JSON-LD.
 
-# Syntax 
+# Syntax
 
 Expressions in Ouro are formed around lisp *parentheses* and *keywords* (referred to as attributes). It is also highly contextual, allowing for the syntax to remain sparse. It also allows for Ouro code's topology to roughly match that of its output JSON, further enhancing the homoiconity of the language.
 
 - Lisp keywords `:keyword value` are used to create JSON key-value pairs.
-- Parens `()` followed by a keyword `:keyword` creates a JSON Object `(:object-key value)`.
-- Parens followed by another set of parentheses creates a JSON array of Objects `((:array-object inner-value))`. 
+- Parens `()` followed by a keyword `:keyword` creates a JSON Record `(:record-key value)`.
+- Parens followed by another set of parentheses creates a JSON array of Records `((:array-record inner-value))`.
 - Parens wrapped around raw data constants or expressions automatically evaluate to a JSON Array `(1 2 3)`. This looks ahead recursively to naturally support multi-dimensional matrices like `((1 2) (3 4))` without requiring dedicated brackets or boilerplate.
 - To reference the value of a field, simply call the key without the colon, so `:lookup value` becomes `lookup`.
 
@@ -26,15 +26,15 @@ There are 7 type assertion tags:
 | `#str`          | Asserts that the evaluated result is a string literal.                                   |
 | `#bool`         | Asserts that the evaluated result is a boolean primitive.                                |
 | `#arr-empty`    | Conveys to the compiler that the targeted array structure contains zero elements.        |
-| `#object-empty` | Conveys to the compiler that the targeted graph node contains no key-value attributes.   |
+| `#rec-empty` | Conveys to the compiler that the targeted graph node contains no key-value attributes.   |
 
-## Special forms 
+## Special forms
 
 Ouro contains special forms designed for increased ergonomics for creating JSON-LD graphs. These forms interact with the JSON-LD graph in different ways.
 
 ### Define
 
-`(define)` is a special form in Ouro which injects the attribute pairs defined within, into the current lexical scope (scope in Ouro is the current object an expression is written in), but erases them at compile time from the serialised JSON out. This allows for local variables to be easily defined without pollution the resulting JSON-LD graph. 
+`(define)` is a special form in Ouro which injects the attribute pairs defined within, into the current lexical scope (scope in Ouro is the current record an expression is written in), but erases them at compile time from the serialised JSON out. This allows for local variables to be easily defined without pollution the resulting JSON-LD graph.
 
 ``` clojure
  (define
@@ -43,11 +43,11 @@ Ouro contains special forms designed for increased ergonomics for creating JSON-
    :getty           "http://vocab.getty.edu/aat/")
 ```
 
-This `define` block defines two attributes of type `date` in `auction-start` and `auction-restart` as well as an un-typed string attribute in `getty`.  
+This `define` block defines two attributes of type `date` in `auction-start` and `auction-restart` as well as an un-typed string attribute in `getty`.
 
 ### Context
 
-To add context to a JSON-LD object, the `(context)` special form is used. This form expects any number of Schema Directives:
+To add context to a JSON-LD record, the `(context)` special form is used. This form expects any number of Schema Directives:
 
 1. `(remote-context uri)`: Imports an external JSON-LD context from the specified URI.
 2. `(define-term term definition)`: Maps a local string term to a specific URI or complex term definition.
@@ -56,9 +56,9 @@ To add context to a JSON-LD object, the `(context)` special form is used. This f
 5. `(set-language lang)`: Sets the default `@language` tag (e.g., "en", "fr") for all string values in the scope.
 6. `(clear-context)`: Nullifies the currently active context (evaluates to `@context: null`), effectively resetting the scope.
 
-...and creates a `@context` sub-object in the current scope. 
+...and creates a `@context` sub-record in the current scope.
 
-The `(context)` special form also has syntax sugar for the common case of having a single remote context. Using `:context value` will automatically desugar into an isolated schema directive frame. 
+The `(context)` special form also has syntax sugar for the common case of having a single remote context. Using `:context value` will automatically desugar into an isolated schema directive frame.
 
 ```clojure
 ;; Surface Syntax Written by User
@@ -79,7 +79,7 @@ The `(get)` special form allows for you traverse deeply nested structures and re
 ``` clojure
 (:nested_manifest (:id       #uri (+ api-root "dataset")
                    :created  #date "2026-05-28T12:00:00Z"
-                   ;; Deep structural nesting 
+                   ;; Deep structural nesting
                    :meta     (:version       "v2.1.0"
                               :release_code  905
                               :maintainer    (:name    "Dev Team"
@@ -88,6 +88,14 @@ The `(get)` special form allows for you traverse deeply nested structures and re
 :status          (get nested_manifest meta version)
 :runtime_check   (get nested_manifest meta maintainer is_valid))
 ```
+
+It is also possible to retrieve the unevaluated ast of a deeply nested symbol using `get'`. Given a record 
+
+```clojure
+(:trgt   (:nest (:nest_2 (+ 2 2)))
+ :quoted (get' nest nest2))
+```
+
 
 ### Case
 
@@ -101,9 +109,28 @@ The `(case)` special form serves as the Ouro's main mode of control flow, it exp
                (otherwise default)))
 ```
 
-`case` statements must always contain a default branch `otherwise`, to ensure totality. When a case statement is triggered, the target expr is eagerly evaluated, and passed into the first element of branch tuple of the branch as its first argument `((= trgt 100) ret1)`. If the resulting expression evaluates to `True`, then the second element of the branches tuple (the return value) is evaluated and returned. 
+`case` statements must always contain a default branch `otherwise`, to ensure totality. When a case statement is triggered, the target expr is eagerly evaluated, and passed into the first element of branch tuple of the branch as its first argument `((= trgt 100) ret1)`. If the resulting expression evaluates to `True`, then the second element of the branches tuple (the return value) is evaluated and returned.
 
-### Builtin Functions 
+If a quoted expression is passed into a `case` statement as the target, then structural pattern matching can be performed. When pattern matching, the pattern for a branch must also be quoted. For cases where the entirety of the targeted structure isn't relevant, a whole type (**?**) can be used.
+
+```clojure
+(:trgt   ((+ 2 3) (- 2 2))
+ :result (case (quote trgt)
+               ('((- ? ?) ?)  "fails")
+               ('((+ ? ?) ?)  "matched")
+               (otherwise     "default")))
+```
+
+Here we are pattern matching on a list of expressions and checking to see if the first expression in the list is addition. This block resolves to the following just before compilation:
+
+```clojure
+(:trgt   (5 0)
+ :result "matched")
+```
+
+...which can then be serialised.
+
+### Builtin Functions
 
 Ouro has the following built in functions:
 
