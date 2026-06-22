@@ -160,36 +160,54 @@ Ouro has the following built in functions:
 
 ## Canonical Example
 
-*Night Watch by Rembrandt*
+*Purchase of Spring by Proust*
 ``` clojure
-(:context #uri "https://linked.art/ns/v1/linked-art.json"
- ;; Variable definition
+((template transfer! (id-type type-of-type name)
+   (define
+     :uri_type (case name
+                     ((eq "Manet")   linked-art-person)
+                     ((eq "Proust")  linked-art-person)
+                     ((eq "Spring")  linked-art-object)
+                     (otherwise      getty)))
+
+   :id     #uri (+ uri_type id-type)
+   :type   type-of-type
+   :_label name)
+
  (define
-   :auction-start   #date "1848-08-01T00:00:00Z"
-   :auction-restart #date "1848-09-09T00:00:00Z"
-   :getty           "http://vocab.getty.edu/aat/")
+   :getty             "http://vocab.getty.edu/aat/"
+   :linked-art-object "https://linked.art/example/object/"
+   :linked-art-person "https://linked.art/example/person/")
 
- :id            #uri "https://linked.art/example/event/stowe/1"
- :type          "Activity"
- :_label        "Auction of Stowe House"
+ :context  "https://linked.art/ns/v1/linked-art.json"
+ :id       #uri "https://linked.art/example/provenance/manet_proust/1"
+ :type     "Activity"
+ :_label   "Purchase of Spring by Proust"
 
- :classified_as ((:id     #uri (+ getty "300054751")
-                  :type   "Type"
-                  :_label "Auction Event"))
+ :classified_as ((transfer! "300055863" "Type" "Provenance Activity"))
 
- :timespan      (:type               "TimeSpan"
-                 :identified_by      ((:type    "Name"
-                                       :content "40 days in August and September, 1848"))
-                 :begin_of_the_begin auction-start
-                 :end_of_the_begin   (+ begin_of_the_begin (thru (days 19)))
-                 :begin_of_the_end   auction-restart
-                 :end_of_the_end     (+ begin_of_the_end (thru (days 21)))
+ :identified_by ((:type          "Name"
+                  :classified_as ((transfer! "300404670" "Type" "Primary Name"))
+                  :content       "Purchase of Spring by Proust from Manet"))
 
-                 :duration           (:type "Dimension"
-                                      :value 3
-                                      :unit  (:id     #uri (+ getty "300379242")
-                                              :type   "MeasurementUnit"
-                                              :_label "days"))))
+ :timespan      (:type "TimeSpan"
+                 :begin_of_the_begin #date "1881-01-01T00:00:00Z"
+                 :end_of_the_end     #date (+ begin_of_the_begin (thru (years 2))))
+
+ ;; A List of objects in Ouro is made from nested parens `(())`
+ :part ((:type   "Acquisition"
+         :_label "Ownership of Spring to Proust"
+         :transferred_title_of   ((transfer! "spring" "HumanMadeObject" "Spring"))
+         :transferred_title_from ((transfer! "manet"  "Person"          "Manet"))
+         :transferred_title_to   ((transfer! "proust" "Person"          "Proust")))
+
+        (:type        "Payment"
+         :_label      "3000 Francs to Manet"
+         :paid_amount (:type      "MonetaryAmount"
+                       :value     3000
+                       :currency  (transfer! "300412016" "Currency" "French Francs"))
+        :paid_from    ((transfer! "proust" "Person" "Proust"))
+        :paid_to      ((transfer! "manet"  "Person" "Manet")))))
 ```
 
 # Installation

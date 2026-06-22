@@ -1,22 +1,28 @@
-(:context "https://linked.art/ns/v1/linked-art.json"
+((template transfer! (id-type type-of-type name)
+   (define
+     :getty             "http://vocab.getty.edu/aat/"
+     :linked-art-object "https://linked.art/example/object/"
+     :linked-art-person "https://linked.art/example/person/"
+     :uri_type (case name
+                     ((eq "Manet")   linked-art-person)
+                     ((eq "Proust")  linked-art-person)
+                     ((eq "Spring")  linked-art-object)
+                     (otherwise      getty)))
 
- (define
-   :getty             "http://vocab.getty.edu/aat/"
-   :linked-art-object "https://linked.art/example/object/"
-   :linked-art-person "https://linked.art/example/person/")
+   :id     #uri (+ uri_type id-type)
+   :type   type-of-type
+   :_label name)
 
- :id             #uri "https://linked.art/example/provenance/manet_proust/1"
- :type           "Activity"
- :_label         "Purchase of Spring by Proust"
 
- :classified_as ((:id     #uri (+ getty "300055863")
-                  :type   "Type"
-                  :_label "Provenance Activity"))
+ :context "https://linked.art/ns/v1/linked-art.json"
+ :id      #uri "https://linked.art/example/provenance/manet_proust/1"
+ :type    "Activity"
+ :_label  "Purchase of Spring by Proust"
+
+ :classified_as ((transfer! "300055863" "Type" "Provenance Activity"))
 
  :identified_by ((:type          "Name"
-                  :classified_as ((:id     #uri (+ getty "300404670")
-                                   :type   "Type"
-                                   :_label "Primary Name"))
+                  :classified_as ((transfer! "300404670" "Type" "Primary Name"))
                   :content       "Purchase of Spring by Proust from Manet"))
 
  :timespan (:type "TimeSpan"
@@ -26,26 +32,14 @@
  ;; A List of objects in Ouro is made from nested parens `(())`
  :part ((:type   "Acquisition"
          :_label "Ownership of Spring to Proust"
-         :transferred_title_of   ((:id     #uri (+ linked-art-object "spring")
-                                   :type   "HumanMadeObject"
-                                   :_label "Spring"))
-         :transferred_title_from ((:id     #uri (+ linked-art-person "manet")
-                                   :type   "Person"
-                                   :_label "Manet"))
-         :transferred_title_to   ((:id     #uri (+ linked-art-person "proust")
-                                   :type   "Person"
-                                   :_label "Proust")))
+         :transferred_title_of   ((transfer! "spring" "HumanMadeObject" "Spring"))
+         :transferred_title_from ((transfer! "manet"  "Person"          "Manet"))
+         :transferred_title_to   ((transfer! "proust" "Person"          "Proust")))
 
         (:type        "Payment"
          :_label      "3000 Francs to Manet"
-         :paid_amount (:type     "MonetaryAmount"
-                       :value    3000
-                       :currency  (:id     #uri (+ getty "300412016")
-                                   :type   "Currency"
-                                   :_label "French Francs"))
-        :paid_from    ((:id     #uri (+ linked-art-person "proust")
-                        :type   "Person"
-                        :_label "Proust"))
-        :paid_to      ((:id     #uri (+ linked-art-person "manet")
-                        :type   "Person"
-                        :_label "Manet")))))
+         :paid_amount (:type      "MonetaryAmount"
+                       :value     3000
+                       :currency  (transfer! "300412016" "Currency" "French Francs"))
+        :paid_from    ((transfer! "proust" "Person" "Proust"))
+        :paid_to      ((transfer! "manet"  "Person" "Manet")))))

@@ -1,9 +1,9 @@
-(:context "https://linked.art/ns/v1/linked-art.json"
-
-  ;; Define Blocks are elided at compilation
- (define
+;; Define Blocks are elided at compilation
+((define
    :getty-uri      "http://vocab.getty.edu/aat/"
    :linked-art-uri "https://linked.art/example/")
+
+ :context "https://linked.art/ns/v1/linked-art.json"
 
  ;; Type assertions
  :id             #uri (+ linked-art-uri "object/spring/13")
