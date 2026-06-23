@@ -2,8 +2,8 @@
    (define
      :getty-ulan "http://vocab.getty.edu/ulan/"
      :uri (case type-of-type
-                ((eq "Person") getty-ulan)
-                (otherwise     getty-att)))
+                ("Person"  getty-ulan)
+                (otherwise getty-att)))
 
    :id     #uri (+ uri id-of-id)
    :type   type-of-type

@@ -324,11 +324,21 @@ evaluateGuards eval env pos target attempts branches =
                    -- case operates as a guard statement
                    S.Form _ (S.Symbol opPos op : guardArgs) | op `elem` [">=", ">", "<=", "<", "eq", "neq"]
                         -> do
-                           guardRes <- evalGuardCond op target guardArgs eval env opPos
+                           guardRes <- evalGuardCond eval env opPos op target guardArgs
                            case guardRes of
                                EvalError err              -> pure $ EvalError err
                                Primitive (I.Boolean True) -> eval body
                                _nextCase                  -> evaluateGuards eval env pos target (attempts + 1) rest
+
+                   -- If just a literal is passed in we can default to eq
+                   S.Literal lpos lvalue
+                       -> do
+                          guardRes <- evalGuardCond eval env lpos "eq" target [S.Literal lpos lvalue]
+                          case guardRes of
+                              EvalError err              -> pure $ EvalError err
+                              Primitive (I.Boolean True) -> eval body
+                              _nextCase                  -> evaluateGuards eval env pos target (attempts + 1) rest
+
 
                    invalidPattern
                        -> inexhaustiveCase "Guard condition operator missing from internal builtin registry." attempts
@@ -394,14 +404,14 @@ hasValidOtherwise branches =
 
 
 evalGuardCond
-    :: Text
-    -> L.Expr
-    -> [S.Expr]
-    -> (S.Expr -> EvalM L.Expr)
+    :: (S.Expr -> EvalM L.Expr)
     -> Env
     -> SourcePos
+    -> Text
+    -> L.Expr
+    -> [S.Expr]
     -> EvalM L.Expr
-evalGuardCond op target runtimeArgs eval env pos =
+evalGuardCond eval env pos op target runtimeArgs =
     case Map.lookup op builtinRegistry of
         Just handler -> do
                         evaledArgs <- mapM eval runtimeArgs

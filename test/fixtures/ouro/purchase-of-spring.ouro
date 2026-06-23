@@ -4,10 +4,10 @@
      :linked-art-object "https://linked.art/example/object/"
      :linked-art-person "https://linked.art/example/person/"
      :uri_type (case name
-                     ((eq "Manet")   linked-art-person)
-                     ((eq "Proust")  linked-art-person)
-                     ((eq "Spring")  linked-art-object)
-                     (otherwise      getty)))
+                     ("Manet"   linked-art-person)
+                     ("Proust"  linked-art-person)
+                     ("Spring"  linked-art-object)
+                     (otherwise getty)))
 
    :id     #uri (+ uri_type id-type)
    :type   type-of-type
