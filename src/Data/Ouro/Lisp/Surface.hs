@@ -4,6 +4,7 @@ module Data.Ouro.Lisp.Surface where
 import           Data.Text       (Text)
 import           Text.Megaparsec (SourcePos)
 
+
 -- Expr.
 --
 -- An untyped, ergonomically flexible Abstract Syntax Tree for the Ouro Lisp surface syntax.
@@ -118,3 +119,31 @@ structuralEq e1 e2 =
 
             -- Mismatched lengths
             _ -> False
+
+-- A runtime truth table to tell what shap of ast is present
+data ExprMarker
+    = AttrMarker
+    | SymbolMarker
+    | LiteralMarker
+    | TaggedMarker
+    | QuotedMarker
+    | HoleMarker
+    | FormMarker
+    | BracketMarker
+    deriving (Eq, Show)
+
+
+mark :: Expr -> ExprMarker
+mark = \case
+        Attr    _ _   -> AttrMarker
+        Symbol  _ _   -> SymbolMarker
+        Literal _ _   -> LiteralMarker
+        Tagged  _ _ _ -> TaggedMarker
+        Quoted  _ _   -> QuotedMarker
+        Hole    _ _   -> HoleMarker
+        Form    _ _   -> FormMarker
+        Bracket _ _   -> BracketMarker
+
+
+matches :: ExprMarker -> ExprMarker -> Bool
+matches = (==)

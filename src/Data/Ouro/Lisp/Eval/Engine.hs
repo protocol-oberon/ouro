@@ -134,6 +134,19 @@ evalExpr expr = do
 
         S.Form _ [S.Symbol _ "quote", S.Symbol pos name] -> quoteVar pos name env
         S.Form _ [S.Symbol _ "quote", payload]           -> pure $ Quote payload
+        S.Form _ (S.Symbol _ "list" : items)             -> Array <$> mapM evalExpr items
+
+        S.Form _ [S.Symbol pos "eval", qExpr]
+            -> case runReader (evalExpr qExpr) env of
+                   EvalError err   -> pure $ EvalError err
+                   Quote     quote -> evalExpr quote
+                   notAQuote       -> typeMismatch "a quoted expression"
+                                                   ("a non quoted expression that was evaluated to " <> (humanReadableType notAQuote))
+                                      & withBlurb (typeMismatchBlurb notAQuote)
+                                      & OuroError pos
+                                      & EvalError
+                                      & pure
+
 
         S.Form _ (S.Symbol pos "case" : target : patterns)
             -> case (hasValidOtherwise patterns) of

@@ -237,7 +237,8 @@ determineBlockTarget fields =
                     False -> case any isStructuralField fields of
                                 True  -> TargetRecord
                                 False -> TargetList
-  where
+
+    where
     isFunctionApplication :: [S.Expr] -> Bool
     isFunctionApplication =
         \case

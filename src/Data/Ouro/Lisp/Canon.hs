@@ -50,8 +50,11 @@ desugar = \case
 
            -- Deep Recurse: Bottom-Up evaluation pass
            (S.Form pos items : xs)
-               -> let desugaredItems = desugar items  -- 1. Expand 'thru' and desugar children FIRST
-                      unrolled       = desugarBinOp (desugarComparison (S.Form pos desugaredItems)) -- 2. Unroll variadics
+               -> let desugaredItems = desugar items           -- Expand 'thru' and desugar children FIRST
+                      unrolled       = desugarCase             -- Expand multi-match cases
+                                     $ desugarBinOp            -- Unroll variadic ops
+                                     $ desugarComparison       -- Unroll comparisons
+                                     $ S.Form pos desugaredItems
                   in unrolled : desugar xs
 
            -- Horizontal Pass-through (Safely passes over Tags, Symbols, and Literals)
@@ -131,3 +134,46 @@ desugarThru pos target = case target of
 
     where
     mkDur unit val = S.Form pos [ S.Symbol pos unit, S.Literal pos (S.Num val) ]
+
+
+desugarCase :: S.Expr -> S.Expr
+desugarCase =
+    \case
+     -- Intercept 'case' form
+     S.Form fPos (cSym@(S.Symbol _ "case") : target : branches)
+         -> let desugaredTarget   = desugarCase target
+                desugaredBranches = concatMap expandBranch branches
+            in S.Form fPos (cSym : desugaredTarget : desugaredBranches)
+     other -> other
+
+    where
+    -- Expands grouped patterns into individual branches
+    expandBranch :: S.Expr -> [S.Expr]
+    expandBranch = \case
+                    -- Deconstruct a valid branch shape
+                    S.Form bPos [pattern, body]
+                        -> let desugaredBody = desugarCase body
+                           in case pattern of
+                                  -- Keep recognized guard operators intact (e.g., (> 5))
+                                  S.Form _ (S.Symbol _ op : _) | op `elem` [">=", ">", "<=", "<", "eq", "neq"]
+                                      -> [S.Form bPos [pattern, desugaredBody]]
+
+                                  -- Keep 'otherwise' intact
+                                  S.Symbol _ "otherwise"
+                                      -> [S.Form bPos [pattern, desugaredBody]]
+
+                                  -- Keep Quoted patterns intact for structural matching mode
+                                  S.Quoted _ _
+                                      -> [S.Form bPos [pattern, desugaredBody]]
+
+                                  -- THE DESUGARING STEP:
+                                  -- Example: ( ("Manet" "Proust") body ) -> ( "Manet" body ) ( "Proust" body )
+                                  S.Form _ subPatterns
+                                      -> [S.Form bPos [subPat, desugaredBody] | subPat <- subPatterns]
+
+                                  -- Keep single literals or undefined symbols intact
+                                  _singleLitOrSym -> [S.Form bPos [pattern, desugaredBody]]
+
+                    -- If a branch is malformed, pass it through unchanged so `evaluateGuards`
+                    -- can catch it and throw the proper `malformedCaseBranch` error with SourcePos.
+                    malformed -> [malformed]

@@ -129,6 +129,69 @@ Here we are pattern matching on a list of expressions and checking to see if the
 
 ...which can then be serialised.
 
+A case statement in Ouro also supports multiple clauses in a branches pattern allowing for a more condensed syntax for when multiple branches return the same value. This done by putting the conditions for the branch in a list. 
+
+``` clojure
+(case name
+      (("Manet" "Proust") linked-art-person)
+      ("Spring"           linked-art-object)
+      (otherwise          getty)))
+```
+
+Is de-sugared to:
+
+``` clojure
+(case name
+      ("Manet"   linked-art-person)
+      ("Proust"  linked-art-person)
+      ("Spring"  linked-art-object)
+      (otherwise getty))
+```
+
+### Quote
+
+The `(quote)` special form is used to return un-evaluated AST nodes of the argument expression. 
+
+1. `(quote (+ 2 3))` returns `'(+ 2 3)` without evaluation, it programmatically the same as just `'(+ 2 3)`.
+2. `(quote symbol)` will lookup the symbol in the environment and return the AST bound to it un-evaluated.
+
+### Eval
+
+The dual of `(quote)`, `(eval)` takes a quoted expression and simply evaluates it.
+
+``` clojure
+(eval '(+ 2 3))
+```
+
+Evaluates to 5.
+
+### List
+
+While the Ouro is statically typed and the compiler has enough type inference to tell potentially ambiguous forms apart, there are still cases where the developer intent must be made clear to the compiler. An example of this is the following expression `(id name type)`. The compiler will infer this as an expression where a function, `id` takes two arguments `name` and `type`.  However if the developer indents for this to be a list of values where the variables `id`, `name` and `type` are looked up, then they will have to use the `(list)` special form. 
+
+```clojure
+(list id name type)
+```
+
+This form simply tells the compiler to evaluation every expression after a `list` and store them in-place. So the following Ouro code:
+
+``` clojure
+((define
+  :name "Manet"
+  :id   "https://linked.art/example/person/manet"
+  :type "Person")
+  
+ :_list (list (name id type)))
+```
+
+...complies to the following JSON-LD:
+
+``` json
+{
+  "_list" : [ "Manet", "https://linked.art/example/person/manet", "Person"]  
+}
+```
+
 ## Builtin Functions
 
 Ouro has the following built in functions:
@@ -156,7 +219,7 @@ Ouro has the following built in functions:
 
 ## Syntax Sugar
 
-
+- `thru`
 
 ## Canonical Example
 
@@ -164,25 +227,23 @@ Ouro has the following built in functions:
 ``` clojure
 ((template transfer! (id-type type-of-type name)
    (define
+     :getty             "http://vocab.getty.edu/aat/"
+     :linked-art-object "https://linked.art/example/object/"
+     :linked-art-person "https://linked.art/example/person/"
      :uri_type (case name
-                     ((eq "Manet")   linked-art-person)
-                     ((eq "Proust")  linked-art-person)
-                     ((eq "Spring")  linked-art-object)
-                     (otherwise      getty)))
+                     (("Manet" "Proust") linked-art-person)
+                     ("Spring"           linked-art-object)
+                     (otherwise          getty)))
 
    :id     #uri (+ uri_type id-type)
    :type   type-of-type
    :_label name)
 
- (define
-   :getty             "http://vocab.getty.edu/aat/"
-   :linked-art-object "https://linked.art/example/object/"
-   :linked-art-person "https://linked.art/example/person/")
 
- :context  "https://linked.art/ns/v1/linked-art.json"
- :id       #uri "https://linked.art/example/provenance/manet_proust/1"
- :type     "Activity"
- :_label   "Purchase of Spring by Proust"
+ :context "https://linked.art/ns/v1/linked-art.json"
+ :id      #uri "https://linked.art/example/provenance/manet_proust/1"
+ :type    "Activity"
+ :_label  "Purchase of Spring by Proust"
 
  :classified_as ((transfer! "300055863" "Type" "Provenance Activity"))
 
@@ -190,9 +251,9 @@ Ouro has the following built in functions:
                   :classified_as ((transfer! "300404670" "Type" "Primary Name"))
                   :content       "Purchase of Spring by Proust from Manet"))
 
- :timespan      (:type "TimeSpan"
-                 :begin_of_the_begin #date "1881-01-01T00:00:00Z"
-                 :end_of_the_end     #date (+ begin_of_the_begin (thru (years 2))))
+ :timespan (:type               "TimeSpan"
+            :begin_of_the_begin #date "1881-01-01T00:00:00Z"
+            :end_of_the_end     #date (+ begin_of_the_begin (thru (years 2))))
 
  ;; A List of objects in Ouro is made from nested parens `(())`
  :part ((:type   "Acquisition"
@@ -208,6 +269,96 @@ Ouro has the following built in functions:
                        :currency  (transfer! "300412016" "Currency" "French Francs"))
         :paid_from    ((transfer! "proust" "Person" "Proust"))
         :paid_to      ((transfer! "manet"  "Person" "Manet")))))
+```
+
+Which is compile into the following json
+
+``` json
+{
+  "@context": "https://linked.art/ns/v1/linked-art.json",
+  "id": "https://linked.art/example/provenance/manet_proust/1",
+  "type": "Activity",
+  "_label": "Purchase of Spring by Proust",
+  "classified_as": [
+    {
+      "id": "http://vocab.getty.edu/aat/300055863",
+      "type": "Type",
+      "_label": "Provenance Activity"
+    }
+  ],
+  "identified_by": [
+    {
+      "type": "Name",
+      "classified_as": [
+        {
+          "id": "http://vocab.getty.edu/aat/300404670",
+          "type": "Type",
+          "_label": "Primary Name"
+        }
+      ],
+      "content": "Purchase of Spring by Proust from Manet"
+    }
+  ],
+  "timespan": {
+    "type": "TimeSpan",
+    "begin_of_the_begin": "1881-01-01T00:00:00Z",
+    "end_of_the_end": "1883-12-31T23:59:59Z"
+  },
+  "part": [
+    {
+      "type": "Acquisition",
+      "_label": "Ownership of Spring to Proust",
+      "transferred_title_of": [
+        {
+          "id": "https://linked.art/example/object/spring",
+          "type": "HumanMadeObject",
+          "_label": "Spring"
+        }
+      ],
+      "transferred_title_from": [
+        {
+          "id": "https://linked.art/example/person/manet",
+          "type": "Person",
+          "_label": "Manet"
+        }
+      ],
+      "transferred_title_to": [
+        {
+          "id": "https://linked.art/example/person/proust",
+          "type": "Person",
+          "_label": "Proust"
+        }
+      ]
+    },
+    {
+      "type": "Payment",
+      "_label": "3000 Francs to Manet",
+      "paid_amount": {
+        "type": "MonetaryAmount",
+        "value": 3000,
+        "currency": {
+          "id": "http://vocab.getty.edu/aat/300412016",
+          "type": "Currency",
+          "_label": "French Francs"
+        }
+      },
+      "paid_from": [
+        {
+          "id": "https://linked.art/example/person/proust",
+          "type": "Person",
+          "_label": "Proust"
+        }
+      ],
+      "paid_to": [
+        {
+          "id": "https://linked.art/example/person/manet",
+          "type": "Person",
+          "_label": "Manet"
+        }
+      ]
+    }
+  ]
+}
 ```
 
 # Installation
