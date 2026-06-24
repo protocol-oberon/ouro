@@ -89,7 +89,7 @@ The `(get)` special form allows for you traverse deeply nested structures and re
 :runtime_check   (get nested_manifest meta maintainer is_valid))
 ```
 
-It is also possible to retrieve the un-evaluated AST of a deeply nested symbol using `get'`. Given a record 
+It is also possible to retrieve the un-evaluated AST of a deeply nested symbol using `get'`. Given a record
 
 ```clojure
 (:trgt   (:nest (:nest_2 (+ 2 2)))
@@ -129,7 +129,7 @@ Here we are pattern matching on a list of expressions and checking to see if the
 
 ...which can then be serialised.
 
-A case statement in Ouro also supports multiple clauses in a branches pattern allowing for a more condensed syntax for when multiple branches return the same value. This done by putting the conditions for the branch in a list. 
+A case statement in Ouro also supports multiple clauses in a branches pattern allowing for a more condensed syntax for when multiple branches return the same value. This done by putting the conditions for the branch in a list.
 
 ``` clojure
 (case name
@@ -150,7 +150,7 @@ Is de-sugared to:
 
 ### Quote
 
-The `(quote)` special form is used to return un-evaluated AST nodes of the argument expression. 
+The `(quote)` special form is used to return un-evaluated AST nodes of the argument expression.
 
 1. `(quote (+ 2 3))` returns `'(+ 2 3)` without evaluation, it programmatically the same as just `'(+ 2 3)`.
 2. `(quote symbol)` will lookup the symbol in the environment and return the AST bound to it un-evaluated.
@@ -167,7 +167,7 @@ Evaluates to 5.
 
 ### List
 
-While the Ouro is statically typed and the compiler has enough type inference to tell potentially ambiguous forms apart, there are still cases where the developer intent must be made clear to the compiler. An example of this is the following expression `(id name type)`. The compiler will infer this as an expression where a function, `id` takes two arguments `name` and `type`.  However if the developer indents for this to be a list of values where the variables `id`, `name` and `type` are looked up, then they will have to use the `(list)` special form. 
+While the Ouro is statically typed and the compiler has enough type inference to tell potentially ambiguous forms apart, there are still cases where the developer intent must be made clear to the compiler. An example of this is the following expression `(id name type)`. The compiler will infer this as an expression where a function, `id` takes two arguments `name` and `type`.  However if the developer indents for this to be a list of values where the variables `id`, `name` and `type` are looked up, then they will have to use the `(list)` special form.
 
 ```clojure
 (list id name type)
@@ -180,7 +180,7 @@ This form simply tells the compiler to evaluation every expression after a `list
   :name "Manet"
   :id   "https://linked.art/example/person/manet"
   :type "Person")
-  
+
  :_list (list (name id type)))
 ```
 
@@ -188,7 +188,7 @@ This form simply tells the compiler to evaluation every expression after a `list
 
 ``` json
 {
-  "_list" : [ "Manet", "https://linked.art/example/person/manet", "Person"]  
+  "_list" : [ "Manet", "https://linked.art/example/person/manet", "Person"]
 }
 ```
 
@@ -198,7 +198,7 @@ Ouro has the following built in functions:
 
 **Variadic Arithmetic & Temporal Shifting:** The arithmetic functions in Ouro are fully variadic and handle both standard mathematical computations and strict #date temporal adjustments.
 
-| Function | Syntax Example                         | Behaviour / Domain Rules                                           |
+| Function | Syntax Example                         | Behaviour / Domain Rules                                          |
 |:---------|:---------------------------------------|:------------------------------------------------------------------|
 | **`+`**  | `(+ 2 2 6)` -> `10`                    | Computes the sum of all numerical arguments.                      |
 |          | `(+ #date "2026-06-14..." (years 1))`  | When provided a `#date` head, applies time windows forward.       |
@@ -219,7 +219,14 @@ Ouro has the following built in functions:
 
 ## Syntax Sugar
 
-- `thru`
+Ouro offers some syntax sugar to make common Linked Art JSON-LD patterns a bit more ergonomic. An example of this is `thru`. `thru` handles the common pattern of setting a date/time occurrence to the last possible second i.e "1883-12-31T23:59:59Z". Instead of manually checking the correct months/days/minutes of a desired time in Ouro we can simply write `(thru (years 2))`. This allows us to make very human readable statements such as:
+
+```clojure
+
+ :timespan (:type               "TimeSpan"
+            :begin_of_the_begin #date "1881-01-01T00:00:00Z"
+            :end_of_the_end     #date (+ begin_of_the_begin (thru (years 2))))
+```
 
 ## Canonical Example
 
@@ -271,7 +278,7 @@ Ouro has the following built in functions:
         :paid_to      ((transfer! "manet"  "Person" "Manet")))))
 ```
 
-Which is compile into the following json
+Which compiles into the following JSON-LD:
 
 ``` json
 {
