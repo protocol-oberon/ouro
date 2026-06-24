@@ -181,7 +181,7 @@ This form simply tells the compiler to evaluation every expression after a `list
   :id   "https://linked.art/example/person/manet"
   :type "Person")
 
- :_list (list (name id type)))
+ :_list (list name id type))
 ```
 
 ...complies to the following JSON-LD:
