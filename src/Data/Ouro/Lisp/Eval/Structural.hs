@@ -25,7 +25,7 @@ import           Lens.Micro                  ((.~), (^.))
 import Text.Megaparsec (SourcePos)
 
 
--- compileScope.
+-- compileRecord.
 --
 -- Compiles a physical Lisp block into a self-contained, knot-tied lexical environment frame.
 -- Manages local symbol mapping, dynamic property lazy evaluation, and JSON-LD schema context routing.
@@ -40,12 +40,12 @@ import Text.Megaparsec (SourcePos)
 --      By linking this frame as its own parent and passing it downward, variables and templates inside the block
 --      can lazily reference sibling properties seamlessly without triggering early-evaluation crashes.
 --   3. Semantic Extraction & Context Lowering: It evaluates the properties into a core GADT structural list.
-compileScope
+compileRecord
     :: (Env -> S.Expr -> L.Expr)
     -> Env
     -> [S.Expr]
     -> L.Expr
-compileScope evaluator env fields =
+compileRecord evaluator env fields =
     case (buildLazyEnv env fields, buildTemplateRegistry env fields) of
         -- Dynamic environment allocation failures represent a catastrophic scope break
         (Left err, _) -> EvalError err
@@ -96,6 +96,39 @@ emitProps evaluator env expressions = go I.EmptyMeta expressions
                   -- Case B.5 Template Blocks are also explicity erased from output JSON graph at comptime
                   S.Form _ (S.Symbol _ "template" : _) : rest -> go metaAcc rest
 
+                  -- Case B.75: Inlay evaluated record pairs directly into the current record scope
+                  S.Form _ [S.Symbol pos "inlay", iExpr] : rest
+                      -> let blockTarget = case iExpr of
+                                               S.Form _ inner -> determineBlockTarget inner
+                                               _              -> TargetFunctionApp -- Treat symbols/primitives as dynamic
+                         in case blockTarget of
+                                TargetList -> let err = typeMismatch
+                                                            "a valid Record (or Template resolving to a Record) to inlay"
+                                                            "a List/Array block target"
+                                                        & OuroError pos
+                                              in case go metaAcc rest of
+                                                     Record finalMeta nextPairs -> Record finalMeta (("*err*", EvalError err) : nextPairs)
+                                                     otherVal                   -> otherVal
+
+                                -- Catch both TargetRecord AND TargetFunctionApp (for templates)
+                                _ -> case go metaAcc rest of
+                                        Record finalMeta nextPairs
+                                            -> case evaluator env iExpr of
+                                                    -- 1. If evaluation fails, embed the error so the tree retains it
+                                                    EvalError err -> Record finalMeta (("*err*", EvalError err) : nextPairs)
+
+                                                    -- 2. The successful path: Merge the evaluated pairs (p) into the current scope
+                                                    Record _ p    -> Record finalMeta (p <> nextPairs)
+
+                                                    -- 3. If it evaluated to something other than a record, throw a type mismatch
+                                                    otherVal      -> let err = typeMismatch
+                                                                                    "a valid Record to inlay into the current record scope"
+                                                                                    (humanReadableType otherVal)
+                                                                                & OuroError (S.exprPos iExpr)
+                                                                    in Record finalMeta (("*err*", EvalError err) : nextPairs)
+
+                                        otherVal -> otherVal
+
                   -- Case C: Extract valid body pairs. Supports lazy nesting compilation inline.
                   (S.Attr _ key : valExpr : rest) | not (isStructuralExpr valExpr)
                       -> case go metaAcc rest of
@@ -117,18 +150,18 @@ emitProps evaluator env expressions = go I.EmptyMeta expressions
                                         Array elements -> Record finalMeta ((key, Array elements) : nextPairs)
 
                                         -- 5. Pass-through for valid domain primitives (Durations, Closures, Schemas, etc.)
-                                        Duration    u v   -> Record finalMeta ((key, Duration u v) : nextPairs)
-                                        SchemaVal   s     -> Record finalMeta ((key, SchemaVal s) : nextPairs)
-                                        Directive   d     -> Record finalMeta ((key, Directive d) : nextPairs)
-                                        PrimitiveOp o     -> Record finalMeta ((key, PrimitiveOp o) : nextPairs)
-                                        Closure     e n x -> Record finalMeta ((key, Closure e n x) : nextPairs)
+                                        Duration    u v   -> Record finalMeta ((key, Duration    u v)   : nextPairs)
+                                        SchemaVal   s     -> Record finalMeta ((key, SchemaVal   s)     : nextPairs)
+                                        Directive   d     -> Record finalMeta ((key, Directive   d)     : nextPairs)
+                                        PrimitiveOp o     -> Record finalMeta ((key, PrimitiveOp o)     : nextPairs)
+                                        Closure     e n x -> Record finalMeta ((key, Closure     e n x) : nextPairs)
 
                                         -- Real type violations fall here (Metadata context blocks cannot be property values)
                                         otherVal -> let err = typeMismatch
-                                                                  "a valid property value (like a primitive or nested object)"
+                                                                  "a valid property value (like a Primitive or nested Record)"
                                                                   (humanReadableType otherVal)
-                                                                  & withBlurb (humanReadableType otherVal)
-                                                                  & OuroError (S.exprPos valExpr)
+                                                              & withBlurb (humanReadableType otherVal)
+                                                              & OuroError (S.exprPos valExpr)
                                                     in Record finalMeta ((key, EvalError err) : nextPairs)
 
                              otherVal -> otherVal
@@ -148,7 +181,7 @@ emitProps evaluator env expressions = go I.EmptyMeta expressions
                         _otherForm                          -> False
 
 
--- Compiles a collection of nested Lisp blocks into a uniform sequence array of Records
+-- Compiles a collection of nested Lisp blocks into a uniform Array
 compileArray
     :: (Env -> S.Expr -> L.Expr)
     -> Env
@@ -170,6 +203,33 @@ compileArray evaluator env elements = Array (compileElements elements)
             -- Case B: TRUE ERASURE: Skip context blocks completely inside arrays
             S.Form _ [S.Symbol _ "context", S.Form _ _] : xs -> compileElements xs
 
+            -- Case B.5: Inlay evaluated array elements directly into the current array scope
+            S.Form _ [S.Symbol pos "inlay", iExpr] : xs
+                -> let blockTarget = case iExpr of
+                                         S.Form _ inner -> determineBlockTarget inner
+                                         _              -> TargetFunctionApp -- Treat symbols/templates as dynamic
+                   in case blockTarget of
+                          TargetRecord -> let err = typeMismatch
+                                                        "a valid Array (or Template resolving to an Array) to inlay"
+                                                        "a Record block target"
+                                                    & OuroError pos
+                                          in EvalError err : compileElements xs
+
+                          -- Catch both TargetList AND TargetFunctionApp (for templates/variables)
+                          _ -> case evaluator env iExpr of
+                                   -- 1. If evaluation fails, embed the error so the tree retains it
+                                   EvalError err  -> EvalError err : compileElements xs
+
+                                   -- 2. The successful path: Flatten the evaluated elements into the stream
+                                   Array elems -> elems ++ compileElements xs
+
+                                   -- 3. If it evaluated to something other than an array, throw a type mismatch
+                                   otherVal    -> let err = typeMismatch
+                                                                "a valid Array to inlay into the current array scope"
+                                                                (humanReadableType otherVal)
+                                                            & OuroError (S.exprPos iExpr)
+                                                  in EvalError err : compileElements xs
+
             -- Case C: Process structured nested forms (Records or trailing list matrices)
             (_formExpr@(S.Form pos fields) : xs)
                 -- 1. Intercept Nested Arrays: recursively compile as a matrix
@@ -178,15 +238,15 @@ compileArray evaluator env elements = Array (compileElements elements)
 
                 -- 2. Intercept Nested Records: compile using the object scope builder
                 | TargetRecord <- determineBlockTarget fields
-                -> let evaledItem = compileScope evaluator env fields
+                -> let evaledItem = compileRecord evaluator env fields
                        restL      = compileElements xs
                    in case evaledItem of
                           -- Retain independent error leaves found inside nested scopes safely
                           EvalError err -> EvalError err : restL
 
                           -- Seamlessly capture the open object superset node
-                          Record m p    -> Record m p : restL
-                          Primitive p   -> Primitive p : restL
+                          Record    m p -> Record    m p : restL
+                          Primitive p   -> Primitive p   : restL
                           otherVal      -> typeMismatch
                                                "a valid nested Record block or a single value"
                                                (humanReadableType otherVal)
@@ -402,7 +462,15 @@ compileTemplate evaluator parentEnv pos name params bodyExprs actualArgs =
                         evaluator' currentEnv expr' = runReader (evaluator expr') currentEnv
 
                     -- Pass the prepared environment down into the block compiler
-                    pure $ compileScope evaluator' templateEnv bodyExprs
+                    case determineBlockTarget bodyExprs of
+                        TargetRecord      -> pure $ compileRecord evaluator' templateEnv bodyExprs
+                        TargetList        -> pure $ compileArray  evaluator' templateEnv bodyExprs
+                        TargetFunctionApp -> typeMismatch
+                                                 "the template to evaluate to either a Record or an Array"
+                                                 "a ast shape which corresponds to function appliaction"
+                                             & OuroError pos
+                                             & L.EvalError
+                                             & pure
 
            False -> incorrectArity name parLen actLen
                     & OuroError pos
