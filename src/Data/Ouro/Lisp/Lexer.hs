@@ -130,7 +130,10 @@ pLiterals = lexeme . withPos $ choice
 
    pNumber :: Parser Tkn.TokenType
    pNumber = do
-             num <- (try L.float) <|> (fromIntegral <$> L.decimal)
+             -- We use pure () to strictly enforce no spaces between '-' and the digits
+             let signHandler = L.signed (pure ())
+
+             num <- signHandler ((try L.float) <|> (fromIntegral <$> L.decimal))
              pure (Tkn.Number num)
 
    pBoolean :: Parser Tkn.TokenType
