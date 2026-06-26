@@ -4,13 +4,19 @@ Ouro is a domain-specific language (DSL) engineered for the ergonomic constructi
 
 # Syntax
 
-Expressions in Ouro are formed around lisp *parentheses* and *keywords* (referred to as attributes). It is also highly contextual, allowing for the syntax to remain sparse. It also allows for Ouro code's topology to roughly match that of its output JSON, further enhancing the homoiconity of the language.
+Ouro like any other lisp is anchored around the opening parentheses of an expression `()`. Its compiler uses a semi-complex lookahead to determine the target JSON-LD structure of incoming Ouro source code, weather it maps to an JSON-LD Array, Record or is an Ouro specific function application. Ouro also makes use of lisp key words to match the classic JSON *key* : *value* syntax (these are referred to as **Attributes**). This allows for an Ouro file's source code to roughly match the topology of JSON that it compiles to, further enhancing the homoiconity of the language
 
-- Lisp keywords `:keyword value` are used to create JSON key-value pairs.
-- Parens `()` followed by a keyword `:keyword` creates a JSON Record `(:record-key value)`.
-- Parens followed by another set of parentheses creates a JSON array of Records `((:array-record inner-value))`.
-- Parens wrapped around raw data constants or expressions automatically evaluate to a JSON Array `(1 2 3)`. This looks ahead recursively to naturally support multi-dimensional matrices like `((1 2) (3 4))` without requiring dedicated brackets or boilerplate.
-- To reference the value of a field, simply call the key without the colon, so `:lookup value` becomes `lookup`.
+The target structure of Ouro code is determined by a few simple rules: 
+
+1. An expression that contains a attribute pair `(:key value)` will compile to a JSON-LD **Object**.
+2. An expression that contains only literals `(1 2 3)` will compile to a JSON-LD **List** of those literals.
+3. An expression that contains only symbols `(sym expr expr)` will be treated as function application, where the first symbol in the expression is the function and the body of the expression are its arguments.
+
+Through composition of these rules it is possible to ergonomically express any JSON-LD structure in Ouro with just parentheses. For example to make an nested list of objects the following syntax would be used `((:key val) (:key val))`. I
+
+- It is important to note that Arrays in Ouro, unlike lists in JSON are strictly **Homogeneous**, making a mixed array will cause a type error.
+
+Ouro is 100% declarative, and uses defered evaluation during compilation. This allows for the values of records to not only be referenced within the local scope of the expression, but also out of declaration order. To reference the value of a field, simply call the key without the colon, so `:lookup value` becomes `lookup`, which returns the `value`.
 
 ## Type assertions
 
@@ -30,7 +36,7 @@ There are 7 type assertion tags:
 
 ## Special forms
 
-Ouro contains special forms designed for increased ergonomics for creating JSON-LD graphs. These forms interact with the JSON-LD graph in different ways.
+Ouro contains special forms designed for increased ergonomics for creating JSON-LD graphs. These forms interact with the JSON-LD graph in deferent ways.
 
 ### Define
 
@@ -192,6 +198,132 @@ This form simply tells the compiler to evaluation every expression after a `list
 }
 ```
 
+### Nth
+
+`(nth)` is a special form that takes a number and either a record for a list and returns the value of the element at the index of the given number. It is 0 indexed.
+
+For example:
+
+``` clojure
+(:trgt    (1 2 3)
+ :get_nth (nth 1 trgt))
+```
+
+...will compile to the following JSON:
+
+``` json
+{
+  "trgt" : [1, 2, 3]
+  "get_nth" : 2
+}
+```
+
+In the case of the target being a record, then:
+
+``` clojure
+(:trgt    (:key1 "val0" :key2 "val1" :key3 "val2")
+ :get_nth (nth 1 trgt))
+```
+
+..will compile to:
+
+``` json
+{
+  "trgt" : {
+    "key1" : "val0",
+    "key2" : "val1",
+    "key3" : "val2"
+  },
+  "get_nth" : "val1"
+}
+```
+
+To get the head value of record or list, `(nth 0 trgt)` can be used. You can also access elements using negative indexing. `(nth -1 trgt)` will return the last element of the list, `(nth -2 trgt)` the second to last element and so forth.
+
+### Inlay
+
+`(inlay)` is a special form used to nest the contents of a record into the current record. For example the following Ouro code:
+
+``` clojure
+(:context "https://linked.art/ns/v1/linked-art.json"
+ :id      #uri "https://linked.art/example/provenance/manet_proust/1"
+ :type    "Activity"
+ :_label  "Purchase of Spring by Proust"
+ (inlay (:begin_of_the_begin #date "1881-01-01T00:00:00Z"
+         :end_of_the_end     #date (+ begin_of_the_begin (thru (years 2))))))
+```
+
+...is complied to the following JSON.
+
+``` json
+{
+  "@context": "https://linked.art/ns/v1/linked-art.json",
+  "id": "https://linked.art/example/provenance/manet_proust/1",
+  "type": "Activity",
+  "_label": "Purchase of Spring by Proust",
+  "begin_of_the_begin": "1881-01-01T00:00:00Z",
+  "end_of_the_end": "1883-12-31T23:59:59Z"
+}
+```
+
+Inlay is useful for systematically merging records, but it can also be used to merge lists. The following Ouro code:
+
+``` clojure
+(:test_list (1 2 3 (inlay to_merge))
+ :to_merge  (4 5 6))
+```
+
+...is compiled to the following JSON.
+
+``` json
+{
+  "test_list": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+  ],
+  "to_merge": [
+    4,
+    5,
+    6
+  ]
+}
+```
+
+### Insert
+
+`(insert)` serves as the dual to `(inlay)`, while `(inlay)` is used to bring things into the current scope, `(insert)` takes either a Record, or an Array, and merges its contents into the current Record/Array, `(insert)` does the same from an outside perspective. It takes an **insert position**, the payload to be inserted and a **Record**/**Array** to insert into. As Ouro is a functional language, `(insert)` returns a new instance of the original record, with the values inserted rather than mutating in-place. In this sense, `(insert)` is not to dissimilar to *lenses* in Haskell.    
+
+**Example**
+
+The following Ouro code:
+
+``` clojure
+(:inserted_into (:id   "https://linked.art/example/person/proust"
+             :type "Person")
+
+ :record    (insert 2 (attr "_label" "Proust") inserted_into))
+```
+
+...compiles to the following JSON:
+
+``` json
+{
+  "inserted_into": {
+    "id": "https://linked.art/example/person/proust",
+    "type": "Person"
+  },
+  "record": {
+    "id": "https://linked.art/example/person/proust",
+    "type": "Person",
+    "_label": "Proust"
+  }
+}
+```
+
 ## Builtin Functions
 
 Ouro has the following built in functions:
@@ -217,41 +349,163 @@ Ouro has the following built in functions:
 | **`<`**  | `(< 2 5 10)`   | Evaluates to `true` (Strictly increasing stream). |
 | **`<=`** | `(<= 5 5 10)`  | Evaluates to `true` (Increasing or equal stream). |
 
+## Template Macros
+
+Like any good Lisp, Ouro supports powerful template macros, with a slight caveat. In Ouro templates are reserved for functions return a JSON-LD graph node, meaning that all template expressions must return either a record, a list or another template which returns one of the previous.
+
+To make a template in Ouro you use the keyword `(template name! (args) body)` followed by the name of the template. The name of each templating macro must always end in a **!**, otherwise the compiler will throw a syntax error. This is to allow for template symbols to remain easily identifiable.
+
+An example of a simple template is the following:
+
+``` clojure
+(template transfer! (id-type type-of-type name)
+  (define
+    :getty      "http://vocab.getty.edu/aat/"
+    :linked-art "https://linked.art/example/"
+    :uri_type   (case id-type
+                      (("manet" "proust") (+ linked-art "person/"))
+                      ("spring"           (+ linked-art "object/"))
+                      ("manet_proust/1"   (+ linked-art "provenance/"))
+                      (otherwise          getty)))
+
+  :id     #uri (+ uri_type id-type)
+  :type   type-of-type
+  :_label name)
+```
+
+...which takes 3 arguments; `id-type`, `type-of-type` and `name` all of which are strings. If the wrong number of arguments are supplied then the compiler will fail with an arity error.  This template pattern matches on the incoming name argument and produces a valid `uri`, which is type asserted within the template, ensuring that arguments of the correct type are supplied. 
+
+### Meta-programming Templates 
+
+Templates can also support quoted arguments and defer evaluation of said arguments until an arbitrary point within the template, allowing for the powerful meta-programming abilities Lisps are synonymous with.By default, templates will eagerly evaluate their arguments at the call site before passing them in. To defer this, you use the standard quote '(...) to pass the argument as raw, un-evaluated data (an AST node). 
+
+- If the variable needs to be looked up before passing into the template then the special form `(quote)` can be used. 
+- If the variable is deeply nested then `get'` can also be used to return the quoted expression. 
+
+The template can then decide if, when, and how to execute that data using the (eval) special form. This deferred evaluation is incredibly useful for creating conditional logic or custom control structures that need to guarantee certain JSON-LD outputs aren't prematurely evaluated or injected into the graph.
+
+Consider the following Ouro code:
+
+``` clojure
+;; Global default configuration
+((define :environment "production")
+
+(template local-sandbox! ()
+  ;; Shadowing the global environment variable strictly inside this block
+  (define :environment "development")
+
+  :template-env environment) ;; => "development"
+
+ (template meta-sandbox! (template)
+    (inlay (eval template))
+    :desc "the template arg was eval'd and inlayed")
+
+;; Anywhere else in the file, 'environment' still evaluates to "production"
+ :global-env   environment
+ (inlay (local-sandbox!))
+ ;; This meta template takes a template, calls it and inlays it in the return Record
+ :meta-template (meta-sandbox! (quote local-sandbox!)))
+```
+
+Here the template `meta-sandbox!` takes a quoted template as an argument, evaluates it, and returns that templates content inlay-ed in a Record. This code compiles to the following JSON:
+
+``` json
+{
+  "global-env": "production",
+  "template-env": "development",
+  "meta-template": {
+    "template-env": "development",
+    "desc": "the template arg was eval'd and inlayed"
+  }
+}
+```
+
+This gives developers the tools to write their own data pipelines in user-space, ensuring that the final JSON-LD is both semantically correct and mathematically guaranteed by the compiler.
+
 ## Syntax Sugar
 
 Ouro offers some syntax sugar to make common Linked Art JSON-LD patterns a bit more ergonomic. An example of this is `thru`. `thru` handles the common pattern of setting a date/time occurrence to the last possible second i.e "1883-12-31T23:59:59Z". Instead of manually checking the correct months/days/minutes of a desired time in Ouro we can simply write `(thru (years 2))`. This allows us to make very human readable statements such as:
 
 ```clojure
 
- :timespan (:type               "TimeSpan"
+ (:timespan (:type               "TimeSpan"
             :begin_of_the_begin #date "1881-01-01T00:00:00Z"
-            :end_of_the_end     #date (+ begin_of_the_begin (thru (years 2))))
+            :end_of_the_end     #date (+ begin_of_the_begin (thru (years 2)))))
 ```
 
-## Canonical Example
+# Lexical Scoping
+
+Ouro uses Scheme style lexical scoping, this means that scope is defined by the structure of the source code, and not where it is located on the runtime callstack (Ouro does not have a runtime). When a function is evaluated, it looks up variables based on where its was defined, never where it was called.  If you want know what a variable evaluates to, you simply read outward through the nested blocks `()` in the source code. 
+
+This kind of scoping allows for closures (see `(template)` for a good example), as the functions remembers the environment that it was created in, scope blocks can be used to create private data, without the need for classes. 
+
+``` clojure
+(template transfer! (id-type type-of-type name)
+  (define
+    :getty      "http://vocab.getty.edu/aat/"
+    :linked-art "https://linked.art/example/"
+    :uri_type   (case id-type
+                      (("manet" "proust") (+ linked-art "person/"))
+                      ("spring"           (+ linked-art "object/"))
+                      ("manet_proust/1"   (+ linked-art "provenance/"))
+                      (otherwise          getty)))
+
+  :id     #uri (+ uri_type id-type)
+  :type   type-of-type
+  :_label name)
+```
+- In this example, the variables defined at the top (`getty`, `linked-art`, and `uri_type`) are completely private to the template's internal scope. They are safely encapsulated to help construct the final yielded record (`:id`, `:type`, `:_label`) but will never leak into or conflict with the global scope.
+
+## Shadowing
+
+Since Ouro resolves scopes from the inside out, it allows for variable shadowing. In Ouro everything besides the core structural primitives (special forms) can be shadowed. Shadowing allows you to establish broad defaults globally, while giving specific templates the freedom to override those defaults locally without leaking changes back out to the rest of the system.
+
+The following Ouro code:
+
+``` clojure
+;; Global default configuration
+((define :environment "production")
+
+(template local-sandbox! ()
+  ;; Shadowing the global environment variable strictly inside this block
+  (define :environment "development")
+
+  :template-env environment) ;; => "development"
+
+;; Anywhere else in the file, 'environment' still evaluates to "production"
+ :global-env   environment
+ (inlay (local-sandbox!)))
+```
+
+...compiles to:
+
+``` json
+{
+  "global-env": "production",
+  "template-env": "development"
+}
+```
+
+# Canonical Example
 
 *Purchase of Spring by Proust*
 ``` clojure
 ((template transfer! (id-type type-of-type name)
    (define
-     :getty             "http://vocab.getty.edu/aat/"
-     :linked-art-object "https://linked.art/example/object/"
-     :linked-art-person "https://linked.art/example/person/"
-     :uri_type (case name
-                     (("Manet" "Proust") linked-art-person)
-                     ("Spring"           linked-art-object)
-                     (otherwise          getty)))
+     :getty      "http://vocab.getty.edu/aat/"
+     :linked-art "https://linked.art/example/"
+     :uri_type   (case id-type
+                       (("manet" "proust") (+ linked-art "person/"))
+                       ("spring"           (+ linked-art "object/"))
+                       ("manet_proust/1"   (+ linked-art "provenance/"))
+                       (otherwise          getty)))
 
    :id     #uri (+ uri_type id-type)
    :type   type-of-type
    :_label name)
 
-
  :context "https://linked.art/ns/v1/linked-art.json"
- :id      #uri "https://linked.art/example/provenance/manet_proust/1"
- :type    "Activity"
- :_label  "Purchase of Spring by Proust"
-
+ (inlay (transfer! "manet_proust/1" "Activity" "Purchase of Spring by Proust"))
  :classified_as ((transfer! "300055863" "Type" "Provenance Activity"))
 
  :identified_by ((:type          "Name"
