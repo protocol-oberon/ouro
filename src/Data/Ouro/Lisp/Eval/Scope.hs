@@ -5,10 +5,10 @@ import           Control.Monad.Reader         (Reader, local)
 import           Data.Function                ((&))
 import qualified Data.Map                     as Map
 import           Data.Ouro.Error.Diagnostics  (cyclicDependency,
-                                               unboundIdentifier, withBlurb, invalidTemplateName, astCorruption)
+                                               unboundIdentifier, withBlurb, invalidTemplateName, astCorruption, shadowedVariable, shadowedVariableBlurb)
 import           Data.Ouro.Error.Types        (OuroError (..))
 import           Data.Ouro.Internal.Utils     (rankBySimilarity)
-import           Data.Ouro.Lisp.Eval.Builtins (builtinRegistry, checkShadowing)
+import           Data.Ouro.Lisp.Eval.Builtins (builtinRegistry)
 import           Data.Ouro.Lisp.Eval.Types    (Env (..), allEnvKeys)
 import qualified Data.Ouro.Lisp.Eval.Types    as L
 import qualified Data.Ouro.Lisp.Surface       as S
@@ -54,10 +54,15 @@ buildLazyEnv = curry $ \case
                         -- Case C: Standard attribute mapping accumulation pass (with structural layout check guards)
                         (env, S.Attr pos key : valExpr : rest)
                             | not (isStructuralExpr valExpr)
-                            -> do
-                               checkShadowing pos key
-                               next <- buildLazyEnv env rest
-                               pure $ Map.insert key valExpr next
+                            -> case isReserved key of
+                                  True  -> shadowedVariable key
+                                           & withBlurb (shadowedVariableBlurb key)
+                                           & OuroError pos
+                                           & Left
+
+                                  False -> do
+                                           next <- buildLazyEnv env rest
+                                           pure $ Map.insert key valExpr next
 
                         -- Case D: Safely drop lone attribute tokens without eating sibling expressions
                         (env, S.Attr {} : rest)
@@ -76,6 +81,9 @@ buildLazyEnv = curry $ \case
                         S.Form _ (S.Symbol _ "template" : _) -> True
                         _otherForm                           -> False
 
+    -- Reseverd special forms
+    isReserved :: Text -> Bool
+    isReserved name = name `elem` ["nth", "list", "quote", "eval", "case", "get", "get'", "context", "define"]
 
 buildTemplateRegistry :: Env -> [S.Expr] -> Either OuroError (Map.Map Text S.Expr)
 buildTemplateRegistry env =
@@ -105,7 +113,6 @@ buildTemplateRegistry env =
      _ : xs -> buildTemplateRegistry env xs
 
 -- Resolves dynamic lookups via local maps, builtins fallbacks, or stepping up into parent scopes.
--- Now operates purely within the Reader monad to maintain consistency with the engine.
 lookupVar
   :: (S.Expr -> Reader Env L.Expr)
   -> SourcePos
@@ -131,11 +138,10 @@ lookupVar'
 lookupVar' mEvaluator pos name env =
     case Map.lookup name (env ^. L.localScope) of
         Just surfaceExpr -> case mEvaluator of
-                                -- If we have an evaluator, run it with active cycle detection
                                 Just evaluator -> local (L.activeLookups %~ Set.insert name) (evaluator surfaceExpr)
-                                -- Safe fallback, though lookupVar' is always called with 'Just'
                                 Nothing        -> pure $ L.Quote surfaceExpr
-        Nothing          -> lookupBuiltin lookupVar' mEvaluator pos name env
+        -- Pass lookupVar' as the walker to check templates before moving to the parent
+        Nothing -> lookupTemplate lookupVar' mEvaluator pos name env
 
 
 -- Quote lookup the same as lookupVar but returns a thunk
@@ -162,28 +168,12 @@ quoteVar'
     -> Reader Env L.Expr
 quoteVar' mEvaluator pos name env =
     case Map.lookup name (env ^. L.localScope) of
-        -- Directly wrap the surface AST, intentionally ignoring mEvaluator
         Just surfaceAst -> pure $ L.Quote surfaceAst
-        -- Pass the walker and the polymorphic evaluator down the chain
-        Nothing         -> lookupBuiltin quoteVar' mEvaluator pos name env
+        -- Pass quoteVar' as the walker to preserve the thunking state up the chain
+        Nothing         -> lookupTemplate quoteVar' mEvaluator pos name env
 
 
--- Field lookup else check if it matches a native function handle
-lookupBuiltin
-    :: (Maybe (S.Expr -> Reader Env L.Expr) -> SourcePos -> Text -> Env -> Reader Env L.Expr)
-    -> Maybe (S.Expr -> Reader Env L.Expr)
-    -> SourcePos
-    -> Text
-    -> Env
-    -> Reader Env L.Expr
-lookupBuiltin scopeWalker mEvaluator pos name env =
-    case L.PrimitiveOp <$> Map.lookup name builtinRegistry of
-        Just nativeOp -> pure nativeOp
-        Nothing       -> lookupTemplate scopeWalker mEvaluator pos name env
-
--- Resolves structural template blueprints.
--- If found, wraps the AST in a first-class closure waiting for actual arguments.
--- Otherwise, delegates up the chain to lookupField.
+-- Resolves structural template blueprints at the CURRENT scope level, then steps up.
 lookupTemplate
     :: (Maybe (S.Expr -> Reader Env L.Expr) -> SourcePos -> Text -> Env -> Reader Env L.Expr)
     -> Maybe (S.Expr -> Reader Env L.Expr)
@@ -195,46 +185,43 @@ lookupTemplate scopeWalker mEvaluator pos name env =
     case Map.lookup name (env ^. L.templateRegistry) of
         Just rawAst@(S.Form _ (S.Symbol _ "template" : S.Symbol _ _ : S.Form _ argNodes : bodyExprs))
             -> case mEvaluator of
-                   -- Standard path: Return a pure data closure carrying the lexical state
-                   Just _ -> do
-                             let params = map (\case S.Symbol _ p -> p; _ -> "") argNodes
-                             pure $ L.TemplateClosure env name params bodyExprs
+                   Just    _ -> let params = map (\case S.Symbol _ p -> p; _ -> "") argNodes
+                                in pure $ L.TemplateClosure env name params bodyExprs
 
-                   -- Quote path: If called via quoteVar, return the raw template AST
-                   Nothing -> pure $ L.Quote rawAst
+                   Nothing   -> pure $ L.Quote rawAst
 
-        -- Registry corruption check
         Just _ -> astCorruption name "Corrupted template registry entry."
                   & OuroError pos
                   & L.EvalError
                   & pure
 
-        -- Not found in local templates, continue the chain
-        Nothing -> lookupField scopeWalker mEvaluator pos name env
+        -- SCHEME SCOPING If not in local templates, look into parent env
+        Nothing -> case env ^. L.parentEnv of
+                       Just pEnv -> scopeWalker mEvaluator pos name pEnv
+                       -- If no parent exists, we are at the root. Fall back to Builtins.
+                       Nothing   -> lookupBuiltin pos name env
 
 
--- Look up to the nesting parent environment if not a built in function
-lookupField
-    :: (Maybe (S.Expr -> Reader Env L.Expr) -> SourcePos -> Text -> Env -> Reader Env L.Expr)
-    -> Maybe (S.Expr -> Reader Env L.Expr)
-    -> SourcePos
+-- Field lookup else throw the final unbound error
+lookupBuiltin
+    :: SourcePos
     -> Text
     -> Env
     -> Reader Env L.Expr
-lookupField scopeWalker mEvaluator pos name env =
-    case env ^. L.parentEnv of
-        Just pEnv -> scopeWalker mEvaluator pos name pEnv
-        Nothing   -> let keys       = Set.toList $ allEnvKeys env
-                         suggestion = case rankBySimilarity name keys of
-                                        ((bestMatch, score) : _) | score <= 3
-                                            -> "\n\nPerhaps you meant: '" <> bestMatch <> "'?"
-                                        _   -> ""
-                     in unboundIdentifier name
-                        & withBlurb
-                            ( "The evaluator attempted to lookup the value for '" <> name <> "', "
-                            <> "but the identifier failed to resolve within any active scope chain."
-                            <> suggestion
-                            )
-                        & OuroError pos
-                        & L.EvalError
-                        & pure
+lookupBuiltin pos name env =
+    case L.PrimitiveOp <$> Map.lookup name builtinRegistry of
+        Just nativeOp -> pure nativeOp
+        Nothing       -> let keys       = Set.toList $ allEnvKeys env
+                             suggestion = case rankBySimilarity name keys of
+                                 ((bestMatch, score) : _) | score <= 3
+                                     -> "\n\nPerhaps you meant: '" <> bestMatch <> "'?"
+                                 _   -> ""
+                         in unboundIdentifier name
+                            & withBlurb
+                                  ( "The evaluator attempted to lookup the value for '" <> name <> "', "
+                                 <> "but the identifier failed to resolve within any active scope chain."
+                                 <> suggestion
+                                  )
+                            & OuroError pos
+                            & L.EvalError
+                            & pure
