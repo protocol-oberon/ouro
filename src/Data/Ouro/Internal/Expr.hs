@@ -103,6 +103,35 @@ instance Eq (Expr (t :: JLD.Type)) where
     -- (e.g., comparing an Attr to a Nil, both being 'JLD.List)
     _ == _ = False
 
+structuralEq :: Expr (t :: JLD.Type) -> Expr (t :: JLD.Type) -> Bool
+structuralEq =
+    curry $ \case
+             -- Leaves
+             (String _, String _)         -> True
+             (Number _, Number _)         -> True
+             (Boolean _, Boolean _)       -> True
+             (URI _, URI _)               -> True
+             (Date _, Date _)             -> True
+             (Null, Null)                 -> True
+             (BlankNode _, BlankNode _)   -> True
+             (EmptyArr, EmptyArr)         -> True
+             (EmptyRec, EmptyRec)         -> True
+
+             -- Structural Metadata Trees
+             (Context _, Context _) -> True
+             (EmptyMeta, EmptyMeta) -> True
+
+             -- Pure Binary Backbones
+             (Cons _ _, Cons _ _) -> True
+             (Attr _ _, Attr _ _) -> True
+             (Nil, Nil)           -> True
+
+             -- Boundary Gates
+             (Record _ _, Record _ _) -> True
+             (Array  _,   Array  _)   -> True
+
+             -- Catch-all for structural shape mismatches
+             _shapeMisMatch           -> False
 
 -- An existential wrapper to securely erase GADT type indices solely for tree rendering.
 data SomeExpr where

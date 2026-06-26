@@ -9,6 +9,7 @@ import           Control.Monad.Reader           (MonadReader (..), Reader,
 import           Data.Function                  ((&))
 import qualified Data.Map                       as Map
 import           Data.Ouro.Error.Diagnostics    (astCorruption,
+                                                 indexOutOfBounds,
                                                  inexhaustiveCase,
                                                  inexhaustiveCaseBlurb,
                                                  internalValueLeak,
@@ -27,15 +28,16 @@ import           Data.Ouro.Lisp.Eval.Builtins   (builtinRegistry, parseISO8601)
 import           Data.Ouro.Lisp.Eval.Schema     (parseContextDirectives)
 import           Data.Ouro.Lisp.Eval.Scope      (lookupVar, quoteVar)
 import           Data.Ouro.Lisp.Eval.Structural (BlockTarget (..), compileArray,
-                                                 compileScope,
+                                                 compileRecord, compileTemplate,
                                                  determineBlockTarget,
-                                                 resolvePath, compileTemplate)
+                                                 resolvePath)
 import           Data.Ouro.Lisp.Eval.Types      (Env (..), Expr (..),
                                                  humanReadableType)
 import qualified Data.Ouro.Lisp.Eval.Types      as L
 import qualified Data.Ouro.Lisp.Surface         as S
 import           Data.Text                      (Text)
 import qualified Data.Text                      as T
+import qualified Data.Vector                    as V
 import           Text.Megaparsec                (SourcePos)
 import qualified Text.URI                       as URI
 
@@ -57,11 +59,12 @@ evaluateToPrimitive rootExpr =
     case evaluate rootExpr of
         Primitive finalGadtTree -> Right finalGadtTree
         EvalError err           -> Left err
-        otherVal                -> Left $ OuroError (S.exprPos rootExpr) $
-                                     typeMismatch
+        otherVal                -> typeMismatch
                                        "a top-level data Record or a plain value configuration"
                                        (humanReadableType otherVal)
-                                     & withBlurb (typeMismatchBlurb otherVal)
+                                   & withBlurb (typeMismatchBlurb otherVal)
+                                   & OuroError (S.exprPos rootExpr)
+                                   & Left
 
 
 -- evalExpr.
@@ -92,9 +95,9 @@ evalExpr expr = do
         S.Literal _ S.EmptyArr  -> pure $ Primitive I.EmptyArr
         S.Literal _ S.EmptyRec  -> pure $ Primitive I.EmptyRec
 
-        S.Tagged _   tag     payload -> assertTag tag payload
-        S.Quoted _   quote           -> pure $ Quote quote
-        S.Symbol pos name            -> lookupVar evalExpr pos name env
+        S.Tagged _   tag   payload -> assertTag tag payload
+        S.Quoted _   quote         -> pure $ Quote quote
+        S.Symbol pos name          -> lookupVar evalExpr pos name env
 
         --- INTERCEPT SPECIAL FORMS ---
         S.Form _ [S.Symbol pos "context", S.Form _ directives]
@@ -136,6 +139,20 @@ evalExpr expr = do
         S.Form _ [S.Symbol _ "quote", payload]           -> pure $ Quote payload
         S.Form _ (S.Symbol _ "list" : items)             -> Array <$> mapM evalExpr items
 
+        S.Form _ [S.Symbol _ "attr", nameExpr, aExpr]
+            -> do
+               nameVal <- evalExpr nameExpr
+               case nameVal of
+                   Primitive (I.String name) -> Attr name <$> evalExpr aExpr
+                   notAStr                   -> typeMismatch
+                                                    "an expression that evaluates to String"
+                                                    (humanReadableType notAStr)
+                                                & OuroError (S.exprPos nameExpr)
+                                                & EvalError
+                                                & pure
+
+
+
         S.Form _ [S.Symbol pos "eval", qExpr]
             -> case runReader (evalExpr qExpr) env of
                    EvalError err   -> pure $ EvalError err
@@ -161,13 +178,107 @@ evalExpr expr = do
                             & EvalError
                             & pure
 
-        S.Form pos allFields
+        S.Form _ [S.Symbol _ "nth", index, target]
+            -> case runReader (evalExpr index) env of
+                   EvalError err
+                       -> pure $ EvalError err
+
+                   Primitive (I.Number i)
+                       -> case runReader (evalExpr target) env of
+                              Record _ attrs -> do
+                                              let len = (length attrs)
+                                                  idx = case i < 0 of
+                                                              True  -> len + (floor i)
+                                                              False -> floor i
+
+                                              case snd <$> (V.fromList attrs) V.!? idx of
+                                                  Just    val -> pure val
+                                                  Nothing     -> indexOutOfBounds "Record" (floor i) len
+                                                                  & OuroError (S.exprPos target)
+                                                                  & EvalError
+                                                                  & pure
+                              Array xs -> do
+                                          let len = (length xs)
+                                              idx = case i < 0 of
+                                                        True  -> len + (floor i)
+                                                        False -> floor i
+
+                                          case (V.fromList xs) V.!? idx of
+                                              Just    val  -> pure val
+                                              Nothing      -> indexOutOfBounds "Array" (floor i) len
+                                                              & OuroError (S.exprPos target)
+                                                              & EvalError
+                                                              & pure
+                              wrongType -> typeMismatch "either a Record or an Array" (humanReadableType wrongType)
+                                           & OuroError (S.exprPos target)
+                                           & EvalError
+                                           & pure
+                   notANum -> typeMismatch "an expression which evaluates to a Number" (humanReadableType notANum)
+                              & OuroError (S.exprPos index)
+                              & EvalError
+                              & pure
+
+        S.Form _ [S.Symbol _ "insert", posExpr, payloadExpr, structExpr]
             -> do
-               let wrappedEvaluator currentEnv expr' = runReader (evalExpr expr') currentEnv
-               case determineBlockTarget allFields of
-                   TargetRecord      -> pure (compileScope wrappedEvaluator env allFields)
-                   TargetList        -> pure (compileArray wrappedEvaluator env allFields)
-                   TargetFunctionApp -> applyFunction pos allFields
+               posVal     <- evalExpr posExpr
+               payloadVal <- evalExpr payloadExpr
+               structVal  <- evalExpr structExpr
+
+               case (posVal, payloadVal, structVal) of
+                   -- Error Propagation
+                   (EvalError e, _, _) -> pure $ EvalError e
+                   (_, EvalError e, _) -> pure $ EvalError e
+                   (_, _, EvalError e) -> pure $ EvalError e
+
+                   -- Array insertion
+                   (Primitive (I.Number i), pVal, Array elems@(x : _))
+                        | L.structuralEq pVal x
+                       -> let len = length elems
+                              idx = case i < 0 of
+                                        True  -> len + (floor i)
+                                        False -> floor i
+
+                              (before, after) = splitAt idx elems
+
+                          in pure $ Array (before <> [payloadVal] <> after)
+
+                   (Primitive (I.Number _), _, Array [])
+                       -> pure $ Array [payloadVal]
+
+                   -- Record insertion
+                   (Primitive (I.Number i), Attr key value, Record meta kvs)
+                       -> let len = length kvs
+                              idx = case i < 0 of
+                                        True  -> len + (floor i)
+                                        False -> floor i
+
+                              (before, after) = splitAt idx kvs
+
+                          in pure $ Record meta (before <> [(key, value)] <> after)
+
+                   -- Type Errors
+                   (Primitive (I.Number _), _, _)
+                       -> typeMismatch
+                              "a datatype for insertion matching the target data structure"
+                              ((humanReadableType payloadVal) <> " and " <> (humanReadableType structVal))
+                          & OuroError (S.exprPos payloadExpr)
+                          & EvalError
+                          & pure
+
+                   (_, _, _)
+                       -> typeMismatch
+                              "an expression which evaluates into a Number"
+                              (humanReadableType posVal)
+                          & OuroError (S.exprPos posExpr)
+                          & EvalError
+                          & pure
+
+        S.Form pos allFields
+            -> let wrappedEvaluator currentEnv expr' = runReader (evalExpr expr') currentEnv
+               in case determineBlockTarget allFields of
+                      TargetRecord      -> pure (compileRecord wrappedEvaluator env allFields)
+                      TargetList        -> pure (compileArray wrappedEvaluator env pos allFields)
+                      TargetFunctionApp -> applyFunction pos allFields
 
         otherNode
             -> let pos     = S.exprPos otherNode
@@ -287,21 +398,22 @@ applyFunction pos fields =
                 TemplateClosure closureEnv name params bodyExprs
                     -> compileTemplate evalExpr closureEnv pos name params bodyExprs argumentExprs
 
-                PrimitiveOp nativeFunc -> do
-                    evaledArgs <- mapM evalExpr argumentExprs
-                    env        <- ask
-                    pure $ runReader (nativeFunc pos evaledArgs) env
+                PrimitiveOp nativeFunc
+                    -> do
+                       evaledArgs <- mapM evalExpr argumentExprs
+                       env        <- ask
+                       pure $ runReader (nativeFunc pos evaledArgs) env
 
                 err@(EvalError _) -> pure err
-
-                otherVal -> pure $ EvalError $
-                    unboundIdentifier (humanReadableType otherVal)
-                    & withBlurb ("The evaluator attempted to invoke the form head as a callable function handle, "
-                              <> "but the identifier resolved to an immutable "
-                              <> humanReadableType otherVal
-                              <> " primitive instead.\n\n"
-                              <> "Perhaps check that target value is in scope.")
-                    & OuroError pos
+                otherVal          -> unboundIdentifier (humanReadableType otherVal)
+                                     & withBlurb ("The evaluator attempted to invoke the form head as a callable function handle, "
+                                                <> "but the identifier resolved to an immutable "
+                                                <> humanReadableType otherVal
+                                                <> " primitive instead.\n\n"
+                                                <> "Perhaps check that target value is in scope.")
+                                     & OuroError pos
+                                     & EvalError
+                                     & pure
 
         [] -> pure $ EvalError $
             unbalancedDelimiter "an active form operator symbol" "Empty Brackets"

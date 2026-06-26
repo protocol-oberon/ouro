@@ -108,6 +108,7 @@ data Expr where
     -- These maintain the open tree structure during evaluation, allowing
     -- errors to be embedded at any depth.
     Record      :: I.Expr 'JLD.Meta -> [(Text, Expr)] -> Expr
+    Attr        :: Text             -> Expr           -> Expr
     Array       :: [Expr]                             -> Expr
 
     -- Dedicated Evaluation Leaves
@@ -157,6 +158,23 @@ instance Eq Expr where
     _ == _ = False
 
 
+-- Structural equivalence, also checks for homogeneous arrays.
+structuralEq :: Expr -> Expr -> Bool
+structuralEq =
+    curry $ \case
+             (Primitive   a,     Primitive   b)     -> I.structuralEq a b
+             (Metadata    _,     Metadata    _)     -> True
+             (Record      _ _,   Record      _ _)   -> True
+             (Array      (x:_),  Array       (y:_)) -> structuralEq x y
+             (Duration    _ _,   Duration    _ _)   -> True
+             (SchemaVal   _,     SchemaVal   _)     -> True
+             (Directive   _,     Directive   _)     -> True
+             (PrimitiveOp _,     PrimitiveOp _)     -> True
+             (EvalError   _,     EvalError   _)     -> True
+             (Quote       _,     Quote       _)     -> True
+             _                                      -> False
+
+
 -- Type collapses L.Expr into internal I.Expr
 freeze :: Expr -> I.Expr 'JLD.Primitive
 freeze = \case
@@ -177,14 +195,15 @@ freeze = \case
     -- Helper: Existential bridge to I.Expr any
     -- This promotes the primitive value to the existential type required by Attr.
     foldExprToAny :: Expr -> I.Expr any
-    foldExprToAny expr = case expr of
-        Primitive p    -> unsafeCoerce p  -- We know this is safe post-harvest
-        Record m p     -> unsafeCoerce (I.Record m (foldRecordToGADT p))
-        Array els      -> unsafeCoerce (I.Array (foldArrayToGADT els))
+    foldExprToAny expr =
+        case expr of
+            Primitive p    -> unsafeCoerce p  -- We know this is safe post-harvest
+            Record m p     -> unsafeCoerce (I.Record m (foldRecordToGADT p))
+            Array els      -> unsafeCoerce (I.Array (foldArrayToGADT els))
 
-        -- Safety Guards
-        EvalError err  -> error $ "Invariant: EvalError survived harvest: " ++ show err
-        other          -> error $ "Invariant: Non-serializable node type: " ++ (T.unpack $ humanReadableType other)
+            -- Safety Guards
+            EvalError err  -> error $ "Invariant: EvalError survived harvest: " ++ show err
+            other          -> error $ "Invariant: Non-serializable node type: " ++ (T.unpack $ humanReadableType other)
 
 
 -- Calendar tracking metrics for time-shift date math engine
@@ -204,20 +223,37 @@ data PeriodUnit
 humanReadableType :: Expr -> Text
 humanReadableType =
     \case
-     Primitive   p     -> "a " <> describePrimitive p
-     SchemaVal   _     -> "Schema definition directive"
-     Directive   _     -> "Schema configuration directive"
-     Metadata    _     -> "Metadata block"
-     Duration    _ _   -> "Duration time period"
-     Array       _     -> "List layout"
-     PrimitiveOp _     -> "Built-in function"
-     Closure     _ _ _ -> "an unexecuted function (lambda)"
-     EvalError   _     -> "an Error"
-     Quote       _     -> "an unevaluated expression"
-     Record      _ _   -> "an Record block"
-
+     Primitive   p      -> "a " <> describePrimitive p
+     SchemaVal   _      -> "a Schema definition directive"
+     Directive   _      -> "a Schema configuration directive"
+     Metadata    _      -> "a Metadata block"
+     Duration    _ _    -> "a Duration time period"
+     Array       elems  -> describeArray elems
+     PrimitiveOp _      -> "a Built-in function"
+     Closure     _ _ _  -> "an unexecuted function (lambda)"
+     EvalError   _      -> "an Error"
+     Quote       _      -> "an unevaluated expression"
+     Record      _ _    -> "a Record"
+     Attr        _ _    -> "an unbound Attribute pair"
      TemplateClosure _ _ _ _ -> "an unexecuted template macro"
 
+-- Evaluates the root Array
+describeArray :: [Expr] -> Text
+describeArray =
+    \case
+     []    -> "an empty Array"
+     (x:_) -> case x of
+                  Array inner -> "an Array of "         <> describeInnerArray inner
+                  _innerArray -> "an Array containing " <> humanReadableType x
+
+-- Recursively pluralizes nested Arrays until it hits the payload
+describeInnerArray :: [Expr] -> Text
+describeInnerArray =
+    \case
+     []    -> "empty Arrays"
+     (x:_) -> case x of
+                  Array inner -> "Arrays of " <> describeInnerArray inner
+                  _notNested  -> "Arrays containing " <> humanReadableType x
 
 -- Helper to describe the inner Primitive
 describePrimitive :: I.Expr 'JLD.Primitive -> Text

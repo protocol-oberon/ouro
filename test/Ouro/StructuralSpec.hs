@@ -17,4 +17,4 @@ spec = describe "Structural Lookaheads" $ do
     it "routes nested objects to TargetList      " $ determineBlockTarget [S.Form nullPos [S.Attr nullPos "id"]]                             `shouldBe` TargetList
     it "routes nested matrices to TargetList     " $ determineBlockTarget [S.Form nullPos [S.Literal nullPos (S.Num 1)]]                     `shouldBe` TargetList
     it "routes nested functions to TargetList    " $ determineBlockTarget [S.Form nullPos [S.Symbol nullPos "+"]]                            `shouldBe` TargetList
-    it "defaults empty streams to TargetRecord   " $ determineBlockTarget []                                                                 `shouldBe` TargetRecord
+    it "defaults empty streams to TargetList     " $ determineBlockTarget []                                                                 `shouldBe` TargetList

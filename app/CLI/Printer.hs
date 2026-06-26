@@ -30,7 +30,7 @@ import           Prettyprinter                 (Doc, LayoutOptions (..),
                                                 indent, layoutSmart, nest,
                                                 reAnnotateS, sep, vsep)
 import           Prettyprinter.Render.Terminal (AnsiStyle, Color (..), bold,
-                                                color, renderIO, colorDull)
+                                                color, colorDull, renderIO)
 import           System.IO                     (stderr)
 import           Text.Megaparsec               (SourcePos)
 import           Text.Megaparsec.Pos           (sourceColumn, sourceLine, unPos)
@@ -208,7 +208,7 @@ splitErrorContext = \case
 
     Syntax (ShadowedVariableError _shadow)
         -> ("Shadowed Attribute"
-           , [ labeled "This attribute key shadows an builtin function" ""]
+           , [ labeled "This attribute key shadows a core language primative" ""]
            , Nothing
            )
 
@@ -268,6 +268,14 @@ splitErrorContext = \case
         -> ("Incorrect Arity"
            , [ labeled (pretty $ "The function '" <> name <> "' expects " <> (T.pack $ show exp) <> "number of arguments.") ""
              , labeled (pretty $ "Got: " <> (T.pack $ show act) <> "number of argumnets instead.") ""
+             ]
+           , Nothing
+           )
+
+    Scope (IndexOutOfBoundsError tOft att act)
+        -> ("Index Out of Bonds"
+           , [ labeled "The function 'nth' attempted to look up an element with an index: "                 (pretty $ T.pack $ show att)
+             , labeled (pretty $ "But it was out of bounds as the target " <> tOft <> " has a length of: ") (pretty $ T.pack $ show act)
              ]
            , Nothing
            )

@@ -17,10 +17,10 @@ import           Data.Ouro.Lisp.Eval.Types (humanReadableType)
 import qualified Data.Ouro.Lisp.Eval.Types as L
 import           Data.Text                 (Text)
 import qualified Data.Text                 as T
+import           GHC.ExecutionStack        (Location (functionName))
 import           GHC.Generics              (C1, D1, Generic (from), M1 (..),
                                             Rep, type (:+:) (..))
 import           Text.Printf               (printf)
-import GHC.ExecutionStack (Location(functionName))
 
 
 -- Append an educational explanation block to any underlying error context.
@@ -110,6 +110,10 @@ incorrectArity name argNo actNo = Scope $ IncorrectArity
     , expectNoArgs = argNo
     , actualNoArgs = actNo
     }
+
+
+indexOutOfBounds :: Text -> Int -> Int -> ErrorContext
+indexOutOfBounds = \tOft att act -> Scope $ IndexOutOfBoundsError tOft att act
 
 
 -- Internal Violations

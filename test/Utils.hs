@@ -14,7 +14,7 @@ import qualified Data.Text                    as T
 import qualified Data.Text.IO                 as TIO
 import qualified Data.Text.Lazy.IO            as TLIO
 import           Test.Hspec                   (expectationFailure, shouldBe)
-import Text.Megaparsec (SourcePos, initialPos)
+import           Text.Megaparsec              (SourcePos, initialPos)
 
 
 runCompileInline :: String -> CompilationResult

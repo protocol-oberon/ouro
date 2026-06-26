@@ -108,17 +108,17 @@ structuralEq e1 e2 =
     matchForms xs ys =
         case (xs, ys) of
             -- Both empty: end of list reached simultaneously
-            ([], []) -> True
+            ([], [])          -> True
 
             -- Hole at head: match remainder
             (Hole _ _ : _, _) -> True
             (_, Hole _ _ : _) -> True
 
             -- Both have elements: check head, recurse on tail
-            (x:xs', y:ys') -> structuralEq x y && matchForms xs' ys'
+            (x:xs', y:ys')    -> structuralEq x y && matchForms xs' ys'
 
             -- Mismatched lengths
-            _ -> False
+            _                 -> False
 
 -- A runtime truth table to tell what shap of ast is present
 data ExprMarker

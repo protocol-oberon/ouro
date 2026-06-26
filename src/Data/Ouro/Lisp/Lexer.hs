@@ -12,9 +12,10 @@ import qualified Text.Megaparsec            as M
 import           Text.Megaparsec            (MonadParsec (eof, lookAhead),
                                              ParseError (..), Parsec, choice,
                                              getSourcePos, many, manyTill,
-                                             oneOf, runParser, some, try, (<|>), notFollowedBy)
+                                             notFollowedBy, oneOf, runParser,
+                                             some, try, (<|>))
 import           Text.Megaparsec.Char       (alphaNumChar, char, letterChar,
-                                             space1, string, spaceChar)
+                                             space1, spaceChar, string)
 import qualified Text.Megaparsec.Char.Lexer as L
 import           Text.Megaparsec.Error      (ErrorItem (Tokens),
                                              ParseErrorBundle)

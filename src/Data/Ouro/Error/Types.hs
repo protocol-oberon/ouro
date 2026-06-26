@@ -197,6 +197,12 @@ data ScopeError
       , expectNoArgs :: Int
       , actualNoArgs :: Int
       }
+
+    | IndexOutOfBoundsError
+      { typeOfTarget   :: Text
+      , attemptedIndex :: Int
+      , actualLen      :: Int
+      }
     deriving (Show, Eq, Ord, Generic)
 
 

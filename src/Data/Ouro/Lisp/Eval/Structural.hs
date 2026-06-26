@@ -6,15 +6,17 @@ module Data.Ouro.Lisp.Eval.Structural where
 import           Control.Monad.Reader        (Reader, runReader)
 import           Data.Function               ((&))
 import qualified Data.Map                    as Map
-import           Data.Ouro.Error.Diagnostics (internalValueLeak, missingPathKey,
-                                              typeMismatch, typeMismatchBlurb,
-                                              unboundIdentifier, withBlurb, incorrectArity)
+import           Data.Ouro.Error.Diagnostics (incorrectArity, internalValueLeak,
+                                              missingPathKey, typeMismatch,
+                                              typeMismatchBlurb,
+                                              unboundIdentifier, withBlurb)
 import           Data.Ouro.Error.Types       (OuroError (..))
 import qualified Data.Ouro.Internal.Expr     as I
 import qualified Data.Ouro.Internal.Kinds    as JLD
 import           Data.Ouro.Internal.Utils    (rankBySimilarity)
 import           Data.Ouro.Lisp.Eval.Schema  (parseContextDirectives)
-import           Data.Ouro.Lisp.Eval.Scope   (buildLazyEnv, buildTemplateRegistry)
+import           Data.Ouro.Lisp.Eval.Scope   (buildLazyEnv,
+                                              buildTemplateRegistry)
 import           Data.Ouro.Lisp.Eval.Types   (Env (..), Expr (..), allEnvKeys,
                                               humanReadableType)
 import qualified Data.Ouro.Lisp.Eval.Types   as L
@@ -92,6 +94,9 @@ emitProps evaluator env expressions = go I.EmptyMeta expressions
 
                   -- Case B: Define Blocks are explicitly erased from the output JSON graph at comptime
                   S.Form _ (S.Symbol _ "define" : _) : rest -> go metaAcc rest
+
+                  -- Case B.25 TRUE ERASURE: Skip ubound attrs from attr from
+                  S.Form _ [S.Symbol _ "attr", _, _] : rest -> go metaAcc rest
 
                   -- Case B.5 Template Blocks are also explicity erased from output JSON graph at comptime
                   S.Form _ (S.Symbol _ "template" : _) : rest -> go metaAcc rest
@@ -185,10 +190,30 @@ emitProps evaluator env expressions = go I.EmptyMeta expressions
 compileArray
     :: (Env -> S.Expr -> L.Expr)
     -> Env
+    -> SourcePos
     -> [S.Expr]
     -> L.Expr
-compileArray evaluator env elements = Array (compileElements elements)
+compileArray evaluator env pos elements = validateElems pos (compileElements elements)
     where
+    validateElems :: SourcePos -> [L.Expr] -> L.Expr
+    validateElems p allElems =
+        case allElems of
+            []     -> Array []
+            (x:xs) -> let findMismatch currentList =
+                                     case currentList of
+                                         []     -> Nothing
+                                         (y:ys) -> case L.structuralEq x y of
+                                                       True  -> findMismatch ys
+                                                       False -> Just y
+
+                      in case findMismatch xs of
+                             Nothing      -> Array allElems
+                             Just badElem -> typeMismatch
+                                                 "Array values to be of the same type"
+                                                 (humanReadableType x <> " and " <> humanReadableType badElem)
+                                             & OuroError p
+                                             & EvalError
+
     compileElements :: [S.Expr] -> [L.Expr]
     compileElements exprs =
         case exprs of
@@ -202,6 +227,9 @@ compileArray evaluator env elements = Array (compileElements elements)
 
             -- Case B: TRUE ERASURE: Skip context blocks completely inside arrays
             S.Form _ [S.Symbol _ "context", S.Form _ _] : xs -> compileElements xs
+
+            -- Case B.25 TRUE ERASURE: Skip ubound attrs from attr from
+            S.Form _ [S.Symbol _ "attr", _, _] : xs -> compileElements xs
 
             -- Case B.5: Inlay evaluated array elements directly into the current array scope
             S.Form _ [S.Symbol pos "inlay", iExpr] : xs
@@ -231,10 +259,10 @@ compileArray evaluator env elements = Array (compileElements elements)
                                                   in EvalError err : compileElements xs
 
             -- Case C: Process structured nested forms (Records or trailing list matrices)
-            (_formExpr@(S.Form pos fields) : xs)
+            (_formExpr@(S.Form _ fields) : xs)
                 -- 1. Intercept Nested Arrays: recursively compile as a matrix
                 | TargetList <- determineBlockTarget fields
-                -> compileArray evaluator env fields : compileElements xs
+                -> compileArray evaluator env pos fields : compileElements xs
 
                 -- 2. Intercept Nested Records: compile using the object scope builder
                 | TargetRecord <- determineBlockTarget fields
@@ -290,13 +318,12 @@ data BlockTarget
 determineBlockTarget :: [S.Expr] -> BlockTarget
 determineBlockTarget fields =
     case fields of
-        []  -> TargetRecord
-        (x : xs)
-            -> case isFunctionApplication (x : xs) of
-                    True -> TargetFunctionApp
-                    False -> case any isStructuralField fields of
-                                True  -> TargetRecord
-                                False -> TargetList
+        []       -> TargetList
+        (x : xs) -> case isFunctionApplication (x : xs) of
+                        True -> TargetFunctionApp
+                        False -> case any isStructuralField fields of
+                                         True  -> TargetRecord
+                                         False -> TargetList
 
     where
     isFunctionApplication :: [S.Expr] -> Bool
@@ -464,7 +491,7 @@ compileTemplate evaluator parentEnv pos name params bodyExprs actualArgs =
                     -- Pass the prepared environment down into the block compiler
                     case determineBlockTarget bodyExprs of
                         TargetRecord      -> pure $ compileRecord evaluator' templateEnv bodyExprs
-                        TargetList        -> pure $ compileArray  evaluator' templateEnv bodyExprs
+                        TargetList        -> pure $ compileArray  evaluator' templateEnv pos bodyExprs
                         TargetFunctionApp -> typeMismatch
                                                  "the template to evaluate to either a Record or an Array"
                                                  "a ast shape which corresponds to function appliaction"

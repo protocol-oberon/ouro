@@ -9,11 +9,11 @@ import           Data.Char           (toLower)
 import           Data.Version        (showVersion)
 import           Options.Applicative (Parser, argument, auto, command,
                                       customExecParser, eitherReader, fullDesc,
-                                      header, help, helper, info, long, metavar,
-                                      option, optional, prefs, progDesc, short,
-                                      showHelpOnEmpty, showHelpOnError, str,
-                                      strOption, subparser, switch, value, infoOption,
-                                      (<**>))
+                                      header, help, helper, info, infoOption,
+                                      long, metavar, option, optional, prefs,
+                                      progDesc, short, showHelpOnEmpty,
+                                      showHelpOnError, str, strOption,
+                                      subparser, switch, value, (<**>))
 import           Paths_ouro          (version)
 import           System.FilePath     (takeExtension)
 

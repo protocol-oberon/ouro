@@ -4,7 +4,6 @@
 
 module Data.Ouro.Lisp.Eval.Builtins
 ( builtinRegistry
-, checkShadowing
 , parseISO8601
 , isNumber
 ) where
@@ -57,15 +56,6 @@ builtinRegistry = Map.fromList
                       , ("years-end",   handleYearsEndModifier)
                       , ("months-end",  handleMonthsEndModifier)
                       ]
-
-
-checkShadowing :: SourcePos -> Text -> Either OuroError ()
-checkShadowing pos name = case Map.member name builtinRegistry of
-                              True  -> shadowedVariable name
-                                       & withBlurb (shadowedVariableBlurb name)
-                                       & OuroError pos
-                                       & Left
-                              False -> Right ()
 
 
 --- Core Math & String Accumulators ---

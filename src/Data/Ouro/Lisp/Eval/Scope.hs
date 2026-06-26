@@ -4,8 +4,11 @@ module Data.Ouro.Lisp.Eval.Scope where
 import           Control.Monad.Reader         (Reader, local)
 import           Data.Function                ((&))
 import qualified Data.Map                     as Map
-import           Data.Ouro.Error.Diagnostics  (cyclicDependency,
-                                               unboundIdentifier, withBlurb, invalidTemplateName, astCorruption, shadowedVariable, shadowedVariableBlurb)
+import           Data.Ouro.Error.Diagnostics  (astCorruption, cyclicDependency,
+                                               invalidTemplateName,
+                                               shadowedVariable,
+                                               shadowedVariableBlurb,
+                                               unboundIdentifier, withBlurb)
 import           Data.Ouro.Error.Types        (OuroError (..))
 import           Data.Ouro.Internal.Utils     (rankBySimilarity)
 import           Data.Ouro.Lisp.Eval.Builtins (builtinRegistry)
@@ -14,9 +17,9 @@ import qualified Data.Ouro.Lisp.Eval.Types    as L
 import qualified Data.Ouro.Lisp.Surface       as S
 import qualified Data.Set                     as Set
 import           Data.Text                    (Text)
+import qualified Data.Text                    as T
 import           Lens.Micro                   ((%~), (^.))
 import           Text.Megaparsec              (SourcePos)
-import qualified Data.Text as T
 
 
 -- buildLazyEnv.
@@ -83,7 +86,8 @@ buildLazyEnv = curry $ \case
 
     -- Reseverd special forms
     isReserved :: Text -> Bool
-    isReserved name = name `elem` ["nth", "list", "quote", "eval", "case", "get", "get'", "context", "define"]
+    isReserved name = name `elem` ["nth", "list", "quote", "eval", "case", "get", "get'", "context", "define", "inlay", "insert", "attr"]
+
 
 buildTemplateRegistry :: Env -> [S.Expr] -> Either OuroError (Map.Map Text S.Expr)
 buildTemplateRegistry env =
@@ -111,6 +115,7 @@ buildTemplateRegistry env =
 
      -- Case C: Safely ignore variables, contexts, and attributes
      _ : xs -> buildTemplateRegistry env xs
+
 
 -- Resolves dynamic lookups via local maps, builtins fallbacks, or stepping up into parent scopes.
 lookupVar
@@ -213,7 +218,7 @@ lookupBuiltin pos name env =
         Just nativeOp -> pure nativeOp
         Nothing       -> let keys       = Set.toList $ allEnvKeys env
                              suggestion = case rankBySimilarity name keys of
-                                 ((bestMatch, score) : _) | score <= 3
+                                 ((bestMatch, score) : _) | score <=3
                                      -> "\n\nPerhaps you meant: '" <> bestMatch <> "'?"
                                  _   -> ""
                          in unboundIdentifier name
