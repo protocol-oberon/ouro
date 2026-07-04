@@ -493,7 +493,7 @@ compileTemplate evaluator parentEnv pos name params bodyExprs actualArgs =
                         TargetRecord      -> pure $ compileRecord evaluator' templateEnv bodyExprs
                         TargetList        -> pure $ compileArray  evaluator' templateEnv pos bodyExprs
                         TargetFunctionApp -> typeMismatch
-                                                 "the template to evaluate to either a Record or an Array"
+                                                 "a template that evaluate to either a Record or an Array"
                                                  "a ast shape which corresponds to function appliaction"
                                              & OuroError pos
                                              & L.EvalError
