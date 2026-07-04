@@ -42,14 +42,15 @@ import           Text.Megaparsec (SourcePos)
 -- completely consumed by the compilation Engine, which resolves its lazy environments, expands its
 -- macro closures, and transforms it into the permanently typed, hyper-strict 'JLD.Type' core GADT.
 data Expr
-    = Attr    SourcePos Text            -- :id
-    | Symbol  SourcePos Text            -- lambda, assertion, variable names
-    | Literal SourcePos LiteralValue    -- Raw String, Number, Boolean, Null
-    | Tagged  SourcePos ReaderTag Expr  -- #uri "...", #date "..."
-    | Quoted  SourcePos Expr
-    | Hole    SourcePos Text
-    | Form    SourcePos [Expr]          -- (...) nested lists
-    | Bracket SourcePos [Expr]          -- [...] scoping or block grouping
+    = Attr           SourcePos Text            -- :id
+    | Symbol         SourcePos Text            -- variable names and functions
+    | TemplateSymbol SourcePos Text            -- template identifiers
+    | Literal        SourcePos LiteralValue    -- Raw String, Number, Boolean, Null
+    | Tagged         SourcePos ReaderTag Expr  -- #uri "...", #date "..."
+    | Quoted         SourcePos Expr            -- Un-eval'd Asts
+    | Hole           SourcePos Text            -- Type hole for structural shape
+    | Form           SourcePos [Expr]          -- (...) nested lists
+    | Bracket        SourcePos [Expr]          -- [...] scoping or block grouping
     deriving (Show, Eq)
 
 

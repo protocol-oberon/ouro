@@ -57,10 +57,15 @@ pDelims = lexeme . withPos $ choice
 -- Core Operational Keywords & Symbols
 pCoreKeywords :: Parser Tkn.Token
 pCoreKeywords = lexeme . withPos $ choice
-                                   [ Tkn.Let      <$ string "let"     <* choice [space1, () <$ lookAhead (oneOf ("()[]" :: String)), eof]
-                                   , Tkn.Context  <$ string "context" <* choice [space1, () <$ lookAhead (oneOf ("()[]" :: String)), eof]
-                                   , Tkn.Template <$ string "tempate" <* choice [space1, () <$ lookAhead (oneOf ("()[]" :: String)), eof]
-                                   ]
+    [ Tkn.Import   <$ string "import"   <* endOfWord
+    , Tkn.Export   <$ string "export"   <* endOfWord
+    , Tkn.Defun    <$ string "defun"    <* endOfWord
+    , Tkn.Template <$ string "template" <* endOfWord
+    , Tkn.Graph    <$ string "graph"    <* endOfWord
+    ]
+
+    where
+    endOfWord = choice [space1, () <$ lookAhead (oneOf ("()[]" :: String)), eof]
 
 
 -- Attributed Keys and Context Flags starting with ':'
@@ -147,10 +152,17 @@ pLiterals = lexeme . withPos $ choice
 
 -- Fallback General Symbols (Variables, functions, operations)
 pSymbol :: Parser Tkn.Token
-pSymbol = lexeme . withPos $ do
-                             first <- letterChar <|> oneOf ("_+-*/<>=!&|~" :: String)
-                             rest  <- many (alphaNumChar <|> oneOf ("_-+*/<>=!?&|~'" :: String))
-                             pure (Tkn.Symbol (T.pack (first : rest)))
+pSymbol = lexeme . withPos $
+    do
+    first <- letterChar <|> oneOf ("_+-*/<>=!&|~" :: String)
+    rest  <- many (alphaNumChar <|> oneOf ("_-+*/<>=!?&|~'" :: String))
+
+    let raw = T.pack (first : rest)
+
+    -- Lexical bifurcation: If it ends in '!', it is strictly a template.
+    pure $ case T.last raw == '!' of
+               True  -> Tkn.TemplateSymbol raw
+               False -> Tkn.Symbol         raw
 
 
 pSingleToken :: Parser Tkn.Token

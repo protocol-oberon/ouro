@@ -17,7 +17,6 @@ import           Data.Ouro.Lisp.Eval.Types (humanReadableType)
 import qualified Data.Ouro.Lisp.Eval.Types as L
 import           Data.Text                 (Text)
 import qualified Data.Text                 as T
-import           GHC.ExecutionStack        (Location (functionName))
 import           GHC.Generics              (C1, D1, Generic (from), M1 (..),
                                             Rep, type (:+:) (..))
 import           Text.Printf               (printf)

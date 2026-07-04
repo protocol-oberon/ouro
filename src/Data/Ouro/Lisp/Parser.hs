@@ -1,15 +1,27 @@
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE GADTs     #-}
+
 module Data.Ouro.Lisp.Parser where
 
-import           Control.Monad.State.Strict (MonadState (get, put),
-                                             MonadTrans (lift),
-                                             StateT (runStateT))
-import           Data.Ouro.Error.Types      (ErrorContext (..), OuroError (..),
-                                             SyntaxError (..))
-import qualified Data.Ouro.Lisp.Surface     as S
-import qualified Data.Ouro.Lisp.Tokens      as Tkn
-import qualified Data.Text                  as T
-import           Text.Megaparsec            (SourcePos)
-import qualified Text.Megaparsec.Pos        as M
+import           Control.Monad.State.Strict  (MonadState (get, put),
+                                              MonadTrans (lift),
+                                              StateT (runStateT))
+import qualified Data.Function               as F
+import qualified Data.Map                    as Map
+import           Data.Ouro.Error.Diagnostics (lexicalError, unbalancedDelimiter)
+import           Data.Ouro.Error.Types       (ErrorContext (..), OuroError (..),
+                                              SyntaxError (..))
+import           Data.Ouro.Lisp.Module.Types (Declaration (..),
+                                              HigherExpression (..),
+                                              Module (..), functionRegistry,
+                                              graphRegistry, templateRegistry)
+import qualified Data.Ouro.Lisp.Surface      as S
+import qualified Data.Ouro.Lisp.Tokens       as Tkn
+import           Data.Text                   (Text)
+import qualified Data.Text                   as T
+import           Lens.Micro.Platform         (at, (&), (?~))
+import           Text.Megaparsec             (SourcePos)
+import qualified Text.Megaparsec.Pos         as M
 
 
 -- A simple compiler tracking state holding our remaining token stream
@@ -17,20 +29,154 @@ type ParseState = [Tkn.Token]
 
 type Parser a = StateT ParseState (Either OuroError) a
 
+-- Wraper for type indexed higher expressions
+data ParsedDecl
+    = PFunction (HigherExpression 'FunctionExpr)
+    | PTemplate (HigherExpression 'TemplateExpr)
+    | PGraph    (HigherExpression 'GraphExpr)
+
 
 -- Top-level entry point
-parse :: [Tkn.Token] -> Either OuroError S.Expr
-parse tokens = do
-    (expr, remaining) <- runStateT pExpr tokens
-    case remaining of
-        []    -> Right expr
-        (t:_) -> let pos     = Tkn.pos t
-                     tType   = Tkn.tokenType t
-                     context = Syntax UnbalancedDelimiter
-                                 { expectedDelim = "EOF (End of File) or structural closing boundary"
-                                 , actualDelim   = T.pack (show tType)
-                                 }
-                 in Left (OuroError pos context)
+parseModule :: [Tkn.Token] -> Either OuroError Module
+parseModule tokens = do
+    (decls, _) <- runStateT (collectHigherExpressions []) tokens
+    pure $ buildModuleRegistry decls
+
+
+-- Collection Pass (Building the structured env)
+buildModuleRegistry :: [ParsedDecl] -> Module
+buildModuleRegistry = foldl insertDecl emptyModule
+    where
+    emptyModule = Module Map.empty Map.empty Map.empty Map.empty
+
+    insertDecl :: Module -> ParsedDecl -> Module
+    insertDecl m = \case
+                    (PFunction d@(Function _ name _ _)) -> m & functionRegistry . at name ?~ d
+                    (PTemplate t@(Template _ name _ _)) -> m & templateRegistry . at name ?~ t
+                    (PGraph    g@(Graph    _ name _  )) -> m & graphRegistry    . at name ?~ g
+
+
+collectHigherExpressions :: [ParsedDecl] -> Parser [ParsedDecl]
+collectHigherExpressions acc = do
+    tokens <- get
+    case tokens of
+        []          -> pure (reverse acc) -- EOF reached safely
+        _hasTokens  -> do
+                       decl <- pHigherExpression
+                       collectHigherExpressions (decl : acc)
+
+
+pHigherExpression :: Parser ParsedDecl
+pHigherExpression = do
+    startTkn <- popToken "Expected expression declaration starting with '('"
+    case Tkn.tokenType startTkn of
+        Tkn.OpenParen -> do
+                         kwTkn <- popToken "Expected higher expression declaration keyword (defun, template, graph)"
+                         case Tkn.tokenType kwTkn of
+                             Tkn.Defun    -> pFunction (Tkn.pos startTkn)
+                             Tkn.Template -> pTemplate (Tkn.pos startTkn)
+                             Tkn.Graph    -> pGraph    (Tkn.pos startTkn)
+                             other        -> lexicalError ("Invalid top-level keyword: " <> T.pack (show other))
+                                             F.& OuroError (Tkn.pos kwTkn)
+                                             F.& Left
+                                             F.& lift
+        other -> lexicalError ("Higher Expressions must begin with '('. Found: " <> T.pack (show other))
+                 F.& OuroError (Tkn.pos startTkn)
+                 F.& Left
+                 F.& lift
+
+
+pFunction :: SourcePos -> Parser ParsedDecl
+pFunction pos = do
+    name <- expectSymbol "Expected function name"
+    args <- pArgs
+    body <- pExpr
+    expectCloseParen
+    pure $ PFunction (Function pos name args body)
+
+
+pTemplate :: SourcePos -> Parser ParsedDecl
+pTemplate pos = do
+    -- We specifically enforce the TemplateSymbol (e.g., ends in '!')
+    name <- expectTemplateSymbol "Expected template name ending with '!'"
+    args <- pArgs
+    body <- pExpr
+    expectCloseParen
+    pure $ PTemplate (Template pos name args body)
+
+
+pGraph :: SourcePos -> Parser ParsedDecl
+pGraph pos = do
+    name <- expectSymbol "Expected graph name"
+    body <- pExpr
+    expectCloseParen
+    pure $ PGraph (Graph pos name body)
+
+
+popToken :: Text -> Parser Tkn.Token
+popToken err = do
+    stream <- get
+    case stream of
+        []     -> lexicalError err
+                  F.& OuroError (M.initialPos "unknown-source")
+                  F.& Left
+                  F.& lift
+        (t:ts) -> put ts >> pure t
+
+
+expectSymbol :: Text -> Parser Text
+expectSymbol err = do
+    t <- popToken err
+    case Tkn.tokenType t of
+        Tkn.Symbol name -> pure name
+        _notASymbol     -> lexicalError err
+                           F.& OuroError (Tkn.pos t)
+                           F.& Left
+                           F.& lift
+
+
+expectTemplateSymbol :: Text -> Parser Text
+expectTemplateSymbol err = do
+    t <- popToken err
+    case Tkn.tokenType t of
+        Tkn.TemplateSymbol name -> pure name
+        _notATemplateSymbol     -> lexicalError err
+                                   F.& OuroError (Tkn.pos t)
+                                   F.& Left
+                                   F.& lift
+
+
+expectCloseParen :: Parser ()
+expectCloseParen = do
+    t <- popToken "Expected closing ')'"
+    case Tkn.tokenType t of
+        Tkn.CloseParen -> pure ()
+        _notAParen     -> unbalancedDelimiter "Expected ')'" "Found something else"
+                          F.& OuroError (Tkn.pos t)
+                          F.& Left
+                          F.& lift
+
+
+pArgs :: Parser [Text]
+pArgs = do
+    t <- popToken "Expected '(' for argument list"
+    case Tkn.tokenType t of
+        Tkn.OpenParen -> collectArgs []
+        _other        -> lexicalError "Expected argument list starting with '('"
+                         F.& OuroError (Tkn.pos t)
+                         F.& Left
+                         F.& lift
+
+    where
+    collectArgs acc = do
+        t <- popToken "Expected argument or ')'"
+        case Tkn.tokenType t of
+            Tkn.CloseParen      -> pure $ reverse acc
+            Tkn.Symbol     name -> collectArgs (name : acc)
+            _notASymbol         -> lexicalError "Argument lists can only contain symbols"
+                                   F.& OuroError (Tkn.pos t)
+                                   F.& Left
+                                   F.& lift
 
 
 -- Recursive Expr Router
@@ -39,7 +185,7 @@ pExpr = do
         tokens <- get
         case tokens of
             -- For a sudden EOF, we generate an unclosed delimiter payload
-            []     -> let pos     = M.initialPos "unknown-source" -- Or pass down the last known token's position
+            []     -> let pos     = M.initialPos "unknown-source"
                           context = Syntax UnbalancedDelimiter
                                     { expectedDelim = "Expression node layout component"
                                     , actualDelim   = "EOF (End of File)"
@@ -54,7 +200,6 @@ pExpr = do
 
                              -- Primitive Leaf Node capture (+ source location)
                              Tkn.Let            -> capture (S.Symbol (Tkn.pos t) "let")
-                             Tkn.Context        -> capture (S.Symbol (Tkn.pos t) "context")
                              Tkn.Template       -> capture (S.Symbol (Tkn.pos t) "template")
                              Tkn.FlagVocab      -> capture (S.Attr   (Tkn.pos t) "vocab")
                              Tkn.FlagLanguage   -> capture (S.Attr   (Tkn.pos t) "language")

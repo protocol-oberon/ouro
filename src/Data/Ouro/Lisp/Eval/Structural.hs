@@ -24,7 +24,7 @@ import qualified Data.Ouro.Lisp.Surface      as S
 import qualified Data.Set                    as Set
 import           Data.Text                   (Text)
 import           Lens.Micro                  ((.~), (^.))
-import Text.Megaparsec (SourcePos)
+import           Text.Megaparsec             (SourcePos)
 
 
 -- compileRecord.

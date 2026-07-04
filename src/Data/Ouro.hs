@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE GADTs     #-}
 
 module Data.Ouro
   -- * Core Compilation Pipeline
@@ -35,9 +36,11 @@ import           Control.Monad.Writer        (Writer, runWriter, tell)
 import           Data.Function               ((&))
 import           Data.List.NonEmpty          (NonEmpty (..))
 import qualified Data.List.NonEmpty          as NE
+import qualified Data.Map                    as Map
 import           Data.Ouro.Error.Diagnostics (smartErrorCode, smartWarningCode,
-                                              typeMismatch, warningBlurb,
-                                              warningSummary, withBlurb)
+                                              typeMismatch, unboundIdentifier,
+                                              warningBlurb, warningSummary,
+                                              withBlurb)
 import qualified Data.Ouro.Error.Linter      as LN
 import           Data.Ouro.Error.Types       (ErrorContext (..),
                                               InternalError (..),
@@ -59,12 +62,16 @@ import qualified Data.Ouro.Lisp.Eval.Engine  as EN
 import           Data.Ouro.Lisp.Eval.Types   (Expr (..), freeze)
 import qualified Data.Ouro.Lisp.Eval.Types   as L
 import qualified Data.Ouro.Lisp.Lexer        as LX
+import           Data.Ouro.Lisp.Module.Types (HigherExpression (..),
+                                              graphRegistry)
 import qualified Data.Ouro.Lisp.Parser       as LP
 import qualified Data.Ouro.Lisp.Surface      as S
 import           Data.Set                    (Set)
 import qualified Data.Set                    as Set
 import           Data.Text                   (Text)
 import qualified Data.Text.Lazy              as TL
+import           Lens.Micro.Platform         ((^.))
+import qualified Text.Megaparsec             as M
 import           Text.Megaparsec             (errorBundlePretty)
 
 
@@ -91,12 +98,22 @@ compile filename content = compilationResult . runWriter . runExceptT $ compile'
                tell $ LN.lintExpression tokens
 
                -- Pass 3: Synatic Parsing
-               surfaceAST <- case LP.parse tokens of
-                                 Left  parseErr -> throwError $ pure parseErr
-                                 Right ast      -> return ast
+               env <- case LP.parseModule tokens of
+                          Left  parseErr  -> throwError $ pure parseErr
+                          Right moduleEnv -> return moduleEnv
+
+               -- For now, just compile first graph
+               graph <- case Map.lookupMin (env ^. graphRegistry) of
+                            Just    (_, g) -> return g
+                            Nothing        -> unboundIdentifier "No graphs present"
+                                              & OuroError (M.initialPos "There no pos")
+                                              & pure
+                                              & throwError
 
                -- Pass 4: Evaluation
-               let evalTree = EN.evaluate (Canon.construct surfaceAST)
+               let pAst     = case graph of
+                                  Graph    _ _   gAst -> gAst
+                   evalTree = EN.evaluate (Canon.construct pAst)
                case validateAST evalTree of
                    Nothing      -> return (freeze evalTree)
                    Just    errs -> throwError errs
