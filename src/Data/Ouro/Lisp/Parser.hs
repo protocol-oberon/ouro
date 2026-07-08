@@ -60,10 +60,10 @@ collectHigherExpressions :: [ParsedDecl] -> Parser [ParsedDecl]
 collectHigherExpressions acc = do
     tokens <- get
     case tokens of
-        []          -> pure (reverse acc) -- EOF reached safely
-        _hasTokens  -> do
-                       decl <- pHigherExpression
-                       collectHigherExpressions (decl : acc)
+        []         -> pure (reverse acc) -- EOF reached safely
+        _hasTokens -> do
+                      decl <- pHigherExpression
+                      collectHigherExpressions (decl : acc)
 
 
 pHigherExpression :: Parser ParsedDecl
@@ -207,8 +207,9 @@ pExpr = do
                              Tkn.TypeMappingIRI -> capture (S.Attr   (Tkn.pos t) "iri")
 
                              -- Parameterized Identifiers
-                             Tkn.Attr txt       -> capture (S.Attr   (Tkn.pos t) txt)
-                             Tkn.Symbol txt     -> capture (S.Symbol (Tkn.pos t) txt)
+                             Tkn.Attr           txt -> capture (S.Attr   (Tkn.pos t) txt)
+                             Tkn.Symbol         txt -> capture (S.Symbol (Tkn.pos t) txt)
+                             Tkn.TemplateSymbol txt -> capture (S.Symbol (Tkn.pos t) txt)
 
                              -- Core Data Literals
                              Tkn.String txt     -> capture (S.Literal (Tkn.pos t) (S.Str txt))

@@ -113,7 +113,7 @@ compile filename content = compilationResult . runWriter . runExceptT $ compile'
                -- Pass 4: Evaluation
                let pAst     = case graph of
                                   Graph    _ _   gAst -> gAst
-                   evalTree = EN.evaluate (Canon.construct pAst)
+                   evalTree = EN.evaluate env (Canon.construct pAst)
                case validateAST evalTree of
                    Nothing      -> return (freeze evalTree)
                    Just    errs -> throwError errs

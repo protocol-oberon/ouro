@@ -20,6 +20,7 @@ import           Lens.Micro                ((^.))
 import           Lens.Micro.TH             (makeLenses)
 import           Text.Megaparsec           (SourcePos)
 import           Unsafe.Coerce             (unsafeCoerce)
+import qualified Data.Ouro.Lisp.Module.Types as M
 
 
 -- Env.
@@ -45,19 +46,19 @@ data Env = Env
     { _localScope       :: Map.Map Text S.Expr
     , _parentEnv        :: Maybe Env
     , _activeLookups    :: Set Text
-    , _templateRegistry :: Map.Map Text S.Expr
+    , _templateRegistry :: Map.Map Text (M.HigherExpression 'M.TemplateExpr)
     }
 
 makeLenses ''Env
 
 
 -- Default root environment.
-defaultEnv :: Env
-defaultEnv = Env
+defaultEnv :: M.Module -> Env
+defaultEnv moduleEnv = Env
     { _localScope       = Map.empty
     , _parentEnv        = Nothing
     , _activeLookups    = Set.empty
-    , _templateRegistry = Map.empty
+    , _templateRegistry = (moduleEnv ^. M.templateRegistry)
     }
 
 -- Traverses the entire environment scope chain to collect every active

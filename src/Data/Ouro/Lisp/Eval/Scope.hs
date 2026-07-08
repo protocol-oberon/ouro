@@ -1,3 +1,4 @@
+{-# LANGUAGE GADTs #-}
 
 module Data.Ouro.Lisp.Eval.Scope where
 
@@ -20,6 +21,7 @@ import           Data.Text                    (Text)
 import qualified Data.Text                    as T
 import           Lens.Micro                   ((%~), (^.))
 import           Text.Megaparsec              (SourcePos)
+import qualified Data.Ouro.Lisp.Module.Types as M
 
 
 -- buildLazyEnv.
@@ -89,32 +91,32 @@ buildLazyEnv = curry $ \case
     isReserved name = name `elem` ["nth", "list", "quote", "eval", "case", "get", "get'", "context", "define", "inlay", "insert", "attr"]
 
 
-buildTemplateRegistry :: Env -> [S.Expr] -> Either OuroError (Map.Map Text S.Expr)
-buildTemplateRegistry env =
-    \case
-     [] -> pure Map.empty
+-- buildTemplateRegistry :: Env -> [S.Expr] -> Either OuroError (Map.Map Text S.Expr)
+-- buildTemplateRegistry env =
+--     \case
+--      [] -> pure Map.empty
 
-     -- Case A: Intercept top-level template forms and index them by name
-     rawAst@(S.Form _ (S.Symbol _ "template" : S.Symbol namePos name : _)) : xs
-         -> do
-            case "!" `T.isSuffixOf` name of
-                True  -> Right ()
-                False -> invalidTemplateName name
-                         & OuroError namePos
-                         & Left
+--      -- Case A: Intercept top-level template forms and index them by name
+--      rawAst@(S.Form _ (S.Symbol _ "template" : S.Symbol namePos name : _)) : xs
+--          -> do
+--             case "!" `T.isSuffixOf` name of
+--                 True  -> Right ()
+--                 False -> invalidTemplateName name
+--                          & OuroError namePos
+--                          & Left
 
-            nextRegistry <- buildTemplateRegistry env xs
-            pure $ Map.insert name rawAst nextRegistry
+--             nextRegistry <- buildTemplateRegistry env xs
+--             pure $ Map.insert name rawAst nextRegistry
 
-     -- Case B: Recurse into define blocks if they can contain local templates
-     S.Form _ (S.Symbol _ "define" : rest) : xs
-         -> do
-            innerTemplates <- buildTemplateRegistry env rest
-            outerTemplates <- buildTemplateRegistry env xs
-            pure $ Map.union innerTemplates outerTemplates
+--      -- Case B: Recurse into define blocks if they can contain local templates
+--      S.Form _ (S.Symbol _ "define" : rest) : xs
+--          -> do
+--             innerTemplates <- buildTemplateRegistry env rest
+--             outerTemplates <- buildTemplateRegistry env xs
+--             pure $ Map.union innerTemplates outerTemplates
 
-     -- Case C: Safely ignore variables, contexts, and attributes
-     _ : xs -> buildTemplateRegistry env xs
+--      -- Case C: Safely ignore variables, contexts, and attributes
+--      _ : xs -> buildTemplateRegistry env xs
 
 
 -- Resolves dynamic lookups via local maps, builtins fallbacks, or stepping up into parent scopes.
@@ -188,12 +190,17 @@ lookupTemplate
     -> Reader Env L.Expr
 lookupTemplate scopeWalker mEvaluator pos name env =
     case Map.lookup name (env ^. L.templateRegistry) of
-        Just rawAst@(S.Form _ (S.Symbol _ "template" : S.Symbol _ _ : S.Form _ argNodes : bodyExprs))
-            -> case mEvaluator of
-                   Just    _ -> let params = map (\case S.Symbol _ p -> p; _ -> "") argNodes
-                                in pure $ L.TemplateClosure env name params bodyExprs
+        Just (M.Template tPos tName tArgs (S.Form _ bodyExprs))
+            -> let argNodes = map (S.Symbol tPos) tArgs -- Reconstruct the argument bindings
+                   rawAst   = S.Form tPos $             -- Reassemble the raw AST into (template name (args...) body...)
+                            [ S.Symbol tPos "template"
+                            , S.Symbol tPos tName
+                            , S.Form tPos argNodes
+                            ] ++ bodyExprs
 
-                   Nothing   -> pure $ L.Quote rawAst
+               in case mEvaluator of
+                     Just _eval -> pure $ L.TemplateClosure env name tArgs bodyExprs
+                     Nothing    -> pure $ L.Quote rawAst
 
         Just _ -> astCorruption name "Corrupted template registry entry."
                   & OuroError pos

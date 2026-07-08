@@ -40,6 +40,7 @@ import qualified Data.Text                      as T
 import qualified Data.Vector                    as V
 import           Text.Megaparsec                (SourcePos)
 import qualified Text.URI                       as URI
+import Data.Ouro.Lisp.Module.Types (Module)
 
 
 -- No State monad is required because errors are handled as Data in the L.Expr tree.
@@ -48,23 +49,8 @@ type EvalM = Reader Env
 -- High-level engine entry point.
 -- Inspects a parsed AST node, handles routing, and returns the result as a L.Expr.
 -- Errors are now contained within the returned L.Expr graph, not lifted to Either.
-evaluate :: S.Expr -> L.Expr
-evaluate rootExpr = runReader (evalExpr rootExpr) L.defaultEnv
-
-
--- Helper to extract the primitive tree or the error from the result.
--- This bridges the lazy engine to the typed static target.
-evaluateToPrimitive :: S.Expr -> Either OuroError (I.Expr 'JLD.Primitive)
-evaluateToPrimitive rootExpr =
-    case evaluate rootExpr of
-        Primitive finalGadtTree -> Right finalGadtTree
-        EvalError err           -> Left err
-        otherVal                -> typeMismatch
-                                       "a top-level data Record or a plain value configuration"
-                                       (humanReadableType otherVal)
-                                   & withBlurb (typeMismatchBlurb otherVal)
-                                   & OuroError (S.exprPos rootExpr)
-                                   & Left
+evaluate :: Module -> S.Expr -> L.Expr
+evaluate moduleEnv rootExpr = runReader (evalExpr rootExpr) (L.defaultEnv moduleEnv)
 
 
 -- evalExpr.
