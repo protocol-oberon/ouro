@@ -100,17 +100,15 @@ pTemplate pos = do
     -- We specifically enforce the TemplateSymbol (e.g., ends in '!')
     name <- expectTemplateSymbol "Expected template name ending with '!'"
     args <- pArgs
-    body <- pExpr
-    expectCloseParen
-    pure $ PTemplate (Template pos name args body)
+    body <- collectUntil Tkn.CloseParen
+    pure $ PTemplate (Template pos name args (S.Form pos body))
 
 
 pGraph :: SourcePos -> Parser ParsedDecl
 pGraph pos = do
     name <- expectSymbol "Expected graph name"
-    body <- pExpr
-    expectCloseParen
-    pure $ PGraph (Graph pos name body)
+    body <- collectUntil Tkn.CloseParen
+    pure $ PGraph (Graph pos name (S.Form pos body))
 
 
 popToken :: Text -> Parser Tkn.Token
@@ -177,7 +175,6 @@ pArgs = do
                                    F.& OuroError (Tkn.pos t)
                                    F.& Left
                                    F.& lift
-
 
 -- Recursive Expr Router
 pExpr :: Parser S.Expr
