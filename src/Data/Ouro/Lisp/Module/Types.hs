@@ -30,6 +30,15 @@ deriving instance Show (HigherExpression t)
 deriving instance Eq   (HigherExpression t)
 
 
+-- Maps a transformation function over the underlying Expr inside a HigherExpression.
+mapExpr :: (Expr -> Expr) -> HigherExpression t -> HigherExpression t
+mapExpr f exprNode =
+    case exprNode of
+        Function pos name args expr -> Function pos name args (f expr)
+        Template pos name args expr -> Template pos name args (f expr)
+        Graph    pos name expr      -> Graph    pos name (f expr)
+
+
 -- The ExportMap mirrors the segregation to maintain type safety across boundaries
 data ExportMap = ExportMap
     { _exportedTemplates :: Map.Map Text (HigherExpression 'TemplateExpr)
@@ -45,6 +54,15 @@ data Module = Module
     , _importRegistry   :: Map.Map Text ExportMap
     } deriving (Show, Eq)
 
+
+-- Applies an expression transformation across all declarations in a Module.
+mapModuleExpr :: (Expr -> Expr) -> Module -> Module
+mapModuleExpr transform m = m
+    { _functionRegistry = Map.map (mapExpr transform) (_functionRegistry m)
+    , _templateRegistry = Map.map (mapExpr transform) (_templateRegistry m)
+    , _graphRegistry    = Map.map (mapExpr transform) (_graphRegistry m)
+    -- _importRegistry is left untouched
+    }
 
 makeLenses ''ExportMap
 makeLenses ''Module

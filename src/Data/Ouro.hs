@@ -64,7 +64,7 @@ import           Data.Ouro.Lisp.Eval.Types   (Expr (..), freeze)
 import qualified Data.Ouro.Lisp.Eval.Types   as L
 import qualified Data.Ouro.Lisp.Lexer        as LX
 import           Data.Ouro.Lisp.Module.Types (HigherExpression (..),
-                                              graphRegistry)
+                                              graphRegistry, mapModuleExpr)
 import qualified Data.Ouro.Lisp.Parser       as LP
 import qualified Data.Ouro.Lisp.Surface      as S
 import           Data.Set                    (Set)
@@ -100,19 +100,22 @@ compile filename trgt content = compilationResult . runWriter . runExceptT $ com
                tell $ LN.lintExpression tokens
 
                -- Pass 3: Synatic Parsing
-               env <- case LP.parseModule tokens of
+               ouroModule <- case LP.parseModule tokens of
                           Left  parseErr  -> throwError $ pure parseErr
                           Right moduleEnv -> return moduleEnv
 
-               -- Pass 3.1: Find target graph
-               graph <- case Map.lookup (T.pack trgt) (env ^. graphRegistry) of
+               -- Pass 3.1 Desugar all ASTs
+               let desugaredModule = mapModuleExpr Canon.construct ouroModule
+
+               -- Pass 3.2: Find target graph
+               graph <- case Map.lookup (T.pack trgt) (desugaredModule ^. graphRegistry) of
                             Just    g -> return g
                             Nothing
                                 -> do
-                                   let keys = Map.keys (env ^. graphRegistry)
+                                   let keys = Map.keys (desugaredModule ^. graphRegistry)
                                    case rankBySimilarity (T.pack trgt) keys of
                                        ((bestMatch, _) : _)
-                                           -> let _graphSuggestion@(Graph pos _ _) = (env ^. graphRegistry) Map.! bestMatch
+                                           -> let _graphSuggestion@(Graph pos _ _) = (desugaredModule ^. graphRegistry) Map.! bestMatch
                                               in nonExistentGraph (T.pack trgt) bestMatch
                                                  & OuroError pos
                                                  & pure
@@ -124,7 +127,7 @@ compile filename trgt content = compilationResult . runWriter . runExceptT $ com
                                               & throwError
                -- Pass 4: Evaluation
                let (Graph _ _ gAst) = graph
-                   evalTree         = EN.evaluate env (Canon.construct gAst)
+                   evalTree         = EN.evaluate desugaredModule (Canon.construct gAst)
 
                case validateAST evalTree of
                    Just    errs -> throwError errs
