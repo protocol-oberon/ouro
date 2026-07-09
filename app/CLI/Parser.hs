@@ -29,6 +29,7 @@ pCommand = subparser
 pCompile :: Parser Command
 pCompile =  Compile
         <$> pOuroFile
+        <*> pTargetOption
         <*> optional pOutputDirOption
 
 
@@ -53,12 +54,12 @@ pValidate = Validate <$> pValidateCommand
 
     pIndent :: Parser TargetTransform
     pIndent =  Indent
-           <$> option auto ( long "spaces"
-                          <> short 's'
-                          <> metavar "INT"
-                          <> help "Indentation spaces"
-                          <> value 2
-                           )
+            <$> option auto ( long "spaces"
+                           <> short 's'
+                           <> metavar "INT"
+                           <> help "Indentation spaces"
+                           <> value 2
+                            )
 
     pMerge :: Parser TargetTransform
     pMerge =  Merge
@@ -75,6 +76,14 @@ pVersion = infoOption ("Ouro v" <> showVersion version)
 
 
 -- Reusable primitive parsers
+pTargetOption :: Parser String
+pTargetOption = strOption ( long "trgt"
+                         <> short 't'
+                         <> metavar "STRING"
+                         <> help "Target graph name within the module"
+                          )
+
+
 pOutputDirOption :: Parser FilePath
 pOutputDirOption = strOption ( long "output"
                             <> short 'o'

@@ -115,6 +115,10 @@ indexOutOfBounds :: Text -> Int -> Int -> ErrorContext
 indexOutOfBounds = \tOft att act -> Scope $ IndexOutOfBoundsError tOft att act
 
 
+nonExistentGraph :: Text -> Text -> ErrorContext
+nonExistentGraph = \trgt sug -> Scope $ NonExistentGraph trgt sug
+
+
 -- Internal Violations
 internalValueLeak :: Text -> ErrorContext
 internalValueLeak block = Internal $ ErasureValueLeakError { blockName = block }

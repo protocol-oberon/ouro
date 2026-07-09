@@ -3,9 +3,11 @@
 
 module Data.Ouro.Lisp.Parser where
 
+import           Control.Monad               (foldM)
 import           Control.Monad.State.Strict  (MonadState (get, put),
                                               MonadTrans (lift),
                                               StateT (runStateT))
+import           Data.Foldable               (traverse_)
 import qualified Data.Function               as F
 import qualified Data.Map                    as Map
 import           Data.Ouro.Error.Diagnostics (lexicalError, unbalancedDelimiter)
@@ -22,8 +24,6 @@ import qualified Data.Text                   as T
 import           Lens.Micro.Platform         (at, (&), (?~))
 import           Text.Megaparsec             (SourcePos)
 import qualified Text.Megaparsec.Pos         as M
-import Data.Foldable (traverse_)
-import Control.Monad (foldM)
 
 
 -- A simple compiler tracking state holding our remaining token stream

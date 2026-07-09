@@ -264,9 +264,9 @@ splitErrorContext = \case
            , Nothing
            )
 
-    Scope (IncorrectArity name exp act)
+    Scope (IncorrectArity name expr act)
         -> ("Incorrect Arity"
-           , [ labeled (pretty $ "The function '" <> name <> "' expects " <> (T.pack $ show exp) <> "number of arguments.") ""
+           , [ labeled (pretty $ "The function '" <> name <> "' expects " <> (T.pack $ show expr) <> "number of arguments.") ""
              , labeled (pretty $ "Got: " <> (T.pack $ show act) <> "number of argumnets instead.") ""
              ]
            , Nothing
@@ -277,6 +277,20 @@ splitErrorContext = \case
            , [ labeled "The function 'nth' attempted to look up an element with an index: "                 (pretty $ T.pack $ show att)
              , labeled (pretty $ "But it was out of bounds as the target " <> tOft <> " has a length of: ") (pretty $ T.pack $ show act)
              ]
+           , Nothing
+           )
+
+    Scope (NonExistentGraph trgt sug)
+        -> ("Non Existent Graph"
+           , [ labeled (pretty $ "Compilation target graph: '" <> trgt <> "' cannot be found") ""
+             , labeled (pretty $ "Perhaps you meant to target the graph: '" <> sug <> "'") ""
+             ]
+           , Nothing
+           )
+
+    Scope (NoCompilationTarget filepath)
+        -> ("No Compilation Target"
+           , [ labeled (pretty $ "The module: " <> filepath <> " lacks a compilation target (Graph)") ""]
            , Nothing
            )
 

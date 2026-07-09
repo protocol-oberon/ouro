@@ -12,27 +12,29 @@ import qualified Data.Text         as T
 import qualified Data.Text.IO      as TIO
 import qualified Data.Text.Lazy    as TL
 import qualified Data.Text.Lazy.IO as TLIO
-import           System.FilePath   (replaceExtension, takeFileName, (</>))
+import           System.FilePath   (hasExtension, (</>))
 
 
 runCommand :: Command -> IO ()
 runCommand = \case
-              Compile  ifp ofp -> runCompile  ifp ofp
-              Validate c       -> runValidate c
+              Compile  ifp trgt ofp -> runCompile  ifp trgt ofp
+              Validate c            -> runValidate c
 
 
-runCompile :: FilePath -> Maybe FilePath -> IO ()
-runCompile ifp mOutDir = do
+runCompile :: FilePath -> String -> Maybe FilePath -> IO ()
+runCompile ifp trgt mOutDir = do
     -- Calculate the actual output file path dynamically
     let ofp = case mOutDir of
-                  Just dir -> dir </> replaceExtension (takeFileName ifp) "json"
-                  Nothing  -> replaceExtension ifp "json"
+                  Just path -> case hasExtension path of
+                                   True  -> path
+                                   False -> path </> (trgt <> ".json")
+                  Nothing   -> trgt <> ".json"
 
-    putStrLn $ "Compiling: " <> ifp <> "..."
+    putStrLn $ "Compiling:           "<> ifp <> " [" <> trgt <> "] ..."
     -- Read and process the input file
     content <- TIO.readFile ifp
 
-    case O.compile ifp content of
+    case O.compile ifp trgt content of
         O.CompilationSuccess warnings code
             -> do
                -- Print all accumulated diagnostics (both warnings and non-fatal/harvested errors) up front
@@ -40,7 +42,7 @@ runCompile ifp mOutDir = do
 
                -- Proceed with serialization
                let opts = defaultOptions
-               putStrLn $ "Compilation Success: " ++ ifp ++ " -> " ++ ofp
+               putStrLn $ "Compilation Success: " ++ ifp ++ " [" ++ trgt ++ "] -> " ++ ofp
                TLIO.writeFile ofp (O.toJSON opts code)
 
         O.CompilationFailure warnings errors

@@ -37,8 +37,8 @@ import           Data.Function               ((&))
 import           Data.List.NonEmpty          (NonEmpty (..))
 import qualified Data.List.NonEmpty          as NE
 import qualified Data.Map                    as Map
-import           Data.Ouro.Error.Diagnostics (smartErrorCode, smartWarningCode,
-                                              typeMismatch, unboundIdentifier,
+import           Data.Ouro.Error.Diagnostics (nonExistentGraph, smartErrorCode,
+                                              smartWarningCode, typeMismatch,
                                               warningBlurb, warningSummary,
                                               withBlurb)
 import qualified Data.Ouro.Error.Linter      as LN
@@ -53,6 +53,7 @@ import           Data.Ouro.Error.Types       (ErrorContext (..),
                                               WarningContext (..))
 import qualified Data.Ouro.Internal.Expr     as I
 import qualified Data.Ouro.Internal.Kinds    as JLD
+import           Data.Ouro.Internal.Utils    (rankBySimilarity)
 import qualified Data.Ouro.Json.Parser       as JP
 import           Data.Ouro.Json.Serializer   (PrinterOptions (..),
                                               defaultOptions)
@@ -69,6 +70,7 @@ import qualified Data.Ouro.Lisp.Surface      as S
 import           Data.Set                    (Set)
 import qualified Data.Set                    as Set
 import           Data.Text                   (Text)
+import qualified Data.Text                   as T
 import qualified Data.Text.Lazy              as TL
 import           Lens.Micro.Platform         ((^.))
 import qualified Text.Megaparsec             as M
@@ -84,8 +86,8 @@ data CompilationResult
 type CompilerM = ExceptT (NonEmpty OuroError) (Writer [OuroWarning])
 
 
-compile :: String -> Text -> CompilationResult
-compile filename content = compilationResult . runWriter . runExceptT $ compile'
+compile :: String -> String -> Text -> CompilationResult
+compile filename trgt content = compilationResult . runWriter . runExceptT $ compile'
     where
     compile' :: CompilerM (I.Expr 'JLD.Primitive)
     compile' = do
@@ -102,21 +104,31 @@ compile filename content = compilationResult . runWriter . runExceptT $ compile'
                           Left  parseErr  -> throwError $ pure parseErr
                           Right moduleEnv -> return moduleEnv
 
-               -- For now, just compile first graph
-               graph <- case Map.lookupMin (env ^. graphRegistry) of
-                            Just    (_, g) -> return g
-                            Nothing        -> unboundIdentifier "No graphs present"
-                                              & OuroError (M.initialPos "There no pos")
+               -- Pass 3.1: Find target graph
+               graph <- case Map.lookup (T.pack trgt) (env ^. graphRegistry) of
+                            Just    g -> return g
+                            Nothing
+                                -> do
+                                   let keys = Map.keys (env ^. graphRegistry)
+                                   case rankBySimilarity (T.pack trgt) keys of
+                                       ((bestMatch, _) : _)
+                                           -> let _graphSuggestion@(Graph pos _ _) = (env ^. graphRegistry) Map.! bestMatch
+                                              in nonExistentGraph (T.pack trgt) bestMatch
+                                                 & OuroError pos
+                                                 & pure
+                                                 & throwError
+
+                                       []  -> Scope (NoCompilationTarget (T.pack filename))
+                                              & OuroError (M.initialPos filename)
                                               & pure
                                               & throwError
-
                -- Pass 4: Evaluation
-               let pAst     = case graph of
-                                  Graph    _ _   gAst -> gAst
-                   evalTree = EN.evaluate env (Canon.construct pAst)
+               let (Graph _ _ gAst) = graph
+                   evalTree         = EN.evaluate env (Canon.construct gAst)
+
                case validateAST evalTree of
-                   Nothing      -> return (freeze evalTree)
                    Just    errs -> throwError errs
+                   Nothing      -> return (freeze evalTree)
 
     compilationResult :: (Either(NonEmpty OuroError) (I.Expr 'JLD.Primitive), [OuroWarning]) -> CompilationResult
     compilationResult = \case

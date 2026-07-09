@@ -4,23 +4,23 @@
 
 module Data.Ouro.Lisp.Eval.Types where
 
-import           Control.Monad.Reader      (Reader)
-import           Data.List                 (sortOn)
-import qualified Data.Map.Strict           as Map
-import           Data.Ouro.Error.Types     (OuroError)
-import qualified Data.Ouro.Internal.Expr   as I
-import qualified Data.Ouro.Internal.Kinds  as JLD
-import           Data.Ouro.Internal.Schema (Schema, SchemaDirective)
-import qualified Data.Ouro.Lisp.Surface    as S
-import           Data.Set                  (Set)
-import qualified Data.Set                  as Set
-import           Data.Text                 (Text)
-import qualified Data.Text                 as T
-import           Lens.Micro                ((^.))
-import           Lens.Micro.TH             (makeLenses)
-import           Text.Megaparsec           (SourcePos)
-import           Unsafe.Coerce             (unsafeCoerce)
+import           Control.Monad.Reader        (Reader)
+import           Data.List                   (sortOn)
+import qualified Data.Map.Strict             as Map
+import           Data.Ouro.Error.Types       (OuroError)
+import qualified Data.Ouro.Internal.Expr     as I
+import qualified Data.Ouro.Internal.Kinds    as JLD
+import           Data.Ouro.Internal.Schema   (Schema, SchemaDirective)
 import qualified Data.Ouro.Lisp.Module.Types as M
+import qualified Data.Ouro.Lisp.Surface      as S
+import           Data.Set                    (Set)
+import qualified Data.Set                    as Set
+import           Data.Text                   (Text)
+import qualified Data.Text                   as T
+import           Lens.Micro                  ((^.))
+import           Lens.Micro.TH               (makeLenses)
+import           Text.Megaparsec             (SourcePos)
+import           Unsafe.Coerce               (unsafeCoerce)
 
 
 -- Env.

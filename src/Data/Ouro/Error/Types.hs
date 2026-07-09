@@ -203,6 +203,13 @@ data ScopeError
       , attemptedIndex :: Int
       , actualLen      :: Int
       }
+
+    | NonExistentGraph
+      { trgtGraph      :: Text
+      , suggestedGraph :: Text
+      }
+
+    | NoCompilationTarget Text
     deriving (Show, Eq, Ord, Generic)
 
 

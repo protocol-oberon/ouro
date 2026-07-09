@@ -33,13 +33,13 @@ import           Data.Ouro.Lisp.Eval.Structural (BlockTarget (..), compileArray,
 import           Data.Ouro.Lisp.Eval.Types      (Env (..), Expr (..),
                                                  humanReadableType)
 import qualified Data.Ouro.Lisp.Eval.Types      as L
+import           Data.Ouro.Lisp.Module.Types    (Module)
 import qualified Data.Ouro.Lisp.Surface         as S
 import           Data.Text                      (Text)
 import qualified Data.Text                      as T
 import qualified Data.Vector                    as V
 import           Text.Megaparsec                (SourcePos)
 import qualified Text.URI                       as URI
-import Data.Ouro.Lisp.Module.Types (Module)
 
 
 -- No State monad is required because errors are handled as Data in the L.Expr tree.

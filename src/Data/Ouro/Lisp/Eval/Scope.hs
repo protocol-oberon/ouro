@@ -2,28 +2,28 @@
 
 module Data.Ouro.Lisp.Eval.Scope where
 
+import           Control.Monad                (foldM)
 import           Control.Monad.Reader         (Reader, local)
 import           Data.Function                ((&))
 import qualified Data.Map                     as Map
 import           Data.Ouro.Error.Diagnostics  (astCorruption, cyclicDependency,
-                                               shadowedVariable,
+                                               invalidTemplateName,
+                                               lexicalError, shadowedVariable,
                                                shadowedVariableBlurb,
-                                               unboundIdentifier, withBlurb, invalidTemplateName, lexicalError)
+                                               unboundIdentifier, withBlurb)
 import           Data.Ouro.Error.Types        (OuroError (..))
 import           Data.Ouro.Internal.Utils     (rankBySimilarity)
 import           Data.Ouro.Lisp.Eval.Builtins (builtinRegistry)
 import           Data.Ouro.Lisp.Eval.Types    (Env (..), allEnvKeys)
 import qualified Data.Ouro.Lisp.Eval.Types    as L
+import qualified Data.Ouro.Lisp.Module.Types  as M
 import qualified Data.Ouro.Lisp.Surface       as S
 import qualified Data.Set                     as Set
 import           Data.Text                    (Text)
+import qualified Data.Text                    as T
 import           Lens.Micro                   ((%~), (^.))
+import           Lens.Micro.Platform          (at, (?~))
 import           Text.Megaparsec              (SourcePos)
-import qualified Data.Ouro.Lisp.Module.Types as M
-import qualified Data.Text as T
-import Control.Monad (foldM)
-import Lens.Micro.Platform (at)
-import Lens.Micro.Platform ((?~))
 
 
 -- buildLazyEnv.
