@@ -22,7 +22,6 @@ import           Lens.Micro.TH               (makeLenses)
 import           Text.Megaparsec             (SourcePos)
 import           Unsafe.Coerce               (unsafeCoerce)
 
-
 -- Env.
 --
 -- The runtime execution environment backbone tracking variable visibility and lexical boundaries.
@@ -60,6 +59,16 @@ defaultEnv moduleEnv = Env
     , _activeLookups    = Set.empty
     , _templateRegistry = (moduleEnv ^. M.templateRegistry)
     }
+
+
+emptyEnv :: Env
+emptyEnv = Env
+    { _localScope       = Map.empty
+    , _parentEnv        = Nothing
+    , _activeLookups    = Set.empty
+    , _templateRegistry = Map.empty
+    }
+
 
 -- Traverses the entire environment scope chain to collect every active
 -- bind handle currently available to the evaluator context.
@@ -141,6 +150,7 @@ instance Eq Expr where
 
     -- Compilation Scaffolding
     Record a1 b1 == Record a2 b2 = a1 == a2 && sortOn fst b1 == sortOn fst b2
+    Attr   k1 v1 == Attr   k2 v2 = k1 == k2 && v1 == v2
     Array  a     == Array  b     = a == b
 
     -- Eval only leaves
@@ -157,6 +167,24 @@ instance Eq Expr where
 
     -- Catch-all for shape mismatches
     _ == _ = False
+
+instance Show Expr where
+  showsPrec d expr = showParen (d > 10) $ case expr of
+    Primitive   p          -> showString "Primitive " . showsPrec 11 p
+    Metadata    m          -> showString "Metadata "  . showsPrec 11 m
+    Record      meta kvs   -> showString "Record "    . showsPrec 11 meta . showChar ' ' . showsPrec 11 kvs
+    Attr        k    v     -> showString "Attr "      . showsPrec 11 k    . showChar ' ' . showsPrec 11 v
+    Array       arr        -> showString "Array "     . showsPrec 11 arr
+    Duration    pu   i     -> showString "Duration "  . showsPrec 11 pu . showChar ' ' . showsPrec 11 i
+    SchemaVal   sv         -> showString "SchemaVal " . showsPrec 11 sv
+    Directive   dir        -> showString "Directive " . showsPrec 11 dir
+    PrimitiveOp _          -> showString "PrimitiveOp <native_function>"
+
+    Closure         _ name body        -> showString "Closure <env> "         . showsPrec 11 name . showChar ' ' . showsPrec 11 body
+    TemplateClosure _ name args bodies -> showString "TemplateClosure <env> " . showsPrec 11 name . showChar ' ' . showsPrec 11 args . showChar ' ' . showsPrec 11 bodies
+
+    EvalError err -> showString "EvalError " . showsPrec 11 err
+    Quote     q   -> showString "Quote "     . showsPrec 11 q
 
 
 -- Structural equivalence, also checks for homogeneous arrays.

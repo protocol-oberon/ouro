@@ -160,9 +160,9 @@ test-suite ouro-test
     -- Modules included in this executable, other than Main.
     other-modules:
         Utils
-        Ouro.IntergrationSpec
-        Ouro.CanonicalSpec
-        Ouro.StructuralSpec
+        Ouro.CanonicalTest
+        Ouro.StructuralTest
+        Ouro.EvaluationTest
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
@@ -181,12 +181,11 @@ test-suite ouro-test
 
     -- Test dependencies.
     build-depends:
-        base       ^>=4.20.2.0,
-        containers ^>=0.7,
-        hspec       >=2.11 && < 3.0,
+        base       ^>= 4.20.2.0,
+        containers ^>= 0.7,
+        hedgehog    >= 1.4,
         megaparsec  >= 9.2 && < 10.0,
+        mtl        ^>= 2.3.1,
         text        >= 2.0,
         ouro
 
-    build-tool-depends:
-        hspec-discover:hspec-discover >= 2.11

@@ -1,4 +1,4 @@
-((template id-node! (id-of-id type-of-type lable)
+(template id-node! (id-of-id type-of-type lable)
    (define
      :getty-ulan "http://vocab.getty.edu/ulan/"
      :uri (case type-of-type
@@ -9,6 +9,7 @@
    :type   type-of-type
    :_label lable)
 
+(graph bust-of-a-man
  (define :getty-att "http://vocab.getty.edu/aat/")
 
  :context "https://linked.art/ns/v1/linked-art.json"

@@ -1,4 +1,6 @@
-(:context #uri "https://linked.art/ns/v1/linked-art.json"
+;; A JSON-LD graph must be named
+(graph auction-of-stowe-house
+ :context #uri "https://linked.art/ns/v1/linked-art.json"
 
  ;; Variable definition
  (define

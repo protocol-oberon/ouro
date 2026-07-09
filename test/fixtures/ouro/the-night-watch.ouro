@@ -1,4 +1,5 @@
-(:context "https://linked.art/ns/v1/linked-art.json"
+(graph the-night-watch
+ :context "https://linked.art/ns/v1/linked-art.json"
  (define
    :linked-art    "https://linked.art/example/"
    :piece-started #date "1642-01-01T00:00:00Z")

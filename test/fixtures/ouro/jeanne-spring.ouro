@@ -1,5 +1,6 @@
 ;; Define Blocks are elided at compilation
-((define
+(graph jeanne-spring
+ (define
    :getty-uri      "http://vocab.getty.edu/aat/"
    :linked-art-uri "https://linked.art/example/")
 

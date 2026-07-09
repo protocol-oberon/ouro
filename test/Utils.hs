@@ -2,10 +2,9 @@
 
 module Utils where
 
-import qualified Data.List.NonEmpty           as NE
+import           Control.Monad.IO.Class       (MonadIO, liftIO)
 import           Data.Maybe                   (fromJust)
-import           Data.Ouro                    (CompilationResult (..),
-                                               OuroError, compile,
+import           Data.Ouro                    (CompilationResult (..), compile,
                                                defaultOptions, toJSON)
 import qualified Data.Ouro.Internal.Expr      as I
 import qualified Data.Ouro.Internal.Kinds     as JLD
@@ -13,42 +12,33 @@ import           Data.Ouro.Lisp.Eval.Builtins (parseISO8601)
 import qualified Data.Text                    as T
 import qualified Data.Text.IO                 as TIO
 import qualified Data.Text.Lazy.IO            as TLIO
-import           Test.Hspec                   (expectationFailure, shouldBe)
+import           Hedgehog
 import           Text.Megaparsec              (SourcePos, initialPos)
 
 
-runCompileInline :: String -> CompilationResult
-runCompileInline = compile "Test Suite" . T.pack
+-- runCompileInline :: String -> CompilationResult
+-- runCompileInline = compile "Test Suite" . T.pack
 
 
-shouldCompileTo :: FilePath -> FilePath -> IO ()
-shouldCompileTo test trgt =
-    do
-    testContent <- TIO.readFile  test
-    trgtContent <- TLIO.readFile trgt
+shouldCompileTo :: (MonadTest m, MonadIO m) => FilePath -> String -> FilePath -> m ()
+shouldCompileTo test graph trgt = do
+    -- We must lift the file reading into the test monad
+    testContent <- liftIO $ TIO.readFile test
+    trgtContent <- liftIO $ TLIO.readFile trgt
 
-    let res = compile test testContent
+    let res = compile test graph testContent
 
     case res of
-        CompilationSuccess _ ast -> let json = toJSON defaultOptions ast
-                                    in json `shouldBe` trgtContent
+        CompilationSuccess _ ast -> do
+            let json = toJSON defaultOptions ast
+            -- Hedgehog's assertion operator provides automatic diffing
+            json === trgtContent
 
-        CompilationFailure _ err -> expectationFailure $ show err
-
-
-shouldEvalTo :: String -> I.Expr 'JLD.Primitive -> IO ()
-shouldEvalTo input expected =
-    case runCompileInline input of
-        CompilationSuccess _ val -> val `shouldBe` expected
-        CompilationFailure _ err -> expectationFailure $ show err
-
-
-shouldFailTo :: String -> OuroError -> IO ()
-shouldFailTo input expected =
-    case runCompileInline input of
-        CompilationSuccess _ val -> expectationFailure $ "Compilation somehow succeeded with value: " <> show val
-        CompilationFailure _ err -> (NE.head err) `shouldBe` expected
-
+        CompilationFailure _ err -> do
+            -- 'annotate' attaches the error message to the test failure log
+            annotate (show err)
+            -- 'failure' explicitly fails the property
+            failure
 
 fixture :: FilePath -> FilePath
 fixture path = "./test/fixtures/" <> path
