@@ -131,7 +131,7 @@ emitProps evaluator env expressions = go I.EmptyMeta expressions
 
                                                     -- 3. If it evaluated to something other than a record, throw a type mismatch
                                                     otherVal      -> let err = typeMismatch
-                                                                                    "a valid Record to inlay into the current record scope"
+                                                                                    "a valid Record to inlay into the current Record scope"
                                                                                     (humanReadableType otherVal)
                                                                                 & OuroError (S.exprPos iExpr)
                                                                     in Record finalMeta (("*err*", EvalError err) : nextPairs)
@@ -197,7 +197,11 @@ compileArray
     -> SourcePos
     -> [S.Expr]
     -> L.Expr
-compileArray evaluator env pos elements = validateElems pos (compileElements elements)
+compileArray evaluator env pos elements =
+    case buildNestedTemplate env elements of
+        Right envWithTmplts -> validateElems pos (compileElements envWithTmplts elements)
+        Left  err           -> EvalError err
+
     where
     validateElems :: SourcePos -> [L.Expr] -> L.Expr
     validateElems p allElems =
@@ -218,25 +222,25 @@ compileArray evaluator env pos elements = validateElems pos (compileElements ele
                                              & OuroError p
                                              & EvalError
 
-    compileElements :: [S.Expr] -> [L.Expr]
-    compileElements exprs =
+    compileElements :: Env -> [S.Expr] -> [L.Expr]
+    compileElements env' exprs =
         case exprs of
             [] -> []
 
             -- Case A: TRUE ERASURE: Skip define blocks completely inside arrays
-            S.Form _ (S.Symbol _ "define" : _) : xs -> compileElements xs
+            S.Form _ (S.Symbol _ "define" : _) : xs -> compileElements env' xs
 
             -- Skip Templates
-            S.Form _ (S.Symbol _ "template" : _) : xs -> compileElements xs
+            S.Form _ (S.Symbol _ "template" : _) : xs -> compileElements env' xs
 
             -- Case B: TRUE ERASURE: Skip context blocks completely inside arrays
-            S.Form _ [S.Symbol _ "context", S.Form _ _] : xs -> compileElements xs
+            S.Form _ [S.Symbol _ "context", S.Form _ _] : xs -> compileElements env' xs
 
             -- Case B.25 TRUE ERASURE: Skip ubound attrs from attr from
-            S.Form _ [S.Symbol _ "attr", _, _] : xs -> compileElements xs
+            S.Form _ [S.Symbol _ "attr", _, _] : xs -> compileElements env' xs
 
             -- Case B.5: Inlay evaluated array elements directly into the current array scope
-            S.Form _ [S.Symbol pos "inlay", iExpr] : xs
+            S.Form _ [S.Symbol sPos "inlay", iExpr] : xs
                 -> let blockTarget = case iExpr of
                                          S.Form _ inner -> determineBlockTarget inner
                                          _              -> TargetFunctionApp -- Treat symbols/templates as dynamic
@@ -244,34 +248,34 @@ compileArray evaluator env pos elements = validateElems pos (compileElements ele
                           TargetRecord -> let err = typeMismatch
                                                         "a valid Array (or Template resolving to an Array) to inlay"
                                                         "a Record block target"
-                                                    & OuroError pos
-                                          in EvalError err : compileElements xs
+                                                    & OuroError sPos
+                                          in EvalError err : compileElements env' xs
 
                           -- Catch both TargetList AND TargetFunctionApp (for templates/variables)
-                          _ -> case evaluator env iExpr of
+                          _ -> case evaluator env' iExpr of
                                    -- 1. If evaluation fails, embed the error so the tree retains it
-                                   EvalError err  -> EvalError err : compileElements xs
+                                   EvalError err  -> EvalError err : compileElements env' xs
 
                                    -- 2. The successful path: Flatten the evaluated elements into the stream
-                                   Array elems -> elems ++ compileElements xs
+                                   Array elems -> elems ++ compileElements env' xs
 
                                    -- 3. If it evaluated to something other than an array, throw a type mismatch
                                    otherVal    -> let err = typeMismatch
                                                                 "a valid Array to inlay into the current array scope"
                                                                 (humanReadableType otherVal)
                                                             & OuroError (S.exprPos iExpr)
-                                                  in EvalError err : compileElements xs
+                                                  in EvalError err : compileElements env' xs
 
             -- Case C: Process structured nested forms (Records or trailing list matrices)
             (_formExpr@(S.Form _ fields) : xs)
                 -- 1. Intercept Nested Arrays: recursively compile as a matrix
                 | TargetList <- determineBlockTarget fields
-                -> compileArray evaluator env pos fields : compileElements xs
+                -> compileArray evaluator env' pos fields : compileElements env' xs
 
                 -- 2. Intercept Nested Records: compile using the object scope builder
                 | TargetRecord <- determineBlockTarget fields
-                -> let evaledItem = compileRecord evaluator env fields
-                       restL      = compileElements xs
+                -> let evaledItem = compileRecord evaluator env' fields
+                       restL      = compileElements env' xs
                    in case evaledItem of
                           -- Retain independent error leaves found inside nested scopes safely
                           EvalError err -> EvalError err : restL
@@ -288,8 +292,8 @@ compileArray evaluator env pos elements = validateElems pos (compileElements ele
 
             -- Case D: Process flat scalar fields or variables evaluated within the element stream
             (otherExpr : xs)
-                -> let evaledVal = evaluator env otherExpr
-                       restL     = compileElements xs
+                -> let evaledVal = evaluator env' otherExpr
+                       restL     = compileElements env' xs
                     in case evaledVal of
                         EvalError err  -> EvalError err  : restL
                         Primitive prim -> Primitive prim : restL
@@ -339,9 +343,7 @@ determineBlockTarget fields =
     isStructuralField :: S.Expr -> Bool
     isStructuralField =
         \case
-         S.Attr {} -> True
-         S.Form _ (S.Symbol _ "template" : _) -> True
-         S.Form _ (S.Symbol _ "define" : _)   -> True
+         S.Attr {}                            -> True
          S.Form _ (S.Symbol _ "context" : _)  -> True
          _other                               -> False
 
