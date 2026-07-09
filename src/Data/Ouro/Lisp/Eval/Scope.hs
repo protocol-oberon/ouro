@@ -6,10 +6,9 @@ import           Control.Monad.Reader         (Reader, local)
 import           Data.Function                ((&))
 import qualified Data.Map                     as Map
 import           Data.Ouro.Error.Diagnostics  (astCorruption, cyclicDependency,
-                                               invalidTemplateName,
                                                shadowedVariable,
                                                shadowedVariableBlurb,
-                                               unboundIdentifier, withBlurb)
+                                               unboundIdentifier, withBlurb, invalidTemplateName, lexicalError)
 import           Data.Ouro.Error.Types        (OuroError (..))
 import           Data.Ouro.Internal.Utils     (rankBySimilarity)
 import           Data.Ouro.Lisp.Eval.Builtins (builtinRegistry)
@@ -18,10 +17,13 @@ import qualified Data.Ouro.Lisp.Eval.Types    as L
 import qualified Data.Ouro.Lisp.Surface       as S
 import qualified Data.Set                     as Set
 import           Data.Text                    (Text)
-import qualified Data.Text                    as T
 import           Lens.Micro                   ((%~), (^.))
 import           Text.Megaparsec              (SourcePos)
 import qualified Data.Ouro.Lisp.Module.Types as M
+import qualified Data.Text as T
+import Control.Monad (foldM)
+import Lens.Micro.Platform (at)
+import Lens.Micro.Platform ((?~))
 
 
 -- buildLazyEnv.
@@ -88,35 +90,55 @@ buildLazyEnv = curry $ \case
 
     -- Reseverd special forms
     isReserved :: Text -> Bool
-    isReserved name = name `elem` ["nth", "list", "quote", "eval", "case", "get", "get'", "context", "define", "inlay", "insert", "attr"]
+    isReserved name = name `elem` ["nth", "list", "quote", "eval", "case", "get", "get'", "context", "define", "inlay", "insert", "attr", "template", "defun"]
 
 
--- buildTemplateRegistry :: Env -> [S.Expr] -> Either OuroError (Map.Map Text S.Expr)
--- buildTemplateRegistry env =
---     \case
---      [] -> pure Map.empty
+-- Scans a list of surface expressions for nested templates, lifting them into
+-- HigherExpressions and binding them into the local Environment.
+buildNestedTemplate :: Env -> [S.Expr] -> Either OuroError Env
+buildNestedTemplate = foldM processNode
+    where
+    processNode :: Env -> S.Expr -> Either OuroError Env
+    processNode env = \case
+        -- Intercept top-level template forms and lift them
+        S.Form pos (S.Symbol _ "template" : S.Symbol namePos name : S.Form _ argNodes : bodyExprs)
+            -> do
+               case "!" `T.isSuffixOf` name of
+                   True  -> Right ()
+                   False -> invalidTemplateName name
+                            & OuroError namePos
+                            & Left
 
---      -- Case A: Intercept top-level template forms and index them by name
---      rawAst@(S.Form _ (S.Symbol _ "template" : S.Symbol namePos name : _)) : xs
---          -> do
---             case "!" `T.isSuffixOf` name of
---                 True  -> Right ()
---                 False -> invalidTemplateName name
---                          & OuroError namePos
---                          & Left
+               args <- traverse (extractArg pos) argNodes
 
---             nextRegistry <- buildTemplateRegistry env xs
---             pure $ Map.insert name rawAst nextRegistry
+               let liftedTemplate = M.Template pos name args (S.Form pos bodyExprs)
 
---      -- Case B: Recurse into define blocks if they can contain local templates
---      S.Form _ (S.Symbol _ "define" : rest) : xs
---          -> do
---             innerTemplates <- buildTemplateRegistry env rest
---             outerTemplates <- buildTemplateRegistry env xs
---             pure $ Map.union innerTemplates outerTemplates
+               env & L.templateRegistry . at name ?~ liftedTemplate
+                   & Right
 
---      -- Case C: Safely ignore variables, contexts, and attributes
---      _ : xs -> buildTemplateRegistry env xs
+        -- Catch malformed template definitions
+        S.Form pos (S.Symbol _ "template" : _)
+            -> lexicalError "Malformed template declaration. Expected format: (template name! (args...) body...)"
+               & OuroError pos
+               & Left
+
+        -- Recurse into define blocks
+        S.Form _ (S.Symbol _ "define" : rest)
+            -> foldM processNode env rest
+
+        -- Safely ignore variables, contexts, and attributes
+        _other
+            -> Right env
+
+
+    -- Helper to safely extract Text from an argument node
+    extractArg :: SourcePos -> S.Expr -> Either OuroError Text
+    extractArg fallbackPos =
+        \case
+         S.Symbol _ argName -> Right argName
+         _notASymbol        -> lexicalError "Template arguments must be bare identifiers."
+                               & OuroError fallbackPos
+                               & Left
 
 
 -- Resolves dynamic lookups via local maps, builtins fallbacks, or stepping up into parent scopes.

@@ -23,7 +23,6 @@ import           Data.Ouro.Error.Diagnostics    (astCorruption,
 import           Data.Ouro.Error.Types          (ErrorContext (..),
                                                  OuroError (..), TypeError (..))
 import qualified Data.Ouro.Internal.Expr        as I
-import qualified Data.Ouro.Internal.Kinds       as JLD
 import           Data.Ouro.Lisp.Eval.Builtins   (builtinRegistry, parseISO8601)
 import           Data.Ouro.Lisp.Eval.Schema     (parseContextDirectives)
 import           Data.Ouro.Lisp.Eval.Scope      (lookupVar, quoteVar)

@@ -15,7 +15,7 @@ import qualified Data.Ouro.Internal.Expr     as I
 import qualified Data.Ouro.Internal.Kinds    as JLD
 import           Data.Ouro.Internal.Utils    (rankBySimilarity)
 import           Data.Ouro.Lisp.Eval.Schema  (parseContextDirectives)
-import           Data.Ouro.Lisp.Eval.Scope   (buildLazyEnv)
+import           Data.Ouro.Lisp.Eval.Scope   (buildLazyEnv, buildNestedTemplate)
 import           Data.Ouro.Lisp.Eval.Types   (Env (..), Expr (..), allEnvKeys,
                                               humanReadableType)
 import qualified Data.Ouro.Lisp.Eval.Types   as L
@@ -47,18 +47,23 @@ compileRecord
     -> [S.Expr]
     -> L.Expr
 compileRecord evaluator env fields =
-    case buildLazyEnv env fields of
-        -- Dynamic environment allocation failures represent a catastrophic scope break
+    case buildNestedTemplate env fields of
         Left err
             -> EvalError err
 
-        Right rawMap
-            -> let isolatedEnv = env
-                                 & L.localScope       .~ rawMap
-                                 & L.templateRegistry .~ (env ^. L.templateRegistry)
-                                 -- Knot-tying: the parent of the isolated scope is the ambient env
-                                 & L.parentEnv        .~ Just env
-               in emitProps evaluator isolatedEnv fields
+        Right envWithTemplates
+            -> case buildLazyEnv env fields of
+                   -- Dynamic environment allocation failures represent a catastrophic scope break
+                   Left err
+                       -> EvalError err
+
+                   Right rawMap
+                       -> let isolatedEnv = envWithTemplates
+                                            & L.localScope .~ rawMap
+                                            -- Knot-tying: the parent of the isolated scope is the ambient env
+                                            & L.parentEnv  .~ Just env
+                          in emitProps evaluator isolatedEnv fields
+
 
 -- Iterates through a stream of tokens to filter and evaluate physical properties into a L.Expr superset tree.
 emitProps
