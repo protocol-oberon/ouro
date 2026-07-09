@@ -22,6 +22,8 @@ import qualified Data.Text                   as T
 import           Lens.Micro.Platform         (at, (&), (?~))
 import           Text.Megaparsec             (SourcePos)
 import qualified Text.Megaparsec.Pos         as M
+import Data.Foldable (traverse_)
+import Control.Monad (foldM)
 
 
 -- A simple compiler tracking state holding our remaining token stream
@@ -40,20 +42,35 @@ data ParsedDecl
 parseModule :: [Tkn.Token] -> Either OuroError Module
 parseModule tokens = do
     (decls, _) <- runStateT (collectHigherExpressions []) tokens
-    pure $ buildModuleRegistry decls
+    buildModuleRegistry decls
 
 
 -- Collection Pass (Building the structured env)
-buildModuleRegistry :: [ParsedDecl] -> Module
-buildModuleRegistry = foldl insertDecl emptyModule
+buildModuleRegistry :: [ParsedDecl] -> Either OuroError Module
+buildModuleRegistry = foldM insertDecl emptyModule
     where
     emptyModule = Module Map.empty Map.empty Map.empty Map.empty
 
-    insertDecl :: Module -> ParsedDecl -> Module
+    insertDecl :: Module -> ParsedDecl -> Either OuroError Module
     insertDecl m = \case
-                    (PFunction d@(Function _ name _ _)) -> m & functionRegistry . at name ?~ d
-                    (PTemplate t@(Template _ name _ _)) -> m & templateRegistry . at name ?~ t
-                    (PGraph    g@(Graph    _ name _  )) -> m & graphRegistry    . at name ?~ g
+                    (PFunction d@(Function _ name _ _))  -> Right $ m & functionRegistry . at name ?~ d
+                    (PTemplate t@(Template _ name _ _))  -> Right $ m & templateRegistry . at name ?~ t
+                    (PGraph    g@(Graph    _ name body)) -> do
+                                                            validateGraphBody body
+                                                            Right $ m & graphRegistry    . at name ?~ g
+
+    -- Semantic validation
+    validateGraphBody :: S.Expr -> Either OuroError ()
+    validateGraphBody =
+        \case
+         S.Form pos (S.Symbol _ "defun"    : _) -> lexicalError "Graphs cannot contain nested 'defun' declarations."
+                                                   F.& OuroError pos
+                                                   F.& Left
+         S.Form pos (S.Symbol _ "template" : _) -> lexicalError "Graphs cannot contain nested 'template' declarations."
+                                                   F.& OuroError pos
+                                                   F.& Left
+         S.Form _   exprs                       -> traverse_ validateGraphBody exprs
+         _safeLeafs                             -> Right ()
 
 
 collectHigherExpressions :: [ParsedDecl] -> Parser [ParsedDecl]
@@ -198,6 +215,7 @@ pExpr = do
                              -- Primitive Leaf Node capture (+ source location)
                              Tkn.Let            -> capture (S.Symbol (Tkn.pos t) "let")
                              Tkn.Template       -> capture (S.Symbol (Tkn.pos t) "template")
+                             Tkn.Defun          -> capture (S.Symbol (Tkn.pos t) "defun")
                              Tkn.FlagVocab      -> capture (S.Attr   (Tkn.pos t) "vocab")
                              Tkn.FlagLanguage   -> capture (S.Attr   (Tkn.pos t) "language")
                              Tkn.FlagBase       -> capture (S.Attr   (Tkn.pos t) "base")
@@ -247,6 +265,11 @@ pExpr = do
                                                                , actualDelim   = "Orphaned Closing Bracket ']'"
                                                                }
                                                  in lift $ Left (OuroError (Tkn.pos t) context)
+
+                             _invalidToken -> lexicalError ("Invalid token: " <> (T.pack $ show (Tkn.tokenType t)) <> " found in expression")
+                                              & OuroError (Tkn.pos t)
+                                              & Left
+                                              & lift
 
 
 -- Lookahead Container Accumulators
