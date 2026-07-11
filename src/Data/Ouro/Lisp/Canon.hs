@@ -12,11 +12,12 @@ construct = \case
              S.Bracket r   exprs -> S.Bracket r   (desugar (map construct exprs))
              S.Tagged  r t expr  -> S.Tagged  r t (construct expr)
 
-             node@(S.Attr    _ _) -> node
-             node@(S.Symbol  _ _) -> node
-             node@(S.Literal _ _) -> node
-             node@(S.Quoted  _ _) -> node
-             node@(S.Hole    _ _) -> node
+             node@(S.Attr           _ _) -> node
+             node@(S.Symbol         _ _) -> node
+             node@(S.TemplateSymbol _ _) -> node
+             node@(S.Literal        _ _) -> node
+             node@(S.Quoted         _ _) -> node
+             node@(S.Hole           _ _) -> node
 
 
 -- Processes flat lists horizontally to rewrite syntax sugar
