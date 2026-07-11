@@ -23,7 +23,7 @@ dummyPos = initialPos "test"
 
 -- The test group that will be imported and run by Main.hs
 tests :: Group
-tests = Group "evalExpr (Semantic Transformation Pass)"
+tests = Group "Evaluation Tests (Surface to Higher IR)"
     [ ("lowers String syntax to Primitive I.String",   prop_lower_string)
     , ("lowers Number syntax to Primitive I.Number",   prop_lower_number)
     , ("lowers Boolean syntax to Primitive I.Boolean", prop_lower_boolean)
