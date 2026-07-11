@@ -200,29 +200,10 @@ compileArray
     -> L.Expr
 compileArray evaluator env pos elements =
     case buildNestedTemplate env elements of
-        Right envWithTmplts -> validateElems pos (compileElements envWithTmplts elements)
+        Right envWithTmplts -> Array $ compileElements envWithTmplts elements
         Left  err           -> EvalError err
 
     where
-    validateElems :: SourcePos -> [L.Expr] -> L.Expr
-    validateElems p allElems =
-        case allElems of
-            []     -> Array []
-            (x:xs) -> let findMismatch currentList =
-                                     case currentList of
-                                         []     -> Nothing
-                                         (y:ys) -> case L.structuralEq x y of
-                                                       True  -> findMismatch ys
-                                                       False -> Just y
-
-                      in case findMismatch xs of
-                             Nothing      -> Array allElems
-                             Just badElem -> typeMismatch
-                                                 "Array values to be of the same type"
-                                                 (humanReadableType x <> " and " <> humanReadableType badElem)
-                                             & OuroError p
-                                             & EvalError
-
     compileElements :: Env -> [S.Expr] -> [L.Expr]
     compileElements env' exprs =
         case exprs of
