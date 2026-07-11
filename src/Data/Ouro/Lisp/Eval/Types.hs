@@ -46,6 +46,7 @@ data Env = Env
     , _parentEnv        :: Maybe Env
     , _activeLookups    :: Set Text
     , _templateRegistry :: Map.Map Text (M.HigherExpression 'M.TemplateExpr)
+    , _callStack        :: Set Text
     }
 
 makeLenses ''Env
@@ -58,6 +59,7 @@ defaultEnv moduleEnv = Env
     , _parentEnv        = Nothing
     , _activeLookups    = Set.empty
     , _templateRegistry = (moduleEnv ^. M.templateRegistry)
+    , _callStack        = Set.empty
     }
 
 
@@ -67,6 +69,7 @@ emptyEnv = Env
     , _parentEnv        = Nothing
     , _activeLookups    = Set.empty
     , _templateRegistry = Map.empty
+    , _callStack        = Set.empty
     }
 
 

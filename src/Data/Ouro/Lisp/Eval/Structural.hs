@@ -22,9 +22,8 @@ import qualified Data.Ouro.Lisp.Eval.Types   as L
 import qualified Data.Ouro.Lisp.Surface      as S
 import qualified Data.Set                    as Set
 import           Data.Text                   (Text)
-import           Lens.Micro                  ((.~), (^.))
+import           Lens.Micro.Platform         ((%~), (.~), (^.))
 import           Text.Megaparsec             (SourcePos)
-import Lens.Micro.Platform ((%~))
 
 
 -- compileRecord.
@@ -180,8 +179,17 @@ emitProps evaluator env expressions = go I.EmptyMeta expressions
                   -- or attributes wrapping blocked structural layouts, and keep moving
                   S.Form _ (S.Symbol _ "attr" : _) : rest -> go metaAcc rest
 
-                  -- Case E: Erase exactly ONE unbound item element sequence loop and keep moving
-                  _ : rest -> go metaAcc rest
+                  -- Case E: Catch dangling expressions instead of silently erasing them
+                  expr : rest
+                      -> let err = typeMismatch
+                                       "a structural record property (attr, inlay, define, template, context)"
+                                       "an unbound expression"
+                                   & withBlurb "Unbound expressions are not allowed inside Record blocks. They must be bound to an attribute."
+                                   & OuroError (S.exprPos expr)
+                         in case go metaAcc rest of
+                                Record m p -> Record m (("*err*", EvalError err) : p)
+                                otherVal   -> otherVal
+
 
     -- Helper layout guard to prevent key-value snatching across macro envelopes
     isStructuralExpr :: S.Expr -> Bool
@@ -259,7 +267,7 @@ compileArray evaluator env pos elements =
                                                   in EvalError err : compileElements env' xs
 
             -- Case C: Process structured nested forms (Records or trailing list matrices)
-            (_formExpr@(S.Form _ fields) : xs)
+            ((S.Form _ fields) : xs)
                 -- 1. Intercept Nested Arrays: recursively compile as a matrix
                 | TargetList <- determineBlockTarget fields
                 -> compileArray evaluator env' pos fields : compileElements env' xs
@@ -329,7 +337,7 @@ determineBlockTarget fields =
     isFunctionApplication :: [S.Expr] -> Bool
     isFunctionApplication =
         \case
-         (S.Symbol _ name : _) -> not (name `elem` ["template", "define", "context"])
+         (S.Symbol _ name : _) -> not (name `elem` ["template", "define", "context", "return"])
          _NotaFunc             -> False
 
     isStructuralField :: S.Expr -> Bool
@@ -395,10 +403,9 @@ resolvePath shouldEval fullEnv originalExpr pathVals = go fullEnv originalExpr (
                                                                _  -> ""
                                             in unboundIdentifier varName
                                                & withBlurb ( "The evaluator attempted to lookup the value for '"
-                                                           <> varName <> "', "
-                                                           <> "but the identifier failed to resolve"
-                                                           <> " within any active scope chain."
-                                                           <> suggestion
+                                                          <> varName <> "', "
+                                                          <> "but the identifier failed to resolve within any active scope chain."
+                                                          <> suggestion
                                                            )
                                                & OuroError pos
                                                & EvalError
@@ -451,13 +458,16 @@ matchTokenStream targetKey stream =
 
         -- Match the new structured attribute form
         (S.Form _ [S.Symbol _ "attr", S.Literal _ (S.Str k), valExpr] : _)
-            | k == targetKey -> Just valExpr
+            | k == targetKey
+            -> Just valExpr
 
         -- Match the specific 'define' scope piercing pattern using the new attribute structure
         (S.Symbol _ "define" : S.Form _ [S.Symbol _ "attr", S.Literal _ (S.Str varName), S.Form _ innerBody] : _)
-            | varName == targetKey -> matchTokenStream targetKey innerBody
+            | varName == targetKey
+            -> matchTokenStream targetKey innerBody
 
-        (_ : rest) -> matchTokenStream targetKey rest
+        (_ : rest)
+            -> matchTokenStream targetKey rest
 
 
 -- compileTemplate.
@@ -475,32 +485,61 @@ compileTemplate
     -> [S.Expr]                       -- The actual arguments passed at the call site
     -> Reader Env L.Expr              -- The returned evaluated expr
 compileTemplate evaluator parentEnv pos name params bodyExprs actualArgs =
-    let parLen = length params
-        actLen = length actualArgs
+    let parLen       = length params
+        actLen       = length actualArgs
+        currentStack = parentEnv ^. L.callStack
     in case parLen == actLen of
            True  -> do
-                    let argMap      = Map.fromList (zip params actualArgs)
-                        templateEnv = parentEnv
-                                      & L.localScope       .~ argMap
-                                      & L.parentEnv        .~ Just parentEnv
-                                      & L.activeLookups    .~ Set.empty
-                                      & L.templateRegistry .~ (parentEnv ^. L.templateRegistry)
+                    case Set.member name currentStack of
+                        True  -> typeMismatch
+                                     "a terminating function call"
+                                     "a recursive function call"
+                                 & withBlurb ("Recursion is strictly forbidden in Ouro. The function '" <> name <> "' attempted to call itself.")
+                                 & OuroError pos
+                                 & EvalError
+                                 & pure
+                        False
+                            -> do
+                               let argMap      = Map.fromList (zip params actualArgs)
+                                   templateEnv = parentEnv
+                                               & L.localScope       .~ argMap
+                                               & L.parentEnv        .~ Just parentEnv
+                                               & L.activeLookups    .~ Set.empty
+                                               & L.templateRegistry .~ (parentEnv ^. L.templateRegistry)
+                                               & L.callStack        .~ (Set.insert name currentStack)
 
-                        -- Unwrap the Reader Monad to explict (Env -> S.Expr -> L.Expr)
-                        evaluator' currentEnv expr' = runReader (evaluator expr') currentEnv
+                                   -- Unwrap the Reader Monad to explict (Env -> S.Expr -> L.Expr)
+                                   evaluator' currentEnv expr' = runReader (evaluator expr') currentEnv
 
-                    -- Pass the prepared environment down into the block compiler
-                    case determineBlockTarget bodyExprs of
-                        TargetRecord      -> pure $ compileRecord evaluator' templateEnv bodyExprs
-                        TargetList        -> pure $ compileArray  evaluator' templateEnv pos bodyExprs
-                        TargetFunctionApp -> typeMismatch
-                                                 "a template that evaluate to either a Record or an Array"
-                                                 "a ast shape which corresponds to function appliaction"
-                                             & OuroError pos
-                                             & L.EvalError
-                                             & pure
+                               case returnExpr bodyExprs of
+                                   Just (S.Form _ (_ : val : _))
+                                       -> do
+                                           case buildLazyEnv templateEnv bodyExprs of
+                                               Right fnEnv -> pure $ evaluator' (templateEnv & L.localScope .~ fnEnv & L.parentEnv .~ Just templateEnv) val
+                                               Left  err   -> pure $ EvalError err
+
+                                   _noReturnExpression
+                                       -> case determineBlockTarget bodyExprs of
+                                               TargetRecord      -> pure $ compileRecord evaluator' templateEnv bodyExprs
+                                               TargetList        -> pure $ compileArray  evaluator' templateEnv pos bodyExprs
+                                               TargetFunctionApp -> typeMismatch
+                                                                       "a function with a concrete return type (Array, Record, Primitive or another Function)"
+                                                                       "a function with a dangling expression"
+                                                                   & withBlurb
+                                                                       ("Perhaps wrap the body of the function: '" <> name <> "' in a (return) expresion.")
+                                                                   & OuroError pos
+                                                                   & L.EvalError
+                                                                   & pure
 
            False -> incorrectArity name parLen actLen
                     & OuroError pos
                     & L.EvalError
                     & pure
+
+    where
+    returnExpr :: [S.Expr] -> Maybe S.Expr
+    returnExpr =
+        \case
+         []                                                -> Nothing
+         (S.Form fPos (S.Symbol sPos "return" : rest) : _) -> Just (S.Form fPos (S.Symbol sPos "return" : rest))
+         (_ : xs)                                          -> returnExpr xs

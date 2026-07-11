@@ -156,6 +156,8 @@ validateAST' valueGraph = case valueGraph of
                                                                       )
                                                           & OuroError (S.exprPos payload)
                                                           & Set.singleton
+
+
                               -- Pristine values, closures, and frozen GADTs have zero errors
                               _primitve               -> Set.empty
 

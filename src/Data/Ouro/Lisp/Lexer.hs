@@ -12,8 +12,8 @@ import qualified Text.Megaparsec            as M
 import           Text.Megaparsec            (MonadParsec (eof, lookAhead),
                                              ParseError (..), Parsec, choice,
                                              getSourcePos, many, manyTill,
-                                             notFollowedBy, oneOf, runParser,
-                                             some, try, (<|>), optional)
+                                             notFollowedBy, oneOf, optional,
+                                             runParser, some, try, (<|>))
 import           Text.Megaparsec.Char       (alphaNumChar, char, letterChar,
                                              space1, spaceChar, string)
 import qualified Text.Megaparsec.Char.Lexer as L

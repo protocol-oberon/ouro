@@ -5,7 +5,7 @@
 module Data.Ouro.Lisp.Eval.Engine where
 
 import           Control.Monad.Reader           (MonadReader (..), Reader,
-                                                 runReader)
+                                                 runReader, asks)
 import           Data.Function                  ((&))
 import qualified Data.Map                       as Map
 import           Data.Ouro.Error.Diagnostics    (astCorruption,
@@ -38,9 +38,12 @@ import qualified Data.Ouro.Lisp.Surface         as S
 import           Data.Text                      (Text)
 import qualified Data.Text                      as T
 import qualified Data.Vector                    as V
+import           Lens.Micro.Platform            ((%~), (^.))
 import           Text.Megaparsec                (SourcePos)
 import qualified Text.URI                       as URI
-import Lens.Micro.Platform ((%~))
+import qualified Data.Set as Set
+import qualified Debug.Trace as Debug
+import GHC.Exts (currentCallStack)
 
 
 -- No State monad is required because errors are handled as Data in the L.Expr tree.
@@ -409,34 +412,38 @@ assertTag tag payload = do
 applyFunction :: SourcePos -> [S.Expr] -> EvalM L.Expr
 applyFunction pos fields =
     case fields of
-        (operatorExpr : argumentExprs) -> do
-            resolvedOp <- evalExpr operatorExpr
-            case resolvedOp of
-                TemplateClosure closureEnv name params bodyExprs
-                    -> compileTemplate evalExpr closureEnv pos name params bodyExprs argumentExprs
+        (operatorExpr : argumentExprs)
+            -> do
+               resolvedOp   <- evalExpr operatorExpr
 
-                PrimitiveOp nativeFunc
-                    -> do
-                       evaledArgs <- mapM evalExpr argumentExprs
-                       env        <- ask
-                       pure $ runReader (nativeFunc pos evaledArgs) env
+               case resolvedOp of
+                   TemplateClosure closureEnv name params bodyExprs
+                       -> compileTemplate evalExpr closureEnv pos name params bodyExprs argumentExprs
 
-                err@(EvalError _) -> pure err
-                otherVal          -> unboundIdentifier (humanReadableType otherVal)
-                                     & withBlurb ("The evaluator attempted to invoke the form head as a callable function handle, "
-                                                <> "but the identifier resolved to an immutable "
-                                                <> humanReadableType otherVal
-                                                <> " primitive instead.\n\n"
-                                                <> "Perhaps check that target value is in scope.")
-                                     & OuroError pos
-                                     & EvalError
-                                     & pure
+                   PrimitiveOp nativeFunc
+                       -> do
+                          evaledArgs <- mapM evalExpr argumentExprs
+                          env        <- ask
+                          pure $ runReader (nativeFunc pos evaledArgs) env
 
-        [] -> pure $ EvalError $
-            unbalancedDelimiter "an active form operator symbol" "Empty Brackets"
-            & withBlurb ("Empty structural framing brackets are invalid executable values in Ouro. "
-                      <> "An execution group must contain at least a primary invocation symbol or operator key.")
-            & OuroError pos
+                   err@(EvalError _) -> pure err
+                   otherVal          -> unboundIdentifier (humanReadableType otherVal)
+                                       & withBlurb ("The evaluator attempted to invoke the form head as a callable function handle, "
+                                                   <> "but the identifier resolved to an immutable "
+                                                   <> humanReadableType otherVal
+                                                   <> " primitive instead.\n\n"
+                                                   <> "Perhaps check that target value is in scope.")
+                                       & OuroError pos
+                                       & EvalError
+                                       & pure
+
+        [] -> unbalancedDelimiter "an active form operator symbol" "Empty Brackets"
+              & withBlurb ( "Empty structural framing brackets are invalid executable values in Ouro. "
+                         <> "An execution group must contain at least a primary invocation symbol or operator key."
+                          )
+              & OuroError pos
+              & EvalError
+              & pure
 
 
 evaluateGuards

@@ -242,7 +242,8 @@ To get the head value of record or list, `(nth 0 trgt)` can be used. You can als
 
 ### Inlay
 
-`(inlay)` is a special form used to nest the contents of a record into the current record. For example the following Ouro code:
+`(inlay)` is a special form used to nest the contents of a record into the
+current record. For example the following Ouro code:
 
 ``` clojure
 (:context "https://linked.art/ns/v1/linked-art.json"
@@ -490,20 +491,21 @@ The following Ouro code:
 
 *Purchase of Spring by Proust*
 ``` clojure
-((template transfer! (id-type type-of-type name)
-   (define
-     :getty      "http://vocab.getty.edu/aat/"
-     :linked-art "https://linked.art/example/"
-     :uri_type   (case id-type
-                       (("manet" "proust") (+ linked-art "person/"))
-                       ("spring"           (+ linked-art "object/"))
-                       ("manet_proust/1"   (+ linked-art "provenance/"))
-                       (otherwise          getty)))
+(template transfer! (id-type type-of-type name)
+  (define
+    :getty      "http://vocab.getty.edu/aat/"
+    :linked-art "https://linked.art/example/"
+    :uri_type   (case id-type
+                      (("manet" "proust") (+ linked-art "person/"))
+                      ("spring"           (+ linked-art "object/"))
+                      ("manet_proust/1"   (+ linked-art "provenance/"))
+                      (otherwise          getty)))
 
-   :id     #uri (+ uri_type id-type)
-   :type   type-of-type
-   :_label name)
+  :id     #uri (+ uri_type id-type)
+  :type   type-of-type
+  :_label name)
 
+(graph purchase-of-spring
  :context "https://linked.art/ns/v1/linked-art.json"
  (inlay (transfer! "manet_proust/1" "Activity" "Purchase of Spring by Proust"))
  :classified_as ((transfer! "300055863" "Type" "Provenance Activity"))

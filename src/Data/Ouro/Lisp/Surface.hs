@@ -2,8 +2,8 @@
 module Data.Ouro.Lisp.Surface where
 
 import           Data.Text       (Text)
+import qualified Data.Text       as T
 import           Text.Megaparsec (SourcePos)
-import qualified Data.Text as T
 
 
 -- Expr.
@@ -95,20 +95,20 @@ structuralEq :: Expr -> Expr -> Maybe [(Text, Expr)]
 structuralEq e1 e2 =
     case (e1, e2) of
         -- 1. Hole matching a single expression
-        (Hole _ name, target)      -> bindHole name target
-        (target     , Hole _ name) -> bindHole name target
+        (Hole _ name, target)               -> bindHole name target
+        (target     , Hole _ name)          -> bindHole name target
 
         -- 2. Exact leaf matches (return empty bindings on success)
         (Symbol  _ a, Symbol  _ b) | a == b -> Just []
         (Literal _ a, Literal _ b) | a == b -> Just []
 
         -- 3. Recursive matches
-        (Quoted  _ a, Quoted   _ b)  -> structuralEq a b
-        (Form    _ xs, Form    _ ys) -> matchForms xs ys
-        (Bracket _ xs, Bracket _ ys) -> matchForms xs ys
+        (Quoted  _ a, Quoted   _ b)         -> structuralEq a b
+        (Form    _ xs, Form    _ ys)        -> matchForms xs ys
+        (Bracket _ xs, Bracket _ ys)        -> matchForms xs ys
 
         -- 4. Fallthrough: Mismatch
-        _typeMismatch -> Nothing
+        _typeMismatch                       -> Nothing
 
     where
     -- Helper to capture the binding.
