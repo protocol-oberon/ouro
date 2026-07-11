@@ -74,6 +74,17 @@ handleAddition pos =
                 (L.Duration unit amt,        L.Primitive (I.Date utc))  -> pure $ L.Primitive (I.Date (applyDuration utc unit amt))
                 (L.Primitive (I.String s1),  L.Primitive (I.String s2)) -> pure $ L.Primitive (I.String (s1 <> s2))
                 (L.Primitive (I.Number n1),  L.Primitive (I.Number n2)) -> pure $ L.Primitive (I.Number (n1 + n2))
+                (arrX@(L.Array xs),          arrY@(L.Array ys))
+                    -> case L.structuralEq arrX arrY of
+                           True  -> pure $ L.Array (xs <> ys)
+                           False -> typeMismatch
+                                        "Matching Arrays of the same type"
+                                        (humanReadableType arrX <> " + " <> humanReadableType arrY)
+                                    & withBlurb (binaryOpMismatchBlurb arrX arrY)
+                                    & OuroError pos
+                                    & L.EvalError
+                                    & pure
+
 
                 -- Error propagation
                 (err@(L.EvalError _), _) -> pure err
