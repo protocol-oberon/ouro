@@ -17,13 +17,14 @@ import           Data.Ouro.Internal.Utils    (rankBySimilarity)
 import           Data.Ouro.Lisp.Eval.Schema  (parseContextDirectives)
 import           Data.Ouro.Lisp.Eval.Scope   (buildLazyEnv, buildNestedTemplate)
 import           Data.Ouro.Lisp.Eval.Types   (Env (..), Expr (..), allEnvKeys,
-                                              humanReadableType)
+                                              humanReadableType, localScope)
 import qualified Data.Ouro.Lisp.Eval.Types   as L
 import qualified Data.Ouro.Lisp.Surface      as S
 import qualified Data.Set                    as Set
 import           Data.Text                   (Text)
 import           Lens.Micro                  ((.~), (^.))
 import           Text.Megaparsec             (SourcePos)
+import Lens.Micro.Platform ((%~))
 
 
 -- compileRecord.
@@ -228,16 +229,23 @@ compileArray evaluator env pos elements =
             [] -> []
 
             -- Case A: TRUE ERASURE: Skip define blocks completely inside arrays
-            S.Form _ (S.Symbol _ "define" : _) : xs -> compileElements env' xs
+            -- Still inject variables into scope
+            S.Form _ (S.Symbol _ "define" : variables) : xs
+                -> case buildLazyEnv env' variables of
+                       Right newEnv -> compileElements (env' & localScope %~ Map.union newEnv) xs
+                       Left  err    -> EvalError err : compileElements env' xs
 
             -- Skip Templates
-            S.Form _ (S.Symbol _ "template" : _) : xs -> compileElements env' xs
+            S.Form _ (S.Symbol _ "template" : _) : xs
+                -> compileElements env' xs
 
             -- Case B: TRUE ERASURE: Skip context blocks completely inside arrays
-            S.Form _ [S.Symbol _ "context", S.Form _ _] : xs -> compileElements env' xs
+            S.Form _ [S.Symbol _ "context", S.Form _ _] : xs
+                -> compileElements env' xs
 
             -- Case B.25 TRUE ERASURE: Skip ubound attrs from attr from
-            S.Form _ [S.Symbol _ "attr", _, _] : xs -> compileElements env' xs
+            S.Form _ [S.Symbol _ "attr", _, _] : xs
+                -> compileElements env' xs
 
             -- Case B.5: Inlay evaluated array elements directly into the current array scope
             S.Form _ [S.Symbol sPos "inlay", iExpr] : xs
