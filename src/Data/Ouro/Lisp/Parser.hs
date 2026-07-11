@@ -15,7 +15,7 @@ import           Data.Ouro.Error.Types       (ErrorContext (..), OuroError (..),
                                               SyntaxError (..))
 import           Data.Ouro.Lisp.Module.Types (Declaration (..),
                                               HigherExpression (..),
-                                              Module (..), functionRegistry,
+                                              Module (..),
                                               graphRegistry, templateRegistry)
 import qualified Data.Ouro.Lisp.Surface      as S
 import qualified Data.Ouro.Lisp.Tokens       as Tkn
@@ -33,8 +33,7 @@ type Parser a = StateT ParseState (Either OuroError) a
 
 -- Wraper for type indexed higher expressions
 data ParsedDecl
-    = PFunction (HigherExpression 'FunctionExpr)
-    | PTemplate (HigherExpression 'TemplateExpr)
+    = PTemplate (HigherExpression 'TemplateExpr)
     | PGraph    (HigherExpression 'GraphExpr)
 
 
@@ -49,11 +48,10 @@ parseModule tokens = do
 buildModuleRegistry :: [ParsedDecl] -> Either OuroError Module
 buildModuleRegistry = foldM insertDecl emptyModule
     where
-    emptyModule = Module Map.empty Map.empty Map.empty Map.empty
+    emptyModule = Module Map.empty Map.empty Map.empty
 
     insertDecl :: Module -> ParsedDecl -> Either OuroError Module
     insertDecl m = \case
-                    (PFunction d@(Function _ name _ _))  -> Right $ m & functionRegistry . at name ?~ d
                     (PTemplate t@(Template _ name _ _))  -> Right $ m & templateRegistry . at name ?~ t
                     (PGraph    g@(Graph    _ name body)) -> do
                                                             validateGraphBody body
@@ -90,9 +88,8 @@ pHigherExpression = do
         Tkn.OpenParen -> do
                          kwTkn <- popToken "Expected higher expression declaration keyword (defun, template, graph)"
                          case Tkn.tokenType kwTkn of
-                             Tkn.Defun    -> pFunction (Tkn.pos startTkn)
-                             Tkn.Template -> pTemplate (Tkn.pos startTkn)
-                             Tkn.Graph    -> pGraph    (Tkn.pos startTkn)
+                             Tkn.Defun    -> pDefun (Tkn.pos startTkn)
+                             Tkn.Graph    -> pGraph (Tkn.pos startTkn)
                              other        -> lexicalError ("Invalid top-level keyword: " <> T.pack (show other))
                                              F.& OuroError (Tkn.pos kwTkn)
                                              F.& Left
@@ -103,17 +100,8 @@ pHigherExpression = do
                  F.& lift
 
 
-pFunction :: SourcePos -> Parser ParsedDecl
-pFunction pos = do
-    name <- expectSymbol "Expected function name"
-    args <- pArgs
-    body <- pExpr
-    expectCloseParen
-    pure $ PFunction (Function pos name args body)
-
-
-pTemplate :: SourcePos -> Parser ParsedDecl
-pTemplate pos = do
+pDefun :: SourcePos -> Parser ParsedDecl
+pDefun pos = do
     -- We specifically enforce the TemplateSymbol (e.g., ends in '!')
     name <- expectTemplateSymbol "Expected template name ending with '!'"
     args <- pArgs
@@ -201,9 +189,9 @@ pExpr = do
             -- For a sudden EOF, we generate an unclosed delimiter payload
             []     -> let pos     = M.initialPos "unknown-source"
                           context = Syntax UnbalancedDelimiter
-                                    { expectedDelim = "Expression node layout component"
-                                    , actualDelim   = "EOF (End of File)"
-                                    }
+                                        { expectedDelim = "Expression node layout component"
+                                        , actualDelim   = "EOF (End of File)"
+                                        }
                       in lift $ Left (OuroError pos context)
             (t:ts) -> let capture n = put ts >> pure n
                       in case Tkn.tokenType t of
@@ -216,18 +204,20 @@ pExpr = do
                              Tkn.Let            -> capture (S.Symbol (Tkn.pos t) "let")
                              Tkn.Template       -> capture (S.Symbol (Tkn.pos t) "template")
                              Tkn.Defun          -> capture (S.Symbol (Tkn.pos t) "defun")
-                             Tkn.FlagVocab      -> capture (S.Attr   (Tkn.pos t) "vocab")
-                             Tkn.FlagLanguage   -> capture (S.Attr   (Tkn.pos t) "language")
-                             Tkn.FlagBase       -> capture (S.Attr   (Tkn.pos t) "base")
-                             Tkn.FlagTerms      -> capture (S.Attr   (Tkn.pos t) "terms")
-                             Tkn.FlagClear      -> capture (S.Attr   (Tkn.pos t) "clear")
-                             Tkn.TypeMappingID  -> capture (S.Attr   (Tkn.pos t) "id")
-                             Tkn.TypeMappingIRI -> capture (S.Attr   (Tkn.pos t) "iri")
 
                              -- Parameterized Identifiers
-                             Tkn.Attr           txt -> capture (S.Attr   (Tkn.pos t) txt)
                              Tkn.Symbol         txt -> capture (S.Symbol (Tkn.pos t) txt)
                              Tkn.TemplateSymbol txt -> capture (S.Symbol (Tkn.pos t) txt)
+
+                             -- Flags & Attributes (Reader Macro -> `(attr "key" expr)`)
+                             Tkn.FlagVocab      -> put ts >> parseAttrNode (Tkn.pos t) "vocab"
+                             Tkn.FlagLanguage   -> put ts >> parseAttrNode (Tkn.pos t) "language"
+                             Tkn.FlagBase       -> put ts >> parseAttrNode (Tkn.pos t) "base"
+                             Tkn.FlagTerms      -> put ts >> parseAttrNode (Tkn.pos t) "terms"
+                             Tkn.FlagClear      -> put ts >> parseAttrNode (Tkn.pos t) "clear"
+                             Tkn.TypeMappingID  -> put ts >> parseAttrNode (Tkn.pos t) "id"
+                             Tkn.TypeMappingIRI -> put ts >> parseAttrNode (Tkn.pos t) "iri"
+                             Tkn.Attr           txt -> put ts >> parseAttrNode (Tkn.pos t) txt
 
                              -- Core Data Literals
                              Tkn.String txt     -> capture (S.Literal (Tkn.pos t) (S.Str txt))
@@ -255,15 +245,15 @@ pExpr = do
 
                              -- Unbalanced Boundaries are immediate semantic loop violations
                              Tkn.CloseParen -> let context = Syntax UnbalancedDelimiter
-                                                             { expectedDelim = "Opening Form Boundary '('"
-                                                             , actualDelim   = "Orphaned Closing Parenthesis ')'"
-                                                             }
+                                                                 { expectedDelim = "Opening Form Boundary '('"
+                                                                 , actualDelim   = "Orphaned Closing Parenthesis ')'"
+                                                                 }
                                                in lift $ Left (OuroError (Tkn.pos t) context)
 
                              Tkn.CloseBracket -> let context = Syntax UnbalancedDelimiter
-                                                               { expectedDelim = "Opening Array Boundary '['"
-                                                               , actualDelim   = "Orphaned Closing Bracket ']'"
-                                                               }
+                                                                   { expectedDelim = "Opening Array Boundary '['"
+                                                                   , actualDelim   = "Orphaned Closing Bracket ']'"
+                                                                   }
                                                  in lift $ Left (OuroError (Tkn.pos t) context)
 
                              _invalidToken -> lexicalError ("Invalid token: " <> (T.pack $ show (Tkn.tokenType t)) <> " found in expression")
@@ -295,6 +285,18 @@ parseTaggedNode tagPos tagType = do
 
                                  -- Construct the Tagged node using the expression directly
                                  pure $ S.Tagged tagPos tagType nextExpr
+
+
+-- Reader Macro Helper: Desugars attributes into `(attr "name" expr)`
+parseAttrNode :: SourcePos -> Text -> Parser S.Expr
+parseAttrNode pos attrName = do
+                             -- Eagerly consume the next expression to bind to the attribute
+                             nextExpr <- pExpr
+                             pure $ S.Form pos [ S.Symbol pos "attr"
+                                               , S.Literal pos (S.Str attrName)
+                                               , nextExpr
+                                               ]
+
 
 parseQuotedNode :: SourcePos -> Parser S.Expr
 parseQuotedNode startPos = do

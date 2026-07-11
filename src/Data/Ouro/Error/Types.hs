@@ -199,7 +199,8 @@ data ScopeError
       }
 
     | IndexOutOfBoundsError
-      { typeOfTarget   :: Text
+      { calledBy       :: Text
+      , typeOfTarget   :: Text
       , attemptedIndex :: Int
       , actualLen      :: Int
       }

@@ -58,21 +58,22 @@ buildLazyEnv = curry $ \case
                                outerVars <- buildLazyEnv env xs
                                pure $ Map.union innerVars outerVars
 
-                        -- Case C: Standard attribute mapping accumulation pass (with structural layout check guards)
-                        (env, S.Attr pos key : valExpr : rest)
+                        -- Case C: Standard attribute mapping accumulation pass using the new parsed form
+                        (env, S.Form pos [S.Symbol _ "attr", S.Literal _ (S.Str key), valExpr] : rest)
                             | not (isStructuralExpr valExpr)
                             -> case isReserved key of
-                                  True  -> shadowedVariable key
-                                           & withBlurb (shadowedVariableBlurb key)
-                                           & OuroError pos
-                                           & Left
+                                 True  -> shadowedVariable key
+                                          & withBlurb (shadowedVariableBlurb key)
+                                          & OuroError pos
+                                          & Left
 
-                                  False -> do
-                                           next <- buildLazyEnv env rest
-                                           pure $ Map.insert key valExpr next
+                                 False -> do
+                                          next <- buildLazyEnv env rest
+                                          pure $ Map.insert key valExpr next
 
-                        -- Case D: Safely drop lone attribute tokens without eating sibling expressions
-                        (env, S.Attr {} : rest)
+                        -- Case D: Safely drop malformed or lone attribute forms without eating sibling expressions
+                        -- (Catches cases like `(attr "key")` with missing or extra arguments)
+                        (env, S.Form _ (S.Symbol _ "attr" : _) : rest)
                             -> buildLazyEnv env rest
 
                         -- Case E: Erase exactly 1 unbound element and keep moving
@@ -82,15 +83,16 @@ buildLazyEnv = curry $ \case
     where
     isStructuralExpr :: S.Expr -> Bool
     isStructuralExpr = \case
-                        S.Attr {} -> True
-                        S.Form _ (S.Symbol _ "context" : _)  -> True
-                        S.Form _ (S.Symbol _ "define" : _)   -> True
+                        S.Form _ (S.Symbol _ "attr"     : _) -> True
+                        S.Form _ (S.Symbol _ "context"  : _) -> True
+                        S.Form _ (S.Symbol _ "define"   : _) -> True
                         S.Form _ (S.Symbol _ "template" : _) -> True
+                        S.Form _ (S.Symbol _ "return"   : _) -> True
                         _otherForm                           -> False
 
-    -- Reseverd special forms
+    -- Reserved special forms
     isReserved :: Text -> Bool
-    isReserved name = name `elem` ["nth", "list", "quote", "eval", "case", "get", "get'", "context", "define", "inlay", "insert", "attr", "template", "defun"]
+    isReserved name = name `elem` ["nth", "list", "quote", "eval", "case", "get", "get'", "context", "define", "inlay", "insert", "attr", "template", "defun", "return"]
 
 
 -- Scans a list of surface expressions for nested templates, lifting them into

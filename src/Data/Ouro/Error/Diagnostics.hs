@@ -111,8 +111,8 @@ incorrectArity name argNo actNo = Scope $ IncorrectArity
     }
 
 
-indexOutOfBounds :: Text -> Int -> Int -> ErrorContext
-indexOutOfBounds = \tOft att act -> Scope $ IndexOutOfBoundsError tOft att act
+indexOutOfBounds :: Text -> Text -> Int -> Int -> ErrorContext
+indexOutOfBounds = \cb tOft att act -> Scope $ IndexOutOfBoundsError cb tOft att act
 
 
 nonExistentGraph :: Text -> Text -> ErrorContext

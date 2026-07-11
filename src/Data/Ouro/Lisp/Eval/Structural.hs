@@ -67,6 +67,7 @@ compileRecord evaluator env fields =
 
 
 -- Iterates through a stream of tokens to filter and evaluate physical properties into a L.Expr superset tree.
+-- Iterates through a stream of tokens to filter and evaluate physical properties into a L.Expr superset tree.
 emitProps
     :: (Env -> S.Expr -> L.Expr)
     -> Env
@@ -100,9 +101,6 @@ emitProps evaluator env expressions = go I.EmptyMeta expressions
                   -- Case B: Define Blocks are explicitly erased from the output JSON graph at comptime
                   S.Form _ (S.Symbol _ "define" : _) : rest -> go metaAcc rest
 
-                  -- Case B.25 TRUE ERASURE: Skip ubound attrs from attr from
-                  S.Form _ [S.Symbol _ "attr", _, _] : rest -> go metaAcc rest
-
                   -- Case B.5 Template Blocks are also explicity erased from output JSON graph at comptime
                   S.Form _ (S.Symbol _ "template" : _) : rest -> go metaAcc rest
 
@@ -132,15 +130,17 @@ emitProps evaluator env expressions = go I.EmptyMeta expressions
 
                                                     -- 3. If it evaluated to something other than a record, throw a type mismatch
                                                     otherVal      -> let err = typeMismatch
-                                                                                    "a valid Record to inlay into the current Record scope"
-                                                                                    (humanReadableType otherVal)
-                                                                                & OuroError (S.exprPos iExpr)
-                                                                    in Record finalMeta (("*err*", EvalError err) : nextPairs)
+                                                                                   "a valid Record to inlay into the current Record scope"
+                                                                                   (humanReadableType otherVal)
+                                                                               & OuroError (S.exprPos iExpr)
+                                                                     in Record finalMeta (("*err*", EvalError err) : nextPairs)
 
                                         otherVal -> otherVal
 
-                  -- Case C: Extract valid body pairs. Supports lazy nesting compilation inline.
-                  (S.Attr _ key : valExpr : rest) | not (isStructuralExpr valExpr)
+                  -- Case C: Extract valid body pairs using the new structured attribute form.
+                  -- Supports lazy nesting compilation inline.
+                  S.Form _ [S.Symbol _ "attr", S.Literal _ (S.Str key), valExpr] : rest
+                      | not (isStructuralExpr valExpr)
                       -> case go metaAcc rest of
                              Record finalMeta nextPairs
                                  -> case evaluator env valExpr of
@@ -176,8 +176,9 @@ emitProps evaluator env expressions = go I.EmptyMeta expressions
 
                              otherVal -> otherVal
 
-                  -- Case D: If it's a loose keyword modifier layout, safely drop it and keep moving
-                  S.Attr {} : rest -> go metaAcc rest
+                  -- Case D (Replaces Old B.25 and Old D): Safely drop malformed/loose attribute blocks
+                  -- or attributes wrapping blocked structural layouts, and keep moving
+                  S.Form _ (S.Symbol _ "attr" : _) : rest -> go metaAcc rest
 
                   -- Case E: Erase exactly ONE unbound item element sequence loop and keep moving
                   _ : rest -> go metaAcc rest
@@ -185,10 +186,12 @@ emitProps evaluator env expressions = go I.EmptyMeta expressions
     -- Helper layout guard to prevent key-value snatching across macro envelopes
     isStructuralExpr :: S.Expr -> Bool
     isStructuralExpr = \case
-                        S.Attr _ _                          -> True
-                        S.Form _ (S.Symbol _ "context" : _) -> True
-                        S.Form _ (S.Symbol _ "define"  : _) -> True
-                        _otherForm                          -> False
+                        S.Form _ (S.Symbol _ "attr"     : _) -> True
+                        S.Form _ (S.Symbol _ "context"  : _) -> True
+                        S.Form _ (S.Symbol _ "define"   : _) -> True
+                        S.Form _ (S.Symbol _ "template" : _) -> True
+                        S.Form _ (S.Symbol _ "return"   : _) -> True
+                        _otherForm                           -> False
 
 
 -- Compiles a collection of nested Lisp blocks into a uniform Array
@@ -332,9 +335,9 @@ determineBlockTarget fields =
     isStructuralField :: S.Expr -> Bool
     isStructuralField =
         \case
-         S.Attr {}                            -> True
-         S.Form _ (S.Symbol _ "context" : _)  -> True
-         _other                               -> False
+         S.Form _ (S.Symbol _ "attr"    : _) -> True
+         S.Form _ (S.Symbol _ "context" : _) -> True
+         _other                              -> False
 
 
 -- resolvePath.
@@ -386,11 +389,11 @@ resolvePath shouldEval fullEnv originalExpr pathVals = go fullEnv originalExpr (
                                Nothing   -> let allKeys    = Set.toList $ allEnvKeys fullEnv
                                                 suggestion = case rankBySimilarity varName allKeys of
                                                                ((bestMatch, score) : _) | score <= 3
-                                                                   -> "\n\nPerhaps you meant: '"
-                                                                   <> bestMatch
-                                                                   <> "'?"
-                                                               _   -> ""
-                                           in unboundIdentifier varName
+                                                                  -> "\n\nPerhaps you meant: '"
+                                                                  <> bestMatch
+                                                                  <> "'?"
+                                                               _  -> ""
+                                            in unboundIdentifier varName
                                                & withBlurb ( "The evaluator attempted to lookup the value for '"
                                                            <> varName <> "', "
                                                            <> "but the identifier failed to resolve"
@@ -403,19 +406,19 @@ resolvePath shouldEval fullEnv originalExpr pathVals = go fullEnv originalExpr (
                    -- Strategy 2: Scan Form wrappers using our strict token matching rules
                    S.Form pos elements
                        -> scanEnv env targetKey remainingKeys elements
-                                   (missingPathKey targetKey [k | S.Attr _ k <- elements]
-                                   & withBlurb ( "The path resolution engine could not locate the key '"
-                                               <> targetKey
-                                               <> "' inside the active form structure."
-                                               <> "\n\nPerhaps you misspelled the property handle?"
-                                               )
-                                   & OuroError pos
-                                   )
+                                  (missingPathKey targetKey [k | S.Form _ [S.Symbol _ "attr", S.Literal _ (S.Str k), _] <- elements]
+                                  & withBlurb ( "The path resolution engine could not locate the key '"
+                                              <> targetKey
+                                              <> "' inside the active form structure."
+                                              <> "\n\nPerhaps you misspelled the property handle?"
+                                              )
+                                  & OuroError pos
+                                  )
 
                    -- Strategy 3: Scan Bracket wrappers identically
                    S.Bracket pos elements
                        -> scanEnv env targetKey remainingKeys elements
-                               (missingPathKey targetKey [k | S.Attr _ k <- elements]
+                               (missingPathKey targetKey [k | S.Form _ [S.Symbol _ "attr", S.Literal _ (S.Str k), _] <- elements]
                                & withBlurb ( "The path resolution engine could not locate the key '"
                                            <> targetKey
                                            <> "' inside the active bracket matrix."
@@ -445,10 +448,13 @@ matchTokenStream :: Text -> [S.Expr] -> Maybe S.Expr
 matchTokenStream targetKey stream =
     case stream of
         [] -> Nothing
-        (S.Attr _ k : valExpr : _)
+
+        -- Match the new structured attribute form
+        (S.Form _ [S.Symbol _ "attr", S.Literal _ (S.Str k), valExpr] : _)
             | k == targetKey -> Just valExpr
 
-        (S.Symbol _ "define" : S.Attr _ varName : S.Form _ innerBody : _)
+        -- Match the specific 'define' scope piercing pattern using the new attribute structure
+        (S.Symbol _ "define" : S.Form _ [S.Symbol _ "attr", S.Literal _ (S.Str varName), S.Form _ innerBody] : _)
             | varName == targetKey -> matchTokenStream targetKey innerBody
 
         (_ : rest) -> matchTokenStream targetKey rest

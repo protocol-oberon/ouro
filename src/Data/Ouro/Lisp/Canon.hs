@@ -12,12 +12,11 @@ construct = \case
              S.Bracket r   exprs -> S.Bracket r   (desugar (map construct exprs))
              S.Tagged  r t expr  -> S.Tagged  r t (construct expr)
 
-             node@(S.Attr           _ _) -> node
-             node@(S.Symbol         _ _) -> node
-             node@(S.TemplateSymbol _ _) -> node
-             node@(S.Literal        _ _) -> node
-             node@(S.Quoted         _ _) -> node
-             node@(S.Hole           _ _) -> node
+             node@(S.Symbol      _ _) -> node
+             node@(S.DefunSymbol _ _) -> node
+             node@(S.Literal     _ _) -> node
+             node@(S.Quoted      _ _) -> node
+             node@(S.Hole        _ _) -> node
 
 
 -- Processes flat lists horizontally to rewrite syntax sugar
@@ -26,14 +25,14 @@ desugar = \case
            [] -> []
 
            -- Catch an explicit wrapper block whose only child is an inline context sugar token
-           (S.Form _pos [S.Attr aPos "context", valExpr] : rest)
+           (S.Form _pos [S.Form aPos [S.Symbol _ "attr", S.Literal _ (S.Str "context"), valExpr]] : rest)
                -> let directive     = S.Form aPos [S.Symbol aPos "remote-context", valExpr]
                       dirWrapper    = S.Form aPos [directive]
                       canonicalForm = S.Form aPos [S.Symbol aPos "context", dirWrapper]
                   in canonicalForm : desugar rest
 
             -- Catch a raw standalone attribute context sugar sequence at this layout level
-           (S.Attr pos "context" : valExpr : rest)
+           (S.Form pos [S.Symbol _ "attr", S.Literal _ (S.Str "context"), valExpr] : rest)
                -> let directive     = S.Form pos [S.Symbol pos "remote-context", valExpr]
                       dirWrapper    = S.Form pos [directive]
                       canonicalForm = S.Form pos [S.Symbol pos "context", dirWrapper]

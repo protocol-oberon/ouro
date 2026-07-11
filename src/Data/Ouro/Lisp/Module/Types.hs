@@ -22,7 +22,6 @@ data Declaration
 
 -- Higher Expression Surface AST of a module, indexed by the DeclType
 data HigherExpression (t :: Declaration) where
-    Function :: SourcePos -> Text -> [Text] -> Expr -> HigherExpression 'FunctionExpr
     Template :: SourcePos -> Text -> [Text] -> Expr -> HigherExpression 'TemplateExpr
     Graph    :: SourcePos -> Text -> Expr           -> HigherExpression 'GraphExpr
 
@@ -34,7 +33,6 @@ deriving instance Eq   (HigherExpression t)
 mapExpr :: (Expr -> Expr) -> HigherExpression t -> HigherExpression t
 mapExpr f exprNode =
     case exprNode of
-        Function pos name args expr -> Function pos name args (f expr)
         Template pos name args expr -> Template pos name args (f expr)
         Graph    pos name expr      -> Graph    pos name (f expr)
 
@@ -42,14 +40,12 @@ mapExpr f exprNode =
 -- The ExportMap mirrors the segregation to maintain type safety across boundaries
 data ExportMap = ExportMap
     { _exportedTemplates :: Map.Map Text (HigherExpression 'TemplateExpr)
-    , _exportedFunctions :: Map.Map Text (HigherExpression 'FunctionExpr)
     } deriving (Show, Eq)
 
 
 -- Module Environment, mathematically proven to be segregated
 data Module = Module
-    { _functionRegistry :: Map.Map Text (HigherExpression 'FunctionExpr)
-    , _templateRegistry :: Map.Map Text (HigherExpression 'TemplateExpr)
+    { _templateRegistry :: Map.Map Text (HigherExpression 'TemplateExpr)
     , _graphRegistry    :: Map.Map Text (HigherExpression 'GraphExpr)
     , _importRegistry   :: Map.Map Text ExportMap
     } deriving (Show, Eq)
@@ -58,8 +54,7 @@ data Module = Module
 -- Applies an expression transformation across all declarations in a Module.
 mapModuleExpr :: (Expr -> Expr) -> Module -> Module
 mapModuleExpr transform m = m
-    { _functionRegistry = Map.map (mapExpr transform) (_functionRegistry m)
-    , _templateRegistry = Map.map (mapExpr transform) (_templateRegistry m)
+    { _templateRegistry = Map.map (mapExpr transform) (_templateRegistry m)
     , _graphRegistry    = Map.map (mapExpr transform) (_graphRegistry m)
     -- _importRegistry is left untouched
     }

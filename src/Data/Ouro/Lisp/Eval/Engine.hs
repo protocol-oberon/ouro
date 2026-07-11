@@ -179,7 +179,7 @@ evalExpr expr = do
 
                                                 case snd <$> (V.fromList attrs) V.!? idx of
                                                     Just    val -> pure val
-                                                    Nothing     -> indexOutOfBounds "Record" (floor i) len
+                                                    Nothing     -> indexOutOfBounds "nth" "Record" (floor i) len
                                                                    & OuroError (S.exprPos target)
                                                                    & EvalError
                                                                    & pure
@@ -191,7 +191,7 @@ evalExpr expr = do
 
                                           case (V.fromList xs) V.!? idx of
                                               Just    val  -> pure val
-                                              Nothing      -> indexOutOfBounds "Array" (floor i) len
+                                              Nothing      -> indexOutOfBounds "nth" "Array" (floor i) len
                                                               & OuroError (S.exprPos target)
                                                               & EvalError
                                                               & pure
@@ -204,7 +204,8 @@ evalExpr expr = do
                               & EvalError
                               & pure
 
-        S.Form _ [S.Symbol _ "insert", posExpr, payloadExpr, structExpr]
+        S.Form _ [S.Symbol _ opName, posExpr, payloadExpr, structExpr]
+            | opName `elem` ["insert", "replace-at"]
             -> do
                posVal     <- evalExpr posExpr
                payloadVal <- evalExpr payloadExpr
@@ -216,37 +217,67 @@ evalExpr expr = do
                    (_, EvalError e, _) -> pure $ EvalError e
                    (_, _, EvalError e) -> pure $ EvalError e
 
-                   -- Array insertion
+                   -- Array manipulation (non-empty)
                    (Primitive (I.Number i), pVal, Array elems@(x : _))
                         | L.structuralEq pVal x
-                       -> let len = length elems
-                              idx = case i < 0 of
-                                        True  -> len + (floor i)
-                                        False -> floor i
+                       -> let len     = length elems
+                              idx     = case i < 0 of
+                                            True  -> len + (floor i)
+                                            False -> floor i
+                              isValid = case opName == "insert" of
+                                            True  -> idx >= 0 && idx <= len
+                                            False -> idx >= 0 && idx < len
 
-                              (before, after) = splitAt idx elems
+                          in case isValid of
+                                 False -> indexOutOfBounds opName "Array" (floor i) len
+                                          & OuroError (S.exprPos structExpr)
+                                          & EvalError
+                                          & pure
+                                 True  -> let (before, after) = splitAt idx elems
+                                              actualAfter = case opName == "replace-at" of
+                                                                True  -> drop 1 after
+                                                                False -> after
+                                          in pure $ Array (before <> [payloadVal] <> actualAfter)
 
-                          in pure $ Array (before <> [payloadVal] <> after)
+                   -- Array manipulation (empty)
+                   (Primitive (I.Number i), _, Array [])
+                       -> let isValid = case opName == "insert" of
+                                            True  -> (floor i :: Int) == 0
+                                            False -> False
+                          in case isValid of
+                                 False -> indexOutOfBounds opName "Array" (floor i) 0
+                                          & OuroError (S.exprPos structExpr)
+                                          & EvalError
+                                          & pure
+                                 True  -> pure $ Array [payloadVal]
 
-                   (Primitive (I.Number _), _, Array [])
-                       -> pure $ Array [payloadVal]
-
-                   -- Record insertion
+                   -- Record manipulation
                    (Primitive (I.Number i), Attr key value, Record meta kvs)
                        -> let len = length kvs
                               idx = case i < 0 of
-                                        True  -> len + (floor i)
+                                        True  -> len + (floor i :: Int)
                                         False -> floor i
 
-                              (before, after) = splitAt idx kvs
+                              isValid = case opName == "insert" of
+                                            True  -> idx >= 0 && idx <= len
+                                            False -> idx >= 0 && idx < len
 
-                          in pure $ Record meta (before <> [(key, value)] <> after)
+                          in case isValid of
+                                 False -> indexOutOfBounds opName "Record" (floor i) len
+                                              & OuroError (S.exprPos structExpr)
+                                              & EvalError
+                                              & pure
+                                 True  -> let (before, after) = splitAt idx kvs
+                                              actualAfter = case opName == "replace-at" of
+                                                                True  -> drop 1 after
+                                                                False -> after
+                                          in pure $ Record meta (before <> [(key, value)] <> actualAfter)
 
                    -- Type Errors
                    (Primitive (I.Number _), _, _)
                        -> typeMismatch
                               "a datatype for insertion matching the target data structure"
-                              ((humanReadableType payloadVal) <> " and " <> (humanReadableType structVal))
+                              (humanReadableType payloadVal <> " and " <> humanReadableType structVal)
                           & OuroError (S.exprPos payloadExpr)
                           & EvalError
                           & pure
@@ -566,19 +597,21 @@ validatePathKeys exprs = go exprs []
 
         (S.Symbol _ k : xs) -> go xs (k : acc)
 
-        (S.Attr aPos rawAttr : _) ->
-            EvalError $ targetMismatch "a lookup Symbol path component" (":" <> rawAttr)
-                        & withBlurb ( "The 'get' path operator expects bare lookup symbols (e.g., properties) "
-                                   <> "to traverse target graph layers. You provided a colon-prefixed attribute identifier.\n\n"
-                                   <> "Perhaps remove the leading colon operator from '" <> ":" <> rawAttr <> "' to "
-                                   <> "transition the token from a property key to an active navigation handle."
-                                    )
-                        & OuroError aPos
+        (S.Form aPos (S.Symbol _ "attr" : S.Literal _ (S.Str rawAttr) : _) : _)
+            -> targetMismatch "a lookup Symbol path component" (":" <> rawAttr)
+               & withBlurb ( "The 'get' path operator expects bare lookup symbols (e.g., properties) "
+                          <> "to traverse target graph layers. You provided a colon-prefixed attribute identifier.\n\n"
+                          <> "Perhaps remove the leading colon operator from '" <> ":" <> rawAttr <> "' to "
+                          <> "transition the token from a property key to an active navigation handle."
+                           )
+               & OuroError aPos
+               & EvalError
 
         (badNode : _)
-            -> EvalError $ targetMismatch "a lookup Symbol property identifier" "a structural node form"
-                           & withBlurb ( "Path navigation parameters following the target node must evaluate "
-                                      <> "strictly to atomic path components. Compound S-Expression trees, macro tags, "
-                                      <> "and loose primitive objects cannot be read as horizontal layout lookup slots."
-                                       )
-                           & OuroError (S.exprPos badNode)
+            -> targetMismatch "a lookup Symbol property identifier" "a structural node form"
+               & withBlurb ( "Path navigation parameters following the target node must evaluate "
+                          <> "strictly to atomic path components. Compound S-Expression trees, macro tags, "
+                          <> "and loose primitive objects cannot be read as horizontal layout lookup slots."
+                           )
+               & OuroError (S.exprPos badNode)
+               & EvalError

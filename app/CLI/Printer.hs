@@ -272,9 +272,9 @@ splitErrorContext = \case
            , Nothing
            )
 
-    Scope (IndexOutOfBoundsError tOft att act)
+    Scope (IndexOutOfBoundsError cb tOft att act)
         -> ("Index Out of Bonds"
-           , [ labeled "The function 'nth' attempted to look up an element with an index: "                 (pretty $ T.pack $ show att)
+           , [ labeled (pretty $ "The function '" <> cb <> "' attempted to look up an element with an index: ")        (pretty $ T.pack $ show att)
              , labeled (pretty $ "But it was out of bounds as the target " <> tOft <> " has a length of: ") (pretty $ T.pack $ show act)
              ]
            , Nothing

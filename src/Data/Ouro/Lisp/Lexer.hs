@@ -13,7 +13,7 @@ import           Text.Megaparsec            (MonadParsec (eof, lookAhead),
                                              ParseError (..), Parsec, choice,
                                              getSourcePos, many, manyTill,
                                              notFollowedBy, oneOf, runParser,
-                                             some, try, (<|>))
+                                             some, try, (<|>), optional)
 import           Text.Megaparsec.Char       (alphaNumChar, char, letterChar,
                                              space1, spaceChar, string)
 import qualified Text.Megaparsec.Char.Lexer as L
@@ -114,9 +114,18 @@ pQuote = lexeme . withPos . try $ do
 pHole :: Parser Tkn.Token
 pHole = lexeme . withPos $ do
                            _    <- char '?'
-                           rest <- many (alphaNumChar <|> oneOf ("_-+*/<>=!?&|~'" :: String))
-                           pure (Tkn.Hole (T.pack ('?' : rest)))
 
+                           -- Look for exactly two dots for the variadic capture
+                           dots <- optional (char '.' >> char '.')
+
+                           rest <- many (alphaNumChar <|> oneOf ("_-+*/<>=!?&|~'" :: String))
+
+                           -- Reconstruct the string based on whether the dots were found
+                           let prefix = case dots of
+                                            Just _  -> "?.."
+                                            Nothing -> "?"
+
+                           pure (Tkn.Hole (T.pack (prefix ++ rest)))
 
 -- Standard Data Literals (Strings, Numbers, Bools, Null)
 pLiterals :: Parser Tkn.Token

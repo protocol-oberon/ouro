@@ -43,15 +43,14 @@ import qualified Data.Text as T
 -- completely consumed by the compilation Engine, which resolves its lazy environments, expands its
 -- macro closures, and transforms it into the permanently typed, hyper-strict 'JLD.Type' core GADT.
 data Expr
-    = Attr           SourcePos Text            -- :id
-    | Symbol         SourcePos Text            -- variable names and functions
-    | TemplateSymbol SourcePos Text            -- template identifiers
-    | Literal        SourcePos LiteralValue    -- Raw String, Number, Boolean, Null
-    | Tagged         SourcePos ReaderTag Expr  -- #uri "...", #date "..."
-    | Quoted         SourcePos Expr            -- Un-eval'd Asts
-    | Hole           SourcePos Text            -- Type hole for structural shape
-    | Form           SourcePos [Expr]          -- (...) nested lists
-    | Bracket        SourcePos [Expr]          -- [...] scoping or block grouping
+    = Symbol      SourcePos Text            -- variable names and functions
+    | DefunSymbol SourcePos Text            -- template identifiers
+    | Literal     SourcePos LiteralValue    -- Raw String, Number, Boolean, Null
+    | Tagged      SourcePos ReaderTag Expr  -- #uri "...", #date "..."
+    | Quoted      SourcePos Expr            -- Un-eval'd Asts
+    | Hole        SourcePos Text            -- Type hole for structural shape
+    | Form        SourcePos [Expr]          -- (...) nested lists
+    | Bracket     SourcePos [Expr]          -- [...] scoping or block grouping
     deriving (Show, Eq)
 
 
@@ -82,15 +81,14 @@ data ReaderTag
 
 exprPos :: Expr -> SourcePos
 exprPos = \case
-           Attr           pos _   -> pos
-           Symbol         pos _   -> pos
-           TemplateSymbol pos _   -> pos
-           Literal        pos _   -> pos
-           Tagged         pos _ _ -> pos
-           Quoted         pos _   -> pos
-           Hole           pos _   -> pos
-           Form           pos _   -> pos
-           Bracket        pos _   -> pos
+           Symbol      pos _   -> pos
+           DefunSymbol pos _   -> pos
+           Literal     pos _   -> pos
+           Tagged      pos _ _ -> pos
+           Quoted      pos _   -> pos
+           Hole        pos _   -> pos
+           Form        pos _   -> pos
+           Bracket     pos _   -> pos
 
 
 structuralEq :: Expr -> Expr -> Maybe [(Text, Expr)]
@@ -102,7 +100,6 @@ structuralEq e1 e2 =
 
         -- 2. Exact leaf matches (return empty bindings on success)
         (Symbol  _ a, Symbol  _ b) | a == b -> Just []
-        (Attr    _ a, Attr    _ b) | a == b -> Just []
         (Literal _ a, Literal _ b) | a == b -> Just []
 
         -- 3. Recursive matches
@@ -120,7 +117,7 @@ structuralEq e1 e2 =
     bindHole holeName matchExpr =
         case (holeName, matchExpr) of
             ("?",  _)    -> Just []
-            (name, expr) -> let cleanName = T.dropWhile (== '?') name
+            (name, expr) -> let cleanName = T.dropWhile (\c -> c == '?' || c == '.') name
                             in Just [(cleanName, expr)]
 
     matchForms :: [Expr] -> [Expr] -> Maybe [(Text, Expr)]
@@ -129,6 +126,11 @@ structuralEq e1 e2 =
             -- Both empty: end of list reached simultaneously
             ([], [])
                 -> Just []
+
+            -- "?.." captures the rest of the expression
+            (targetRemainder, Hole pos name : [])
+                | T.isPrefixOf "?.." name
+                  -> bindHole name (Form pos targetRemainder)
 
             -- Pure Positional Matching
             -- We remove the greedy 'Hole' catch here so that a list like
@@ -157,15 +159,14 @@ data ExprMarker
 
 mark :: Expr -> ExprMarker
 mark = \case
-        Attr           _ _   -> AttrMarker
-        Symbol         _ _   -> SymbolMarker
-        TemplateSymbol _ _   -> SymbolMarker
-        Literal        _ _   -> LiteralMarker
-        Tagged         _ _ _ -> TaggedMarker
-        Quoted         _ _   -> QuotedMarker
-        Hole           _ _   -> HoleMarker
-        Form           _ _   -> FormMarker
-        Bracket        _ _   -> BracketMarker
+        Symbol      _ _   -> SymbolMarker
+        DefunSymbol _ _   -> SymbolMarker
+        Literal     _ _   -> LiteralMarker
+        Tagged      _ _ _ -> TaggedMarker
+        Quoted      _ _   -> QuotedMarker
+        Hole        _ _   -> HoleMarker
+        Form        _ _   -> FormMarker
+        Bracket     _ _   -> BracketMarker
 
 
 matches :: ExprMarker -> ExprMarker -> Bool
