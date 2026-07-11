@@ -31,7 +31,7 @@ import           Data.Ouro.Lisp.Eval.Structural (BlockTarget (..), compileArray,
                                                  determineBlockTarget,
                                                  resolvePath)
 import           Data.Ouro.Lisp.Eval.Types      (Env (..), Expr (..),
-                                                 humanReadableType)
+                                                 humanReadableType, localScope)
 import qualified Data.Ouro.Lisp.Eval.Types      as L
 import           Data.Ouro.Lisp.Module.Types    (Module)
 import qualified Data.Ouro.Lisp.Surface         as S
@@ -40,6 +40,7 @@ import qualified Data.Text                      as T
 import qualified Data.Vector                    as V
 import           Text.Megaparsec                (SourcePos)
 import qualified Text.URI                       as URI
+import Lens.Micro.Platform ((%~))
 
 
 -- No State monad is required because errors are handled as Data in the L.Expr tree.
@@ -154,8 +155,8 @@ evalExpr expr = do
             -> case (hasValidOtherwise patterns) of
                    True -> case runReader (evalExpr target) env of
                                EvalError err   -> pure $ EvalError err
-                               Quote     quote -> patternMatch   evalExpr env pos quote          0 patterns
-                               resolvedTarget  -> evaluateGuards evalExpr env pos resolvedTarget 0 patterns
+                               Quote     quote -> patternMatch   evalExpr pos quote 0 patterns
+                               resolvedTarget  -> evaluateGuards evalExpr env pos   resolvedTarget 0 patterns
 
                    False -> missingOtherwise
                             & withBlurb missingOtherwiseBlurb
@@ -171,17 +172,17 @@ evalExpr expr = do
                    Primitive (I.Number i)
                        -> case runReader (evalExpr target) env of
                               Record _ attrs -> do
-                                              let len = (length attrs)
-                                                  idx = case i < 0 of
+                                                let len = (length attrs)
+                                                    idx = case i < 0 of
                                                               True  -> len + (floor i)
                                                               False -> floor i
 
-                                              case snd <$> (V.fromList attrs) V.!? idx of
-                                                  Just    val -> pure val
-                                                  Nothing     -> indexOutOfBounds "Record" (floor i) len
-                                                                  & OuroError (S.exprPos target)
-                                                                  & EvalError
-                                                                  & pure
+                                                case snd <$> (V.fromList attrs) V.!? idx of
+                                                    Just    val -> pure val
+                                                    Nothing     -> indexOutOfBounds "Record" (floor i) len
+                                                                   & OuroError (S.exprPos target)
+                                                                   & EvalError
+                                                                   & pure
                               Array xs -> do
                                           let len = (length xs)
                                               idx = case i < 0 of
@@ -262,7 +263,7 @@ evalExpr expr = do
             -> let wrappedEvaluator currentEnv expr' = runReader (evalExpr expr') currentEnv
                in case determineBlockTarget allFields of
                       TargetRecord      -> pure (compileRecord wrappedEvaluator env allFields)
-                      TargetList        -> pure (compileArray wrappedEvaluator env pos allFields)
+                      TargetList        -> pure (compileArray  wrappedEvaluator env pos allFields)
                       TargetFunctionApp -> applyFunction pos allFields
 
         otherNode
@@ -465,13 +466,12 @@ evaluateGuards eval env pos target attempts branches =
 
 patternMatch
     :: (S.Expr -> EvalM L.Expr)
-    -> Env
     -> SourcePos
     -> S.Expr
     -> Int
     -> [S.Expr]
     -> EvalM L.Expr
-patternMatch eval env pos qTrgt attempts branches =
+patternMatch eval pos qTrgt attempts branches =
     case branches of
         [] -> inexhaustiveCase "Case statement fell through" attempts
               & withBlurb (inexhaustiveCaseBlurb attempts)
@@ -489,8 +489,9 @@ patternMatch eval env pos qTrgt attempts branches =
 
                    S.Quoted _ qPattern
                        -> case qTrgt `S.structuralEq` qPattern of
-                              True  -> eval body
-                              False -> patternMatch eval env pos qTrgt (attempts + 1) rest
+                              -- Inject bindings captured from Hole type into the local env of the return branch
+                              Just    bindings -> local (\env -> env & localScope %~ Map.union (Map.fromList bindings)) (eval body)
+                              Nothing          -> patternMatch eval pos qTrgt (attempts + 1) rest
 
                    notAQuote
                        -> inexhaustiveCase "PatternMatching requires quoted patterns" attempts

@@ -3,6 +3,7 @@ module Data.Ouro.Lisp.Surface where
 
 import           Data.Text       (Text)
 import           Text.Megaparsec (SourcePos)
+import qualified Data.Text as T
 
 
 -- Expr.
@@ -81,45 +82,65 @@ data ReaderTag
 
 exprPos :: Expr -> SourcePos
 exprPos = \case
-           Attr    pos _   -> pos
-           Symbol  pos _   -> pos
-           Literal pos _   -> pos
-           Tagged  pos _ _ -> pos
-           Quoted  pos _   -> pos
-           Hole    pos _   -> pos
-           Form    pos _   -> pos
-           Bracket pos _   -> pos
+           Attr           pos _   -> pos
+           Symbol         pos _   -> pos
+           TemplateSymbol pos _   -> pos
+           Literal        pos _   -> pos
+           Tagged         pos _ _ -> pos
+           Quoted         pos _   -> pos
+           Hole           pos _   -> pos
+           Form           pos _   -> pos
+           Bracket        pos _   -> pos
 
 
-structuralEq :: Expr -> Expr -> Bool
+structuralEq :: Expr -> Expr -> Maybe [(Text, Expr)]
 structuralEq e1 e2 =
     case (e1, e2) of
-        -- Hole Wildcard
-        (Hole _ _,     _)            -> True
-        (_,            Hole    _ _)  -> True
-        (Symbol  _ a,  Symbol  _ b)  -> a == b
-        (Attr    _ a,  Attr    _ b)  -> a == b
-        (Literal _ a,  Literal _ b)  -> a == b
-        (Quoted  _ a,  Quoted  _ b)  -> structuralEq a b
+        -- 1. Hole matching a single expression
+        (Hole _ name, target)      -> bindHole name target
+        (target     , Hole _ name) -> bindHole name target
+
+        -- 2. Exact leaf matches (return empty bindings on success)
+        (Symbol  _ a, Symbol  _ b) | a == b -> Just []
+        (Attr    _ a, Attr    _ b) | a == b -> Just []
+        (Literal _ a, Literal _ b) | a == b -> Just []
+
+        -- 3. Recursive matches
+        (Quoted  _ a, Quoted   _ b)  -> structuralEq a b
         (Form    _ xs, Form    _ ys) -> matchForms xs ys
-        _typeMismatch                -> False
+        (Bracket _ xs, Bracket _ ys) -> matchForms xs ys
+
+        -- 4. Fallthrough: Mismatch
+        _typeMismatch -> Nothing
 
     where
-    matchForms :: [Expr] -> [Expr] -> Bool
+    -- Helper to capture the binding.
+    -- Ignores pure wildcards ("?") so they don't pollute the environment.
+    bindHole :: Text -> Expr -> Maybe [(Text, Expr)]
+    bindHole holeName matchExpr =
+        case (holeName, matchExpr) of
+            ("?",  _)    -> Just []
+            (name, expr) -> let cleanName = T.dropWhile (== '?') name
+                            in Just [(cleanName, expr)]
+
+    matchForms :: [Expr] -> [Expr] -> Maybe [(Text, Expr)]
     matchForms xs ys =
         case (xs, ys) of
             -- Both empty: end of list reached simultaneously
-            ([], [])          -> True
+            ([], [])
+                -> Just []
 
-            -- Hole at head: match remainder
-            (Hole _ _ : _, _) -> True
-            (_, Hole _ _ : _) -> True
+            -- Pure Positional Matching
+            -- We remove the greedy 'Hole' catch here so that a list like
+            -- (?expr ?plus) matches exactly two elements 1:1.
+            (x:xs', y:ys')
+                -> do
+                   headBindings <- structuralEq x   y
+                   tailBindings <- matchForms   xs' ys'
+                   return (headBindings ++ tailBindings)
 
-            -- Both have elements: check head, recurse on tail
-            (x:xs', y:ys')    -> structuralEq x y && matchForms xs' ys'
-
-            -- Mismatched lengths
-            _                 -> False
+            _misMatchedLen
+                -> Nothing
 
 -- A runtime truth table to tell what shap of ast is present
 data ExprMarker
@@ -136,14 +157,15 @@ data ExprMarker
 
 mark :: Expr -> ExprMarker
 mark = \case
-        Attr    _ _   -> AttrMarker
-        Symbol  _ _   -> SymbolMarker
-        Literal _ _   -> LiteralMarker
-        Tagged  _ _ _ -> TaggedMarker
-        Quoted  _ _   -> QuotedMarker
-        Hole    _ _   -> HoleMarker
-        Form    _ _   -> FormMarker
-        Bracket _ _   -> BracketMarker
+        Attr           _ _   -> AttrMarker
+        Symbol         _ _   -> SymbolMarker
+        TemplateSymbol _ _   -> SymbolMarker
+        Literal        _ _   -> LiteralMarker
+        Tagged         _ _ _ -> TaggedMarker
+        Quoted         _ _   -> QuotedMarker
+        Hole           _ _   -> HoleMarker
+        Form           _ _   -> FormMarker
+        Bracket        _ _   -> BracketMarker
 
 
 matches :: ExprMarker -> ExprMarker -> Bool
