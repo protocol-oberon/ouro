@@ -4,7 +4,12 @@ Ouro is a domain-specific language (DSL) engineered for the ergonomic constructi
 
 # Syntax
 
-Ouro like any other lisp is anchored around the opening parentheses of an expression `()`. Its compiler uses a semi-complex lookahead to determine the target JSON-LD structure of incoming Ouro source code, weather it maps to an JSON-LD Array, Record or is an Ouro specific function application. Ouro also makes use of lisp key words to match the classic JSON *key* : *value* syntax (these are referred to as **Attributes**). This allows for an Ouro file's source code to roughly match the topology of JSON that it compiles to, further enhancing the homoiconity of the language
+Ouro like any other lisp is anchored around the opening parentheses of an expression `()`. Its compiler uses a semi-complex lookahead to determine the target JSON-LD structure of incoming Ouro source code, weather it maps to an JSON-LD Array, Record or is an Ouro specific function application. Ouro also makes use of lisp key words to match the classic JSON *key* : *value* syntax (these are referred to as **Attributes**). This allows for an Ouro file's source code to roughly match the topology of JSON that it compiles to, further enhancing the homoiconity of the language.
+
+A Ouro file consists of a collection of top-level, _higher expressions_. There are two types of higher expressions:
+
+1. `(graph)`: Expressions then encode JSON-LD graphs
+2. `(defun)`: Function expressions, in ouro the line between lisp macros and higher-order functions is blurred so this kind of expression can be thought of as a JSON-LD graph node with a hole that will be filled via the arguments. Functions in Ouro always return either an Array, Record, Primitive value or another function.
 
 The target structure of Ouro code is determined by a few simple rules: 
 
@@ -152,6 +157,60 @@ Is de-sugared to:
       ("Proust"  linked-art-person)
       ("Spring"  linked-art-object)
       (otherwise getty))
+```
+
+`(case)` can also be used to de-structure and pattern match on **quoted** Arrays and Records, the following:
+
+ ``` clojure
+ (graph case-statements
+   :trgt (1 2 3)
+   :res  (case (quote trgt)
+               ('(?head ?..rest) rest)
+               (otherwise        trgt)))
+ ```
+ 
+... matches the head of the list, and binds it the variable `head`, which is the returned. This uses the syntax `?..` to indicate to the compiler to de-structure. This graph compiles to:
+
+``` json
+{
+  "trgt": [
+    1,
+    2,
+    3
+  ],
+  "res": [
+    2,
+    3
+  ]
+}
+```
+
+...similarly the following Ouro graph:
+
+``` clojure
+ (graph case-statements
+   :trgt (:name "Manet"
+          :id   "https://linked.art/example/person/manet"
+          :type "Person")
+   :res  (case (quote trgt)
+               ('(?head ?..rest) rest)
+               (otherwise        trgt)))
+```
+
+...compiles to:
+
+``` json
+{
+  "trgt": {
+    "name": "Manet",
+    "id": "https://linked.art/example/person/manet",
+    "type": "Person"
+  },
+  "res": {
+    "id": "https://linked.art/example/person/manet",
+    "type": "Person"
+  }
+}
 ```
 
 ### Quote
@@ -354,7 +413,12 @@ Ouro has the following built in functions:
 
 Like any good Lisp, Ouro supports powerful first order functions. Functions in Ouro return either a Record, Array or a Primitive. To return a Primitive from a function the `(return)` special form must be used.
 
-To make a function in Ouro you use the keyword `(defun name! (args) body)` followed by the name of the function. The name of each function macro must always end in a **!**, otherwise the compiler will throw a syntax error. This is to allow for user difined function symbols to remain easily identifiable.
+```clojure
+(defun add-one! (n)
+  (return (+ 1 n)))
+```
+
+To make a function in Ouro you use the keyword `(defun name! (args) body)` followed by the name of the function. The name of each function macro must always end in a **!**, otherwise the compiler will throw a syntax error. This is to allow for user defined function symbols to remain easily identifiable.
 
 An example of a simple function is the following:
 
@@ -668,3 +732,35 @@ If you prefer a traditional Haskell environment, you can build Ouro directly fro
    ```bash
    ouro --version
    ```
+   
+# Using the Compiler
+
+The ouro compile as the following commands (shown via running `ouro -h`):
+
+``` bash
+Ouro v0.0.0.1
+
+Usage: ouro COMMAND [-v|--version]
+
+Available options:
+  -h,--help                Show this help text
+  -v,--version             Show Ouro version
+
+Available commands:
+  compile                  Compile JSON-LD to Ouro
+  validate                 Validate JSON-LD
+```
+
+The sub commands for both `compile` and `validate` can be found by using the `-h` flag once more (`ouro compile -h`):
+
+``` bash
+Usage: ouro compile SOURCE_FILE (-t|--trgt STRING) [-o|--output DIR]
+
+  Compile JSON-LD to Ouro
+
+Available options:
+  -t,--trgt STRING         Target graph name within the module
+  -o,--output DIR          Output directory
+```
+
+For compile if you supply a fully filepath then that is what the compiled JSON will be written to, otherwise the name of the graph expression will be the name of the resulting JSON file in the specified output directory.
