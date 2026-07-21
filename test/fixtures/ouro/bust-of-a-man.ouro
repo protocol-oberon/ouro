@@ -1,4 +1,4 @@
-(template id-node! (id-of-id type-of-type lable)
+(defun id-node! (id-of-id type-of-type lable)
    (define
      :getty-ulan "http://vocab.getty.edu/ulan/"
      :uri (case type-of-type

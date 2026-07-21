@@ -60,7 +60,6 @@ pCoreKeywords = lexeme . withPos $ choice
     [ Tkn.Import   <$ string "import"   <* endOfWord
     , Tkn.Export   <$ string "export"   <* endOfWord
     , Tkn.Defun    <$ string "defun"    <* endOfWord
-    , Tkn.Template <$ string "template" <* endOfWord
     , Tkn.Graph    <$ string "graph"    <* endOfWord
     ]
 
@@ -168,9 +167,9 @@ pSymbol = lexeme . withPos $
 
     let raw = T.pack (first : rest)
 
-    -- Lexical bifurcation: If it ends in '!', it is strictly a template.
+    -- Lexical bifurcation: If it ends in '!', it is strictly a function.
     pure $ case T.last raw == '!' of
-               True  -> Tkn.TemplateSymbol raw
+               True  -> Tkn.FunctionSymbol raw
                False -> Tkn.Symbol         raw
 
 

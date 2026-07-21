@@ -13,8 +13,6 @@ import           Data.Function               ((&))
 import qualified Data.Map                    as Map
 import           Data.Ouro.Error.Diagnostics (astCorruption,
                                               binaryOpMismatchBlurb,
-                                              shadowedVariable,
-                                              shadowedVariableBlurb,
                                               typeMismatch, withBlurb)
 import           Data.Ouro.Error.Types       (ErrorContext (..), OuroError (..),
                                               SyntaxError (..))
@@ -77,10 +75,10 @@ handleAddition pos =
                 (arrX@(L.Array xs),          arrY@(L.Array ys))
                     -> case L.structuralEq arrX arrY of
                            True  -> pure $ L.Array (xs <> ys)
-                           False -> typeMismatch
+                           False -> Data.Ouro.Error.Diagnostics.typeMismatch
                                         "Matching Arrays of the same type"
                                         (humanReadableType arrX <> " + " <> humanReadableType arrY)
-                                    & withBlurb (binaryOpMismatchBlurb arrX arrY)
+                                    & Data.Ouro.Error.Diagnostics.withBlurb (Data.Ouro.Error.Diagnostics.binaryOpMismatchBlurb arrX arrY)
                                     & OuroError pos
                                     & L.EvalError
                                     & pure
@@ -91,16 +89,16 @@ handleAddition pos =
                 (_, err@(L.EvalError _)) -> pure err
 
                 _typeMismatch
-                    -> typeMismatch "Matching numeric, string, or date/duration pairs"
+                    -> Data.Ouro.Error.Diagnostics.typeMismatch "Matching numeric, string, or date/duration pairs"
                              (humanReadableType a <> " + " <> humanReadableType b)
-                       & withBlurb (binaryOpMismatchBlurb a b)
+                       & Data.Ouro.Error.Diagnostics.withBlurb (Data.Ouro.Error.Diagnostics.binaryOpMismatchBlurb a b)
                        & OuroError pos
                        & L.EvalError
                        & pure
 
      -- Arity Fallback: The desugar pass failed to normalize the AST
      _badAST
-         -> astCorruption "+" "Addition received non-binary arguments after desugaring."
+         -> Data.Ouro.Error.Diagnostics.astCorruption "+" "Addition received non-binary arguments after desugaring."
             & OuroError pos
             & L.EvalError
             & pure
@@ -122,16 +120,16 @@ handleSubtraction pos =
                    (_, err@(L.EvalError _)) -> pure err
 
                    _typeMismatch
-                       -> typeMismatch "Matching numeric values or a Date minus a L.Duration"
+                       -> Data.Ouro.Error.Diagnostics.typeMismatch "Matching numeric values or a Date minus a L.Duration"
                                (humanReadableType a <> " - " <> humanReadableType b)
-                          & withBlurb (binaryOpMismatchBlurb a b)
+                          & Data.Ouro.Error.Diagnostics.withBlurb (Data.Ouro.Error.Diagnostics.binaryOpMismatchBlurb a b)
                           & OuroError pos
                           & L.EvalError
                           & pure
 
      -- Arity Fallback: The desugar pass failed to normalize the AST
      _badAST
-         -> astCorruption "-" "Addition received non-binary arguments after desugaring."
+         -> Data.Ouro.Error.Diagnostics.astCorruption "-" "Addition received non-binary arguments after desugaring."
             & OuroError pos
             & L.EvalError
             & pure
@@ -152,16 +150,16 @@ handleMultiplication pos =
                    (_, err@(L.EvalError _)) -> pure err
 
                    _typeMismatch
-                       -> typeMismatch "Matching numeric values for multiplication"
+                       -> Data.Ouro.Error.Diagnostics.typeMismatch "Matching numeric values for multiplication"
                                (humanReadableType a <> " * " <> humanReadableType b)
-                          & withBlurb (binaryOpMismatchBlurb a b)
+                          & Data.Ouro.Error.Diagnostics.withBlurb (Data.Ouro.Error.Diagnostics.binaryOpMismatchBlurb a b)
                           & OuroError pos
                           & L.EvalError
                           & pure
 
      -- Arity Fallback: The desugar pass failed to normalize the AST
      _badAST
-         -> astCorruption "*" "Addition received non-binary arguments after desugaring."
+         -> Data.Ouro.Error.Diagnostics.astCorruption "*" "Addition received non-binary arguments after desugaring."
             & OuroError pos
             & L.EvalError
             & pure
@@ -177,8 +175,8 @@ handleDivision pos =
      [a, b] -> case (a, b) of
          -- Division by Zero check
          (L.Primitive (I.Number _), L.Primitive (I.Number 0))
-             -> typeMismatch "A non-zero Number divisor" "a zero (0)"
-                & withBlurb "Attempted division by zero."
+             -> Data.Ouro.Error.Diagnostics.typeMismatch "A non-zero Number divisor" "a zero (0)"
+                & Data.Ouro.Error.Diagnostics.withBlurb "Attempted division by zero."
                 & OuroError pos
                 & L.EvalError
                 & pure
@@ -193,16 +191,16 @@ handleDivision pos =
 
          -- Type Mismatch
          _typeMismatch
-             -> typeMismatch "Matching numeric values for division"
+             -> Data.Ouro.Error.Diagnostics.typeMismatch "Matching numeric values for division"
                              (humanReadableType a <> " / " <> humanReadableType b)
-                & withBlurb (binaryOpMismatchBlurb a b)
+                & Data.Ouro.Error.Diagnostics.withBlurb (Data.Ouro.Error.Diagnostics.binaryOpMismatchBlurb a b)
                 & OuroError pos
                 & L.EvalError
                 & pure
 
      -- Arity Fallback: The desugar pass failed to normalize the AST
      _badAST
-         -> astCorruption "/" "Division received non-binary arguments after desugaring."
+         -> Data.Ouro.Error.Diagnostics.astCorruption "/" "Division received non-binary arguments after desugaring."
             & OuroError pos
             & L.EvalError
             & pure
@@ -218,16 +216,16 @@ handleGreater pos =
                    (_, err@(L.EvalError _)) -> pure err
 
                    _typeMismatch
-                       -> typeMismatch "Matching numeric values for greater than"
+                       -> Data.Ouro.Error.Diagnostics.typeMismatch "Matching numeric values for greater than"
                                (humanReadableType a <> " > " <> humanReadableType b)
-                          & withBlurb (binaryOpMismatchBlurb a b)
+                          & Data.Ouro.Error.Diagnostics.withBlurb (Data.Ouro.Error.Diagnostics.binaryOpMismatchBlurb a b)
                           & OuroError pos
                           & L.EvalError
                           & pure
 
      -- Arity Fallback: The desugar pass failed to normalize the AST
      _badAST
-         -> astCorruption ">" "Greater than received non-binary arguments after desugaring."
+         -> Data.Ouro.Error.Diagnostics.astCorruption ">" "Greater than received non-binary arguments after desugaring."
             & OuroError pos
             & L.EvalError
             & pure
@@ -244,16 +242,16 @@ handleGreaterEq pos =
                    (_, err@(L.EvalError _)) -> pure err
 
                    _typeMismatch
-                       -> typeMismatch "Matching numeric values for greater than or equal to"
+                       -> Data.Ouro.Error.Diagnostics.typeMismatch "Matching numeric values for greater than or equal to"
                                (humanReadableType a <> " >= " <> humanReadableType b)
-                          & withBlurb (binaryOpMismatchBlurb a b)
+                          & Data.Ouro.Error.Diagnostics.withBlurb (Data.Ouro.Error.Diagnostics.binaryOpMismatchBlurb a b)
                           & OuroError pos
                           & L.EvalError
                           & pure
 
      -- Arity Fallback: The desugar pass failed to normalize the AST
      _badAST
-         -> astCorruption ">=" "Greater than or equal to, received non-binary arguments after desugaring."
+         -> Data.Ouro.Error.Diagnostics.astCorruption ">=" "Greater than or equal to, received non-binary arguments after desugaring."
             & OuroError pos
             & L.EvalError
             & pure
@@ -270,16 +268,16 @@ handleLess pos =
                    (_, err@(L.EvalError _)) -> pure err
 
                    _typeMismatch
-                       -> typeMismatch "Matching numeric values for less than"
+                       -> Data.Ouro.Error.Diagnostics.typeMismatch "Matching numeric values for less than"
                                (humanReadableType a <> " < " <> humanReadableType b)
-                           & withBlurb (binaryOpMismatchBlurb a b)
+                           & Data.Ouro.Error.Diagnostics.withBlurb (Data.Ouro.Error.Diagnostics.binaryOpMismatchBlurb a b)
                            & OuroError pos
                            & L.EvalError
                            & pure
 
      -- Arity Fallback
      _badAST
-         -> astCorruption "<" "Less than received non-binary arguments after desugaring."
+         -> Data.Ouro.Error.Diagnostics.astCorruption "<" "Less than received non-binary arguments after desugaring."
             & OuroError pos
             & L.EvalError
             & pure
@@ -296,16 +294,16 @@ handleLessEq pos =
                    (_, err@(L.EvalError _)) -> pure err
 
                    _typeMismatch
-                       -> typeMismatch "Matching numeric values for less than or equal to"
+                       -> Data.Ouro.Error.Diagnostics.typeMismatch "Matching numeric values for less than or equal to"
                                (humanReadableType a <> " <= " <> humanReadableType b)
-                           & withBlurb (binaryOpMismatchBlurb a b)
+                           & Data.Ouro.Error.Diagnostics.withBlurb (Data.Ouro.Error.Diagnostics.binaryOpMismatchBlurb a b)
                            & OuroError pos
                            & L.EvalError
                            & pure
 
      -- Arity Fallback
      _badAST
-         -> astCorruption "<=" "Less than or equal to, received non-binary arguments after desugaring."
+         -> Data.Ouro.Error.Diagnostics.astCorruption "<=" "Less than or equal to, received non-binary arguments after desugaring."
             & OuroError pos
             & L.EvalError
             & pure
@@ -328,7 +326,7 @@ handleEquality pos =
 
      -- Arity Fallback: The desugar pass failed to normalize the AST
      _badAST
-         -> astCorruption "eq" "Equality received non-binary arguments after desugaring."
+         -> Data.Ouro.Error.Diagnostics.astCorruption "eq" "Equality received non-binary arguments after desugaring."
              & OuroError pos
              & L.EvalError
              & pure
@@ -351,7 +349,7 @@ handleNeq pos =
 
      -- Arity Fallback: The desugar pass failed to normalize the AST
      _badAST
-         -> astCorruption "not" "Equality received non-binary arguments after desugaring."
+         -> Data.Ouro.Error.Diagnostics.astCorruption "not" "Equality received non-binary arguments after desugaring."
              & OuroError pos
              & L.EvalError
              & pure
@@ -392,9 +390,9 @@ mkDurationHandler :: Text -> PeriodUnit -> SourcePos -> [L.Expr] -> Reader Env L
 mkDurationHandler tagName unit pos args =
     case args of
         [L.Primitive (I.Number n)] -> pure $ L.Duration unit (floor n)
-        [badArg]                   -> typeMismatch ("A Number representing the amount of " <> tagName)
+        [badArg]                   -> Data.Ouro.Error.Diagnostics.typeMismatch ("A Number representing the amount of " <> tagName)
                                                    (humanReadableType badArg)
-                                      & withBlurb ( "The (" <> tagName <> ") modifier expects a single numeric argument "
+                                      & Data.Ouro.Error.Diagnostics.withBlurb ( "The (" <> tagName <> ") modifier expects a single numeric argument "
                                                  <> "representing the duration period."
                                                   )
                                       & OuroError pos

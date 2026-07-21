@@ -233,9 +233,9 @@ splitErrorContext = \case
            , Nothing
            )
 
-    Syntax (InvalidTemplateName name)
-        -> ( "Invalid Template Name"
-           , [ labeled "Formating Rule: " "All template marco names must end with a '!'."
+    Syntax (InvalidFunctionName name)
+        -> ( "Invalid Function Name"
+           , [ labeled "Formating Rule: " "All function names must end with a '!'."
              , labeled (pretty $ "Perhaps add '!' to the end of " <> name <> ".") ""]
            , Nothing
            )

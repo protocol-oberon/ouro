@@ -74,8 +74,8 @@ missingOtherwise :: ErrorContext
 missingOtherwise = Syntax $ MissingOtherwiseFallback
 
 
-invalidTemplateName :: Text -> ErrorContext
-invalidTemplateName = Syntax . InvalidTemplateName
+invalidFunctionName :: Text -> ErrorContext
+invalidFunctionName = Syntax . InvalidFunctionName
 
 
 -- Type Errors

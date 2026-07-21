@@ -15,7 +15,7 @@ import qualified Data.Ouro.Internal.Expr     as I
 import qualified Data.Ouro.Internal.Kinds    as JLD
 import           Data.Ouro.Internal.Utils    (rankBySimilarity)
 import           Data.Ouro.Lisp.Eval.Schema  (parseContextDirectives)
-import           Data.Ouro.Lisp.Eval.Scope   (buildLazyEnv, buildNestedTemplate)
+import           Data.Ouro.Lisp.Eval.Scope   (buildLazyEnv, buildLocalFunction)
 import           Data.Ouro.Lisp.Eval.Types   (Env (..), Expr (..), allEnvKeys,
                                               humanReadableType, localScope)
 import qualified Data.Ouro.Lisp.Eval.Types   as L
@@ -35,10 +35,10 @@ import           Text.Megaparsec             (SourcePos)
 -- type-safe graph layers. Rather than applying standard top-down sequential evaluation, it operates in three distinct,
 -- highly deliberate stages to enforce declarative order-independence within the local block:
 --
---   1. Sweeping & Binding: It passes over the fields using both 'buildLazyEnv' and 'buildTemplateRegistry'
+--   1. Sweeping & Binding: It passes over the fields using both 'buildLazyEnv' and 'buildFunctionRegistry'
 --      to harvest un-evaluated attributes and macro-blueprints into isolated dictionaries.
 --   2. Environment Isolation & Knot-Tying: It constructs a fresh lexical 'Env' frame containing both scopes.
---      By linking this frame as its own parent and passing it downward, variables and templates inside the block
+--      By linking this frame as its own parent and passing it downward, variables and functions inside the block
 --      can lazily reference sibling properties seamlessly without triggering early-evaluation crashes.
 --   3. Semantic Extraction & Context Lowering: It evaluates the properties into a core GADT structural list.
 compileRecord
@@ -47,18 +47,18 @@ compileRecord
     -> [S.Expr]
     -> L.Expr
 compileRecord evaluator env fields =
-    case buildNestedTemplate env fields of
+    case buildLocalFunction env fields of
         Left err
             -> EvalError err
 
-        Right envWithTemplates
+        Right envWithFuncs
             -> case buildLazyEnv env fields of
                    -- Dynamic environment allocation failures represent a catastrophic scope break
                    Left err
                        -> EvalError err
 
                    Right rawMap
-                       -> let isolatedEnv = envWithTemplates
+                       -> let isolatedEnv = envWithFuncs
                                             & L.localScope .~ rawMap
                                             -- Knot-tying: the parent of the isolated scope is the ambient env
                                             & L.parentEnv  .~ Just env
@@ -100,8 +100,8 @@ emitProps evaluator env expressions = go I.EmptyMeta expressions
                   -- Case B: Define Blocks are explicitly erased from the output JSON graph at comptime
                   S.Form _ (S.Symbol _ "define" : _) : rest -> go metaAcc rest
 
-                  -- Case B.5 Template Blocks are also explicity erased from output JSON graph at comptime
-                  S.Form _ (S.Symbol _ "template" : _) : rest -> go metaAcc rest
+                  -- Case B.5 Function Blocks are also explicity erased from output JSON graph at comptime
+                  S.Form _ (S.Symbol _ "defun" : _) : rest -> go metaAcc rest
 
                   -- Case B.75: Inlay evaluated record pairs directly into the current record scope
                   S.Form _ [S.Symbol pos "inlay", iExpr] : rest
@@ -110,14 +110,14 @@ emitProps evaluator env expressions = go I.EmptyMeta expressions
                                                _              -> TargetFunctionApp -- Treat symbols/primitives as dynamic
                          in case blockTarget of
                                 TargetList -> let err = typeMismatch
-                                                            "a valid Record (or Template resolving to a Record) to inlay"
+                                                            "a valid Record (or Function resolving to a Record) to inlay"
                                                             "a List/Array block target"
                                                         & OuroError pos
                                               in case go metaAcc rest of
                                                      Record finalMeta nextPairs -> Record finalMeta (("*err*", EvalError err) : nextPairs)
                                                      otherVal                   -> otherVal
 
-                                -- Catch both TargetRecord AND TargetFunctionApp (for templates)
+                                -- Catch both TargetRecord AND TargetFunctionApp
                                 _ -> case go metaAcc rest of
                                         Record finalMeta nextPairs
                                             -> case evaluator env iExpr of
@@ -182,7 +182,7 @@ emitProps evaluator env expressions = go I.EmptyMeta expressions
                   -- Case E: Catch dangling expressions instead of silently erasing them
                   expr : rest
                       -> let err = typeMismatch
-                                       "a structural record property (attr, inlay, define, template, context)"
+                                       "a structural record property (attr, inlay, define, defun, context)"
                                        "an unbound expression"
                                    & withBlurb "Unbound expressions are not allowed inside Record blocks. They must be bound to an attribute."
                                    & OuroError (S.exprPos expr)
@@ -197,7 +197,7 @@ emitProps evaluator env expressions = go I.EmptyMeta expressions
                         S.Form _ (S.Symbol _ "attr"     : _) -> True
                         S.Form _ (S.Symbol _ "context"  : _) -> True
                         S.Form _ (S.Symbol _ "define"   : _) -> True
-                        S.Form _ (S.Symbol _ "template" : _) -> True
+                        S.Form _ (S.Symbol _ "defun"    : _) -> True
                         S.Form _ (S.Symbol _ "return"   : _) -> True
                         _otherForm                           -> False
 
@@ -210,7 +210,7 @@ compileArray
     -> [S.Expr]
     -> L.Expr
 compileArray evaluator env pos elements =
-    case buildNestedTemplate env elements of
+    case buildLocalFunction env elements of
         Right envWithTmplts -> Array $ compileElements envWithTmplts elements
         Left  err           -> EvalError err
 
@@ -227,8 +227,8 @@ compileArray evaluator env pos elements =
                        Right newEnv -> compileElements (env' & localScope %~ Map.union newEnv) xs
                        Left  err    -> EvalError err : compileElements env' xs
 
-            -- Skip Templates
-            S.Form _ (S.Symbol _ "template" : _) : xs
+            -- Skip Functions
+            S.Form _ (S.Symbol _ "defun" : _) : xs
                 -> compileElements env' xs
 
             -- Case B: TRUE ERASURE: Skip context blocks completely inside arrays
@@ -243,15 +243,15 @@ compileArray evaluator env pos elements =
             S.Form _ [S.Symbol sPos "inlay", iExpr] : xs
                 -> let blockTarget = case iExpr of
                                          S.Form _ inner -> determineBlockTarget inner
-                                         _              -> TargetFunctionApp -- Treat symbols/templates as dynamic
+                                         _              -> TargetFunctionApp -- Treat symbols/functions as dynamic
                    in case blockTarget of
                           TargetRecord -> let err = typeMismatch
-                                                        "a valid Array (or Template resolving to an Array) to inlay"
+                                                        "a valid Array (or Function resolving to an Array) to inlay"
                                                         "a Record block target"
                                                     & OuroError sPos
                                           in EvalError err : compileElements env' xs
 
-                          -- Catch both TargetList AND TargetFunctionApp (for templates/variables)
+                          -- Catch both TargetList AND TargetFunctionApp (for functions/variables)
                           _ -> case evaluator env' iExpr of
                                    -- 1. If evaluation fails, embed the error so the tree retains it
                                    EvalError err  -> EvalError err : compileElements env' xs
@@ -337,7 +337,7 @@ determineBlockTarget fields =
     isFunctionApplication :: [S.Expr] -> Bool
     isFunctionApplication =
         \case
-         (S.Symbol _ name : _) -> not (name `elem` ["template", "define", "context", "return"])
+         (S.Symbol _ name : _) -> not (name `elem` ["defun", "define", "context", "return"])
          _NotaFunc             -> False
 
     isStructuralField :: S.Expr -> Bool
@@ -470,21 +470,21 @@ matchTokenStream targetKey stream =
             -> matchTokenStream targetKey rest
 
 
--- compileTemplate.
+-- evalFunction
 --
 -- Executes an AST blueprint within an isolated lexical bubble.
 -- By mapping formal parameters directly to un-evaluated argument expressions,
 -- this achieves macro-style lazy expansion without the messy string-substitution logic.
-compileTemplate
+evalFunction
     :: (S.Expr -> Reader Env L.Expr)  -- Core evaluator function
     -> Env                            -- The current ambient environment (Call site)
     -> SourcePos                      -- Callsite position
-    -> Text                           -- Template name
-    -> [Text]                         -- The template's formal parameters (e.g., (name year))
-    -> [S.Expr]                       -- The un-evaluated body expressions of the template
+    -> Text                           -- Function name
+    -> [Text]                         -- The function's formal parameters (e.g., (name year))
+    -> [S.Expr]                       -- The un-evaluated body expressions of the function
     -> [S.Expr]                       -- The actual arguments passed at the call site
     -> Reader Env L.Expr              -- The returned evaluated expr
-compileTemplate evaluator parentEnv pos name params bodyExprs actualArgs =
+evalFunction evaluator parentEnv pos name params bodyExprs actualArgs =
     let parLen       = length params
         actLen       = length actualArgs
         currentStack = parentEnv ^. L.callStack
@@ -501,11 +501,11 @@ compileTemplate evaluator parentEnv pos name params bodyExprs actualArgs =
                         False
                             -> do
                                let argMap      = Map.fromList (zip params actualArgs)
-                                   templateEnv = parentEnv
+                                   functionEnv = parentEnv
                                                & L.localScope       .~ argMap
                                                & L.parentEnv        .~ Just parentEnv
                                                & L.activeLookups    .~ Set.empty
-                                               & L.templateRegistry .~ (parentEnv ^. L.templateRegistry)
+                                               & L.functionRegistry .~ (parentEnv ^. L.functionRegistry)
                                                & L.callStack        .~ (Set.insert name currentStack)
 
                                    -- Unwrap the Reader Monad to explict (Env -> S.Expr -> L.Expr)
@@ -514,14 +514,14 @@ compileTemplate evaluator parentEnv pos name params bodyExprs actualArgs =
                                case returnExpr bodyExprs of
                                    Just (S.Form _ (_ : val : _))
                                        -> do
-                                           case buildLazyEnv templateEnv bodyExprs of
-                                               Right fnEnv -> pure $ evaluator' (templateEnv & L.localScope .~ fnEnv & L.parentEnv .~ Just templateEnv) val
+                                           case buildLazyEnv functionEnv bodyExprs of
+                                               Right fnEnv -> pure $ evaluator' (functionEnv & L.localScope .~ fnEnv & L.parentEnv .~ Just functionEnv) val
                                                Left  err   -> pure $ EvalError err
 
                                    _noReturnExpression
                                        -> case determineBlockTarget bodyExprs of
-                                               TargetRecord      -> pure $ compileRecord evaluator' templateEnv bodyExprs
-                                               TargetList        -> pure $ compileArray  evaluator' templateEnv pos bodyExprs
+                                               TargetRecord      -> pure $ compileRecord evaluator' functionEnv bodyExprs
+                                               TargetList        -> pure $ compileArray  evaluator' functionEnv pos bodyExprs
                                                TargetFunctionApp -> typeMismatch
                                                                        "a function with a concrete return type (Array, Record, Primitive or another Function)"
                                                                        "a function with a dangling expression"

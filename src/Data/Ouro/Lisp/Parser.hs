@@ -16,7 +16,7 @@ import           Data.Ouro.Error.Types       (ErrorContext (..), OuroError (..),
 import           Data.Ouro.Lisp.Module.Types (Declaration (..),
                                               HigherExpression (..),
                                               Module (..), graphRegistry,
-                                              templateRegistry)
+                                              functionRegistry)
 import qualified Data.Ouro.Lisp.Surface      as S
 import qualified Data.Ouro.Lisp.Tokens       as Tkn
 import           Data.Text                   (Text)
@@ -33,7 +33,7 @@ type Parser a = StateT ParseState (Either OuroError) a
 
 -- Wraper for type indexed higher expressions
 data ParsedDecl
-    = PTemplate (HigherExpression 'TemplateExpr)
+    = PFunction (HigherExpression 'FunctionExpr)
     | PGraph    (HigherExpression 'GraphExpr)
 
 
@@ -52,7 +52,7 @@ buildModuleRegistry = foldM insertDecl emptyModule
 
     insertDecl :: Module -> ParsedDecl -> Either OuroError Module
     insertDecl m = \case
-                    (PTemplate t@(Template _ name _ _))  -> Right $ m & templateRegistry . at name ?~ t
+                    (PFunction t@(Function _ name _ _))  -> Right $ m & functionRegistry . at name ?~ t
                     (PGraph    g@(Graph    _ name body)) -> do
                                                             validateGraphBody body
                                                             Right $ m & graphRegistry    . at name ?~ g
@@ -62,9 +62,6 @@ buildModuleRegistry = foldM insertDecl emptyModule
     validateGraphBody =
         \case
          S.Form pos (S.Symbol _ "defun"    : _) -> lexicalError "Graphs cannot contain nested 'defun' declarations."
-                                                   F.& OuroError pos
-                                                   F.& Left
-         S.Form pos (S.Symbol _ "template" : _) -> lexicalError "Graphs cannot contain nested 'template' declarations."
                                                    F.& OuroError pos
                                                    F.& Left
          S.Form _   exprs                       -> traverse_ validateGraphBody exprs
@@ -86,7 +83,7 @@ pHigherExpression = do
     startTkn <- popToken "Expected expression declaration starting with '('"
     case Tkn.tokenType startTkn of
         Tkn.OpenParen -> do
-                         kwTkn <- popToken "Expected higher expression declaration keyword (defun, template, graph)"
+                         kwTkn <- popToken "Expected higher expression declaration keyword (defun, graph)"
                          case Tkn.tokenType kwTkn of
                              Tkn.Defun    -> pDefun (Tkn.pos startTkn)
                              Tkn.Graph    -> pGraph (Tkn.pos startTkn)
@@ -102,18 +99,18 @@ pHigherExpression = do
 
 pDefun :: SourcePos -> Parser ParsedDecl
 pDefun pos = do
-    -- We specifically enforce the TemplateSymbol (e.g., ends in '!')
-    name <- expectTemplateSymbol "Expected template name ending with '!'"
+    -- We specifically enforce the FunctionSymbol (e.g., ends in '!')
+    name <- expectFunctionSymbol "Expected function name ending with '!'"
     args <- pArgs
     body <- collectUntil Tkn.CloseParen
 
     -- Enforce strict structural rules on the collected body expressions
     mapM_ validateBodyElement body
 
-    pure $ PTemplate (Template pos name args (S.Form pos body))
+    pure $ PFunction (Function pos name args (S.Form pos body))
 
 
--- | Validates that elements inside a function/template body are restricted
+-- Validates that elements inside a function/function body are restricted
 -- to parenthesized Forms or Literals.
 validateBodyElement :: S.Expr -> Parser ()
 validateBodyElement =
@@ -165,12 +162,12 @@ expectSymbol err = do
                            F.& lift
 
 
-expectTemplateSymbol :: Text -> Parser Text
-expectTemplateSymbol err = do
+expectFunctionSymbol :: Text -> Parser Text
+expectFunctionSymbol err = do
     t <- popToken err
     case Tkn.tokenType t of
-        Tkn.TemplateSymbol name -> pure name
-        _notATemplateSymbol     -> lexicalError err
+        Tkn.FunctionSymbol name -> pure name
+        _notAFunctionSymbol     -> lexicalError err
                                    F.& OuroError (Tkn.pos t)
                                    F.& Left
                                    F.& lift
@@ -229,12 +226,11 @@ pExpr = do
 
                              -- Primitive Leaf Node capture (+ source location)
                              Tkn.Let            -> capture (S.Symbol (Tkn.pos t) "let")
-                             Tkn.Template       -> capture (S.Symbol (Tkn.pos t) "template")
                              Tkn.Defun          -> capture (S.Symbol (Tkn.pos t) "defun")
 
                              -- Parameterized Identifiers
                              Tkn.Symbol         txt -> capture (S.Symbol (Tkn.pos t) txt)
-                             Tkn.TemplateSymbol txt -> capture (S.Symbol (Tkn.pos t) txt)
+                             Tkn.FunctionSymbol txt -> capture (S.Symbol (Tkn.pos t) txt)
 
                              -- Flags & Attributes (Reader Macro -> `(attr "key" expr)`)
                              Tkn.FlagVocab      -> put ts >> parseAttrNode (Tkn.pos t) "vocab"

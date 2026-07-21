@@ -23,9 +23,8 @@ data TokenType
     -- Core lang symbols
     | Let              -- 'let' (used for binding context scopes)
     | Import           -- Module imports
-    | Export           -- Module exports, can only be templates or functions
-    | Defun            -- Named functions that return a primitve
-    | Template         -- Functions that return graph nodes
+    | Export           -- Module exports, can only be functions
+    | Defun            -- Named functions that return a JSON LD object
     | Graph            -- JSON-LD graph to compile
     -- Schema Context Specific Flags
     | FlagVocab        -- ':vocab'
@@ -39,7 +38,7 @@ data TokenType
     -- Identifiers
     | Attr   !Text     -- ':id', ':type' (stores the string without the leading ':')
     | Symbol !Text     -- 'lambda', variable names like 'node' or 'x'
-    | TemplateSymbol !Text -- NEW: Variables/identifiers that explicitly end in '!'
+    | FunctionSymbol !Text -- NEW: Variables/identifiers that explicitly end in '!'
     -- Literals
     | String  !Text    -- "Update", "Core aggregation update for Van Gogh..."
     | Number  !Double  -- 42, 3.14159

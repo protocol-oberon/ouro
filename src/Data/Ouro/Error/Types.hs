@@ -138,7 +138,7 @@ data SyntaxError
     | MissingOtherwiseFallback
 
 
-    | InvalidTemplateName
+    | InvalidFunctionName
       { invalidName :: Text }
     deriving (Show, Eq, Ord, Generic)
 

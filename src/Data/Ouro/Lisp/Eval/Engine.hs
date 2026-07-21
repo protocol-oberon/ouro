@@ -5,7 +5,7 @@
 module Data.Ouro.Lisp.Eval.Engine where
 
 import           Control.Monad.Reader           (MonadReader (..), Reader,
-                                                 runReader, asks)
+                                                 runReader)
 import           Data.Function                  ((&))
 import qualified Data.Map                       as Map
 import           Data.Ouro.Error.Diagnostics    (astCorruption,
@@ -27,7 +27,7 @@ import           Data.Ouro.Lisp.Eval.Builtins   (builtinRegistry, parseISO8601)
 import           Data.Ouro.Lisp.Eval.Schema     (parseContextDirectives)
 import           Data.Ouro.Lisp.Eval.Scope      (lookupVar, quoteVar)
 import           Data.Ouro.Lisp.Eval.Structural (BlockTarget (..), compileArray,
-                                                 compileRecord, compileTemplate,
+                                                 compileRecord, evalFunction,
                                                  determineBlockTarget,
                                                  resolvePath)
 import           Data.Ouro.Lisp.Eval.Types      (Env (..), Expr (..),
@@ -38,12 +38,9 @@ import qualified Data.Ouro.Lisp.Surface         as S
 import           Data.Text                      (Text)
 import qualified Data.Text                      as T
 import qualified Data.Vector                    as V
-import           Lens.Micro.Platform            ((%~), (^.))
+import           Lens.Micro.Platform            ((%~))
 import           Text.Megaparsec                (SourcePos)
 import qualified Text.URI                       as URI
-import qualified Data.Set as Set
-import qualified Debug.Trace as Debug
-import GHC.Exts (currentCallStack)
 
 
 -- No State monad is required because errors are handled as Data in the L.Expr tree.
@@ -417,8 +414,8 @@ applyFunction pos fields =
                resolvedOp   <- evalExpr operatorExpr
 
                case resolvedOp of
-                   TemplateClosure closureEnv name params bodyExprs
-                       -> compileTemplate evalExpr closureEnv pos name params bodyExprs argumentExprs
+                   FunctionClosure closureEnv name params bodyExprs
+                       -> evalFunction evalExpr closureEnv pos name params bodyExprs argumentExprs
 
                    PrimitiveOp nativeFunc
                        -> do

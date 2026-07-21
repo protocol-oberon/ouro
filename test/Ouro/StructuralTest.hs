@@ -31,7 +31,7 @@ prop_literals_targetList = property $ do
 
 prop_attr_targetRecord :: Property
 prop_attr_targetRecord = property $ do
-    determineBlockTarget [S.Attr nullPos "id"] === TargetRecord
+    determineBlockTarget [S.Form nullPos [S.Symbol nullPos "attr", S.Literal nullPos (S.Str "Test")]] === TargetRecord
 
 prop_symbol_targetFunctionApp :: Property
 prop_symbol_targetFunctionApp = property $ do
@@ -49,7 +49,7 @@ prop_define_targetList = property $ do
 
 prop_nestedObject_targetList :: Property
 prop_nestedObject_targetList = property $ do
-    determineBlockTarget [S.Form nullPos [S.Attr nullPos "id"]] === TargetList
+    determineBlockTarget [S.Form nullPos [S.Form nullPos [S.Symbol nullPos "attr", S.Literal nullPos (S.Str "Test")]]] === TargetList
 
 prop_nestedMatrix_targetList :: Property
 prop_nestedMatrix_targetList = property $ do

@@ -45,7 +45,7 @@ data Env = Env
     { _localScope       :: Map.Map Text S.Expr
     , _parentEnv        :: Maybe Env
     , _activeLookups    :: Set Text
-    , _templateRegistry :: Map.Map Text (M.HigherExpression 'M.TemplateExpr)
+    , _functionRegistry :: Map.Map Text (M.HigherExpression 'M.FunctionExpr)
     , _callStack        :: Set Text
     }
 
@@ -58,7 +58,7 @@ defaultEnv moduleEnv = Env
     { _localScope       = Map.empty
     , _parentEnv        = Nothing
     , _activeLookups    = Set.empty
-    , _templateRegistry = (moduleEnv ^. M.templateRegistry)
+    , _functionRegistry = (moduleEnv ^. M.functionRegistry)
     , _callStack        = Set.empty
     }
 
@@ -68,7 +68,7 @@ emptyEnv = Env
     { _localScope       = Map.empty
     , _parentEnv        = Nothing
     , _activeLookups    = Set.empty
-    , _templateRegistry = Map.empty
+    , _functionRegistry = Map.empty
     , _callStack        = Set.empty
     }
 
@@ -78,7 +78,7 @@ emptyEnv = Env
 allEnvKeys :: Env -> Set.Set Text
 allEnvKeys env =
     let localKeys  = Map.keysSet (env ^. localScope)
-        tmpltKeys  = Map.keysSet (env ^. templateRegistry)
+        tmpltKeys  = Map.keysSet (env ^. functionRegistry)
         currentSet = Set.union localKeys tmpltKeys
     in case env ^. parentEnv of
            Nothing     -> currentSet
@@ -133,8 +133,8 @@ data Expr where
     PrimitiveOp :: NativeFunction -> Expr
     Closure     :: Env -> Text -> S.Expr -> Expr
 
-    -- Template Macro Closure
-    TemplateClosure :: Env -> Text -> [Text] -> [S.Expr] -> Expr
+    -- Function Macro Closure
+    FunctionClosure :: Env -> Text -> [Text] -> [S.Expr] -> Expr
 
     -- The Universal Error Leaf: Allows the engine to bypass crashes
     -- and continue evaluating sibling nodes.
@@ -165,8 +165,8 @@ instance Eq Expr where
     EvalError   a       == EvalError   b       = a  == b
     Quote       q1      == Quote       q2      = q1 == q2
 
-    -- Template Macro
-    TemplateClosure _ _ _ _ == TemplateClosure _ _ _ _ = False
+    -- Function Macro
+    FunctionClosure _ _ _ _ == FunctionClosure _ _ _ _ = False
 
     -- Catch-all for shape mismatches
     _ == _ = False
@@ -184,7 +184,7 @@ instance Show Expr where
     PrimitiveOp _          -> showString "PrimitiveOp <native_function>"
 
     Closure         _ name body        -> showString "Closure <env> "         . showsPrec 11 name . showChar ' ' . showsPrec 11 body
-    TemplateClosure _ name args bodies -> showString "TemplateClosure <env> " . showsPrec 11 name . showChar ' ' . showsPrec 11 args . showChar ' ' . showsPrec 11 bodies
+    FunctionClosure _ name args bodies -> showString "FunctionClosure <env> " . showsPrec 11 name . showChar ' ' . showsPrec 11 args . showChar ' ' . showsPrec 11 bodies
 
     EvalError err -> showString "EvalError " . showsPrec 11 err
     Quote     q   -> showString "Quote "     . showsPrec 11 q
@@ -267,7 +267,7 @@ humanReadableType =
      Quote       _      -> "an unevaluated expression"
      Record      _ _    -> "a Record"
      Attr        _ _    -> "an unbound Attribute pair"
-     TemplateClosure _ _ _ _ -> "an unexecuted template macro"
+     FunctionClosure _ _ _ _ -> "an unexecuted function"
 
 -- Evaluates the root Array
 describeArray :: [Expr] -> Text

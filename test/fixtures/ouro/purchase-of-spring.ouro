@@ -1,4 +1,4 @@
-(template transfer! (id-type type-of-type name)
+(defun transfer! (id-type type-of-type name)
   (define
     :getty      "http://vocab.getty.edu/aat/"
     :linked-art "https://linked.art/example/"

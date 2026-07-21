@@ -44,7 +44,7 @@ import           Text.Megaparsec (SourcePos)
 -- macro closures, and transforms it into the permanently typed, hyper-strict 'JLD.Type' core GADT.
 data Expr
     = Symbol      SourcePos Text            -- variable names and functions
-    | DefunSymbol SourcePos Text            -- template identifiers
+    | DefunSymbol SourcePos Text            -- function identifiers
     | Literal     SourcePos LiteralValue    -- Raw String, Number, Boolean, Null
     | Tagged      SourcePos ReaderTag Expr  -- #uri "...", #date "..."
     | Quoted      SourcePos Expr            -- Un-eval'd Asts

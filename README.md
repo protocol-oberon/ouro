@@ -350,16 +350,16 @@ Ouro has the following built in functions:
 | **`<`**  | `(< 2 5 10)`   | Evaluates to `true` (Strictly increasing stream). |
 | **`<=`** | `(<= 5 5 10)`  | Evaluates to `true` (Increasing or equal stream). |
 
-## Template Macros
+## Functions
 
-Like any good Lisp, Ouro supports powerful template macros, with a slight caveat. In Ouro templates are reserved for functions return a JSON-LD graph node, meaning that all template expressions must return either a record, a list or another template which returns one of the previous.
+Like any good Lisp, Ouro supports powerful first order functions. Functions in Ouro return either a Record, Array or a Primitive. To return a Primitive from a function the `(return)` special form must be used.
 
-To make a template in Ouro you use the keyword `(template name! (args) body)` followed by the name of the template. The name of each templating macro must always end in a **!**, otherwise the compiler will throw a syntax error. This is to allow for template symbols to remain easily identifiable.
+To make a function in Ouro you use the keyword `(defun name! (args) body)` followed by the name of the function. The name of each function macro must always end in a **!**, otherwise the compiler will throw a syntax error. This is to allow for user difined function symbols to remain easily identifiable.
 
-An example of a simple template is the following:
+An example of a simple function is the following:
 
 ``` clojure
-(template transfer! (id-type type-of-type name)
+(defun transfer! (id-type type-of-type name)
   (define
     :getty      "http://vocab.getty.edu/aat/"
     :linked-art "https://linked.art/example/"
@@ -374,49 +374,51 @@ An example of a simple template is the following:
   :_label name)
 ```
 
-...which takes 3 arguments; `id-type`, `type-of-type` and `name` all of which are strings. If the wrong number of arguments are supplied then the compiler will fail with an arity error.  This template pattern matches on the incoming name argument and produces a valid `uri`, which is type asserted within the template, ensuring that arguments of the correct type are supplied. 
+...which takes 3 arguments; `id-type`, `type-of-type` and `name` all of which are strings. If the wrong number of arguments are supplied then the compiler will fail with an arity error. This function pattern matches on the incoming name argument and produces a valid `uri`, which is type asserted within the function, ensuring that arguments of the correct type are supplied. 
 
-### Meta-programming Templates 
+Ultimately functions in Ouro can be seen a JSON-LD graph nodes with a hole in them, where said hole is filled by the passed in arguments.
 
-Templates can also support quoted arguments and defer evaluation of said arguments until an arbitrary point within the template, allowing for the powerful meta-programming abilities Lisps are synonymous with.By default, templates will eagerly evaluate their arguments at the call site before passing them in. To defer this, you use the standard quote '(...) to pass the argument as raw, un-evaluated data (an AST node). 
+### Meta-programming Functions 
 
-- If the variable needs to be looked up before passing into the template then the special form `(quote)` can be used. 
+Functions can also support quoted arguments and defer evaluation of said arguments until an arbitrary point within the function, allowing for the powerful meta-programming abilities Lisps are synonymous with.By default, functions will eagerly evaluate their arguments at the call site before passing them in. To defer this, you use the standard quote '(...) to pass the argument as raw, un-evaluated data (an AST node). 
+
+- If the variable needs to be looked up before passing into the functions then the special form `(quote)` can be used. 
 - If the variable is deeply nested then `get'` can also be used to return the quoted expression. 
 
-The template can then decide if, when, and how to execute that data using the (eval) special form. This deferred evaluation is incredibly useful for creating conditional logic or custom control structures that need to guarantee certain JSON-LD outputs aren't prematurely evaluated or injected into the graph.
+The function can then decide if, when, and how to execute that data using the (eval) special form. This deferred evaluation is incredibly useful for creating conditional logic or custom control structures that need to guarantee certain JSON-LD outputs aren't prematurely evaluated or injected into the graph.
 
 Consider the following Ouro code:
 
 ``` clojure
 ;; Global default configuration
-((define :environment "production")
 
-(template local-sandbox! ()
+(defun local-sandbox! ()
   ;; Shadowing the global environment variable strictly inside this block
   (define :environment "development")
+  :function-env environment) ;; => "development"
 
-  :template-env environment) ;; => "development"
-
- (template meta-sandbox! (template)
-    (inlay (eval template))
-    :desc "the template arg was eval'd and inlayed")
+ (defun meta-sandbox! (fn)
+    (inlay (eval fn))
+    :desc "the function arg was eval'd and inlayed")
 
 ;; Anywhere else in the file, 'environment' still evaluates to "production"
- :global-env   environment
- (inlay (local-sandbox!))
- ;; This meta template takes a template, calls it and inlays it in the return Record
- :meta-template (meta-sandbox! (quote local-sandbox!)))
+(graph test
+  (define :environment "production")
+  :global-env   environment
+  (inlay (local-sandbox!))
+  ;; This meta function takes a function, calls it and inlays it in the return Record
+  :meta-function (meta-sandbox! (quote local-sandbox!)))
 ```
 
-Here the template `meta-sandbox!` takes a quoted template as an argument, evaluates it, and returns that templates content inlay-ed in a Record. This code compiles to the following JSON:
+Here the function `meta-sandbox!` takes a quoted function as an argument, evaluates it, and returns that functions content inlay-ed in a Record. This code compiles to the following JSON:
 
 ``` json
 {
   "global-env": "production",
-  "template-env": "development",
-  "meta-template": {
-    "template-env": "development",
-    "desc": "the template arg was eval'd and inlayed"
+  "function-env": "development",
+  "meta-function": {
+    "function-env": "development",
+    "desc": "the function arg was eval'd and inlayed"
   }
 }
 ```
@@ -429,19 +431,20 @@ Ouro offers some syntax sugar to make common Linked Art JSON-LD patterns a bit m
 
 ```clojure
 
- (:timespan (:type               "TimeSpan"
-            :begin_of_the_begin #date "1881-01-01T00:00:00Z"
-            :end_of_the_end     #date (+ begin_of_the_begin (thru (years 2)))))
+ (graph syntax-sugar
+   :timespan (:type               "TimeSpan"
+              :begin_of_the_begin #date "1881-01-01T00:00:00Z"
+              :end_of_the_end     #date (+ begin_of_the_begin (thru (years 2)))))
 ```
 
 # Lexical Scoping
 
 Ouro uses Scheme style lexical scoping, this means that scope is defined by the structure of the source code, and not where it is located on the runtime callstack (Ouro does not have a runtime). When a function is evaluated, it looks up variables based on where its was defined, never where it was called.  If you want know what a variable evaluates to, you simply read outward through the nested blocks `()` in the source code. 
 
-This kind of scoping allows for closures (see `(template)` for a good example), as the functions remembers the environment that it was created in, scope blocks can be used to create private data, without the need for classes. 
+This kind of scoping allows for closures (see `(defun)` for a good example), as the functions remembers the environment that it was created in, scope blocks can be used to create private data, without the need for classes. 
 
 ``` clojure
-(template transfer! (id-type type-of-type name)
+(defun transfer! (id-type type-of-type name)
   (define
     :getty      "http://vocab.getty.edu/aat/"
     :linked-art "https://linked.art/example/"
@@ -455,27 +458,27 @@ This kind of scoping allows for closures (see `(template)` for a good example), 
   :type   type-of-type
   :_label name)
 ```
-- In this example, the variables defined at the top (`getty`, `linked-art`, and `uri_type`) are completely private to the template's internal scope. They are safely encapsulated to help construct the final yielded record (`:id`, `:type`, `:_label`) but will never leak into or conflict with the global scope.
+- In this example, the variables defined at the top (`getty`, `linked-art`, and `uri_type`) are completely private to the functions  internal scope. They are safely encapsulated to help construct the final yielded record (`:id`, `:type`, `:_label`) but will never leak into or conflict with the global scope.
 
 ## Shadowing
 
-Since Ouro resolves scopes from the inside out, it allows for variable shadowing. In Ouro everything besides the core structural primitives (special forms) can be shadowed. Shadowing allows you to establish broad defaults globally, while giving specific templates the freedom to override those defaults locally without leaking changes back out to the rest of the system.
+Since Ouro resolves scopes from the inside out, it allows for variable shadowing. In Ouro everything besides the core structural primitives (special forms) can be shadowed. Shadowing allows you to establish broad defaults globally, while giving specific functions the freedom to override those defaults locally without leaking changes back out to the rest of the system.
 
 The following Ouro code:
 
 ``` clojure
 ;; Global default configuration
-((define :environment "production")
 
-(template local-sandbox! ()
+(defun local-sandbox! ()
   ;; Shadowing the global environment variable strictly inside this block
   (define :environment "development")
-
-  :template-env environment) ;; => "development"
+  :function-env environment) ;; => "development"
 
 ;; Anywhere else in the file, 'environment' still evaluates to "production"
- :global-env   environment
- (inlay (local-sandbox!)))
+(graph shadowing 
+  (define :environment "production")
+  :global-env   environment
+  (inlay (local-sandbox!)))
 ```
 
 ...compiles to:
@@ -483,7 +486,7 @@ The following Ouro code:
 ``` json
 {
   "global-env": "production",
-  "template-env": "development"
+  "function-env": "development"
 }
 ```
 
@@ -491,7 +494,7 @@ The following Ouro code:
 
 *Purchase of Spring by Proust*
 ``` clojure
-(template transfer! (id-type type-of-type name)
+(defun transfer! (id-type type-of-type name)
   (define
     :getty      "http://vocab.getty.edu/aat/"
     :linked-art "https://linked.art/example/"
