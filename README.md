@@ -19,7 +19,7 @@ The target structure of Ouro code is determined by a few simple rules:
 
 Through composition of these rules it is possible to ergonomically express any JSON-LD structure in Ouro with just parentheses. For example to make an nested list of objects the following syntax would be used `((:key val) (:key val))`. I
 
-- It is important to note that Arrays in Ouro, unlike lists in JSON are strictly **Homogeneous**, making a mixed array will cause a type error.
+- Arrays in Ouro, like JSON arrays, may contain values of mixed types. Note that `(insert)` into an Array requires the inserted value to match the type of the Array's first element.
 
 Ouro is 100% declarative, and uses defered evaluation during compilation. This allows for the values of records to not only be referenced within the local scope of the expression, but also out of declaration order. To reference the value of a field, simply call the key without the colon, so `:lookup value` becomes `lookup`, which returns the `value`.
 
@@ -73,10 +73,11 @@ The `(context)` special form also has syntax sugar for the common case of having
 
 ```clojure
 ;; Surface Syntax Written by User
-:context #uri "[https://linked.art/ns/v1/linked-art.json](https://linked.art/ns/v1/linked-art.json)"
+:context #uri "https://linked.art/ns/v1/linked-art.json"
 
 ;; Canonical Desugared Result Form
-(context ((remote-context #uri "[https://linked.art/ns/v1/linked-art.json](https://linked.art/ns/v1/linked-art.json)")))
+(context ((remote-context #uri "https://linked.art/ns/v1/linked-art.json")))
+```
 
 Which is then serialised to:
 
@@ -114,12 +115,12 @@ The `(case)` special form serves as the Ouro's main mode of control flow, it exp
 ``` clojure
 (:trgt   99
  :result (case trgt
-               ((= 100)   "fails")
+               ((eq 100)  "fails")
                ((> 100)   "fails")
                (otherwise "fails")))
 ```
 
-`case` statements must always contain a default branch `otherwise`, to ensure totality. When a case statement is triggered, the target expr is eagerly evaluated, and passed into the first element of branch tuple of the branch as its first argument `((= trgt 100) ret1)`. If the resulting expression evaluates to `True`, then the second element of the branches tuple (the return value) is evaluated and returned.
+`case` statements must always contain a default branch `otherwise`, to ensure totality. When a case statement is triggered, the target expr is eagerly evaluated, and passed into the first element of branch tuple of the branch as its first argument `((eq trgt 100) ret1)`. If the resulting expression evaluates to `True`, then the second element of the branches tuple (the return value) is evaluated and returned.
 
 If a quoted expression is passed into a `case` statement as the target, then structural pattern matching can be performed. When pattern matching, the pattern for a branch must also be quoted. For cases where the entirety of the targeted structure isn't relevant, a hole type (**?**) can be used.
 
@@ -717,7 +718,7 @@ If you prefer a traditional Haskell environment, you can build Ouro directly fro
 
 1. **Clone the repository**:
    ```bash
-   git clone [https://github.com/protocol-oberon/ouro](https://github.com/protocol-oberon/ouro)
+   git clone https://github.com/protocol-oberon/ouro
    cd ouro
    ```
 2. **Build the project**:
@@ -747,7 +748,7 @@ Available options:
   -v,--version             Show Ouro version
 
 Available commands:
-  compile                  Compile JSON-LD to Ouro
+  compile                  Compile Ouro to JSON-LD
   validate                 Validate JSON-LD
 ```
 
@@ -756,7 +757,7 @@ The sub commands for both `compile` and `validate` can be found by using the `-h
 ``` bash
 Usage: ouro compile SOURCE_FILE (-t|--trgt STRING) [-o|--output DIR]
 
-  Compile JSON-LD to Ouro
+  Compile Ouro to JSON-LD
 
 Available options:
   -t,--trgt STRING         Target graph name within the module

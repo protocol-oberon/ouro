@@ -14,6 +14,8 @@ import qualified Data.Text.Lazy    as TL
 import qualified Data.Text.Lazy.IO as TLIO
 import           System.Exit       (exitFailure)
 import           System.FilePath   (hasExtension, (</>))
+import           System.IO         (IOMode (..), hSetEncoding, hSetNewlineMode,
+                                    noNewlineTranslation, utf8, withFile)
 
 
 runCommand :: Command -> IO ()
@@ -44,7 +46,7 @@ runCompile ifp trgt mOutDir = do
                -- Proceed with serialization
                let opts = defaultOptions
                putStrLn $ "Compilation Success: " ++ ifp ++ " [" ++ trgt ++ "] -> " ++ ofp
-               TLIO.writeFile ofp (O.toJSON opts code)
+               writeJSON ofp (O.toJSON opts code)
 
         O.CompilationFailure warnings errors
             -> do
@@ -78,7 +80,7 @@ runValidate (ValidateCommand fp op sp sc) =
                                                  True  -> TIO.putStrLn $ TL.toStrict json
                                                  False -> pure ()
 
-                                             TLIO.writeFile targetOutPath json
+                                             writeJSON targetOutPath json
 
         Just (Merge _)  -> do
                            -- TODO! Fail loudly until merge is implemented
@@ -96,4 +98,12 @@ runValidate (ValidateCommand fp op sp sc) =
                                                  True  -> TIO.putStrLn $ TL.toStrict json
                                                  False -> pure ()
 
-                                             TLIO.writeFile targetOutPath json
+                                             writeJSON targetOutPath json
+
+
+-- Writes JSON as UTF-8 with LF line endings, regardless of platform defaults
+writeJSON :: FilePath -> TL.Text -> IO ()
+writeJSON path json = withFile path WriteMode $ \h -> do
+    hSetEncoding    h utf8
+    hSetNewlineMode h noNewlineTranslation
+    TLIO.hPutStr    h json

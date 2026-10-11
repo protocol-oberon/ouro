@@ -21,7 +21,7 @@ import           System.FilePath     (takeExtension)
 -- Main Parser directly returns a Command
 pCommand :: Parser Command
 pCommand = subparser
-         (  command "compile"  (info pCompile  (progDesc "Compile JSON-LD to Ouro"))
+         (  command "compile"  (info pCompile  (progDesc "Compile Ouro to JSON-LD"))
          <> command "validate" (info pValidate (progDesc "Validate JSON-LD"))
          )
 

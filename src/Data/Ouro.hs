@@ -33,7 +33,9 @@ module Data.Ouro
 
 import           Control.Monad.Except        (ExceptT, runExceptT, throwError)
 import           Control.Monad.Writer        (Writer, runWriter, tell)
+import           Data.Containers.ListUtils   (nubOrd)
 import           Data.Function               ((&))
+import           Data.List                   (sortOn)
 import           Data.List.NonEmpty          (NonEmpty (..))
 import qualified Data.List.NonEmpty          as NE
 import qualified Data.Map                    as Map
@@ -67,8 +69,6 @@ import           Data.Ouro.Lisp.Module.Types (HigherExpression (..),
                                               graphRegistry, mapModuleExpr)
 import qualified Data.Ouro.Lisp.Parser       as LP
 import qualified Data.Ouro.Lisp.Surface      as S
-import           Data.Set                    (Set)
-import qualified Data.Set                    as Set
 import           Data.Text                   (Text)
 import qualified Data.Text                   as T
 import qualified Data.Text.Lazy              as TL
@@ -140,17 +140,19 @@ compile filename trgt content = compilationResult . runWriter . runExceptT $ com
 
 
 validateAST :: M.SourcePos -> L.Expr -> Maybe (NonEmpty OuroError)
-validateAST gPos root = NE.nonEmpty (Set.toList $ validateAST' gPos "" root)
+validateAST gPos root = NE.nonEmpty (sortOn errPos . nubOrd $ validateAST' gPos "" root)
 
 -- Walks the evaluated L.Expr tree to extract any embedded dynamic EvalErrors.
 -- Accepts exactly the nodes 'freeze' can serialise; anything else becomes an error
 -- reported at the graph's position, with the key path to the offending value.
-validateAST' :: M.SourcePos -> Text -> L.Expr -> Set OuroError
+-- Errors are returned in traversal (source) order, so the stable sort in
+-- 'validateAST' keeps errors that share a position in the order they were written.
+validateAST' :: M.SourcePos -> Text -> L.Expr -> [OuroError]
 validateAST' gPos path valueGraph = case valueGraph of
-                              EvalError err            -> Set.singleton err
+                              EvalError err            -> [err]
                               -- Deeply traverse structural object field value branches
-                              Record    _        pairs -> Set.unions [ validateAST' gPos (keyPath k) v | (k, v) <- pairs ]
-                              Array     elements       -> Set.unions [ validateAST' gPos (indexPath i) v | (i, v) <- zip [0 :: Int ..] elements ]
+                              Record    _        pairs -> concat [ validateAST' gPos (keyPath k) v | (k, v) <- pairs ]
+                              Array     elements       -> concat [ validateAST' gPos (indexPath i) v | (i, v) <- zip [0 :: Int ..] elements ]
                               -- JSON has no representation for Infinity or NaN
                               Primitive (I.Number n)
                                   | isInfinite n || isNaN n
@@ -159,15 +161,15 @@ validateAST' gPos path valueGraph = case valueGraph of
                                                                      <> "\n\nPerhaps an arithmetic expression overflowed, or a numeric literal is too large."
                                                                       )
                                                           & OuroError gPos
-                                                          & Set.singleton
-                              Primitive _              -> Set.empty
+                                                          & pure
+                              Primitive _              -> []
                               -- Unevaluated quotes cannot be present in the final AST
                               Quote     payload        -> typeMismatch "a resolved type" "an unevaluated Quoted expression"
                                                           & withBlurb ( "All expressions in Ouro must be evaluated before compilation can be finished."
                                                                      <> "\n\nPerhaps remove the quote (\') from this expression to evaluate it."
                                                                       )
                                                           & OuroError (S.exprPos payload)
-                                                          & Set.singleton
+                                                          & pure
 
                               -- Compile-time only values (Durations, functions, schemas...) have no JSON form
                               unserialisable           -> typeMismatch
@@ -175,7 +177,7 @@ validateAST' gPos path valueGraph = case valueGraph of
                                                               (L.humanReadableType unserialisable)
                                                           & withBlurb (unserialisableBlurb location unserialisable)
                                                           & OuroError gPos
-                                                          & Set.singleton
+                                                          & pure
     where
     keyPath   k = if T.null path then k else path <> "." <> k
     indexPath i = path <> "[" <> T.pack (show i) <> "]"
