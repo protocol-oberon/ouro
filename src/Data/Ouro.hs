@@ -126,10 +126,10 @@ compile filename trgt content = compilationResult . runWriter . runExceptT $ com
                                               & pure
                                               & throwError
                -- Pass 4: Evaluation
-               let (Graph _ _ gAst) = graph
+               let (Graph gPos _ gAst) = graph
                    evalTree         = EN.evaluate desugaredModule (Canon.construct gAst)
 
-               case validateAST evalTree of
+               case validateAST gPos evalTree of
                    Just    errs -> throwError errs
                    Nothing      -> return (freeze evalTree)
 
@@ -139,16 +139,19 @@ compile filename trgt content = compilationResult . runWriter . runExceptT $ com
                          (Left errs, warnings) -> CompilationFailure warnings errs
 
 
-validateAST :: L.Expr -> Maybe (NonEmpty OuroError)
-validateAST root = NE.nonEmpty (Set.toList $ validateAST' root)
+validateAST :: M.SourcePos -> L.Expr -> Maybe (NonEmpty OuroError)
+validateAST gPos root = NE.nonEmpty (Set.toList $ validateAST' gPos "" root)
 
--- Walks the evaluated L.Expr tree to extract any embedded dynamic EvalErrors
-validateAST' :: L.Expr -> Set OuroError
-validateAST' valueGraph = case valueGraph of
+-- Walks the evaluated L.Expr tree to extract any embedded dynamic EvalErrors.
+-- Accepts exactly the nodes 'freeze' can serialise; anything else becomes an error
+-- reported at the graph's position, with the key path to the offending value.
+validateAST' :: M.SourcePos -> Text -> L.Expr -> Set OuroError
+validateAST' gPos path valueGraph = case valueGraph of
                               EvalError err            -> Set.singleton err
                               -- Deeply traverse structural object field value branches
-                              Record    _        pairs -> Set.unions (map (validateAST' . snd) pairs)
-                              Array     elements       -> Set.unions (map validateAST' elements)
+                              Record    _        pairs -> Set.unions [ validateAST' gPos (keyPath k) v | (k, v) <- pairs ]
+                              Array     elements       -> Set.unions [ validateAST' gPos (indexPath i) v | (i, v) <- zip [0 :: Int ..] elements ]
+                              Primitive _              -> Set.empty
                               -- Unevaluated quotes cannot be present in the final AST
                               Quote     payload        -> typeMismatch "a resolved type" "an unevaluated Quoted expression"
                                                           & withBlurb ( "All expressions in Ouro must be evaluated before compilation can be finished."
@@ -157,9 +160,31 @@ validateAST' valueGraph = case valueGraph of
                                                           & OuroError (S.exprPos payload)
                                                           & Set.singleton
 
+                              -- Compile-time only values (Durations, functions, schemas...) have no JSON form
+                              unserialisable           -> typeMismatch
+                                                              "a JSON value (String, Number, Boolean, Null, URI, Date, Record or Array)"
+                                                              (L.humanReadableType unserialisable)
+                                                          & withBlurb (unserialisableBlurb location unserialisable)
+                                                          & OuroError gPos
+                                                          & Set.singleton
+    where
+    keyPath   k = if T.null path then k else path <> "." <> k
+    indexPath i = path <> "[" <> T.pack (show i) <> "]"
+    location    = if T.null path then "the root of the graph" else "'" <> path <> "'"
 
-                              -- Pristine values, closures, and frozen GADTs have zero errors
-                              _primitve               -> Set.empty
+
+-- Explains why a compile-time only value cannot be written to the JSON output.
+unserialisableBlurb :: Text -> L.Expr -> Text
+unserialisableBlurb location = \case
+    Duration _ _          -> "The value at " <> location <> " is a Duration, which only has meaning when added to a date."
+                          <> "\n\nPerhaps add it to a date, e.g. (+ #date \"1881-01-01T00:00:00Z\" (years 2))."
+    PrimitiveOp _         -> functionHint
+    FunctionClosure _ _ _ _ -> functionHint
+    Closure _ _ _         -> functionHint
+    _compileTimeOnly      -> "The value at " <> location <> " only exists during compilation and has no JSON representation."
+    where
+    functionHint = "The value at " <> location <> " is a function, not a value."
+                <> "\n\nPerhaps you meant to call it, e.g. (name! args)."
 
 
 

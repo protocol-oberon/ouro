@@ -8,6 +8,7 @@ import           Control.Monad.Reader       (runReader)
 import qualified Text.Megaparsec            as M
 import           Text.Megaparsec.Pos        (initialPos)
 
+import           Data.Ouro                  (CompilationResult (..), compile)
 import qualified Data.Ouro.Internal.Expr    as I
 import qualified Data.Ouro.Lisp.Canon       as Canon
 import           Data.Ouro.Lisp.Eval.Engine (evalExpr)
@@ -49,6 +50,10 @@ tests = Group "Evaluation Tests (Surface to Higher IR)"
 
     , ("unwraps L.Quote and evaluates its payload",    prop_eval_quote)
     , ("yields L.EvalError if evaluating unquoted",    prop_eval_unquoted)
+
+    , ("rejects a Duration as a graph value",          prop_reject_duration)
+    , ("rejects a builtin as a graph value",           prop_reject_builtin)
+    , ("rejects a function as a graph value",          prop_reject_function)
     ]
 
 
@@ -203,7 +208,25 @@ prop_eval_unquoted = withTests 1 . property $ do
     assert (isEvalError result)
 
 
+-- Compile-time only values must produce a compiler error, not crash the serializer
+prop_reject_duration :: Property
+prop_reject_duration = withTests 1 . property $
+    assert $ isCompileFailure (compile "test-suite" "g" "(graph g :d (years 2))")
+
+prop_reject_builtin :: Property
+prop_reject_builtin = withTests 1 . property $
+    assert $ isCompileFailure (compile "test-suite" "g" "(graph g :f +)")
+
+prop_reject_function :: Property
+prop_reject_function = withTests 1 . property $
+    assert $ isCompileFailure (compile "test-suite" "g" "(defun id! (a) (return a)) (graph g :f id!)")
+
+
 -- Helpers
 isEvalError :: L.Expr -> Bool
 isEvalError (L.EvalError _) = True
 isEvalError _               = False
+
+isCompileFailure :: CompilationResult -> Bool
+isCompileFailure (CompilationFailure _ _) = True
+isCompileFailure _                        = False
