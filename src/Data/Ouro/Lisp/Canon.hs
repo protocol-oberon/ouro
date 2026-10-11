@@ -62,7 +62,10 @@ desugar = \case
 
 
 -- Unrolls variadic comparisons into nested binary 'and' checks.
--- E.g., (eq 1 2 3) -> (eq (eq 1 2) (eq 2 3))
+-- E.g., (eq 1 2 3) -> (%and (eq 1 2) (eq 2 3))
+--
+-- '%and' is an internal builtin: '%' cannot be lexed in user symbols or keys,
+-- so the desugared form can never be shadowed by a user binding.
 desugarComparison :: S.Expr -> S.Expr
 desugarComparison =
     \case
@@ -76,7 +79,7 @@ desugarComparison =
          | opName `elem` ["eq", ">", "<", ">=", "<="]
              -> let leftCheck  = S.Form pos [opNode, a, b]
                     rightCheck = desugarComparison (S.Form pos (opNode : b : xs))
-                in S.Form pos [S.Symbol sPos "eq", leftCheck, rightCheck]
+                in S.Form pos [S.Symbol sPos "%and", leftCheck, rightCheck]
 
      -- Pass-through for anything that isn't a comparison
      otherVal

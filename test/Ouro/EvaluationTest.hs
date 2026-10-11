@@ -9,6 +9,7 @@ import qualified Text.Megaparsec            as M
 import           Text.Megaparsec.Pos        (initialPos)
 
 import qualified Data.Ouro.Internal.Expr    as I
+import qualified Data.Ouro.Lisp.Canon       as Canon
 import           Data.Ouro.Lisp.Eval.Engine (evalExpr)
 import           Data.Ouro.Lisp.Eval.Types  (emptyEnv)
 import qualified Data.Ouro.Lisp.Eval.Types  as L
@@ -39,6 +40,7 @@ tests = Group "Evaluation Tests (Surface to Higher IR)"
     , ("evaluates (+ 2 2) via env mapping",            prop_add_primitive)
     , ("evaluates (> 10 5) via env mapping",           prop_gt_primitive)
     , ("evaluates (eq true true) for identity",        prop_eq_primitive)
+    , ("chains variadic comparisons pairwise",         prop_chained_comparison)
 
     , ("routes to the correct branch in (case ...)",   prop_case_routing)
 
@@ -124,6 +126,25 @@ prop_eq_primitive :: Property
 prop_eq_primitive = withTests 1 . property $ do
     let expr = S.Form dummyPos [ S.Symbol dummyPos "eq", S.Literal dummyPos (S.Bool True), S.Literal dummyPos (S.Bool True) ]
     runEval expr === L.Primitive (I.Boolean True)
+
+
+-- Variadic comparisons must hold between every adjacent pair, e.g. (< 3 2 1) is false
+prop_chained_comparison :: Property
+prop_chained_comparison = property $ do
+    opName <- forAll $ Gen.element ["<", "<=", ">", ">=", "eq"]
+    nums   <- forAll $ Gen.list (Range.linear 3 5) (fromIntegral <$> Gen.int (Range.linear 0 3))
+
+    let op       = case opName of
+                       "<"  -> (<)
+                       "<=" -> (<=)
+                       ">"  -> (>)
+                       ">=" -> (>=)
+                       _eq  -> (==)
+        expr     = S.Form dummyPos (S.Symbol dummyPos opName : map (S.Literal dummyPos . S.Num) nums)
+        expected = and (zipWith op nums (drop 1 nums))
+
+    -- 'Canon.construct' only desugars a form's children, so desugar the form as a list element
+    map runEval (Canon.desugar [expr]) === [L.Primitive (I.Boolean expected)]
 
 
 -- Control Flow Execution (Case)

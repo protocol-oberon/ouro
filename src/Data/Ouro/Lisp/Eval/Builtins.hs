@@ -44,6 +44,8 @@ builtinRegistry = Map.fromList
                       , ("<",           handleLess)
                       , ("eq",          handleEquality)
                       , ("neq",         handleNeq)
+                      -- Internal: emitted only by the desugarer for chained comparisons
+                      , ("%and",        handleAnd)
                       , ("years",       handleYearsModifier)
                       , ("months",      handleMonthsModifier)
                       , ("days",        handleDaysModifier)
@@ -350,6 +352,35 @@ handleNeq pos =
      -- Arity Fallback: The desugar pass failed to normalize the AST
      _badAST
          -> Data.Ouro.Error.Diagnostics.astCorruption "not" "Equality received non-binary arguments after desugaring."
+             & OuroError pos
+             & L.EvalError
+             & pure
+
+
+-- handleAnd.
+--
+-- Binary logical conjunction. Internal only: the desugar pass emits it to
+-- chain variadic comparisons, e.g. (< 1 2 3) -> (%and (< 1 2) (< 2 3)).
+handleAnd :: SourcePos -> [L.Expr] -> Reader Env L.Expr
+handleAnd pos =
+    \case
+     [a, b] -> case (a, b) of
+                   -- Error propagation
+                   (err@(L.EvalError _), _) -> pure err
+                   (_, err@(L.EvalError _)) -> pure err
+
+                   (L.Primitive (I.Boolean b1), L.Primitive (I.Boolean b2)) -> pure $ L.Primitive (I.Boolean (b1 && b2))
+
+                   _typeMismatch
+                       -> Data.Ouro.Error.Diagnostics.typeMismatch "Boolean results from a chained comparison"
+                               (humanReadableType a <> " and " <> humanReadableType b)
+                          & OuroError pos
+                          & L.EvalError
+                          & pure
+
+     -- Arity Fallback: The desugar pass failed to normalize the AST
+     _badAST
+         -> Data.Ouro.Error.Diagnostics.astCorruption "%and" "Conjunction received non-binary arguments after desugaring."
              & OuroError pos
              & L.EvalError
              & pure
