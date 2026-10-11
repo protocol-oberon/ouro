@@ -151,6 +151,15 @@ validateAST' gPos path valueGraph = case valueGraph of
                               -- Deeply traverse structural object field value branches
                               Record    _        pairs -> Set.unions [ validateAST' gPos (keyPath k) v | (k, v) <- pairs ]
                               Array     elements       -> Set.unions [ validateAST' gPos (indexPath i) v | (i, v) <- zip [0 :: Int ..] elements ]
+                              -- JSON has no representation for Infinity or NaN
+                              Primitive (I.Number n)
+                                  | isInfinite n || isNaN n
+                                                       -> typeMismatch "a finite Number" (if isNaN n then "NaN" else "Infinity")
+                                                          & withBlurb ( "The value at " <> location <> " is not a finite number, which JSON cannot represent."
+                                                                     <> "\n\nPerhaps an arithmetic expression overflowed, or a numeric literal is too large."
+                                                                      )
+                                                          & OuroError gPos
+                                                          & Set.singleton
                               Primitive _              -> Set.empty
                               -- Unevaluated quotes cannot be present in the final AST
                               Quote     payload        -> typeMismatch "a resolved type" "an unevaluated Quoted expression"

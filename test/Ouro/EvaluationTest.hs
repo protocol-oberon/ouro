@@ -54,6 +54,8 @@ tests = Group "Evaluation Tests (Surface to Higher IR)"
     , ("rejects a Duration as a graph value",          prop_reject_duration)
     , ("rejects a builtin as a graph value",           prop_reject_builtin)
     , ("rejects a function as a graph value",          prop_reject_function)
+    , ("rejects an infinite Number as a graph value",  prop_reject_infinity)
+    , ("rejects NaN as a graph value",                 prop_reject_nan)
     ]
 
 
@@ -220,6 +222,15 @@ prop_reject_builtin = withTests 1 . property $
 prop_reject_function :: Property
 prop_reject_function = withTests 1 . property $
     assert $ isCompileFailure (compile "test-suite" "g" "(defun id! (a) (return a)) (graph g :f id!)")
+
+-- JSON cannot represent non-finite numbers
+prop_reject_infinity :: Property
+prop_reject_infinity = withTests 1 . property $
+    assert $ isCompileFailure (compile "test-suite" "g" "(graph g :big (* 1e308 10))")
+
+prop_reject_nan :: Property
+prop_reject_nan = withTests 1 . property $
+    assert $ isCompileFailure (compile "test-suite" "g" "(graph g :nan (- (* 1e308 10) (* 1e308 10)))")
 
 
 -- Helpers
