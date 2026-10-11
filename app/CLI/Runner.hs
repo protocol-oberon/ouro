@@ -12,6 +12,7 @@ import qualified Data.Text         as T
 import qualified Data.Text.IO      as TIO
 import qualified Data.Text.Lazy    as TL
 import qualified Data.Text.Lazy.IO as TLIO
+import           System.Exit       (exitFailure)
 import           System.FilePath   (hasExtension, (</>))
 
 
@@ -54,6 +55,7 @@ runCompile ifp trgt mOutDir = do
                mapM_ (pintDiagnostic ifp (T.unpack content). Right) errors
 
                putStrLn $ "Compilation Failed: " ++ ifp ++ " due to compiler errors."
+               exitFailure
 
 
 runValidate :: ValidateCommand -> IO ()
@@ -67,7 +69,9 @@ runValidate (ValidateCommand fp op sp sc) =
         Just (Indent i) -> do
                            let opts = PrinterOptions { indentSpacing = i }
                            case O.validate fp content opts of
-                               Left  err  -> putStrLn $ "Compilation Error:\n" ++ err
+                               Left  err  -> do
+                                             putStrLn $ "Compilation Error:\n" ++ err
+                                             exitFailure
                                Right json -> do
                                              putStrLn $ "Validated JLD JSON for: " ++ fp
                                              case sp of
@@ -77,12 +81,15 @@ runValidate (ValidateCommand fp op sp sc) =
                                              TLIO.writeFile targetOutPath json
 
         Just (Merge _)  -> do
-                           -- TODO!
-                           pure ()
+                           -- TODO! Fail loudly until merge is implemented
+                           putStrLn "Error: 'validate merge' is not implemented yet."
+                           exitFailure
 
         Nothing         -> do
                            case O.validate fp content defaultOptions of
-                               Left  err  -> putStrLn $ "Compilation Error:\n" ++ err
+                               Left  err  -> do
+                                             putStrLn $ "Compilation Error:\n" ++ err
+                                             exitFailure
                                Right json -> do
                                              putStrLn $ "Validated JLD JSON for: " ++ fp
                                              case sp of
