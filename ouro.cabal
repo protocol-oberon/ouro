@@ -163,6 +163,7 @@ test-suite ouro-test
         Ouro.CanonicalTest
         Ouro.StructuralTest
         Ouro.EvaluationTest
+        Ouro.ScopingTest
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:

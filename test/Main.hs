@@ -4,6 +4,7 @@ module Main where
 import           Hedgehog
 import qualified Ouro.CanonicalTest  as Canonical
 import qualified Ouro.EvaluationTest as Evaluation
+import qualified Ouro.ScopingTest    as Scoping
 import qualified Ouro.StructuralTest as Structural
 import           System.Exit         (exitFailure, exitSuccess)
 
@@ -15,6 +16,8 @@ main = do
         [ Canonical.tests
         , Evaluation.tests
         , Structural.tests
+        -- Scoping redesign: each step adds its group here when it lands
+        , Scoping.baseline
         ]
 
     -- If all groups passed (True), exit gracefully. Otherwise, fail the CI.
