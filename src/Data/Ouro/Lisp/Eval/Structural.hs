@@ -3,7 +3,9 @@
 
 module Data.Ouro.Lisp.Eval.Structural where
 
-import           Control.Monad.Reader        (local, runReader)
+import           Control.Monad.Reader        (ask, local, runReader)
+import           Control.Monad.State.Strict  (gets)
+import qualified Data.IntMap.Strict          as IntMap
 import           Data.Functor                ((<&>))
 import           Data.Function               ((&))
 import qualified Data.Map                    as Map
@@ -16,8 +18,10 @@ import qualified Data.Ouro.Internal.Expr     as I
 import qualified Data.Ouro.Internal.Kinds    as JLD
 import           Data.Ouro.Internal.Utils    (rankBySimilarity)
 import           Data.Ouro.Lisp.Eval.Schema  (parseContextDirectives)
-import           Data.Ouro.Lisp.Eval.Scope   (buildLazyEnv, buildLocalFunction)
-import           Data.Ouro.Lisp.Eval.Types   (Env (..), EvalM, Expr (..),
+import           Data.Ouro.Lisp.Eval.Scope   (FrameEntry (..), allocFrame,
+                                              bindableAttr, buildLocalFunction,
+                                              collectBindings, force)
+import           Data.Ouro.Lisp.Eval.Types   (Binding (..), Env (..), EvalM, Expr (..),
                                               allEnvKeys, humanReadableType,
                                               localScope)
 import qualified Data.Ouro.Lisp.Eval.Types   as L
@@ -37,7 +41,7 @@ import           Text.Megaparsec             (SourcePos)
 -- type-safe graph layers. Rather than applying standard top-down sequential evaluation, it operates in three distinct,
 -- highly deliberate stages to enforce declarative order-independence within the local block:
 --
---   1. Sweeping & Binding: It passes over the fields using both 'buildLazyEnv' and 'buildFunctionRegistry'
+--   1. Sweeping & Binding: It passes over the fields using both 'collectBindings' and 'buildLocalFunction'
 --      to harvest un-evaluated attributes and macro-blueprints into isolated dictionaries.
 --   2. Environment Isolation & Knot-Tying: It constructs a fresh lexical 'Env' frame containing both scopes.
 --      By linking this frame as its own parent and passing it downward, variables and functions inside the block
@@ -54,19 +58,21 @@ compileRecord evaluator env fields =
             -> pure (EvalError err)
 
         Right envWithFuncs
-            -> case buildLazyEnv env fields of
+            -> case collectBindings fields of
                    -- Dynamic environment allocation failures represent a catastrophic scope break
                    Left err
                        -> pure (EvalError err)
 
-                   Right rawMap
-                       -> let isolatedEnv = envWithFuncs
-                                            & L.localScope .~ rawMap
-                                            -- Pattern values live in their own frame further up the chain
-                                            & L.valueScope .~ Map.empty
-                                            -- Knot-tying: the parent of the isolated scope is the ambient env
-                                            & L.parentEnv  .~ Just env
-                          in emitProps evaluator isolatedEnv fields
+                   Right entries
+                       -> do
+                          -- Every binding becomes a promise in a new frame, whose parent is the ambient env
+                          (frame, addrs) <- allocFrame (\names -> envWithFuncs
+                                                                  & L.localScope .~ names
+                                                                  & L.parentEnv  .~ Just env)
+                                                       entries
+                          -- Each output field is evaluated through its own promise, found by its position
+                          let fieldAddrs = Map.fromList [ (entryPos entry, addr) | (entry, addr) <- zip entries addrs, entryIsField entry ]
+                          emitProps evaluator frame fieldAddrs fields
 
 
 -- Iterates through a stream of tokens to filter and evaluate physical properties into a L.Expr superset tree.
@@ -74,9 +80,10 @@ compileRecord evaluator env fields =
 emitProps
     :: (Env -> S.Expr -> EvalM L.Expr)
     -> Env
+    -> Map.Map SourcePos L.Addr     -- The promise of each output field, by the position of its ':key'
     -> [S.Expr]
     -> EvalM L.Expr
-emitProps evaluator env expressions = go I.EmptyMeta expressions
+emitProps evaluator env fieldAddrs expressions = go I.EmptyMeta expressions
     where
     go :: I.Expr 'JLD.Meta -> [S.Expr] -> EvalM L.Expr
     go metaAcc = \case
@@ -142,12 +149,12 @@ emitProps evaluator env expressions = go I.EmptyMeta expressions
                                         otherVal -> pure otherVal
 
                   -- Case C: Extract valid body pairs using the new structured attribute form.
-                  -- Supports lazy nesting compilation inline.
-                  S.Form _ [S.Symbol _ "attr", S.Literal _ (S.Str key), valExpr] : rest
-                      | not (isStructuralExpr valExpr)
+                  -- The value comes from the field's promise, which lookups of the same field share.
+                  attrExpr : rest
+                      | Just (key, fieldPos, valExpr) <- bindableAttr attrExpr
                       -> go metaAcc rest >>= \case
                              Record finalMeta nextPairs
-                                 -> evaluator env valExpr <&> \case
+                                 -> fieldValue fieldPos valExpr <&> \case
                                         -- 1. Catch error leaves completely independently
                                         EvalError err -> Record finalMeta ((key, EvalError err) : nextPairs)
 
@@ -193,15 +200,17 @@ emitProps evaluator env expressions = go I.EmptyMeta expressions
                                 otherVal   -> otherVal
 
 
-    -- Helper layout guard to prevent key-value snatching across macro envelopes
-    isStructuralExpr :: S.Expr -> Bool
-    isStructuralExpr = \case
-                        S.Form _ (S.Symbol _ "attr"     : _) -> True
-                        S.Form _ (S.Symbol _ "context"  : _) -> True
-                        S.Form _ (S.Symbol _ "define"   : _) -> True
-                        S.Form _ (S.Symbol _ "defun"    : _) -> True
-                        S.Form _ (S.Symbol _ "return"   : _) -> True
-                        _otherForm                           -> False
+    -- Forces the field's promise. Every bindable field is given one by compileRecord,
+    -- so evaluating the expression directly is only a fallback.
+    fieldValue :: SourcePos -> S.Expr -> EvalM L.Expr
+    fieldValue fieldPos valExpr =
+        case Map.lookup fieldPos fieldAddrs of
+            Just addr -> force inCurrentEnv fieldPos addr
+            Nothing   -> evaluator env valExpr
+
+    -- 'force' switches to the promise's env; evaluate in whatever env is current
+    inCurrentEnv :: S.Expr -> EvalM L.Expr
+    inCurrentEnv expr' = ask >>= \current -> evaluator current expr'
 
 
 -- Compiles a collection of nested Lisp blocks into a uniform Array
@@ -225,9 +234,11 @@ compileArray evaluator env pos elements =
             -- Case A: TRUE ERASURE: Skip define blocks completely inside arrays
             -- Still inject variables into scope
             S.Form _ (S.Symbol _ "define" : variables) : xs
-                -> case buildLazyEnv env' variables of
-                       Right newEnv -> compileElements (env' & localScope %~ Map.union newEnv) xs
-                       Left  err    -> (EvalError err :) <$> compileElements env' xs
+                -> case collectBindings variables of
+                       Right entries -> do
+                                        (withDefines, _) <- allocFrame (\names -> env' & localScope %~ Map.union names) entries
+                                        compileElements withDefines xs
+                       Left  err     -> (EvalError err :) <$> compileElements env' xs
 
             -- Skip Functions
             S.Form _ (S.Symbol _ "defun" : _) : xs
@@ -392,7 +403,12 @@ resolvePath evaluator fullEnv originalExpr pathVals = go fullEnv originalExpr (e
             -> case currentExpr of
                    -- Strategy 1: Resolve symbol pointers out of environment frames
                    S.Symbol pos varName -> case Map.lookup varName (env ^. L.localScope) of
-                       Just linkedExpr -> go env linkedExpr (targetKey : remainingKeys)
+                       -- Follow a binding into its code, in the environment it was written in
+                       Just (Unshared linkedExpr) -> go env linkedExpr (targetKey : remainingKeys)
+                       Just (Promised addr)
+                           -> do
+                              promise <- gets (IntMap.! addr)
+                              go (promise ^. L.promiseEnv) (promise ^. L.promiseExpr) (targetKey : remainingKeys)
                        Nothing
                            -> case env ^. L.parentEnv of
                                Just pEnv -> go pEnv currentExpr (targetKey : remainingKeys)
@@ -504,10 +520,10 @@ evalFunction evaluator parentEnv pos name params bodyExprs actualArgs =
                                  & pure
                         False
                             -> do
-                               let argMap      = Map.fromList (zip params actualArgs)
+                               -- Arguments stay unevaluated expressions until step 4 of the scoping redesign
+                               let argMap      = Map.fromList (zip params (map Unshared actualArgs))
                                    functionEnv = parentEnv
                                                & L.localScope       .~ argMap
-                                               & L.valueScope       .~ Map.empty
                                                & L.parentEnv        .~ Just parentEnv
                                                & L.activeLookups    .~ Set.empty
                                                & L.functionRegistry .~ (parentEnv ^. L.functionRegistry)
@@ -519,9 +535,14 @@ evalFunction evaluator parentEnv pos name params bodyExprs actualArgs =
                                case returnExpr bodyExprs of
                                    Just (S.Form _ (_ : val : _))
                                        -> do
-                                           case buildLazyEnv functionEnv bodyExprs of
-                                               Right fnEnv -> evaluator' (functionEnv & L.localScope .~ fnEnv & L.parentEnv .~ Just functionEnv) val
-                                               Left  err   -> pure $ EvalError err
+                                           case collectBindings bodyExprs of
+                                               Right entries -> do
+                                                                (bodyFrame, _) <- allocFrame (\names -> functionEnv
+                                                                                                       & L.localScope .~ names
+                                                                                                       & L.parentEnv  .~ Just functionEnv)
+                                                                                             entries
+                                                                evaluator' bodyFrame val
+                                               Left  err     -> pure $ EvalError err
 
                                    _noReturnExpression
                                        -> case determineBlockTarget bodyExprs of

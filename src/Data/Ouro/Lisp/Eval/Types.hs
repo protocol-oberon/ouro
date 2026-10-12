@@ -45,8 +45,7 @@ import           Unsafe.Coerce               (unsafeCoerce)
 --   * defaultEnv instantiates a clean, terminal root scope layer containing zero localized bindings and no
 --     parent fallback link, anchoring the absolute bottom of the variable resolution ladder.
 data Env = Env
-    { _localScope       :: Map.Map Text S.Expr
-    , _valueScope       :: Map.Map Text Expr      -- values bound by case patterns
+    { _localScope       :: Map.Map Text Binding
     , _parentEnv        :: Maybe Env
     , _activeLookups    :: Set Text
     , _functionRegistry :: Map.Map Text (M.HigherExpression 'M.FunctionExpr)
@@ -58,7 +57,6 @@ data Env = Env
 defaultEnv :: M.Module -> Env
 defaultEnv moduleEnv = Env
     { _localScope       = Map.empty
-    , _valueScope       = Map.empty
     , _parentEnv        = Nothing
     , _activeLookups    = Set.empty
     , _functionRegistry = (moduleEnv ^. M.functionRegistry)
@@ -69,7 +67,6 @@ defaultEnv moduleEnv = Env
 emptyEnv :: Env
 emptyEnv = Env
     { _localScope       = Map.empty
-    , _valueScope       = Map.empty
     , _parentEnv        = Nothing
     , _activeLookups    = Set.empty
     , _functionRegistry = Map.empty
@@ -144,7 +141,8 @@ type NativeFunction = SourcePos -> [Expr] -> Reader Env Expr
 -- was written in, and re-entering a promise that is still being forced is a cycle.
 type EvalM = ReaderT Env (State Store)
 
--- Promises allocated during evaluation, keyed by address
+-- Promises allocated during evaluation, keyed by address. Addresses are never
+-- reused, so the next free address is always the size of the store.
 type Store = IntMap Promise
 
 data Promise = Promise
@@ -159,6 +157,13 @@ data PromiseState
     = Unforced
     | Forcing                       -- Being evaluated: reaching it again is a cycle
     | Forced Expr
+
+-- What a name in a frame is bound to
+data Binding
+    = Promised Addr                 -- Record fields, defines and pattern variables
+    | Unshared S.Expr               -- Function arguments (until step 4): evaluated where referenced
+
+type Addr = Int
 
 
 runEvalM :: Env -> EvalM a -> a
@@ -319,8 +324,9 @@ describePrimitive =
      I.Array     _    -> "Array"
 
 
--- Generated last: Env refers to 'Expr' (through '_valueScope'), and Expr to 'PeriodUnit'
+-- Generated last: Env refers to 'Binding' and 'Expr', and Expr to 'PeriodUnit'
 makeLenses ''Env
+makeLenses ''Promise
 
 
 -- Traverses the entire environment scope chain to collect every active
@@ -328,9 +334,8 @@ makeLenses ''Env
 allEnvKeys :: Env -> Set.Set Text
 allEnvKeys env =
     let localKeys  = Map.keysSet (env ^. localScope)
-        valueKeys  = Map.keysSet (env ^. valueScope)
         tmpltKeys  = Map.keysSet (env ^. functionRegistry)
-        currentSet = Set.unions [localKeys, valueKeys, tmpltKeys]
+        currentSet = Set.union localKeys tmpltKeys
     in case env ^. parentEnv of
            Nothing     -> currentSet
            Just parent -> Set.union currentSet (allEnvKeys parent)

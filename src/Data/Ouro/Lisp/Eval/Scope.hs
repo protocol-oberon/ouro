@@ -3,7 +3,9 @@
 module Data.Ouro.Lisp.Eval.Scope where
 
 import           Control.Monad                (foldM)
-import           Control.Monad.Reader         (local)
+import           Control.Monad.Reader         (asks, local)
+import           Control.Monad.State.Strict   (gets, modify)
+import qualified Data.IntMap.Strict           as IntMap
 import           Data.Function                ((&))
 import qualified Data.Map                     as Map
 import           Data.Ouro.Error.Diagnostics  (astCorruption, cyclicDependency,
@@ -13,71 +15,74 @@ import           Data.Ouro.Error.Diagnostics  (astCorruption, cyclicDependency,
 import           Data.Ouro.Error.Types        (OuroError (..))
 import           Data.Ouro.Internal.Utils     (rankBySimilarity)
 import           Data.Ouro.Lisp.Eval.Builtins (builtinRegistry)
-import           Data.Ouro.Lisp.Eval.Types    (Env (..), EvalM, allEnvKeys)
+import           Data.Ouro.Lisp.Eval.Types    (Binding (..), Env (..), EvalM,
+                                               allEnvKeys)
 import qualified Data.Ouro.Lisp.Eval.Types    as L
 import qualified Data.Ouro.Lisp.Module.Types  as M
 import qualified Data.Ouro.Lisp.Surface       as S
 import qualified Data.Set                     as Set
 import           Data.Text                    (Text)
 import qualified Data.Text                    as T
-import           Lens.Micro                   ((%~), (^.))
+import           Lens.Micro                   ((%~), (.~), (^.))
 import           Lens.Micro.Platform          (at, (?~))
 import           Text.Megaparsec              (SourcePos)
 
 
--- buildLazyEnv.
+-- FrameEntry.
 --
--- Performs a structural lookahead sweep across a block's immediate expression stream to capture declarations.
--- Extracts attribute pairs and macro definitions, binding raw surface syntax trees lazily into an environment map.
+-- One binding written in a block: a ':key value' field, or a key inside a 'define'.
+-- Each entry becomes its own promise, so a block with duplicate keys still outputs
+-- every field, while lookups of the name see the first entry.
+data FrameEntry = FrameEntry
+    { entryKey     :: Text
+    , entryPos     :: SourcePos
+    , entryExpr    :: S.Expr
+    , entryIsField :: Bool       -- A top-level field of the block (part of its output), not a define
+    }
+
+
+-- collectBindings.
 --
--- This function serves as the declarative foundation for the interpreter's order-independent variable bindings.
--- Instead of immediately evaluating expressions from left to right, it isolates and catalogs identifier mappings
--- as un-evaluated syntax tokens ('S.Expr'). This enables the compilation engine to resolve cyclical or forward-declared
--- properties gracefully, delaying actual evaluation until a value slot is explicitly queried via 'lookupVar':
---
---   * Local Block Expansion: Processes nested macro blocks like '(define (:key val ...))' by recursively unrolling
---     and harvesting their inner assignments, then merging them cleanly into the local scope layer.
---   * Keyword-L.Expr Pairing: Identifies 'S.Attr' structural keys, capturing the trailing expression and binding it
---     directly into the accumulating dictionary while skipping across structural delimiters.
---   * Stream Sanitization & Compaction: Acts as a compile-time filter that strips away hanging keywords or loose
---     unbound elements, ensuring only valid symbol-to-expression associations persist inside the generated frame.
-buildLazyEnv :: Env -> [S.Expr] -> Either OuroError (Map.Map Text S.Expr)
-buildLazyEnv = curry $ \case
-                        (_,   [])
-                            -> pure Map.empty
+-- Sweeps a block's expressions for the bindings it declares, in source order: its
+-- ':key value' fields and the contents of any 'define' blocks (recursively). Context
+-- forms, malformed attributes and loose expressions declare nothing.
+collectBindings :: [S.Expr] -> Either OuroError [FrameEntry]
+collectBindings = go True
+    where
+    go :: Bool -> [S.Expr] -> Either OuroError [FrameEntry]
+    go isField = \case
+        [] -> pure []
 
-                        -- Case A: Ensure BOTH layout variants of context forms are safely ignored by lazy scoping passes
-                        (env, S.Form _ (S.Symbol _ "context" : _) : xs)
-                            -> buildLazyEnv env xs
+        S.Form _ (S.Symbol _ "context" : _) : xs
+            -> go isField xs
 
-                        -- Case B: Standard block scope variable group processing
-                        (env, S.Form _ (S.Symbol _ "define" : rest) : xs)
-                            -> do
-                               innerVars <- buildLazyEnv env rest
-                               outerVars <- buildLazyEnv env xs
-                               pure $ Map.union innerVars outerVars
+        S.Form _ (S.Symbol _ "define" : inner) : xs
+            -> (<>) <$> go False inner <*> go isField xs
 
-                        -- Case C: Standard attribute mapping accumulation pass using the new parsed form
-                        (env, S.Form pos [S.Symbol _ "attr", S.Literal _ (S.Str key), valExpr] : rest)
-                            | not (isStructuralExpr valExpr)
-                            -> case isReserved key of
-                                 True  -> shadowedVariable key
-                                          & withBlurb (shadowedVariableBlurb key)
-                                          & OuroError pos
-                                          & Left
+        attrExpr : xs
+            | Just (key, pos, valExpr) <- bindableAttr attrExpr
+            -> case isReserved key of
+                   True  -> shadowedVariable key
+                            & withBlurb (shadowedVariableBlurb key)
+                            & OuroError pos
+                            & Left
+                   False -> (FrameEntry key pos valExpr isField :) <$> go isField xs
 
-                                 False -> do
-                                          next <- buildLazyEnv env rest
-                                          pure $ Map.insert key valExpr next
+        _unbound : xs
+            -> go isField xs
 
-                        -- Case D: Safely drop malformed or lone attribute forms without eating sibling expressions
-                        -- (Catches cases like `(attr "key")` with missing or extra arguments)
-                        (env, S.Form _ (S.Symbol _ "attr" : _) : rest)
-                            -> buildLazyEnv env rest
+    -- Reserved special forms
+    isReserved :: Text -> Bool
+    isReserved name = name `elem` ["nth", "list", "case", "get", "context", "define", "inlay", "insert", "attr", "defun", "return"]
 
-                        -- Case E: Erase exactly 1 unbound element and keep moving
-                        (env, (_ : rest))
-                            -> buildLazyEnv env rest
+
+-- A ':key value' pair that binds a name. Pairs whose value is itself a structural
+-- form (a nested attribute, context, define, defun or return) bind nothing.
+bindableAttr :: S.Expr -> Maybe (Text, SourcePos, S.Expr)
+bindableAttr = \case
+    S.Form pos [S.Symbol _ "attr", S.Literal _ (S.Str key), valExpr]
+        | not (isStructuralExpr valExpr) -> Just (key, pos, valExpr)
+    _notBindable                         -> Nothing
 
     where
     isStructuralExpr :: S.Expr -> Bool
@@ -85,12 +90,67 @@ buildLazyEnv = curry $ \case
                         S.Form _ (S.Symbol _ "attr"     : _) -> True
                         S.Form _ (S.Symbol _ "context"  : _) -> True
                         S.Form _ (S.Symbol _ "define"   : _) -> True
+                        S.Form _ (S.Symbol _ "defun"    : _) -> True
                         S.Form _ (S.Symbol _ "return"   : _) -> True
                         _otherForm                           -> False
 
-    -- Reserved special forms
-    isReserved :: Text -> Bool
-    isReserved name = name `elem` ["nth", "list", "case", "get", "context", "define", "inlay", "insert", "attr", "defun", "return"]
+
+-- allocFrame.
+--
+-- Allocates one unforced promise per entry and builds the frame that binds their
+-- names. Every promise closes over that same frame, so the bindings can refer to
+-- each other in any order (Scheme's letrec). Lookups see the first entry for each
+-- name. Returns the frame and the entries' addresses, in entry order.
+allocFrame :: (Map.Map Text Binding -> Env) -> [FrameEntry] -> EvalM (Env, [L.Addr])
+allocFrame mkFrame entries =
+    allocate mkFrame [ (entryKey e, entryPos e, entryExpr e, L.Unforced) | e <- entries ]
+
+
+-- Binds already-evaluated values (from a case pattern) in a new frame
+allocValues :: (Map.Map Text Binding -> Env) -> SourcePos -> [(Text, L.Expr)] -> EvalM Env
+allocValues mkFrame pos bindings =
+    fst <$> allocate mkFrame [ (name, pos, S.Hole pos ("?" <> name), L.Forced value) | (name, value) <- bindings ]
+
+
+allocate :: (Map.Map Text Binding -> Env) -> [(Text, SourcePos, S.Expr, L.PromiseState)] -> EvalM (Env, [L.Addr])
+allocate mkFrame entries = do
+    base <- gets IntMap.size
+    let addrs  = take (length entries) [base ..]
+        names  = Map.fromListWith (\_later first -> first)
+                     [ (name, Promised addr) | ((name, _, _, _), addr) <- zip entries addrs ]
+        frame  = mkFrame names
+    modify $ IntMap.union $ IntMap.fromList
+        [ (addr, L.Promise frame expr name pos st) | ((name, pos, expr, st), addr) <- zip entries addrs ]
+    pure (frame, addrs)
+
+
+-- force.
+--
+-- Evaluates a promise at most once, in the environment it was written in, and caches
+-- the result. Reaching a promise that is still being evaluated means the binding
+-- depends on itself.
+force :: (S.Expr -> EvalM L.Expr) -> SourcePos -> L.Addr -> EvalM L.Expr
+force evaluator refPos addr = do
+    promise <- gets (IntMap.! addr)
+    case promise ^. L.promiseState of
+        L.Forced value -> pure value
+        L.Forcing      -> pure (cyclicLookup refPos (promise ^. L.promiseName))
+        L.Unforced     -> do
+                          setState L.Forcing
+                          value <- local (const (promise ^. L.promiseEnv)) (evaluator (promise ^. L.promiseExpr))
+                          setState (L.Forced value)
+                          pure value
+    where
+    setState st = modify (IntMap.adjust (L.promiseState .~ st) addr)
+
+
+cyclicLookup :: SourcePos -> Text -> L.Expr
+cyclicLookup pos name =
+    cyclicDependency name
+    & withBlurb ( "An infinite lookup loop was detected. The identifier '" <> name
+               <> "' directly or indirectly references itself during evaluation." )
+    & OuroError pos
+    & L.EvalError
 
 
 -- Scans a list of surface expressions for nested functions, lifting them into
@@ -141,36 +201,32 @@ buildLocalFunction = foldM processNode
                                & Left
 
 
--- Resolves dynamic lookups via local maps, builtins fallbacks, or stepping up into parent scopes.
+-- lookupVar.
+--
+-- Resolves a name by walking outward through the frames, then function definitions,
+-- then builtins. Promised bindings are forced in their own environment. Function
+-- arguments are still evaluated where they are referenced (until step 4), so loops
+-- through them are tracked by name in 'activeLookups'.
 lookupVar
   :: (S.Expr -> EvalM L.Expr)
   -> SourcePos
   -> Text
   -> Env
   -> EvalM L.Expr
-lookupVar evaluator pos name fullEnv =
-    case Set.member name (fullEnv ^. L.activeLookups) of
-        True  -> cyclicDependency name
-                 & withBlurb ( "An infinite lookup loop was detected. The identifier '" <> name
-                            <> "' directly or indirectly references itself during evaluation." )
-                 & OuroError pos
-                 & L.EvalError
-                 & pure
-        False -> lookupVar' evaluator pos name fullEnv
-
-lookupVar'
-    :: (S.Expr -> EvalM L.Expr)
-    -> SourcePos
-    -> Text
-    -> Env
-    -> EvalM L.Expr
-lookupVar' evaluator pos name env =
+lookupVar evaluator pos name env =
     case Map.lookup name (env ^. L.localScope) of
-        Just surfaceExpr -> local (L.activeLookups %~ Set.insert name) (evaluator surfaceExpr)
-        Nothing          -> case Map.lookup name (env ^. L.valueScope) of
-                                -- Values bound by a case pattern are already evaluated
-                                Just value -> pure value
-                                Nothing    -> lookupFunction evaluator pos name env
+        Just (Promised addr)
+            -> force evaluator pos addr
+
+        Just (Unshared argExpr)
+            -> do
+               active <- asks (^. L.activeLookups)
+               case Set.member name active of
+                   True  -> pure (cyclicLookup pos name)
+                   False -> local (L.activeLookups %~ Set.insert name) (evaluator argExpr)
+
+        Nothing
+            -> lookupFunction evaluator pos name env
 
 
 -- Resolves structural function blueprints at the CURRENT scope level, then steps up.
@@ -192,7 +248,7 @@ lookupFunction evaluator pos name env =
 
         -- SCHEME SCOPING If not in local functions, look into parent env
         Nothing -> case env ^. L.parentEnv of
-                       Just pEnv -> lookupVar' evaluator pos name pEnv
+                       Just pEnv -> lookupVar evaluator pos name pEnv
                        -- If no parent exists, we are at the root. Fall back to Builtins.
                        Nothing   -> lookupBuiltin pos name env
 

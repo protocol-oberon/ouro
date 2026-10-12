@@ -25,7 +25,7 @@ import qualified Data.Ouro.Internal.Expr        as I
 import           Data.Ouro.Lisp.Eval.Builtins   (builtinRegistry, parseISO8601)
 import           Data.Ouro.Lisp.Eval.Schema     (parseContextDirectives)
 import           Data.Ouro.Lisp.Eval.Pattern    (matchPattern)
-import           Data.Ouro.Lisp.Eval.Scope      (lookupVar)
+import           Data.Ouro.Lisp.Eval.Scope      (allocValues, lookupVar)
 import           Data.Ouro.Lisp.Eval.Structural (BlockTarget (..), compileArray,
                                                  compileRecord, evalFunction,
                                                  determineBlockTarget,
@@ -447,12 +447,15 @@ evaluateGuards eval env pos target attempts branches =
                           case matchRes of
                               Left  err             -> pure $ EvalError err
                               Right Nothing         -> evaluateGuards eval env pos target (attempts + 1) rest
-                              -- The holes are bound in a new frame around the branch body
-                              Right (Just bindings) -> local (\scope -> scope
-                                                                       & L.localScope .~ Map.empty
-                                                                       & L.valueScope .~ Map.fromList bindings
-                                                                       & L.parentEnv  .~ Just scope)
-                                                             (eval body)
+                              -- The holes are bound, as already-evaluated promises, in a new frame around the branch body
+                              Right (Just bindings) -> do
+                                                       scope        <- ask
+                                                       patternFrame <- allocValues (\names -> scope
+                                                                                              & L.localScope .~ names
+                                                                                              & L.parentEnv  .~ Just scope)
+                                                                                   (S.exprPos pattern)
+                                                                                   bindings
+                                                       local (const patternFrame) (eval body)
 
                    -- If just a literal is passed in we can default to eq
                    S.Literal lpos lvalue
