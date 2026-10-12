@@ -125,10 +125,10 @@ compile filename trgt content = compilationResult . runWriter . runExceptT $ com
                                               & pure
                                               & throwError
                -- Pass 4: Evaluation
-               let (Graph gPos _ gAst) = graph
-                   evalTree         = EN.evaluate desugaredModule (Canon.construct gAst)
+               let (Graph gPos _ gAst)          = graph
+                   (evalTree, bindingErrors) = EN.evaluate desugaredModule (Canon.construct gAst)
 
-               case validateAST gPos evalTree of
+               case validateAST gPos bindingErrors evalTree of
                    Just    errs -> throwError errs
                    Nothing      -> return (freeze evalTree)
 
@@ -138,8 +138,10 @@ compile filename trgt content = compilationResult . runWriter . runExceptT $ com
                          (Left errs, warnings) -> CompilationFailure warnings errs
 
 
-validateAST :: M.SourcePos -> L.Expr -> Maybe (NonEmpty OuroError)
-validateAST gPos root = NE.nonEmpty (sortOn errPos . nubOrd $ validateAST' gPos "" root)
+-- Errors in the graph's value, plus those found in bindings the output never used.
+-- An error in a binding that is also in the output is reported once.
+validateAST :: M.SourcePos -> [OuroError] -> L.Expr -> Maybe (NonEmpty OuroError)
+validateAST gPos bindingErrors root = NE.nonEmpty (sortOn errPos . nubOrd $ validateAST' gPos "" root <> bindingErrors)
 
 -- Walks the evaluated L.Expr tree to extract any embedded dynamic EvalErrors.
 -- Accepts exactly the nodes 'freeze' can serialise; anything else becomes an error

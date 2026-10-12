@@ -162,9 +162,8 @@ data TypeError
 --- PATH VIOLATIONS ---
 data PathError
     -- PATH VIOLATION: STRUCTURAL FIELD MISSING
-    -- Occurs during multi-layered property traversal via the @get@ operator. The 'resolvePath'
-    -- engine successfully located a parent block node, but the current string path segment key
-    -- does not map to any active defined attributes within that target horizontal layer stream.
+    -- Occurs during multi-layered property traversal via the @get@ operator: the value reached
+    -- so far is a Record, but it has no field for the current path segment key.
     --
     -- * Remediation: Abort traversal. The reporting layer should compute the string distance
     --   (Levenshtein metric) between the missing key and available fields to suggest adjacent typos.

@@ -22,6 +22,7 @@ main = do
         , Scoping.lexicalRecords
         , Scoping.callSiteArguments
         , Scoping.lexicalFunctions
+        , Scoping.valueGetAndErrors
         ]
 
     -- If all groups passed (True), exit gracefully. Otherwise, fail the CI.

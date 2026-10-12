@@ -172,6 +172,17 @@ runEvalM :: Env -> EvalM a -> a
 runEvalM env m = evalState (runReaderT m env) IntMap.empty
 
 
+-- The errors embedded anywhere in a value. Only error leaves count: a binding that
+-- holds a Duration or a function is fine, as long as it never reaches the output.
+errorsIn :: Expr -> [OuroError]
+errorsIn = \case
+    EvalError err -> [err]
+    Record _ kvs  -> concatMap (errorsIn . snd) kvs
+    Array  elems  -> concatMap errorsIn elems
+    Attr   _ v    -> errorsIn v
+    _noErrors     -> []
+
+
 instance Eq Expr where
     -- Frozen Targets
     Primitive a == Primitive b = a == b

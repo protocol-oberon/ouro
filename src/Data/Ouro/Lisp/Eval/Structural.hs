@@ -4,26 +4,21 @@
 module Data.Ouro.Lisp.Eval.Structural where
 
 import           Control.Monad.Reader        (ask, local, runReader)
-import           Control.Monad.State.Strict  (gets)
-import qualified Data.IntMap.Strict          as IntMap
 import           Data.Functor                ((<&>))
 import           Data.Function               ((&))
 import qualified Data.Map                    as Map
 import           Data.Ouro.Error.Diagnostics (incorrectArity, internalValueLeak,
-                                              missingPathKey, typeMismatch,
-                                              typeMismatchBlurb,
-                                              unboundIdentifier, withBlurb)
+                                              typeMismatch, typeMismatchBlurb,
+                                              withBlurb)
 import           Data.Ouro.Error.Types       (OuroError (..))
 import qualified Data.Ouro.Internal.Expr     as I
 import qualified Data.Ouro.Internal.Kinds    as JLD
-import           Data.Ouro.Internal.Utils    (rankBySimilarity)
 import           Data.Ouro.Lisp.Eval.Schema  (parseContextDirectives)
 import           Data.Ouro.Lisp.Eval.Scope   (FrameEntry (..), allocFrame,
                                               bindableAttr, collectBindings,
                                               force, localFunctions)
 import           Data.Ouro.Lisp.Eval.Types   (Binding (..), Env (..), EvalM, Expr (..),
-                                              allEnvKeys, humanReadableType,
-                                              localScope)
+                                              humanReadableType, localScope)
 import qualified Data.Ouro.Lisp.Eval.Types   as L
 import qualified Data.Ouro.Lisp.Surface      as S
 import qualified Data.Set                    as Set
@@ -369,132 +364,6 @@ determineBlockTarget fields =
          S.Form _ (S.Symbol _ "attr"    : _) -> True
          S.Form _ (S.Symbol _ "context" : _) -> True
          _other                              -> False
-
-
--- resolvePath.
---
--- Recursively traverses raw surface syntax structural envelopes to isolate a specific node target.
--- Resolves path routes by matching structural keys against forms, lists, and variable scope bindings.
---
--- This function serves as the declarative execution engine underlying the macro 'get' subsystem.
--- Instead of resolving paths using pre-computed, flattened value objects, it walks un-evaluated
--- structural expressions directly. It operates across three distinct evaluation patterns to trace
--- data branches without accidentally forcing global block evaluation side effects:
---
---   1. Scope Resolution Pointer Hoisting: Encountering symbols triggers a dynamic lookUp walk. It checks
---      local maps and scales parent frames, updating the active environment context dynamically.
---   2. Stream Lookahead Piercing: When tracing key segments through structured blocks, it leverages
---      'matchTokenStream' to track assignments down and bypass metadata or compile-time wrappers.
---   3. Defensive Boundary Isolation: Terminal primitive leafs or missing path segments safely trigger
---      failures via 'missingPathKey' before deep internal evaluation can result in invalid mutations.
-resolvePath
-    :: (S.Expr -> EvalM L.Expr)
-    -> Env
-    -> S.Expr
-    -> [L.Expr]
-    -> EvalM L.Expr
-resolvePath evaluator fullEnv originalExpr pathVals = go fullEnv originalExpr (extractKeys pathVals)
-    where
-    -- Extract bare Text strings from the newly provisioned Array superset layout
-    extractKeys :: [L.Expr] -> [Text]
-    extractKeys elements = concatMap (
-                             \case
-                             Primitive (I.String k) -> [k]
-                             _                      -> []
-                           ) elements
-
-    go :: Env -> S.Expr -> [Text] -> EvalM L.Expr
-    go env currentExpr keys = case keys of
-        [] -> local (const env) (evaluator currentExpr)
-
-        (targetKey : remainingKeys)
-            -> case currentExpr of
-                   -- Strategy 1: Resolve symbol pointers out of environment frames
-                   S.Symbol pos varName -> case Map.lookup varName (env ^. L.localScope) of
-                       -- Follow a binding into its code, in the environment it was written in
-                       Just (Promised addr)
-                           -> do
-                              promise <- gets (IntMap.! addr)
-                              go (promise ^. L.promiseEnv) (promise ^. L.promiseExpr) (targetKey : remainingKeys)
-                       Nothing
-                           -> case env ^. L.parentEnv of
-                               Just pEnv -> go pEnv currentExpr (targetKey : remainingKeys)
-                               Nothing   -> let allKeys    = Set.toList $ allEnvKeys fullEnv
-                                                suggestion = case rankBySimilarity varName allKeys of
-                                                               ((bestMatch, score) : _) | score <= 3
-                                                                  -> "\n\nPerhaps you meant: '"
-                                                                  <> bestMatch
-                                                                  <> "'?"
-                                                               _  -> ""
-                                            in unboundIdentifier varName
-                                               & withBlurb ( "The evaluator attempted to lookup the value for '"
-                                                          <> varName <> "', "
-                                                          <> "but the identifier failed to resolve within any active scope chain."
-                                                          <> suggestion
-                                                           )
-                                               & OuroError pos
-                                               & EvalError
-                                               & pure
-
-                   -- Strategy 2: Scan Form wrappers using our strict token matching rules
-                   S.Form pos elements
-                       -> scanEnv env targetKey remainingKeys elements
-                                  (missingPathKey targetKey [k | S.Form _ [S.Symbol _ "attr", S.Literal _ (S.Str k), _] <- elements]
-                                  & withBlurb ( "The path resolution engine could not locate the key '"
-                                              <> targetKey
-                                              <> "' inside the active form structure."
-                                              <> "\n\nPerhaps you misspelled the property handle?"
-                                              )
-                                  & OuroError pos
-                                  )
-
-                   -- Strategy 3: Scan Bracket wrappers identically
-                   S.Bracket pos elements
-                       -> scanEnv env targetKey remainingKeys elements
-                               (missingPathKey targetKey [k | S.Form _ [S.Symbol _ "attr", S.Literal _ (S.Str k), _] <- elements]
-                               & withBlurb ( "The path resolution engine could not locate the key '"
-                                           <> targetKey
-                                           <> "' inside the active bracket matrix."
-                                           <> "\n\nPerhaps you misspelled the property handle?"
-                                           )
-                               & OuroError pos
-                               )
-
-                   -- Catch-all for premature scalar leaf nodes
-                   other -> missingPathKey targetKey []
-                           & withBlurb ( "The path resolution engine attempted to dig into the key '"
-                                       <> targetKey
-                                       <> "', but hit a terminal primitive scalar leaf value instead.\n\n"
-                                       <> "Perhaps the schema mapping layout has changed?"
-                                       )
-                           & OuroError (S.exprPos other)
-                           & EvalError
-                           & pure
-
-    scanEnv :: Env -> Text -> [Text] -> [S.Expr] -> OuroError -> EvalM L.Expr
-    scanEnv env trgt rest exprs err =
-        case matchTokenStream trgt exprs of
-            Just matchedVal -> go env matchedVal rest
-            Nothing         -> pure (EvalError err)
-
-
-matchTokenStream :: Text -> [S.Expr] -> Maybe S.Expr
-matchTokenStream targetKey stream =
-    case stream of
-        [] -> Nothing
-
-        -- Match the new structured attribute form
-        (S.Form _ [S.Symbol _ "attr", S.Literal _ (S.Str k), valExpr] : _)
-            | k == targetKey
-            -> Just valExpr
-
-        -- Match the specific 'define' scope piercing pattern using the new attribute structure
-        (S.Symbol _ "define" : S.Form _ [S.Symbol _ "attr", S.Literal _ (S.Str varName), S.Form _ innerBody] : _)
-            | varName == targetKey
-            -> matchTokenStream targetKey innerBody
-
-        (_ : rest)
-            -> matchTokenStream targetKey rest
 
 
 -- evalFunction
