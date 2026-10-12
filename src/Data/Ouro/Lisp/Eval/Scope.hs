@@ -3,7 +3,7 @@
 module Data.Ouro.Lisp.Eval.Scope where
 
 import           Control.Monad                (foldM)
-import           Control.Monad.Reader         (Reader, local)
+import           Control.Monad.Reader         (local)
 import           Data.Function                ((&))
 import qualified Data.Map                     as Map
 import           Data.Ouro.Error.Diagnostics  (astCorruption, cyclicDependency,
@@ -13,7 +13,7 @@ import           Data.Ouro.Error.Diagnostics  (astCorruption, cyclicDependency,
 import           Data.Ouro.Error.Types        (OuroError (..))
 import           Data.Ouro.Internal.Utils     (rankBySimilarity)
 import           Data.Ouro.Lisp.Eval.Builtins (builtinRegistry)
-import           Data.Ouro.Lisp.Eval.Types    (Env (..), allEnvKeys)
+import           Data.Ouro.Lisp.Eval.Types    (Env (..), EvalM, allEnvKeys)
 import qualified Data.Ouro.Lisp.Eval.Types    as L
 import qualified Data.Ouro.Lisp.Module.Types  as M
 import qualified Data.Ouro.Lisp.Surface       as S
@@ -143,11 +143,11 @@ buildLocalFunction = foldM processNode
 
 -- Resolves dynamic lookups via local maps, builtins fallbacks, or stepping up into parent scopes.
 lookupVar
-  :: (S.Expr -> Reader Env L.Expr)
+  :: (S.Expr -> EvalM L.Expr)
   -> SourcePos
   -> Text
   -> Env
-  -> Reader Env L.Expr
+  -> EvalM L.Expr
 lookupVar evaluator pos name fullEnv =
     case Set.member name (fullEnv ^. L.activeLookups) of
         True  -> cyclicDependency name
@@ -159,11 +159,11 @@ lookupVar evaluator pos name fullEnv =
         False -> lookupVar' evaluator pos name fullEnv
 
 lookupVar'
-    :: (S.Expr -> Reader Env L.Expr)
+    :: (S.Expr -> EvalM L.Expr)
     -> SourcePos
     -> Text
     -> Env
-    -> Reader Env L.Expr
+    -> EvalM L.Expr
 lookupVar' evaluator pos name env =
     case Map.lookup name (env ^. L.localScope) of
         Just surfaceExpr -> local (L.activeLookups %~ Set.insert name) (evaluator surfaceExpr)
@@ -175,11 +175,11 @@ lookupVar' evaluator pos name env =
 
 -- Resolves structural function blueprints at the CURRENT scope level, then steps up.
 lookupFunction
-    :: (S.Expr -> Reader Env L.Expr)
+    :: (S.Expr -> EvalM L.Expr)
     -> SourcePos
     -> Text
     -> Env
-    -> Reader Env L.Expr
+    -> EvalM L.Expr
 lookupFunction evaluator pos name env =
     case Map.lookup name (env ^. L.functionRegistry) of
         Just (M.Function _ _ tArgs (S.Form _ bodyExprs))
@@ -202,7 +202,7 @@ lookupBuiltin
     :: SourcePos
     -> Text
     -> Env
-    -> Reader Env L.Expr
+    -> EvalM L.Expr
 lookupBuiltin pos name env =
     case L.PrimitiveOp <$> Map.lookup name builtinRegistry of
         Just nativeOp -> pure nativeOp

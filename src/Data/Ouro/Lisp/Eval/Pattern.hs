@@ -6,12 +6,11 @@ module Data.Ouro.Lisp.Eval.Pattern
 , matchPattern
 ) where
 
-import           Control.Monad.Reader        (Reader)
 import           Data.Function               ((&))
 import           Data.Ouro.Error.Diagnostics (malformedCaseBranch, withBlurb)
 import           Data.Ouro.Error.Types       (OuroError (..))
 import qualified Data.Ouro.Internal.Expr     as I
-import           Data.Ouro.Lisp.Eval.Types   (Env, Expr (..))
+import           Data.Ouro.Lisp.Eval.Types   (EvalM, Expr (..))
 import qualified Data.Ouro.Lisp.Eval.Types   as L
 import qualified Data.Ouro.Lisp.Surface      as S
 import           Data.Text                   (Text)
@@ -37,10 +36,10 @@ type MatchResult = Either OuroError (Maybe Bindings)
 --   * Anything else (literals, symbols, function calls) is evaluated and compared by value,
 --     so '((+ 2 4) ?x)' and '(6 ?x)' are the same pattern.
 matchPattern
-    :: (S.Expr -> Reader Env L.Expr)    -- Evaluates the non-pattern parts of a pattern
+    :: (S.Expr -> EvalM L.Expr)    -- Evaluates the non-pattern parts of a pattern
     -> S.Expr
     -> L.Expr
-    -> Reader Env MatchResult
+    -> EvalM MatchResult
 matchPattern evaluator pattern value =
     case pattern of
         S.Hole _ name
@@ -67,13 +66,13 @@ matchPattern evaluator pattern value =
                          EvalError err -> Left err
                          _value        -> Right (if expected == value then Just [] else Nothing)
 
-    matchArray :: [S.Expr] -> L.Expr -> Reader Env MatchResult
+    matchArray :: [S.Expr] -> L.Expr -> EvalM MatchResult
     matchArray elems = \case
         Array xs             -> elements elems xs
         Primitive I.EmptyArr -> elements elems []
         _notAnArray          -> noMatch
 
-    elements :: [S.Expr] -> [L.Expr] -> Reader Env MatchResult
+    elements :: [S.Expr] -> [L.Expr] -> EvalM MatchResult
     elements ps xs =
         case (ps, xs) of
             ([S.Hole _ name], rest)
@@ -85,7 +84,7 @@ matchPattern evaluator pattern value =
             ([], [])                        -> matched []
             _differentLengths               -> noMatch
 
-    matchRecord :: SourcePos -> [S.Expr] -> L.Expr -> Reader Env MatchResult
+    matchRecord :: SourcePos -> [S.Expr] -> L.Expr -> EvalM MatchResult
     matchRecord pos elems = \case
         Record meta pairs    -> fields meta pairs
         Primitive I.EmptyRec -> fields I.EmptyMeta []
@@ -120,7 +119,7 @@ matchPattern evaluator pattern value =
 
 
 -- Runs the second match only when the first one succeeded, collecting both sets of bindings
-andThen :: Reader Env MatchResult -> Reader Env MatchResult -> Reader Env MatchResult
+andThen :: EvalM MatchResult -> EvalM MatchResult -> EvalM MatchResult
 andThen first second =
     first >>= \case
         Right (Just bindings) -> (fmap . fmap . fmap) (bindings <>) second
@@ -137,13 +136,13 @@ bindHole hole value =
 isRestHole :: Text -> Bool
 isRestHole = T.isPrefixOf "?.."
 
-matched :: Bindings -> Reader Env MatchResult
+matched :: Bindings -> EvalM MatchResult
 matched = pure . Right . Just
 
-noMatch :: Reader Env MatchResult
+noMatch :: EvalM MatchResult
 noMatch = pure (Right Nothing)
 
-malformed :: SourcePos -> Text -> Reader Env MatchResult
+malformed :: SourcePos -> Text -> EvalM MatchResult
 malformed pos explanation =
     malformedCaseBranch
     & withBlurb explanation

@@ -4,7 +4,6 @@ import           Hedgehog
 import qualified Hedgehog.Gen               as Gen
 import qualified Hedgehog.Range             as Range
 
-import           Control.Monad.Reader       (runReader)
 import qualified Text.Megaparsec            as M
 import           Text.Megaparsec.Pos        (initialPos)
 
@@ -12,13 +11,13 @@ import           Data.Ouro                  (CompilationResult (..), compile)
 import qualified Data.Ouro.Internal.Expr    as I
 import qualified Data.Ouro.Lisp.Canon       as Canon
 import           Data.Ouro.Lisp.Eval.Engine (evalExpr)
-import           Data.Ouro.Lisp.Eval.Types  (emptyEnv)
+import           Data.Ouro.Lisp.Eval.Types  (emptyEnv, runEvalM)
 import qualified Data.Ouro.Lisp.Eval.Types  as L
 import qualified Data.Ouro.Lisp.Surface     as S
 import qualified Data.Text                  as T
 
 runEval :: S.Expr -> L.Expr
-runEval expr = runReader (evalExpr expr) emptyEnv
+runEval expr = runEvalM emptyEnv (evalExpr expr)
 
 dummyPos :: M.SourcePos
 dummyPos = initialPos "test"

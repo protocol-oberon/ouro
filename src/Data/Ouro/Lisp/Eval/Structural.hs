@@ -3,7 +3,8 @@
 
 module Data.Ouro.Lisp.Eval.Structural where
 
-import           Control.Monad.Reader        (Reader, runReader)
+import           Control.Monad.Reader        (local, runReader)
+import           Data.Functor                ((<&>))
 import           Data.Function               ((&))
 import qualified Data.Map                    as Map
 import           Data.Ouro.Error.Diagnostics (incorrectArity, internalValueLeak,
@@ -16,8 +17,9 @@ import qualified Data.Ouro.Internal.Kinds    as JLD
 import           Data.Ouro.Internal.Utils    (rankBySimilarity)
 import           Data.Ouro.Lisp.Eval.Schema  (parseContextDirectives)
 import           Data.Ouro.Lisp.Eval.Scope   (buildLazyEnv, buildLocalFunction)
-import           Data.Ouro.Lisp.Eval.Types   (Env (..), Expr (..), allEnvKeys,
-                                              humanReadableType, localScope)
+import           Data.Ouro.Lisp.Eval.Types   (Env (..), EvalM, Expr (..),
+                                              allEnvKeys, humanReadableType,
+                                              localScope)
 import qualified Data.Ouro.Lisp.Eval.Types   as L
 import qualified Data.Ouro.Lisp.Surface      as S
 import qualified Data.Set                    as Set
@@ -42,20 +44,20 @@ import           Text.Megaparsec             (SourcePos)
 --      can lazily reference sibling properties seamlessly without triggering early-evaluation crashes.
 --   3. Semantic Extraction & Context Lowering: It evaluates the properties into a core GADT structural list.
 compileRecord
-    :: (Env -> S.Expr -> L.Expr)
+    :: (Env -> S.Expr -> EvalM L.Expr)
     -> Env
     -> [S.Expr]
-    -> L.Expr
+    -> EvalM L.Expr
 compileRecord evaluator env fields =
     case buildLocalFunction env fields of
         Left err
-            -> EvalError err
+            -> pure (EvalError err)
 
         Right envWithFuncs
             -> case buildLazyEnv env fields of
                    -- Dynamic environment allocation failures represent a catastrophic scope break
                    Left err
-                       -> EvalError err
+                       -> pure (EvalError err)
 
                    Right rawMap
                        -> let isolatedEnv = envWithFuncs
@@ -70,21 +72,22 @@ compileRecord evaluator env fields =
 -- Iterates through a stream of tokens to filter and evaluate physical properties into a L.Expr superset tree.
 -- Iterates through a stream of tokens to filter and evaluate physical properties into a L.Expr superset tree.
 emitProps
-    :: (Env -> S.Expr -> L.Expr)
+    :: (Env -> S.Expr -> EvalM L.Expr)
     -> Env
     -> [S.Expr]
-    -> L.Expr
+    -> EvalM L.Expr
 emitProps evaluator env expressions = go I.EmptyMeta expressions
     where
-    go :: I.Expr 'JLD.Meta -> [S.Expr] -> L.Expr
+    go :: I.Expr 'JLD.Meta -> [S.Expr] -> EvalM L.Expr
     go metaAcc = \case
-                  [] -> Record metaAcc []
+                  [] -> pure (Record metaAcc [])
 
                   -- Case A: Intercept ANY context form variant at the top-level and route to the schema engine
+                  -- (Schema parsing only reads the environment, so it runs outside EvalM)
                   S.Form _ (S.Symbol pos "context" : directives) : remaining
                       -> case runReader (parseContextDirectives directives) env of
                              EvalError err
-                                 -> case go metaAcc remaining of
+                                 -> go metaAcc remaining <&> \case
                                         Record finalMeta nextPairs -> Record finalMeta (("@context", EvalError err) : nextPairs)
                                         otherVal                   -> otherVal
 
@@ -95,7 +98,7 @@ emitProps evaluator env expressions = go I.EmptyMeta expressions
                                  -> let leakErr = internalValueLeak "emitProps context block resolution"
                                                   & withBlurb ("Expected a SchemaVal, but leaked: " <> humanReadableType otherVal)
                                                   & OuroError pos
-                                    in case go metaAcc remaining of
+                                    in go metaAcc remaining <&> \case
                                           Record finalMeta nextPairs -> Record finalMeta (("@context", EvalError leakErr) : nextPairs)
                                           ov                         -> ov
 
@@ -115,14 +118,14 @@ emitProps evaluator env expressions = go I.EmptyMeta expressions
                                                             "a valid Record (or Function resolving to a Record) to inlay"
                                                             "a List/Array block target"
                                                         & OuroError pos
-                                              in case go metaAcc rest of
+                                              in go metaAcc rest <&> \case
                                                      Record finalMeta nextPairs -> Record finalMeta (("*err*", EvalError err) : nextPairs)
                                                      otherVal                   -> otherVal
 
                                 -- Catch both TargetRecord AND TargetFunctionApp
-                                _ -> case go metaAcc rest of
+                                _ -> go metaAcc rest >>= \case
                                         Record finalMeta nextPairs
-                                            -> case evaluator env iExpr of
+                                            -> evaluator env iExpr <&> \case
                                                     -- 1. If evaluation fails, embed the error so the tree retains it
                                                     EvalError err -> Record finalMeta (("*err*", EvalError err) : nextPairs)
 
@@ -136,15 +139,15 @@ emitProps evaluator env expressions = go I.EmptyMeta expressions
                                                                                & OuroError (S.exprPos iExpr)
                                                                      in Record finalMeta (("*err*", EvalError err) : nextPairs)
 
-                                        otherVal -> otherVal
+                                        otherVal -> pure otherVal
 
                   -- Case C: Extract valid body pairs using the new structured attribute form.
                   -- Supports lazy nesting compilation inline.
                   S.Form _ [S.Symbol _ "attr", S.Literal _ (S.Str key), valExpr] : rest
                       | not (isStructuralExpr valExpr)
-                      -> case go metaAcc rest of
+                      -> go metaAcc rest >>= \case
                              Record finalMeta nextPairs
-                                 -> case evaluator env valExpr of
+                                 -> evaluator env valExpr <&> \case
                                         -- 1. Catch error leaves completely independently
                                         EvalError err -> Record finalMeta ((key, EvalError err) : nextPairs)
 
@@ -172,7 +175,7 @@ emitProps evaluator env expressions = go I.EmptyMeta expressions
                                                               & OuroError (S.exprPos valExpr)
                                                     in Record finalMeta ((key, EvalError err) : nextPairs)
 
-                             otherVal -> otherVal
+                             otherVal -> pure otherVal
 
                   -- Case D (Replaces Old B.25 and Old D): Safely drop malformed/loose attribute blocks
                   -- or attributes wrapping blocked structural layouts, and keep moving
@@ -185,7 +188,7 @@ emitProps evaluator env expressions = go I.EmptyMeta expressions
                                        "an unbound expression"
                                    & withBlurb "Unbound expressions are not allowed inside Record blocks. They must be bound to an attribute."
                                    & OuroError (S.exprPos expr)
-                         in case go metaAcc rest of
+                         in go metaAcc rest <&> \case
                                 Record m p -> Record m (("*err*", EvalError err) : p)
                                 otherVal   -> otherVal
 
@@ -203,28 +206,28 @@ emitProps evaluator env expressions = go I.EmptyMeta expressions
 
 -- Compiles a collection of nested Lisp blocks into a uniform Array
 compileArray
-    :: (Env -> S.Expr -> L.Expr)
+    :: (Env -> S.Expr -> EvalM L.Expr)
     -> Env
     -> SourcePos
     -> [S.Expr]
-    -> L.Expr
+    -> EvalM L.Expr
 compileArray evaluator env pos elements =
     case buildLocalFunction env elements of
-        Right envWithTmplts -> Array $ compileElements envWithTmplts elements
-        Left  err           -> EvalError err
+        Right envWithTmplts -> Array <$> compileElements envWithTmplts elements
+        Left  err           -> pure (EvalError err)
 
     where
-    compileElements :: Env -> [S.Expr] -> [L.Expr]
+    compileElements :: Env -> [S.Expr] -> EvalM [L.Expr]
     compileElements env' exprs =
         case exprs of
-            [] -> []
+            [] -> pure []
 
             -- Case A: TRUE ERASURE: Skip define blocks completely inside arrays
             -- Still inject variables into scope
             S.Form _ (S.Symbol _ "define" : variables) : xs
                 -> case buildLazyEnv env' variables of
                        Right newEnv -> compileElements (env' & localScope %~ Map.union newEnv) xs
-                       Left  err    -> EvalError err : compileElements env' xs
+                       Left  err    -> (EvalError err :) <$> compileElements env' xs
 
             -- Skip Functions
             S.Form _ (S.Symbol _ "defun" : _) : xs
@@ -248,34 +251,35 @@ compileArray evaluator env pos elements =
                                                         "a valid Array (or Function resolving to an Array) to inlay"
                                                         "a Record block target"
                                                     & OuroError sPos
-                                          in EvalError err : compileElements env' xs
+                                          in (EvalError err :) <$> compileElements env' xs
 
                           -- Catch both TargetList AND TargetFunctionApp (for functions/variables)
-                          _ -> case evaluator env' iExpr of
+                          _ -> evaluator env' iExpr >>= \case
                                    -- 1. If evaluation fails, embed the error so the tree retains it
-                                   EvalError err  -> EvalError err : compileElements env' xs
+                                   EvalError err  -> (EvalError err :) <$> compileElements env' xs
 
                                    -- 2. The successful path: Flatten the evaluated elements into the stream
-                                   Array elems -> elems ++ compileElements env' xs
+                                   Array elems -> (elems ++) <$> compileElements env' xs
 
                                    -- 3. If it evaluated to something other than an array, throw a type mismatch
                                    otherVal    -> let err = typeMismatch
                                                                 "a valid Array to inlay into the current array scope"
                                                                 (humanReadableType otherVal)
                                                             & OuroError (S.exprPos iExpr)
-                                                  in EvalError err : compileElements env' xs
+                                                  in (EvalError err :) <$> compileElements env' xs
 
             -- Case C: Process structured nested forms (Records or trailing list matrices)
             ((S.Form _ fields) : xs)
                 -- 1. Intercept Nested Arrays: recursively compile as a matrix
                 | TargetList <- determineBlockTarget fields
-                -> compileArray evaluator env' pos fields : compileElements env' xs
+                -> (:) <$> compileArray evaluator env' pos fields <*> compileElements env' xs
 
                 -- 2. Intercept Nested Records: compile using the object scope builder
                 | TargetRecord <- determineBlockTarget fields
-                -> let evaledItem = compileRecord evaluator env' fields
-                       restL      = compileElements env' xs
-                   in case evaledItem of
+                -> do
+                   evaledItem <- compileRecord evaluator env' fields
+                   restL      <- compileElements env' xs
+                   pure $ case evaledItem of
                           -- Retain independent error leaves found inside nested scopes safely
                           EvalError err -> EvalError err : restL
 
@@ -291,9 +295,10 @@ compileArray evaluator env pos elements =
 
             -- Case D: Process flat scalar fields or variables evaluated within the element stream
             (otherExpr : xs)
-                -> let evaledVal = evaluator env' otherExpr
-                       restL     = compileElements env' xs
-                    in case evaledVal of
+                -> do
+                   evaledVal <- evaluator env' otherExpr
+                   restL     <- compileElements env' xs
+                   pure $ case evaledVal of
                         EvalError err  -> EvalError err  : restL
                         Primitive prim -> Primitive prim : restL
 
@@ -364,11 +369,11 @@ determineBlockTarget fields =
 --   3. Defensive Boundary Isolation: Terminal primitive leafs or missing path segments safely trigger
 --      failures via 'missingPathKey' before deep internal evaluation can result in invalid mutations.
 resolvePath
-    :: (S.Expr -> Reader Env L.Expr)
+    :: (S.Expr -> EvalM L.Expr)
     -> Env
     -> S.Expr
     -> [L.Expr]
-    -> L.Expr
+    -> EvalM L.Expr
 resolvePath evaluator fullEnv originalExpr pathVals = go fullEnv originalExpr (extractKeys pathVals)
     where
     -- Extract bare Text strings from the newly provisioned Array superset layout
@@ -379,9 +384,9 @@ resolvePath evaluator fullEnv originalExpr pathVals = go fullEnv originalExpr (e
                              _                      -> []
                            ) elements
 
-    go :: Env -> S.Expr -> [Text] -> L.Expr
+    go :: Env -> S.Expr -> [Text] -> EvalM L.Expr
     go env currentExpr keys = case keys of
-        [] -> runReader (evaluator currentExpr) env
+        [] -> local (const env) (evaluator currentExpr)
 
         (targetKey : remainingKeys)
             -> case currentExpr of
@@ -406,6 +411,7 @@ resolvePath evaluator fullEnv originalExpr pathVals = go fullEnv originalExpr (e
                                                            )
                                                & OuroError pos
                                                & EvalError
+                                               & pure
 
                    -- Strategy 2: Scan Form wrappers using our strict token matching rules
                    S.Form pos elements
@@ -440,12 +446,13 @@ resolvePath evaluator fullEnv originalExpr pathVals = go fullEnv originalExpr (e
                                        )
                            & OuroError (S.exprPos other)
                            & EvalError
+                           & pure
 
-    scanEnv :: Env -> Text -> [Text] -> [S.Expr] -> OuroError -> L.Expr
+    scanEnv :: Env -> Text -> [Text] -> [S.Expr] -> OuroError -> EvalM L.Expr
     scanEnv env trgt rest exprs err =
         case matchTokenStream trgt exprs of
             Just matchedVal -> go env matchedVal rest
-            Nothing         -> EvalError $ err
+            Nothing         -> pure (EvalError err)
 
 
 matchTokenStream :: Text -> [S.Expr] -> Maybe S.Expr
@@ -473,14 +480,14 @@ matchTokenStream targetKey stream =
 -- By mapping formal parameters directly to un-evaluated argument expressions,
 -- this achieves macro-style lazy expansion without the messy string-substitution logic.
 evalFunction
-    :: (S.Expr -> Reader Env L.Expr)  -- Core evaluator function
+    :: (S.Expr -> EvalM L.Expr)       -- Core evaluator function
     -> Env                            -- The current ambient environment (Call site)
     -> SourcePos                      -- Callsite position
     -> Text                           -- Function name
     -> [Text]                         -- The function's formal parameters (e.g., (name year))
     -> [S.Expr]                       -- The un-evaluated body expressions of the function
     -> [S.Expr]                       -- The actual arguments passed at the call site
-    -> Reader Env L.Expr              -- The returned evaluated expr
+    -> EvalM L.Expr                   -- The returned evaluated expr
 evalFunction evaluator parentEnv pos name params bodyExprs actualArgs =
     let parLen       = length params
         actLen       = length actualArgs
@@ -506,20 +513,20 @@ evalFunction evaluator parentEnv pos name params bodyExprs actualArgs =
                                                & L.functionRegistry .~ (parentEnv ^. L.functionRegistry)
                                                & L.callStack        .~ (Set.insert name currentStack)
 
-                                   -- Unwrap the Reader Monad to explict (Env -> S.Expr -> L.Expr)
-                                   evaluator' currentEnv expr' = runReader (evaluator expr') currentEnv
+                                   -- Evaluate an expression in an explicit environment
+                                   evaluator' currentEnv expr' = local (const currentEnv) (evaluator expr')
 
                                case returnExpr bodyExprs of
                                    Just (S.Form _ (_ : val : _))
                                        -> do
                                            case buildLazyEnv functionEnv bodyExprs of
-                                               Right fnEnv -> pure $ evaluator' (functionEnv & L.localScope .~ fnEnv & L.parentEnv .~ Just functionEnv) val
+                                               Right fnEnv -> evaluator' (functionEnv & L.localScope .~ fnEnv & L.parentEnv .~ Just functionEnv) val
                                                Left  err   -> pure $ EvalError err
 
                                    _noReturnExpression
                                        -> case determineBlockTarget bodyExprs of
-                                               TargetRecord      -> pure $ compileRecord evaluator' functionEnv bodyExprs
-                                               TargetList        -> pure $ compileArray  evaluator' functionEnv pos bodyExprs
+                                               TargetRecord      -> compileRecord evaluator' functionEnv bodyExprs
+                                               TargetList        -> compileArray  evaluator' functionEnv pos bodyExprs
                                                TargetFunctionApp -> typeMismatch
                                                                        "a function with a concrete return type (Array, Record, Primitive or another Function)"
                                                                        "a function with a dangling expression"

@@ -4,8 +4,7 @@
 
 module Data.Ouro.Lisp.Eval.Engine where
 
-import           Control.Monad.Reader           (MonadReader (..), Reader,
-                                                 runReader)
+import           Control.Monad.Reader           (MonadReader (..), runReader)
 import           Data.Function                  ((&))
 import qualified Data.Map                       as Map
 import           Data.Ouro.Error.Diagnostics    (astCorruption,
@@ -31,7 +30,7 @@ import           Data.Ouro.Lisp.Eval.Structural (BlockTarget (..), compileArray,
                                                  compileRecord, evalFunction,
                                                  determineBlockTarget,
                                                  resolvePath)
-import           Data.Ouro.Lisp.Eval.Types      (Env (..), Expr (..),
+import           Data.Ouro.Lisp.Eval.Types      (Env (..), EvalM, Expr (..),
                                                  humanReadableType)
 import qualified Data.Ouro.Lisp.Eval.Types      as L
 import           Data.Ouro.Lisp.Module.Types    (Module)
@@ -44,14 +43,11 @@ import           Text.Megaparsec                (SourcePos)
 import qualified Text.URI                       as URI
 
 
--- No State monad is required because errors are handled as Data in the L.Expr tree.
-type EvalM = Reader Env
-
 -- High-level engine entry point.
 -- Inspects a parsed AST node, handles routing, and returns the result as a L.Expr.
 -- Errors are now contained within the returned L.Expr graph, not lifted to Either.
 evaluate :: Module -> S.Expr -> L.Expr
-evaluate moduleEnv rootExpr = runReader (evalExpr rootExpr) (L.defaultEnv moduleEnv)
+evaluate moduleEnv rootExpr = L.runEvalM (L.defaultEnv moduleEnv) (evalExpr rootExpr)
 
 
 -- evalExpr.
@@ -87,9 +83,8 @@ evalExpr expr = do
 
         --- INTERCEPT SPECIAL FORMS ---
         S.Form _ [S.Symbol pos "context", S.Form _ directives]
-            -> do
-               val <- parseContextDirectives directives
-               case val of
+            -- Schema parsing only reads the environment, so it runs outside EvalM
+            -> case runReader (parseContextDirectives directives) env of
                    SchemaVal s -> pure $ Metadata (I.Context s)
                    EvalError e -> pure $ EvalError e
                    actual      -> pure $ EvalError $ OuroError pos
@@ -99,10 +94,7 @@ evalExpr expr = do
             -> case validatePathKeys pathExpressions of
                    EvalError err     -> pure (EvalError err)
                    -- Match on the open ArrayVal superset node instead of the old frozen GADT variant
-                   Array     pathVal -> case resolvePath evalExpr env rootTarget pathVal of
-                                              EvalError err -> pure (EvalError err)
-                                              -- The path resolved cleanly to a final L.Expr, pass it forward
-                                              resolvedVal   -> pure resolvedVal
+                   Array     pathVal -> resolvePath evalExpr env rootTarget pathVal
                    _unexpectedExpr -> internalValueLeak "Path validation returned an unexpected L.Expr variant."
                                       & OuroError (S.exprPos rootTarget)
                                       & EvalError
@@ -126,7 +118,7 @@ evalExpr expr = do
 
         S.Form _ (S.Symbol pos "case" : target : patterns)
             -> case (hasValidOtherwise patterns) of
-                   True -> case runReader (evalExpr target) env of
+                   True -> evalExpr target >>= \case
                                EvalError err   -> pure $ EvalError err
                                resolvedTarget  -> evaluateGuards evalExpr env pos   resolvedTarget 0 patterns
 
@@ -137,12 +129,12 @@ evalExpr expr = do
                             & pure
 
         S.Form _ [S.Symbol _ "nth", index, target]
-            -> case runReader (evalExpr index) env of
+            -> evalExpr index >>= \case
                    EvalError err
                        -> pure $ EvalError err
 
                    Primitive (I.Number i)
-                       -> case runReader (evalExpr target) env of
+                       -> evalExpr target >>= \case
                               Record _ attrs -> do
                                                 let len = (length attrs)
                                                     idx = case i < 0 of
@@ -263,10 +255,10 @@ evalExpr expr = do
                           & pure
 
         S.Form pos allFields
-            -> let wrappedEvaluator currentEnv expr' = runReader (evalExpr expr') currentEnv
+            -> let wrappedEvaluator currentEnv expr' = local (const currentEnv) (evalExpr expr')
                in case determineBlockTarget allFields of
-                      TargetRecord      -> pure (compileRecord wrappedEvaluator env allFields)
-                      TargetList        -> pure (compileArray  wrappedEvaluator env pos allFields)
+                      TargetRecord      -> compileRecord wrappedEvaluator env allFields
+                      TargetList        -> compileArray  wrappedEvaluator env pos allFields
                       TargetFunctionApp -> applyFunction pos allFields
 
         otherNode
@@ -377,7 +369,7 @@ assertTag tag payload = do
 -- applyFunction.
 --
 -- Unpacks evaluated argument vectors and triggers platform-native executors.
--- Operates entirely within the pure Reader monad (EvalM).
+-- Operates entirely within the evaluator monad (EvalM).
 applyFunction :: SourcePos -> [S.Expr] -> EvalM L.Expr
 applyFunction pos fields =
     case fields of

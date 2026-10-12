@@ -4,7 +4,10 @@
 
 module Data.Ouro.Lisp.Eval.Types where
 
-import           Control.Monad.Reader        (Reader)
+import           Control.Monad.Reader        (Reader, ReaderT, runReaderT)
+import           Control.Monad.State.Strict  (State, evalState)
+import           Data.IntMap.Strict          (IntMap)
+import qualified Data.IntMap.Strict          as IntMap
 import           Data.List                   (sortOn)
 import qualified Data.Map.Strict             as Map
 import           Data.Ouro.Error.Types       (OuroError)
@@ -129,7 +132,37 @@ data Expr where
     -- and continue evaluating sibling nodes.
     EvalError   :: OuroError -> Expr
 
+-- Builtins only read the environment, so they never need the promise store
 type NativeFunction = SourcePos -> [Expr] -> Reader Env Expr
+
+
+-- EvalM.
+--
+-- The evaluator monad: the lexical environment is read, and the promise store is
+-- threaded through evaluation. Each binding becomes a promise in the store (from
+-- step 3 of the scoping redesign), so it is evaluated once, in the environment it
+-- was written in, and re-entering a promise that is still being forced is a cycle.
+type EvalM = ReaderT Env (State Store)
+
+-- Promises allocated during evaluation, keyed by address
+type Store = IntMap Promise
+
+data Promise = Promise
+    { _promiseEnv   :: Env          -- The environment the binding was written in
+    , _promiseExpr  :: S.Expr       -- The binding's code
+    , _promiseName  :: Text         -- For cycle and error messages
+    , _promisePos   :: SourcePos
+    , _promiseState :: PromiseState
+    }
+
+data PromiseState
+    = Unforced
+    | Forcing                       -- Being evaluated: reaching it again is a cycle
+    | Forced Expr
+
+
+runEvalM :: Env -> EvalM a -> a
+runEvalM env m = evalState (runReaderT m env) IntMap.empty
 
 
 instance Eq Expr where

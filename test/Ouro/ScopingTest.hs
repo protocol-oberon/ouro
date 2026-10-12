@@ -3,6 +3,7 @@ module Ouro.ScopingTest
 , valuePatterns
 , lexicalRecords
 , callSiteArguments
+, lexicalFunctions
 , valueGetAndErrors
 , cleanup
 ) where
@@ -51,6 +52,11 @@ baseline = Group "Scoping: baseline (must keep passing)"
     , ("wrong arity is an error",                 failsToCompile "(defun id! (a) (return a)) (graph g :r (id! 1 2))")
     , ("direct recursion is an error",            failsToCompile "(defun f! (n) (return (f! n))) (graph g :r (f! 1))")
     , ("defines stay private to get",             failsToCompile "(graph g :rec (:a 1 (define :hidden 5)) :r (get rec hidden))")
+    , ("local functions shadow top-level ones",   compilesLike (T.unlines
+                                                                 [ "(defun helper! () (return \"top\"))"
+                                                                 , "(defun caller! () (defun helper! () (return \"local\")) :r (helper!))"
+                                                                 , "(graph g :res (caller!))" ])
+                                                               "(graph g :res (:r \"local\"))")
     , ("an expression can be replaced by its value", prop_substitution)
     ]
 
@@ -71,6 +77,16 @@ callSiteArguments = Group "Scoping: arguments evaluate at the call site"
                                                                "(graph g :a \"caller\" :r \"caller\")")
     , ("nesting a call is not recursion",         compilesLike "(defun id! (a) (return a)) (graph g :r (id! (id! 1)))"
                                                                "(graph g :r 1)")
+    ]
+
+lexicalFunctions :: Group
+lexicalFunctions = Group "Scoping: functions resolve names where they are defined"
+    [ ("a function uses the helper defined next to it", compilesLike (T.unlines
+                                                                 [ "(defun helper! () (return \"defined next to uses-helper!\"))"
+                                                                 , "(defun uses-helper! () (return (helper!)))"
+                                                                 , "(defun caller! () (defun helper! () (return \"caller's own helper\")) :r (uses-helper!))"
+                                                                 , "(graph g :res (caller!))" ])
+                                                               "(graph g :res (:r \"defined next to uses-helper!\"))")
     ]
 
 valuePatterns :: Group
