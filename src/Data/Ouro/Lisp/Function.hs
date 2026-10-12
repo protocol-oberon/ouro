@@ -2,6 +2,11 @@ module Data.Ouro.Lisp.Function
 ( checkFunctionName
 , duplicateFunction
 , functionBody
+, graphBody
+, isFunctionKeyword
+, removedDefine
+, removedLocalDefn
+, renamedDefun
 ) where
 
 import           Data.Function               ((&))
@@ -15,71 +20,122 @@ import           Text.Megaparsec             (SourcePos)
 
 -- functionBody.
 --
--- Splits a function body into its declarations and its result. A body is any number
--- of 'define' and 'defun' declarations followed by exactly one expression, written
--- exactly as it would be anywhere else; its value is the function's result:
+-- A function's body is exactly one expression, written as it would be anywhere else;
+-- its value is the function's result. Private values are bound around it with 'let':
 --
---   (defun getty! () "http://vocab.getty.edu/aat/")         ; a literal
---   (defun person! (who) (define :t "Person")                 ; a record
---                        (:type t :_label who))
+--   (defn getty () "http://vocab.getty.edu/aat/")              ; a literal
+--   (defn person (who) (let (:t "Person")                       ; a record
+--                        (:type t :_label who)))
 --
 -- Checked when a function is defined, so a malformed function is reported even if it
 -- is never called.
-functionBody :: Text -> SourcePos -> [S.Expr] -> Either OuroError ([S.Expr], S.Expr)
+functionBody :: Text -> SourcePos -> [S.Expr] -> Either OuroError S.Expr
 functionBody name pos body
     -- A ':key value' (or ':context') at the root of the body is a spliced record
     | splicedField : _ <- filter isSplicedField body
         = lexicalError ("The function '" <> name <> "' has a ':key value' field directly in its body.")
           & withBlurb ( "A function's body is one result expression, written as it would be anywhere else. "
-                     <> "Perhaps wrap the record in parentheses: (defun " <> name <> " (args) (:key value ...))."
+                     <> "Perhaps wrap the record in parentheses: (defn " <> name <> " (args) (:key value ...))."
                       )
           & OuroError (S.exprPos splicedField)
           & Left
 
     | returnForm : _ <- filter isReturn body
-        = lexicalError "'return' is no longer needed: a function's last expression is its result."
-          & withBlurb "Perhaps write the value directly, e.g. (defun id! (x) x) instead of (defun id! (x) (return x))."
+        = lexicalError "'return' is no longer needed: a function's body is its result."
+          & withBlurb "Perhaps write the value directly, e.g. (defn id (x) x) instead of (defn id (x) (return x))."
           & OuroError (S.exprPos returnForm)
           & Left
 
-    | otherwise
-        = case span isDeclaration body of
-              (declarations, [result])
-                  -> Right (declarations, result)
+    | defineForm : _ <- filter (isHeadedBy "define") body
+        = Left (removedDefine (S.exprPos defineForm))
 
-              (_, [])
+    | defnForm : _ <- filter isLocalFunction body
+        = Left (removedLocalDefn (S.exprPos defnForm))
+
+    | otherwise
+        = case body of
+              [result]
+                  -> Right result
+
+              []
                   -> lexicalError ("The function '" <> name <> "' has no result expression.")
-                     & withBlurb "A function's body is any number of defines followed by exactly one expression: its result."
+                     & withBlurb "A function's body is exactly one expression: its result."
                      & OuroError pos
                      & Left
 
-              (_, _result : extra : _)
-                  | isDeclaration extra
-                  -> lexicalError "Definitions must come before the function's result expression."
-                     & withBlurb "A function's body is any number of defines followed by exactly one expression: its result."
-                     & OuroError (S.exprPos extra)
-                     & Left
-
-                  | otherwise
+              _result : extra : _
                   -> lexicalError ("The function '" <> name <> "' has more than one result expression.")
                      & withBlurb "A function returns one value. Perhaps wrap the values in parentheses to return an Array: (1 2) instead of 1 2."
                      & OuroError (S.exprPos extra)
                      & Left
 
     where
-    isDeclaration = \case
-                     S.Form _ (S.Symbol _ "define" : _) -> True
-                     S.Form _ (S.Symbol _ "defun"  : _) -> True
-                     _notADeclaration                   -> False
-
     isSplicedField = \case
                       S.Form _ (S.Symbol _ "attr"    : _) -> True
                       S.Form _ (S.Symbol _ "context" : _) -> True
                       _notAField                          -> False
 
-    isReturn = \case
-                S.Form _ (S.Symbol _ "return" : _) -> True
-                _notAReturn                        -> False
+    isReturn = isHeadedBy "return"
+
+    isLocalFunction = \case
+                       S.Form _ (S.Symbol _ keyword : _) -> isFunctionKeyword keyword
+                       _notAFunction                     -> False
+
+
+-- graphBody.
+--
+-- A graph is one expression, usually a Record: (graph name (:key value ...)).
+graphBody :: Text -> SourcePos -> [S.Expr] -> Either OuroError S.Expr
+graphBody name pos = \case
+    [S.Form _ (S.Symbol _ "attr" : _)]
+        -> spliced
+    [result]
+        -> Right result
+    []
+        -> lexicalError ("The graph '" <> name <> "' has no expression.")
+           & withBlurb "A graph is one expression, usually a Record: (graph name (:key value ...))."
+           & OuroError pos
+           & Left
+    _spliced
+        -> spliced
+    where
+    spliced = lexicalError ("The graph '" <> name <> "' must be one expression.")
+              & withBlurb ( "Perhaps wrap its fields in parentheses: (graph " <> name <> " (:key value ...)). "
+                         <> "Private values are bound around it with let: (graph " <> name <> " (let (:name value) (:key value ...)))."
+                          )
+              & OuroError pos
+              & Left
+
+
+-- 'define' was replaced by 'let', which binds private values around the one
+-- expression that uses them
+removedDefine :: SourcePos -> OuroError
+removedDefine pos =
+    lexicalError "'define' has been replaced by let."
+    & withBlurb "Bind private values around the expression that uses them: (let (:name value ...) expr)."
+    & OuroError pos
+
+
+-- A 'defn' only names a top-level function; a local function is a let-bound 'fn'
+removedLocalDefn :: SourcePos -> OuroError
+removedLocalDefn pos =
+    lexicalError "A defn can only appear at the top level of a file."
+    & withBlurb "Write a local function with fn, bound by let: (let (:name (fn (args) body)) expr)."
+    & OuroError pos
+
+
+-- 'defun' was renamed 'defn'
+renamedDefun :: SourcePos -> OuroError
+renamedDefun pos =
+    lexicalError "'defun' has been renamed defn."
+    & withBlurb "Write a top-level function as (defn name (args) expr)."
+    & OuroError pos
+
+
+-- The keywords that define a named function: 'defn', and the old 'defun', which is
+-- still recognised so that it can be reported
+isFunctionKeyword :: Text -> Bool
+isFunctionKeyword = (`elem` ["defn", "defun"])
 
 
 -- Function names are plain symbols, in one namespace with values. A trailing '!'
@@ -106,5 +162,11 @@ duplicateFunction name pos =
 
 -- Forms the evaluator recognises by their head symbol, before any name lookup
 specialForms :: [Text]
-specialForms = [ "attr", "case", "context", "define", "defun", "get", "graph", "inlay"
-               , "insert", "list", "nth", "replace-at", "thru" ]
+specialForms = [ "attr", "case", "context", "define", "defn", "defun", "fn", "get", "graph"
+               , "inlay", "insert", "let", "list", "nth", "replace-at", "thru" ]
+
+
+isHeadedBy :: Text -> S.Expr -> Bool
+isHeadedBy keyword = \case
+                      S.Form _ (S.Symbol _ head' : _) -> head' == keyword
+                      _otherExpr                      -> False

@@ -160,8 +160,8 @@ newtype Binding = Promised Addr
 
 type Addr = Int
 
--- A function's identity: its name and where it is defined. A local defun can share
--- a name with another function, so the recursion check compares both.
+-- A function's identity: its name and where it is defined. Every anonymous fn is named
+-- 'fn', so the recursion check compares both.
 type FunctionId = (Text, SourcePos)
 
 type FunctionRegistry = Map.Map Text (M.HigherExpression 'M.FunctionExpr)

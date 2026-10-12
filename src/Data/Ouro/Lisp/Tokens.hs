@@ -24,7 +24,8 @@ data TokenType
     | Let              -- 'let' (used for binding context scopes)
     | Import           -- Module imports
     | Export           -- Module exports, can only be functions
-    | Defun            -- Named functions that return a JSON LD object
+    | Defn             -- Named top-level functions
+    | Defun            -- The old name for defn, kept so it can be reported
     | Graph            -- JSON-LD graph to compile
     -- Schema Context Specific Flags
     | FlagVocab        -- ':vocab'

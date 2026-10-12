@@ -3,6 +3,7 @@
 module Utils where
 
 import           Control.Monad.IO.Class       (MonadIO, liftIO)
+import           Data.Char                    (isSpace)
 import           Data.Maybe                   (fromJust)
 import           Data.Ouro                    (CompilationResult (..), compile,
                                                defaultOptions, toJSON)
@@ -120,3 +121,14 @@ failsWith message src = withTests 1 . property $
             -> do
                annotate ("compiled to: " <> TL.unpack (toJSON defaultOptions ast))
                failure
+
+-- The program compiles to the given JSON (whitespace is ignored on both sides)
+compilesToJSON :: Text -> Text -> Property
+compilesToJSON src expected = withTests 1 . property $
+    case compileG src of
+        CompilationSuccess _ ast -> squash (TL.toStrict (toJSON defaultOptions ast)) === squash expected
+        failed                   -> do
+                                    annotate (describe failed)
+                                    failure
+    where
+    squash = T.filter (not . isSpace)

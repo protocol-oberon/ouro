@@ -126,7 +126,7 @@ compile filename trgt content = compilationResult . runWriter . runExceptT $ com
                                               & throwError
                -- Pass 4: Evaluation
                let (Graph gPos _ gAst)          = graph
-                   (evalTree, bindingErrors) = EN.evaluate desugaredModule (Canon.construct gAst)
+                   (evalTree, bindingErrors) = EN.evaluate desugaredModule (Canon.constructRoot gAst)
 
                case validateAST gPos bindingErrors evalTree of
                    Just    errs -> throwError errs

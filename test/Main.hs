@@ -5,6 +5,7 @@ import           Hedgehog
 import qualified Ouro.CanonicalTest  as Canonical
 import qualified Ouro.EvaluationTest as Evaluation
 import qualified Ouro.FunctionTest   as Function
+import qualified Ouro.LetTest        as Let
 import qualified Ouro.ScopingTest    as Scoping
 import qualified Ouro.StructuralTest as Structural
 import           System.Exit         (exitFailure, exitSuccess)
@@ -28,6 +29,8 @@ main = do
         -- Functions: bodies are one result expression, names are plain symbols
         , Function.expressionBodies
         , Function.plainNames
+        -- Bindings: let, fn and defn replace define and defun
+        , Let.letAndFn
         ]
 
     -- If all groups passed (True), exit gracefully. Otherwise, fail the CI.

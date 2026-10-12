@@ -176,24 +176,24 @@ prop_error_nth_bounds = withTests 1 . property $ do
 -- Compile-time only values must produce a compiler error, not crash the serializer
 prop_reject_duration :: Property
 prop_reject_duration = withTests 1 . property $
-    assert $ isCompileFailure (compile "test-suite" "g" "(graph g :d (years 2))")
+    assert $ isCompileFailure (compile "test-suite" "g" "(graph g (:d (years 2)))")
 
 prop_reject_builtin :: Property
 prop_reject_builtin = withTests 1 . property $
-    assert $ isCompileFailure (compile "test-suite" "g" "(graph g :f +)")
+    assert $ isCompileFailure (compile "test-suite" "g" "(graph g (:f +))")
 
 prop_reject_function :: Property
 prop_reject_function = withTests 1 . property $
-    assert $ isCompileFailure (compile "test-suite" "g" "(defun id! (a) a) (graph g :f id!)")
+    assert $ isCompileFailure (compile "test-suite" "g" "(defn id! (a) a) (graph g (:f id!))")
 
 -- JSON cannot represent non-finite numbers
 prop_reject_infinity :: Property
 prop_reject_infinity = withTests 1 . property $
-    assert $ isCompileFailure (compile "test-suite" "g" "(graph g :big (* 1e308 10))")
+    assert $ isCompileFailure (compile "test-suite" "g" "(graph g (:big (* 1e308 10)))")
 
 prop_reject_nan :: Property
 prop_reject_nan = withTests 1 . property $
-    assert $ isCompileFailure (compile "test-suite" "g" "(graph g :nan (- (* 1e308 10) (* 1e308 10)))")
+    assert $ isCompileFailure (compile "test-suite" "g" "(graph g (:nan (- (* 1e308 10) (* 1e308 10))))")
 
 
 -- Helpers

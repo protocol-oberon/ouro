@@ -265,16 +265,16 @@ splitErrorContext = \case
 
     Scope (IncorrectArity name expr act)
         -> ("Incorrect Arity"
-           , [ labeled (pretty $ "The function '" <> name <> "' expects " <> (T.pack $ show expr) <> "number of arguments.") ""
-             , labeled (pretty $ "Got: " <> (T.pack $ show act) <> "number of argumnets instead.") ""
+           , [ labeled (pretty $ "The function '" <> name <> "' expects " <> (T.pack $ show expr) <> " number of arguments.") ""
+             , labeled (pretty $ "Got: " <> (T.pack $ show act) <> " number of arguments instead.") ""
              ]
            , Nothing
            )
 
     Scope (IndexOutOfBoundsError cb tOft att act)
         -> ("Index Out of Bonds"
-           , [ labeled (pretty $ "The function '" <> cb <> "' attempted to look up an element with an index: ")        (pretty $ T.pack $ show att)
-             , labeled (pretty $ "But it was out of bounds as the target " <> tOft <> " has a length of: ") (pretty $ T.pack $ show act)
+           , [ labeled (pretty $ "The function '" <> cb <> "' attempted to look up an element with an index: ") (pretty $ T.pack $ show att)
+             , labeled (pretty $ "But it was out of bounds as the target " <> tOft <> " has a length of: ")     (pretty $ T.pack $ show act)
              ]
            , Nothing
            )

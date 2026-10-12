@@ -15,17 +15,17 @@ import qualified Data.Ouro.Internal.Expr     as I
 import qualified Data.Ouro.Internal.Kinds    as JLD
 import           Data.Ouro.Lisp.Eval.Schema  (parseContextDirectives)
 import           Data.Ouro.Lisp.Eval.Scope   (FrameEntry (..), allocFrame,
-                                              bindableAttr, checkNamespace,
-                                              collectBindings, force,
-                                              localFunctions)
+                                              bindableAttr, collectBindings,
+                                              force)
 import           Data.Ouro.Lisp.Eval.Types   (Binding (..), Env (..), EvalM, Expr (..),
-                                              humanReadableType, localScope)
+                                              humanReadableType)
 import qualified Data.Ouro.Lisp.Eval.Types   as L
-import           Data.Ouro.Lisp.Function     (functionBody)
+import           Data.Ouro.Lisp.Function     (functionBody, isFunctionKeyword,
+                                              removedDefine, removedLocalDefn)
 import qualified Data.Ouro.Lisp.Surface      as S
 import qualified Data.Set                    as Set
 import           Data.Text                   (Text)
-import           Lens.Micro.Platform         ((%~), (.~), (^.))
+import           Lens.Micro.Platform         ((.~), (^.))
 import           Text.Megaparsec             (SourcePos)
 
 
@@ -38,11 +38,11 @@ import           Text.Megaparsec             (SourcePos)
 -- type-safe graph layers. Rather than applying standard top-down sequential evaluation, it operates in three distinct,
 -- highly deliberate stages to enforce declarative order-independence within the local block:
 --
---   1. Sweeping & Binding: It passes over the fields using both 'collectBindings' and 'localFunctions'
---      to harvest un-evaluated attributes and macro-blueprints into isolated dictionaries.
---   2. Environment Isolation & Knot-Tying: It constructs a fresh lexical 'Env' frame containing both scopes.
---      By linking this frame as its own parent and passing it downward, variables and functions inside the block
---      can lazily reference sibling properties seamlessly without triggering early-evaluation crashes.
+--   1. Sweeping & Binding: It passes over the fields using 'collectBindings' to harvest their
+--      un-evaluated expressions.
+--   2. Environment Isolation: Every field becomes a promise in a fresh lexical 'Env' frame, whose parent
+--      is the ambient env. The promises close over the frame itself, so fields can reference their
+--      siblings in any order.
 --   3. Semantic Extraction & Context Lowering: It evaluates the properties into a core GADT structural list.
 compileRecord
     :: (Env -> S.Expr -> EvalM L.Expr)
@@ -50,27 +50,22 @@ compileRecord
     -> [S.Expr]
     -> EvalM L.Expr
 compileRecord evaluator env fields =
-    case localFunctions fields of
+    case collectBindings fields of
+        -- Dynamic environment allocation failures represent a catastrophic scope break
         Left err
             -> pure (EvalError err)
 
-        Right locals
-            -> case collectBindings fields >>= \entries -> entries <$ checkNamespace entries locals of
-                   -- Dynamic environment allocation failures represent a catastrophic scope break
-                   Left err
-                       -> pure (EvalError err)
-
-                   Right entries
-                       -> do
-                          -- Every binding becomes a promise in a new frame, whose parent is the ambient env
-                          (frame, addrs) <- allocFrame (\names -> env
-                                                                  & L.localScope       .~ names
-                                                                  & L.functionRegistry .~ locals
-                                                                  & L.parentEnv        .~ Just env)
-                                                       entries
-                          -- Each output field is evaluated through its own promise, found by its position
-                          let fieldAddrs = Map.fromList [ (entryPos entry, addr) | (entry, addr) <- zip entries addrs, entryIsField entry ]
-                          emitProps evaluator frame fieldAddrs fields
+        Right entries
+            -> do
+               -- Every binding becomes a promise in a new frame, whose parent is the ambient env
+               (frame, addrs) <- allocFrame (\names -> env
+                                                       & L.localScope       .~ names
+                                                       & L.functionRegistry .~ Map.empty
+                                                       & L.parentEnv        .~ Just env)
+                                            entries
+               -- Each output field is evaluated through its own promise, found by its position
+               let fieldAddrs = Map.fromList [ (entryPos entry, addr) | (entry, addr) <- zip entries addrs, entryIsField entry ]
+               emitProps evaluator frame fieldAddrs fields
 
 
 -- Iterates through a stream of tokens to filter and evaluate physical properties into a L.Expr superset tree.
@@ -107,13 +102,7 @@ emitProps evaluator env fieldAddrs expressions = go I.EmptyMeta expressions
                                           Record finalMeta nextPairs -> Record finalMeta (("@context", EvalError leakErr) : nextPairs)
                                           ov                         -> ov
 
-                  -- Case B: Define Blocks are explicitly erased from the output JSON graph at comptime
-                  S.Form _ (S.Symbol _ "define" : _) : rest -> go metaAcc rest
-
-                  -- Case B.5 Function Blocks are also explicity erased from output JSON graph at comptime
-                  S.Form _ (S.Symbol _ "defun" : _) : rest -> go metaAcc rest
-
-                  -- Case B.75: Inlay evaluated record pairs directly into the current record scope
+                  -- Case B: Inlay evaluated record pairs directly into the current record scope
                   S.Form _ [S.Symbol pos "inlay", iExpr] : rest
                       -> let blockTarget = case iExpr of
                                                S.Form _ inner -> determineBlockTarget inner
@@ -188,7 +177,7 @@ emitProps evaluator env fieldAddrs expressions = go I.EmptyMeta expressions
                   -- Case E: Catch dangling expressions instead of silently erasing them
                   expr : rest
                       -> let err = typeMismatch
-                                       "a structural record property (attr, inlay, define, defun, context)"
+                                       "a structural record property (attr, inlay, context)"
                                        "an unbound expression"
                                    & withBlurb "Unbound expressions are not allowed inside Record blocks. They must be bound to an attribute."
                                    & OuroError (S.exprPos expr)
@@ -217,17 +206,7 @@ compileArray
     -> SourcePos
     -> [S.Expr]
     -> EvalM L.Expr
-compileArray evaluator env pos elements =
-    case localFunctions elements of
-        -- Functions defined inside an array get their own frame
-        Right locals
-            | Map.null locals -> Array <$> compileElements env elements
-            | otherwise       -> Array <$> compileElements (env
-                                                            & L.localScope       .~ Map.empty
-                                                            & L.functionRegistry .~ locals
-                                                            & L.parentEnv        .~ Just env)
-                                                        elements
-        Left  err -> pure (EvalError err)
+compileArray evaluator env pos elements = Array <$> compileElements env elements
 
     where
     compileElements :: Env -> [S.Expr] -> EvalM [L.Expr]
@@ -235,18 +214,12 @@ compileArray evaluator env pos elements =
         case exprs of
             [] -> pure []
 
-            -- Case A: TRUE ERASURE: Skip define blocks completely inside arrays
-            -- Still inject variables into scope
-            S.Form _ (S.Symbol _ "define" : variables) : xs
-                -> case collectBindings variables of
-                       Right entries -> do
-                                        (withDefines, _) <- allocFrame (\names -> env' & localScope %~ Map.union names) entries
-                                        compileElements withDefines xs
-                       Left  err     -> (EvalError err :) <$> compileElements env' xs
+            -- Case A: 'define' and a local 'defn' were replaced by 'let' and 'fn'
+            S.Form dPos (S.Symbol _ "define" : _) : xs
+                -> (EvalError (removedDefine dPos) :) <$> compileElements env' xs
 
-            -- Skip Functions
-            S.Form _ (S.Symbol _ "defun" : _) : xs
-                -> compileElements env' xs
+            S.Form dPos (S.Symbol _ keyword : _) : xs | isFunctionKeyword keyword
+                -> (EvalError (removedLocalDefn dPos) :) <$> compileElements env' xs
 
             -- Case B: TRUE ERASURE: Skip context blocks completely inside arrays
             S.Form _ [S.Symbol _ "context", S.Form _ _] : xs
@@ -355,7 +328,7 @@ determineBlockTarget fields =
     isFunctionApplication :: [S.Expr] -> Bool
     isFunctionApplication =
         \case
-         (S.Symbol _ name : _) -> not (name `elem` ["defun", "define", "context"])
+         (S.Symbol _ name : _) -> not (isFunctionKeyword name || name `elem` ["define", "context"])
          _NotaFunc             -> False
 
     isStructuralField :: S.Expr -> Bool
@@ -421,24 +394,7 @@ evalFunction evaluator closureEnv pos fnId@(name, _) params bodyExprs actualArgs
                    -- Evaluate an expression in an explicit environment
                    evaluator' currentEnv expr' = local (const currentEnv) (evaluator expr')
 
-               -- The body's defines and local functions form one frame; its last expression is the result
+               -- The body is one expression: the function's result
                case functionBody name pos bodyExprs of
-                   Left err
-                       -> pure (EvalError err)
-
-                   Right (declarations, result)
-                       -> case (collectBindings declarations, localFunctions declarations) of
-                              (Right entries, Right locals)
-                                  | Left err <- checkNamespace entries locals
-                                  -> pure (EvalError err)
-
-                                  | otherwise
-                                  -> do
-                                     (bodyFrame, _) <- allocFrame (\names -> functionEnv
-                                                                             & L.localScope       .~ names
-                                                                             & L.functionRegistry .~ locals
-                                                                             & L.parentEnv        .~ Just functionEnv)
-                                                                  entries
-                                     evaluator' bodyFrame result
-                              (Left err, _) -> pure $ EvalError err
-                              (_, Left err) -> pure $ EvalError err
+                   Left  err    -> pure (EvalError err)
+                   Right result -> evaluator' functionEnv result

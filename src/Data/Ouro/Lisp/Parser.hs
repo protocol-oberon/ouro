@@ -14,7 +14,9 @@ import           Data.Ouro.Error.Diagnostics (lexicalError, unbalancedDelimiter)
 import           Data.Ouro.Error.Types       (ErrorContext (..), OuroError (..),
                                               SyntaxError (..))
 import           Data.Ouro.Lisp.Function     (checkFunctionName, duplicateFunction,
-                                              functionBody)
+                                              functionBody, graphBody,
+                                              isFunctionKeyword, removedLocalDefn,
+                                              renamedDefun)
 import           Data.Ouro.Lisp.Module.Types (Declaration (..),
                                               HigherExpression (..),
                                               Module (..), graphRegistry,
@@ -68,9 +70,8 @@ buildModuleRegistry = foldM insertDecl emptyModule
     validateGraphBody :: S.Expr -> Either OuroError ()
     validateGraphBody =
         \case
-         S.Form pos (S.Symbol _ "defun"    : _) -> lexicalError "Graphs cannot contain nested 'defun' declarations."
-                                                   F.& OuroError pos
-                                                   F.& Left
+         S.Form pos (S.Symbol _ keyword : _)
+             | isFunctionKeyword keyword        -> Left (removedLocalDefn pos)
          S.Form _   exprs                       -> traverse_ validateGraphBody exprs
          _safeLeafs                             -> Right ()
 
@@ -90,9 +91,10 @@ pHigherExpression = do
     startTkn <- popToken "Expected expression declaration starting with '('"
     case Tkn.tokenType startTkn of
         Tkn.OpenParen -> do
-                         kwTkn <- popToken "Expected higher expression declaration keyword (defun, graph)"
+                         kwTkn <- popToken "Expected higher expression declaration keyword (defn, graph)"
                          case Tkn.tokenType kwTkn of
-                             Tkn.Defun    -> pDefun (Tkn.pos startTkn)
+                             Tkn.Defn     -> pDefn (Tkn.pos startTkn)
+                             Tkn.Defun    -> lift (Left (renamedDefun (Tkn.pos kwTkn)))
                              Tkn.Graph    -> pGraph (Tkn.pos startTkn)
                              other        -> lexicalError ("Invalid top-level keyword: " <> T.pack (show other))
                                              F.& OuroError (Tkn.pos kwTkn)
@@ -104,13 +106,13 @@ pHigherExpression = do
                  F.& lift
 
 
-pDefun :: SourcePos -> Parser ParsedDecl
-pDefun pos = do
+pDefn :: SourcePos -> Parser ParsedDecl
+pDefn pos = do
     name <- expectSymbol "Expected a function name"
     args <- pArgs
     body <- collectUntil Tkn.CloseParen
 
-    -- A body is any number of defines followed by exactly one result expression
+    -- A body is exactly one result expression
     _ <- lift (functionBody name pos body)
 
     pure $ PFunction (Function pos name args (S.Form pos body))
@@ -120,7 +122,11 @@ pGraph :: SourcePos -> Parser ParsedDecl
 pGraph pos = do
     name <- expectSymbol "Expected graph name"
     body <- collectUntil Tkn.CloseParen
-    pure $ PGraph (Graph pos name (S.Form pos body))
+
+    -- A graph is one expression, usually a Record
+    expr <- lift (graphBody name pos body)
+
+    pure $ PGraph (Graph pos name expr)
 
 
 popToken :: Text -> Parser Tkn.Token
@@ -198,6 +204,7 @@ pExpr = do
 
                              -- Primitive Leaf Node capture (+ source location)
                              Tkn.Let            -> capture (S.Symbol (Tkn.pos t) "let")
+                             Tkn.Defn           -> capture (S.Symbol (Tkn.pos t) "defn")
                              Tkn.Defun          -> capture (S.Symbol (Tkn.pos t) "defun")
 
                              -- Parameterized Identifiers

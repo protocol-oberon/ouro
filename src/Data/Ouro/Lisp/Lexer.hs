@@ -54,11 +54,13 @@ pDelims = lexeme . withPos $ choice
                              ]
 
 
--- Core Operational Keywords & Symbols
+-- Core Operational Keywords & Symbols. A keyword that only begins a longer name
+-- ('defnode', 'important') backtracks, so the name is read as a symbol.
 pCoreKeywords :: Parser Tkn.Token
-pCoreKeywords = lexeme . withPos $ choice
+pCoreKeywords = lexeme . withPos . try $ choice
     [ Tkn.Import   <$ string "import"   <* endOfWord
     , Tkn.Export   <$ string "export"   <* endOfWord
+    , Tkn.Defn     <$ string "defn"     <* endOfWord
     , Tkn.Defun    <$ string "defun"    <* endOfWord
     , Tkn.Graph    <$ string "graph"    <* endOfWord
     ]

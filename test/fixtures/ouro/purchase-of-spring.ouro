@@ -1,41 +1,40 @@
-(defun transfer! (id-type type-of-type name)
-  (define
-    :getty      "http://vocab.getty.edu/aat/"
-    :linked-art "https://linked.art/example/"
-    :uri_type   (case id-type
-                      (("manet" "proust") (+ linked-art "person/"))
-                      ("spring"           (+ linked-art "object/"))
-                      ("manet_proust/1"   (+ linked-art "provenance/"))
-                      (otherwise          getty)))
+(defn transfer! (id-type type-of-type name)
+  (let (:getty      "http://vocab.getty.edu/aat/"
+        :linked-art "https://linked.art/example/"
+        :uri_type   (case id-type
+                          (("manet" "proust") (+ linked-art "person/"))
+                          ("spring"           (+ linked-art "object/"))
+                          ("manet_proust/1"   (+ linked-art "provenance/"))
+                          (otherwise          getty)))
 
-  (:id     #uri (+ uri_type id-type)
-   :type   type-of-type
-   :_label name))
+    (:id     #uri (+ uri_type id-type)
+     :type   type-of-type
+     :_label name)))
 
 (graph purchase-of-spring
- :context "https://linked.art/ns/v1/linked-art.json"
- (inlay (transfer! "manet_proust/1" "Activity" "Purchase of Spring by Proust"))
- :classified_as ((transfer! "300055863" "Type" "Provenance Activity"))
+ (:context "https://linked.art/ns/v1/linked-art.json"
+  (inlay (transfer! "manet_proust/1" "Activity" "Purchase of Spring by Proust"))
+  :classified_as ((transfer! "300055863" "Type" "Provenance Activity"))
 
- :identified_by ((:type          "Name"
-                  :classified_as ((transfer! "300404670" "Type" "Primary Name"))
-                  :content       "Purchase of Spring by Proust from Manet"))
+  :identified_by ((:type          "Name"
+                   :classified_as ((transfer! "300404670" "Type" "Primary Name"))
+                   :content       "Purchase of Spring by Proust from Manet"))
 
- :timespan (:type               "TimeSpan"
-            :begin_of_the_begin #date "1881-01-01T00:00:00Z"
-            :end_of_the_end     #date (+ begin_of_the_begin (thru (years 2))))
+  :timespan (:type               "TimeSpan"
+             :begin_of_the_begin #date "1881-01-01T00:00:00Z"
+             :end_of_the_end     #date (+ begin_of_the_begin (thru (years 2))))
 
- ;; A List of objects in Ouro is made from nested parens `(())`
- :part ((:type   "Acquisition"
-         :_label "Ownership of Spring to Proust"
-         :transferred_title_of   ((transfer! "spring" "HumanMadeObject" "Spring"))
-         :transferred_title_from ((transfer! "manet"  "Person"          "Manet"))
-         :transferred_title_to   ((transfer! "proust" "Person"          "Proust")))
+  ;; A List of objects in Ouro is made from nested parens `(())`
+  :part ((:type   "Acquisition"
+          :_label "Ownership of Spring to Proust"
+          :transferred_title_of   ((transfer! "spring" "HumanMadeObject" "Spring"))
+          :transferred_title_from ((transfer! "manet"  "Person"          "Manet"))
+          :transferred_title_to   ((transfer! "proust" "Person"          "Proust")))
 
-        (:type        "Payment"
-         :_label      "3000 Francs to Manet"
-         :paid_amount (:type      "MonetaryAmount"
-                       :value     3000
-                       :currency  (transfer! "300412016" "Currency" "French Francs"))
-        :paid_from    ((transfer! "proust" "Person" "Proust"))
-        :paid_to      ((transfer! "manet"  "Person" "Manet")))))
+         (:type        "Payment"
+          :_label      "3000 Francs to Manet"
+          :paid_amount (:type      "MonetaryAmount"
+                        :value     3000
+                        :currency  (transfer! "300412016" "Currency" "French Francs"))
+         :paid_from    ((transfer! "proust" "Person" "Proust"))
+         :paid_to      ((transfer! "manet"  "Person" "Manet"))))))

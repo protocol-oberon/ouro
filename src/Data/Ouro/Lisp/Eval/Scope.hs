@@ -2,7 +2,7 @@
 
 module Data.Ouro.Lisp.Eval.Scope where
 
-import           Control.Monad                (foldM)
+import           Control.Monad                (when)
 import           Control.Monad.Reader         (local)
 import           Control.Monad.State.Strict   (gets, modify)
 import qualified Data.IntMap.Strict           as IntMap
@@ -18,67 +18,88 @@ import           Data.Ouro.Lisp.Eval.Builtins (builtinRegistry)
 import           Data.Ouro.Lisp.Eval.Types    (Binding (..), Env (..), EvalM,
                                                allEnvKeys)
 import qualified Data.Ouro.Lisp.Eval.Types    as L
-import           Data.Ouro.Lisp.Function      (checkFunctionName, duplicateFunction,
-                                               functionBody)
+import           Data.Ouro.Lisp.Function      (isFunctionKeyword, removedDefine,
+                                               removedLocalDefn)
 import qualified Data.Ouro.Lisp.Module.Types  as M
 import qualified Data.Ouro.Lisp.Surface       as S
 import qualified Data.Set                     as Set
 import           Data.Text                    (Text)
 import           Lens.Micro                   ((.~), (^.))
-import           Lens.Micro.Platform          (at, (?~))
 import           Text.Megaparsec              (SourcePos)
 
 
 -- FrameEntry.
 --
--- One binding written in a block: a ':key value' field, or a key inside a 'define'.
--- Each entry becomes its own promise, so a block with duplicate keys still outputs
+-- One binding: a Record's ':key value' field, a let binding, or a function argument.
+-- Each entry becomes its own promise, so a Record with duplicate keys still outputs
 -- every field, while lookups of the name see the first entry.
 data FrameEntry = FrameEntry
     { entryKey     :: Text
     , entryPos     :: SourcePos
     , entryExpr    :: S.Expr
-    , entryIsField :: Bool       -- A top-level field of the block (part of its output), not a define
+    , entryIsField :: Bool       -- A Record field (part of its output), not a let binding or argument
     }
 
 
 -- collectBindings.
 --
--- Sweeps a block's expressions for the bindings it declares, in source order: its
--- ':key value' fields and the contents of any 'define' blocks (recursively). Context
--- forms, malformed attributes and loose expressions declare nothing.
+-- Sweeps a Record's expressions for the fields it binds, in source order. Context
+-- forms, malformed attributes and loose expressions bind nothing. 'define' and a local
+-- 'defn' were replaced by 'let' and 'fn', and are reported where they appear.
 collectBindings :: [S.Expr] -> Either OuroError [FrameEntry]
-collectBindings = go True
-    where
-    go :: Bool -> [S.Expr] -> Either OuroError [FrameEntry]
-    go isField = \case
-        [] -> pure []
+collectBindings = \case
+    [] -> pure []
 
-        S.Form _ (S.Symbol _ "context" : _) : xs
-            -> go isField xs
+    S.Form _ (S.Symbol _ "context" : _) : xs
+        -> collectBindings xs
 
-        S.Form _ (S.Symbol _ "define" : inner) : xs
-            -> (<>) <$> go False inner <*> go isField xs
+    S.Form pos (S.Symbol _ "define" : _) : _
+        -> Left (removedDefine pos)
 
-        attrExpr : xs
-            | Just (key, pos, valExpr) <- bindableAttr attrExpr
-            -> case isReserved key of
-                   True  -> shadowedVariable key
-                            & withBlurb (shadowedVariableBlurb key)
-                            & OuroError pos
-                            & Left
-                   False -> (FrameEntry key pos valExpr isField :) <$> go isField xs
+    S.Form pos (S.Symbol _ keyword : _) : _ | isFunctionKeyword keyword
+        -> Left (removedLocalDefn pos)
 
-        _unbound : xs
-            -> go isField xs
+    attrExpr : xs
+        | Just (key, pos, valExpr) <- bindableAttr attrExpr
+        -> do
+           checkBindableName key pos
+           (FrameEntry key pos valExpr True :) <$> collectBindings xs
 
-    -- Reserved special forms
-    isReserved :: Text -> Bool
-    isReserved name = name `elem` ["nth", "list", "case", "get", "context", "define", "inlay", "insert", "attr", "defun"]
+    _unbound : xs
+        -> collectBindings xs
+
+
+-- letBindings.
+--
+-- The bindings of (let (:name value ...) expr): only ':name value' pairs. They are
+-- not part of any output, and can refer to each other in any order.
+letBindings :: [S.Expr] -> Either OuroError [FrameEntry]
+letBindings = traverse $ \binding ->
+    case bindableAttr binding of
+        Just (key, pos, valExpr)
+            -> FrameEntry key pos valExpr False <$ checkBindableName key pos
+        Nothing
+            -> lexicalError "A let binds names with ':name value' pairs."
+               & withBlurb "Perhaps write (let (:name value ...) expr)."
+               & OuroError (S.exprPos binding)
+               & Left
+
+
+-- Special forms are recognised by their head symbol, so they cannot be bound as names
+checkBindableName :: Text -> SourcePos -> Either OuroError ()
+checkBindableName key pos =
+    when (key `elem` reservedNames) $
+        shadowedVariable key
+        & withBlurb (shadowedVariableBlurb key)
+        & OuroError pos
+        & Left
+
+reservedNames :: [Text]
+reservedNames = ["nth", "list", "case", "get", "context", "define", "inlay", "insert", "attr", "defn", "defun", "let", "fn"]
 
 
 -- A ':key value' pair that binds a name. Pairs whose value is itself a structural
--- form (a nested attribute, context, define or defun) bind nothing.
+-- form (a nested attribute or context) bind nothing.
 bindableAttr :: S.Expr -> Maybe (Text, SourcePos, S.Expr)
 bindableAttr = \case
     S.Form pos [S.Symbol _ "attr", S.Literal _ (S.Str key), valExpr]
@@ -90,21 +111,7 @@ bindableAttr = \case
     isStructuralExpr = \case
                         S.Form _ (S.Symbol _ "attr"     : _) -> True
                         S.Form _ (S.Symbol _ "context"  : _) -> True
-                        S.Form _ (S.Symbol _ "define"   : _) -> True
-                        S.Form _ (S.Symbol _ "defun"    : _) -> True
                         _otherForm                           -> False
-
-
--- Values and functions share one namespace, so a block cannot bind the same name
--- as both: which one a lookup found would depend on the order of the checks.
-checkNamespace :: [FrameEntry] -> L.FunctionRegistry -> Either OuroError ()
-checkNamespace entries locals =
-    case [ (name, fnPos) | M.Function fnPos name _ _ <- Map.elems locals, name `elem` map entryKey entries ] of
-        []                -> Right ()
-        (name, fnPos) : _ -> lexicalError ("'" <> name <> "' is defined as both a function and a value in the same block.")
-                             & withBlurb "Functions and values share one namespace. Perhaps rename one of them."
-                             & OuroError fnPos
-                             & Left
 
 
 -- allocFrame.
@@ -163,58 +170,6 @@ cyclicLookup pos name =
                <> "' directly or indirectly references itself during evaluation." )
     & OuroError pos
     & L.EvalError
-
-
--- Scans a block for the functions it defines (including inside define blocks).
--- A frame's registry holds only these, so a function is found by walking outward
--- through the frames, and its closure is the frame it was defined in.
-localFunctions :: [S.Expr] -> Either OuroError L.FunctionRegistry
-localFunctions = foldM processNode Map.empty
-    where
-    processNode :: L.FunctionRegistry -> S.Expr -> Either OuroError L.FunctionRegistry
-    processNode registry = \case
-        -- Intercept top-level function forms and lift them
-        S.Form pos (S.Symbol _ "defun" : S.Symbol namePos name : S.Form _ argNodes : bodyExprs)
-            -> do
-               checkFunctionName name namePos
-
-               case Map.member name registry of
-                   True  -> Left (duplicateFunction name namePos)
-                   False -> Right ()
-
-               args <- traverse (extractArg pos) argNodes
-
-               -- A body is any number of defines followed by exactly one result expression
-               _ <- functionBody name pos bodyExprs
-
-               let liftedFunction = M.Function pos name args (S.Form pos bodyExprs)
-
-               registry & at name ?~ liftedFunction
-                        & Right
-
-        -- Catch malformed function definitions
-        S.Form pos (S.Symbol _ "defun" : _)
-            -> lexicalError "Malformed function declaration. Expected format: (defun name (args...) body)"
-               & OuroError pos
-               & Left
-
-        -- Recurse into define blocks
-        S.Form _ (S.Symbol _ "define" : rest)
-            -> foldM processNode registry rest
-
-        -- Safely ignore variables, contexts, and attributes
-        _other
-            -> Right registry
-
-
-    -- Helper to safely extract Text from an argument node
-    extractArg :: SourcePos -> S.Expr -> Either OuroError Text
-    extractArg fallbackPos =
-        \case
-         S.Symbol _ argName -> Right argName
-         _notASymbol        -> lexicalError "Function arguments must be bare identifiers."
-                               & OuroError fallbackPos
-                               & Left
 
 
 -- lookupVar.

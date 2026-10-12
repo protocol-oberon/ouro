@@ -5,6 +5,16 @@ import qualified Data.Ouro.Lisp.Surface as S
 import           Text.Megaparsec        (SourcePos)
 
 
+-- Desugars an expression that stands on its own, such as a graph's body.
+-- 'construct' rewrites the elements of a form, so the expression itself is desugared
+-- as the only element of a list.
+constructRoot :: S.Expr -> S.Expr
+constructRoot expr =
+    case desugar [construct expr] of
+        [root]         -> root
+        _expandedSugar -> expr
+
+
 -- Main API entry point for the pipeline
 construct :: S.Expr -> S.Expr
 construct = \case

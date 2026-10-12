@@ -1,24 +1,23 @@
-;; Define Blocks are elided at compilation
+;; let bindings are elided at compilation
 (graph jeanne-spring
- (define
-   :getty-uri      "http://vocab.getty.edu/aat/"
-   :linked-art-uri "https://linked.art/example/")
+ (let (:getty-uri      "http://vocab.getty.edu/aat/"
+       :linked-art-uri "https://linked.art/example/")
 
- :context "https://linked.art/ns/v1/linked-art.json"
+  (:context "https://linked.art/ns/v1/linked-art.json"
 
- ;; Type assertions
- :id             #uri (+ linked-art-uri "object/spring/13")
- :type           "HumanMadeObject"
- :_label         "Jeanne (Spring) by Manet"
- :classified_as  ((:id             #uri (+ getty-uri "300033618")
-                   :type           "Type"
-                   :_label         "Painting"
-                   :classified_as  ((:id     #uri (+ getty-uri "300435443")
-                                     :type   "Type"
-                                     :_label "Type of Work"))))
+   ;; Type assertions
+   :id             #uri (+ linked-art-uri "object/spring/13")
+   :type           "HumanMadeObject"
+   :_label         "Jeanne (Spring) by Manet"
+   :classified_as  ((:id             #uri (+ getty-uri "300033618")
+                     :type           "Type"
+                     :_label         "Painting"
+                     :classified_as  ((:id     #uri (+ getty-uri "300435443")
+                                       :type   "Type"
+                                       :_label "Type of Work"))))
 
- :identified_by  ((:type    "Name"
-                   :content "Jeanne (Spring)"))
+   :identified_by  ((:type    "Name"
+                     :content "Jeanne (Spring)"))
 
- :member_of      ((:id   #uri (+ linked-art-uri "set/exhset")
-                   :type "Set")))
+   :member_of      ((:id   #uri (+ linked-art-uri "set/exhset")
+                     :type "Set")))))

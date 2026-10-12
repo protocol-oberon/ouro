@@ -14,6 +14,7 @@ import           Data.Ouro.Error.Diagnostics    (astCorruption,
                                                  indexOutOfBounds,
                                                  inexhaustiveCase,
                                                  inexhaustiveCaseBlurb,
+                                                 lexicalError,
                                                  malformedCaseBranch,
                                                  malformedTag, missingOtherwise,
                                                  missingOtherwiseBlurb,
@@ -27,13 +28,17 @@ import qualified Data.Ouro.Internal.Expr        as I
 import           Data.Ouro.Lisp.Eval.Builtins   (builtinRegistry, parseISO8601)
 import           Data.Ouro.Lisp.Eval.Schema     (parseContextDirectives)
 import           Data.Ouro.Lisp.Eval.Pattern    (matchPattern)
-import           Data.Ouro.Lisp.Eval.Scope      (allocValues, force, lookupVar)
+import           Data.Ouro.Lisp.Eval.Scope      (allocFrame, allocValues, force,
+                                                 letBindings, lookupVar)
 import           Data.Ouro.Lisp.Eval.Structural (BlockTarget (..), compileArray,
                                                  compileRecord, evalFunction,
                                                  determineBlockTarget)
 import           Data.Ouro.Lisp.Eval.Types      (Env (..), EvalM, Expr (..),
                                                  humanReadableType)
 import qualified Data.Ouro.Lisp.Eval.Types      as L
+import           Data.Ouro.Lisp.Function        (isFunctionKeyword,
+                                                 removedDefine,
+                                                 removedLocalDefn)
 import           Data.Ouro.Lisp.Module.Types    (Module)
 import qualified Data.Ouro.Lisp.Surface         as S
 import           Data.Text                      (Text)
@@ -116,6 +121,45 @@ evalExpr expr = do
                    Right keys -> (`getPath` keys) <$> evalExpr rootTarget
 
         S.Form _ (S.Symbol _ "list" : items)             -> Array <$> mapM evalExpr items
+
+        -- (let (:name expr ...) expr): private bindings, in any order, around one result
+        S.Form pos (S.Symbol _ "let" : rest)
+            -> case rest of
+                   [S.Form _ bindings, body]
+                       -> case letBindings bindings of
+                              Left  err     -> pure (EvalError err)
+                              Right entries -> do
+                                               (frame, _) <- allocFrame (\names -> env
+                                                                                   & L.localScope       .~ names
+                                                                                   & L.functionRegistry .~ Map.empty
+                                                                                   & L.parentEnv        .~ Just env)
+                                                                        entries
+                                               local (const frame) (evalExpr body)
+                   _malformed
+                       -> lexicalError "A let is written (let (:name value ...) expr), with exactly one result expression."
+                          & withBlurb "Perhaps wrap several values in parentheses to make an Array or a Record."
+                          & OuroError pos
+                          & EvalError
+                          & pure
+
+        -- 'define' and a local 'defn' were replaced by 'let' and 'fn'
+        S.Form pos (S.Symbol _ "define" : _)
+            -> pure (EvalError (removedDefine pos))
+
+        S.Form pos (S.Symbol _ keyword : _)
+            | isFunctionKeyword keyword
+            -> pure (EvalError (removedLocalDefn pos))
+
+        -- (fn (args) expr): an anonymous function, closed over the scope it is written in
+        S.Form pos [S.Symbol _ "fn", S.Form _ params, body]
+            | Just names <- traverse paramName params
+            -> pure (FunctionClosure env ("fn", pos) names [body])
+
+        S.Form pos (S.Symbol _ "fn" : _)
+            -> lexicalError "A fn is written (fn (args) expr): bare argument names, then exactly one result expression."
+               & OuroError pos
+               & EvalError
+               & pure
 
         S.Form _ [S.Symbol _ "attr", nameExpr, aExpr]
             -> do
@@ -591,3 +635,10 @@ getPath value = \case
                                            )
                                & OuroError keyPos
                                & EvalError
+
+
+-- A function argument is a bare name
+paramName :: S.Expr -> Maybe Text
+paramName = \case
+    S.Symbol _ name -> Just name
+    _notAName       -> Nothing

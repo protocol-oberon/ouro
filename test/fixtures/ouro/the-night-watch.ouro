@@ -1,23 +1,23 @@
 (graph the-night-watch
- :context "https://linked.art/ns/v1/linked-art.json"
- (define
-   :linked-art    "https://linked.art/example/"
-   :piece-started #date "1642-01-01T00:00:00Z")
+ (let (:linked-art    "https://linked.art/example/"
+       :piece-started #date "1642-01-01T00:00:00Z")
 
- :id          #uri (+ linked-art "object/nightwatch/5")
- :type        "HumanMadeObject"
- :_label      "Night Watch by Rembrandt"
- :produced_by (:type "Production"
-               :timespan       (:type               "TimeSpan"
-                                :_label             "1642"
-                                :begin_of_the_begin piece-started
-                                ;; (thru (years 0)) moves temporally forward to end of the current year
-                                :end_of_the_end     #date (+ piece-started (thru (years 0))))
+  (:context     "https://linked.art/ns/v1/linked-art.json"
 
-               :took_place_at  ((:id     #uri (+ linked-art "place/amsterdam")
-                                :type   "Place"
-                                :_label "Amsterdam"))
+   :id          #uri (+ linked-art "object/nightwatch/5")
+   :type        "HumanMadeObject"
+   :_label      "Night Watch by Rembrandt"
+   :produced_by (:type "Production"
+                 :timespan       (:type               "TimeSpan"
+                                  :_label             "1642"
+                                  :begin_of_the_begin piece-started
+                                  ;; (thru (years 0)) moves temporally forward to end of the current year
+                                  :end_of_the_end     #date (+ piece-started (thru (years 0))))
 
-               :carried_out_by ((:id     #uri (+ linked-art "person/rembrandt")
-                                :type   "Person"
-                                :_label "Rembrandt"))))
+                 :took_place_at  ((:id     #uri (+ linked-art "place/amsterdam")
+                                  :type   "Place"
+                                  :_label "Amsterdam"))
+
+                 :carried_out_by ((:id     #uri (+ linked-art "person/rembrandt")
+                                  :type   "Person"
+                                  :_label "Rembrandt"))))))
