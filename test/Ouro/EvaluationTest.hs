@@ -184,7 +184,7 @@ prop_reject_builtin = withTests 1 . property $
 
 prop_reject_function :: Property
 prop_reject_function = withTests 1 . property $
-    assert $ isCompileFailure (compile "test-suite" "g" "(defun id! (a) (return a)) (graph g :f id!)")
+    assert $ isCompileFailure (compile "test-suite" "g" "(defun id! (a) a) (graph g :f id!)")
 
 -- JSON cannot represent non-finite numbers
 prop_reject_infinity :: Property

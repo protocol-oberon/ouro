@@ -18,6 +18,7 @@ import           Data.Ouro.Lisp.Eval.Builtins (builtinRegistry)
 import           Data.Ouro.Lisp.Eval.Types    (Binding (..), Env (..), EvalM,
                                                allEnvKeys)
 import qualified Data.Ouro.Lisp.Eval.Types    as L
+import           Data.Ouro.Lisp.FunctionBody  (functionBody)
 import qualified Data.Ouro.Lisp.Module.Types  as M
 import qualified Data.Ouro.Lisp.Surface       as S
 import qualified Data.Set                     as Set
@@ -73,11 +74,11 @@ collectBindings = go True
 
     -- Reserved special forms
     isReserved :: Text -> Bool
-    isReserved name = name `elem` ["nth", "list", "case", "get", "context", "define", "inlay", "insert", "attr", "defun", "return"]
+    isReserved name = name `elem` ["nth", "list", "case", "get", "context", "define", "inlay", "insert", "attr", "defun"]
 
 
 -- A ':key value' pair that binds a name. Pairs whose value is itself a structural
--- form (a nested attribute, context, define, defun or return) bind nothing.
+-- form (a nested attribute, context, define or defun) bind nothing.
 bindableAttr :: S.Expr -> Maybe (Text, SourcePos, S.Expr)
 bindableAttr = \case
     S.Form pos [S.Symbol _ "attr", S.Literal _ (S.Str key), valExpr]
@@ -91,7 +92,6 @@ bindableAttr = \case
                         S.Form _ (S.Symbol _ "context"  : _) -> True
                         S.Form _ (S.Symbol _ "define"   : _) -> True
                         S.Form _ (S.Symbol _ "defun"    : _) -> True
-                        S.Form _ (S.Symbol _ "return"   : _) -> True
                         _otherForm                           -> False
 
 
@@ -171,6 +171,9 @@ localFunctions = foldM processNode Map.empty
                             & Left
 
                args <- traverse (extractArg pos) argNodes
+
+               -- A body is any number of defines followed by exactly one result expression
+               _ <- functionBody name pos bodyExprs
 
                let liftedFunction = M.Function pos name args (S.Form pos bodyExprs)
 

@@ -20,6 +20,7 @@ import           Data.Ouro.Lisp.Eval.Scope   (FrameEntry (..), allocFrame,
 import           Data.Ouro.Lisp.Eval.Types   (Binding (..), Env (..), EvalM, Expr (..),
                                               humanReadableType, localScope)
 import qualified Data.Ouro.Lisp.Eval.Types   as L
+import           Data.Ouro.Lisp.FunctionBody (functionBody)
 import qualified Data.Ouro.Lisp.Surface      as S
 import qualified Data.Set                    as Set
 import           Data.Text                   (Text)
@@ -353,7 +354,7 @@ determineBlockTarget fields =
     isFunctionApplication :: [S.Expr] -> Bool
     isFunctionApplication =
         \case
-         (S.Symbol _ name : _) -> not (name `elem` ["defun", "define", "context", "return"])
+         (S.Symbol _ name : _) -> not (name `elem` ["defun", "define", "context"])
          _NotaFunc             -> False
 
     isStructuralField :: S.Expr -> Bool
@@ -419,9 +420,13 @@ evalFunction evaluator closureEnv pos fnId@(name, _) params bodyExprs actualArgs
                    -- Evaluate an expression in an explicit environment
                    evaluator' currentEnv expr' = local (const currentEnv) (evaluator expr')
 
-               case returnExpr bodyExprs of
-                   Just (S.Form _ (_ : val : _))
-                       -> case (collectBindings bodyExprs, localFunctions bodyExprs) of
+               -- The body's defines and local functions form one frame; its last expression is the result
+               case functionBody name pos bodyExprs of
+                   Left err
+                       -> pure (EvalError err)
+
+                   Right (declarations, result)
+                       -> case (collectBindings declarations, localFunctions declarations) of
                               (Right entries, Right locals)
                                   -> do
                                      (bodyFrame, _) <- allocFrame (\names -> functionEnv
@@ -429,27 +434,6 @@ evalFunction evaluator closureEnv pos fnId@(name, _) params bodyExprs actualArgs
                                                                              & L.functionRegistry .~ locals
                                                                              & L.parentEnv        .~ Just functionEnv)
                                                                   entries
-                                     evaluator' bodyFrame val
+                                     evaluator' bodyFrame result
                               (Left err, _) -> pure $ EvalError err
                               (_, Left err) -> pure $ EvalError err
-
-                   _noReturnExpression
-                       -> case determineBlockTarget bodyExprs of
-                              TargetRecord      -> compileRecord evaluator' functionEnv bodyExprs
-                              TargetList        -> compileArray  evaluator' functionEnv pos bodyExprs
-                              TargetFunctionApp -> typeMismatch
-                                                      "a function with a concrete return type (Array, Record, Primitive or another Function)"
-                                                      "a function with a dangling expression"
-                                                  & withBlurb
-                                                      ("Perhaps wrap the body of the function: '" <> name <> "' in a (return) expresion.")
-                                                  & OuroError pos
-                                                  & L.EvalError
-                                                  & pure
-
-    where
-    returnExpr :: [S.Expr] -> Maybe S.Expr
-    returnExpr =
-        \case
-         []                                                -> Nothing
-         (S.Form fPos (S.Symbol sPos "return" : rest) : _) -> Just (S.Form fPos (S.Symbol sPos "return" : rest))
-         (_ : xs)                                          -> returnExpr xs

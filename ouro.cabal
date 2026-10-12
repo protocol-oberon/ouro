@@ -78,6 +78,7 @@ library
         Data.Ouro.Lisp.Eval.Scope
         Data.Ouro.Lisp.Eval.Structural
         Data.Ouro.Lisp.Eval.Types
+        Data.Ouro.Lisp.FunctionBody
         Data.Ouro.Lisp.Lexer
         Data.Ouro.Lisp.Module.Types
         Data.Ouro.Lisp.Parser
@@ -164,6 +165,7 @@ test-suite ouro-test
         Ouro.CanonicalTest
         Ouro.StructuralTest
         Ouro.EvaluationTest
+        Ouro.FunctionBodyTest
         Ouro.ScopingTest
 
     -- LANGUAGE extensions used by modules in this package.

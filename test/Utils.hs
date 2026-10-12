@@ -9,8 +9,10 @@ import           Data.Ouro                    (CompilationResult (..), compile,
 import qualified Data.Ouro.Internal.Expr      as I
 import qualified Data.Ouro.Internal.Kinds     as JLD
 import           Data.Ouro.Lisp.Eval.Builtins (parseISO8601)
+import           Data.Text                    (Text)
 import qualified Data.Text                    as T
 import qualified Data.Text.IO                 as TIO
+import qualified Data.Text.Lazy               as TL
 import qualified Data.Text.Lazy.IO            as TLIO
 import           Hedgehog
 import           Text.Megaparsec              (SourcePos, initialPos)
@@ -67,3 +69,37 @@ mkDate s = I.Date (fromJust $ parseISO8601 s)
 
 nullPos :: SourcePos
 nullPos = initialPos "test-suite"
+
+
+-- Inline programs: compile the graph 'g' from source text
+compileG :: Text -> CompilationResult
+compileG = compile "inline-test" "g"
+
+-- Both programs compile, to identical output
+compilesLike :: Text -> Text -> Property
+compilesLike src expected = withTests 1 . property $ compiledLike src expected
+
+compiledLike :: Text -> Text -> PropertyT IO ()
+compiledLike src expected =
+    case (compileG src, compileG expected) of
+        (CompilationSuccess _ actual, CompilationSuccess _ wanted) -> actual === wanted
+        (actual, wanted) -> do
+                            annotate ("program:  " <> describe actual)
+                            annotate ("expected: " <> describe wanted)
+                            failure
+
+failsToCompile :: Text -> Property
+failsToCompile src = withTests 1 . property $
+    case compileG src of
+        CompilationFailure _ _ -> success
+        CompilationSuccess _ ast -> do
+                                    annotate ("compiled to: " <> TL.unpack (toJSON defaultOptions ast))
+                                    failure
+
+describe :: CompilationResult -> String
+describe = \case
+    CompilationSuccess _ ast  -> "compiled to " <> TL.unpack (toJSON defaultOptions ast)
+    CompilationFailure _ errs -> "failed with " <> show errs
+
+tshow :: Show a => a -> Text
+tshow = T.pack . show

@@ -2,11 +2,12 @@
 module Main where
 
 import           Hedgehog
-import qualified Ouro.CanonicalTest  as Canonical
-import qualified Ouro.EvaluationTest as Evaluation
-import qualified Ouro.ScopingTest    as Scoping
-import qualified Ouro.StructuralTest as Structural
-import           System.Exit         (exitFailure, exitSuccess)
+import qualified Ouro.CanonicalTest    as Canonical
+import qualified Ouro.EvaluationTest   as Evaluation
+import qualified Ouro.FunctionBodyTest as FunctionBody
+import qualified Ouro.ScopingTest      as Scoping
+import qualified Ouro.StructuralTest   as Structural
+import           System.Exit           (exitFailure, exitSuccess)
 
 
 main :: IO ()
@@ -24,6 +25,8 @@ main = do
         , Scoping.lexicalFunctions
         , Scoping.valueGetAndErrors
         , Scoping.cleanup
+        -- Function bodies are one result expression
+        , FunctionBody.expressionBodies
         ]
 
     -- If all groups passed (True), exit gracefully. Otherwise, fail the CI.

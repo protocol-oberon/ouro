@@ -1,5 +1,5 @@
 (defun getty-att! ()
-   (return "http://vocab.getty.edu/aat/"))
+   "http://vocab.getty.edu/aat/")
 
 (defun id-node! (id-of-id type-of-type lable)
    (define
@@ -8,9 +8,9 @@
                 ("Person"  getty-ulan)
                 (otherwise (getty-att!))))
 
-   :id     #uri (+ uri id-of-id)
-   :type   type-of-type
-   :_label lable)
+   (:id     #uri (+ uri id-of-id)
+    :type   type-of-type
+    :_label lable))
 
 (graph bust-of-a-man
  :context "https://linked.art/ns/v1/linked-art.json"

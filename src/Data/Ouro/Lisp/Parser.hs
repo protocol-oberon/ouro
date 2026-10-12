@@ -10,9 +10,10 @@ import           Control.Monad.State.Strict  (MonadState (get, put),
 import           Data.Foldable               (traverse_)
 import qualified Data.Function               as F
 import qualified Data.Map                    as Map
-import           Data.Ouro.Error.Diagnostics (lexicalError, unbalancedDelimiter, withBlurb)
+import           Data.Ouro.Error.Diagnostics (lexicalError, unbalancedDelimiter)
 import           Data.Ouro.Error.Types       (ErrorContext (..), OuroError (..),
                                               SyntaxError (..))
+import           Data.Ouro.Lisp.FunctionBody (functionBody)
 import           Data.Ouro.Lisp.Module.Types (Declaration (..),
                                               HigherExpression (..),
                                               Module (..), graphRegistry,
@@ -104,33 +105,10 @@ pDefun pos = do
     args <- pArgs
     body <- collectUntil Tkn.CloseParen
 
-    -- Enforce strict structural rules on the collected body expressions
-    mapM_ validateBodyElement body
+    -- A body is any number of defines followed by exactly one result expression
+    _ <- lift (functionBody name pos body)
 
     pure $ PFunction (Function pos name args (S.Form pos body))
-
-
--- Validates that elements inside a function/function body are restricted
--- to parenthesized Forms or Literals.
-validateBodyElement :: S.Expr -> Parser ()
-validateBodyElement =
-    \case
-     S.Form    _ _ -> pure ()
-     S.Literal _ _ -> pure ()
-
-     -- Reject loose symbols and trigger the Ouro lexical error stack
-     S.Symbol pos symName
-         -> lexicalError ( "Bare symbol '"
-                        <> symName
-                        <> "' is not allowed at the root of a function body."
-                         )
-            F.& withBlurb "Expressions inside a function must be enclosed in parentheses."
-            F.& OuroError pos
-            F.& Left
-            F.& lift
-
-     -- Catch-all for any other valid structural nodes
-     _ -> pure ()
 
 
 pGraph :: SourcePos -> Parser ParsedDecl

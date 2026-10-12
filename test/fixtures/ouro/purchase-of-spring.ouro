@@ -8,9 +8,9 @@
                       ("manet_proust/1"   (+ linked-art "provenance/"))
                       (otherwise          getty)))
 
-  :id     #uri (+ uri_type id-type)
-  :type   type-of-type
-  :_label name)
+  (:id     #uri (+ uri_type id-type)
+   :type   type-of-type
+   :_label name))
 
 (graph purchase-of-spring
  :context "https://linked.art/ns/v1/linked-art.json"
