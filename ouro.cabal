@@ -166,6 +166,7 @@ test-suite ouro-test
         Ouro.StructuralTest
         Ouro.EvaluationTest
         Ouro.FunctionTest
+        Ouro.LanguageTest
         Ouro.LetTest
         Ouro.ScopingTest
 

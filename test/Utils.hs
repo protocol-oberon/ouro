@@ -122,6 +122,23 @@ failsWith message src = withTests 1 . property $
                annotate ("compiled to: " <> TL.unpack (toJSON defaultOptions ast))
                failure
 
+-- The program fails to compile, and none of its errors mention the given text
+failsWithout :: Text -> Text -> Property
+failsWithout message src = withTests 1 . property $
+    case compileG src of
+        CompilationFailure _ errs
+            | any (T.isInfixOf message . T.pack . show) errs
+                -> do
+                   annotate ("an error mentions: " <> T.unpack message)
+                   annotate (show errs)
+                   failure
+            | otherwise
+                -> success
+        CompilationSuccess _ ast
+            -> do
+               annotate ("compiled to: " <> TL.unpack (toJSON defaultOptions ast))
+               failure
+
 -- The program compiles to the given JSON (whitespace is ignored on both sides)
 compilesToJSON :: Text -> Text -> Property
 compilesToJSON src expected = withTests 1 . property $
