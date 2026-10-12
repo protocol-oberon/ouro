@@ -163,12 +163,11 @@ emitProps evaluator env fieldAddrs expressions = go I.EmptyMeta expressions
                                         -- 4. Accept array configurations
                                         Array elements -> Record finalMeta ((key, Array elements) : nextPairs)
 
-                                        -- 5. Pass-through for valid domain primitives (Durations, Closures, Schemas, etc.)
+                                        -- 5. Pass-through for valid domain primitives (Durations, Schemas, builtins)
                                         Duration    u v   -> Record finalMeta ((key, Duration    u v)   : nextPairs)
                                         SchemaVal   s     -> Record finalMeta ((key, SchemaVal   s)     : nextPairs)
                                         Directive   d     -> Record finalMeta ((key, Directive   d)     : nextPairs)
                                         PrimitiveOp o     -> Record finalMeta ((key, PrimitiveOp o)     : nextPairs)
-                                        Closure     e n x -> Record finalMeta ((key, Closure     e n x) : nextPairs)
 
                                         -- Real type violations fall here (Metadata context blocks cannot be property values)
                                         otherVal -> let err = typeMismatch
@@ -323,7 +322,6 @@ compileArray evaluator env pos elements =
                         SchemaVal   s      -> SchemaVal   s      : restL
                         Directive   d      -> Directive   d      : restL
                         PrimitiveOp o      -> PrimitiveOp o      : restL
-                        Closure     e  n x -> Closure     e  n x : restL
 
                         otherVal -> let err = typeMismatch
                                                     "a plain data value (like a String, Number, or Boolean)"

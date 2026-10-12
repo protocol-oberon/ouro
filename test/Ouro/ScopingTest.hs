@@ -131,10 +131,12 @@ cleanup = Group "Scoping: cleanup"
     ]
 
 
--- Substitution: replacing an arithmetic expression with its value never changes the output
+-- Substitution: replacing an arithmetic expression with its value never changes the output.
+-- Ouro numbers are Doubles, which represent integers exactly only up to 2^53, so the
+-- generated expressions stay within that range.
 prop_substitution :: Property
 prop_substitution = property $ do
-    (src, value) <- forAll genArith
+    (src, value) <- forAll $ Gen.filter (\(_, v) -> abs v <= 2 ^ (53 :: Int)) genArith
     compiledLike ("(graph g :a " <> src <> ")") ("(graph g :a " <> tshow value <> ")")
 
     where

@@ -184,7 +184,6 @@ unserialisableBlurb location = \case
                           <> "\n\nPerhaps add it to a date, e.g. (+ #date \"1881-01-01T00:00:00Z\" (years 2))."
     PrimitiveOp _         -> functionHint
     FunctionClosure _ _ _ _ -> functionHint
-    Closure _ _ _         -> functionHint
     _compileTimeOnly      -> "The value at " <> location <> " only exists during compilation and has no JSON representation."
     where
     functionHint = "The value at " <> location <> " is a function, not a value."

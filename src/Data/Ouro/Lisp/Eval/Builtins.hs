@@ -323,6 +323,9 @@ handleEquality pos =
                    (err@(L.EvalError _), _) -> pure err
                    (_, err@(L.EvalError _)) -> pure err
 
+                   -- Functions have no meaningful equality
+                   (v1, v2) | isFunction v1 || isFunction v2 -> functionComparison pos "eq" v1 v2
+
                    -- Comparison using structural equality
                    (v1, v2) -> pure $ L.Primitive (I.Boolean (v1 == v2))
 
@@ -345,6 +348,9 @@ handleNeq pos =
                    -- Error propagation
                    (err@(L.EvalError _), _) -> pure err
                    (_, err@(L.EvalError _)) -> pure err
+
+                   -- Functions have no meaningful equality
+                   (v1, v2) | isFunction v1 || isFunction v2 -> functionComparison pos "neq" v1 v2
 
                    -- Comparison using structural equality
                    (v1, v2) -> pure $ L.Primitive (I.Boolean (v1 /= v2))
@@ -384,6 +390,26 @@ handleAnd pos =
              & OuroError pos
              & L.EvalError
              & pure
+
+
+-- Functions cannot be compared: two different functions can behave identically,
+-- so any answer 'eq' gave would be misleading
+isFunction :: L.Expr -> Bool
+isFunction = \case
+              L.PrimitiveOp _             -> True
+              L.FunctionClosure _ _ _ _   -> True
+              _notAFunction               -> False
+
+functionComparison :: SourcePos -> Text -> L.Expr -> L.Expr -> Reader Env L.Expr
+functionComparison pos op a b =
+    Data.Ouro.Error.Diagnostics.typeMismatch "two comparable values (functions cannot be compared)"
+        (humanReadableType a <> " " <> op <> " " <> humanReadableType b)
+    & Data.Ouro.Error.Diagnostics.withBlurb ( "Functions have no meaningful equality. "
+                                           <> "Perhaps compare the values they return instead, e.g. (eq (f! x) (g! x))."
+                                            )
+    & OuroError pos
+    & L.EvalError
+    & pure
 
 
 isNumber :: L.Expr -> Bool

@@ -110,30 +110,3 @@ isAttrForm :: Expr -> Bool
 isAttrForm = \case
               Form _ (Symbol _ "attr" : _) -> True
               _notAnAttr                   -> False
-
-
--- A runtime truth table to tell what shap of ast is present
-data ExprMarker
-    = AttrMarker
-    | SymbolMarker
-    | LiteralMarker
-    | TaggedMarker
-    | HoleMarker
-    | FormMarker
-    | BracketMarker
-    deriving (Eq, Show)
-
-
-mark :: Expr -> ExprMarker
-mark = \case
-        Symbol      _ _   -> SymbolMarker
-        DefunSymbol _ _   -> SymbolMarker
-        Literal     _ _   -> LiteralMarker
-        Tagged      _ _ _ -> TaggedMarker
-        Hole        _ _   -> HoleMarker
-        Form        _ _   -> FormMarker
-        Bracket     _ _   -> BracketMarker
-
-
-matches :: ExprMarker -> ExprMarker -> Bool
-matches = (==)

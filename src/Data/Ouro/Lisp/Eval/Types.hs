@@ -117,9 +117,8 @@ data Expr where
     Directive   :: SchemaDirective -> Expr
 
     PrimitiveOp :: NativeFunction -> Expr
-    Closure     :: Env -> Text -> S.Expr -> Expr
 
-    -- Function Macro Closure
+    -- A function, closed over the frame it is defined in
     FunctionClosure :: Env -> FunctionId -> [Text] -> [S.Expr] -> Expr
 
     -- The Universal Error Leaf: Allows the engine to bypass crashes
@@ -198,7 +197,6 @@ instance Eq Expr where
     SchemaVal   a       == SchemaVal   b       = a == b
     Directive   a       == Directive   b       = a == b
     PrimitiveOp _       == PrimitiveOp _       = False
-    Closure     _  _  _ == Closure     _  _  _ = False
     EvalError   a       == EvalError   b       = a  == b
 
     -- Function Macro
@@ -219,7 +217,6 @@ instance Show Expr where
     Directive   dir        -> showString "Directive " . showsPrec 11 dir
     PrimitiveOp _          -> showString "PrimitiveOp <native_function>"
 
-    Closure         _ name body        -> showString "Closure <env> "         . showsPrec 11 name . showChar ' ' . showsPrec 11 body
     FunctionClosure _ (name, _) args bodies -> showString "FunctionClosure <env> " . showsPrec 11 name . showChar ' ' . showsPrec 11 args . showChar ' ' . showsPrec 11 bodies
 
     EvalError err -> showString "EvalError " . showsPrec 11 err
@@ -296,7 +293,6 @@ humanReadableType =
      Duration    _ _    -> "a Duration time period"
      Array       elems  -> describeArray elems
      PrimitiveOp _      -> "a Built-in function"
-     Closure     _ _ _  -> "an unexecuted function (lambda)"
      EvalError   _      -> "an Error"
      Record      _ _    -> "a Record"
      Attr        _ _    -> "an unbound Attribute pair"
