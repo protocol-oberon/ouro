@@ -101,13 +101,6 @@ The `(get)` special form allows for you traverse deeply nested structures and re
 :runtime_check   (get nested_manifest meta maintainer is_valid))
 ```
 
-It is also possible to retrieve the un-evaluated AST of a deeply nested symbol using `get'`. Given a record
-
-```clojure
-(:trgt   (:nest (:nest_2 (+ 2 2)))
- :quoted (get' nest nest2))
-```
-
 ### Case
 
 The `(case)` special form serves as the Ouro's main mode of control flow, it expects a target expr `(case <trgt>)` followed by a list of tuples, (pattern value).
@@ -122,24 +115,27 @@ The `(case)` special form serves as the Ouro's main mode of control flow, it exp
 
 `case` statements must always contain a default branch `otherwise`, to ensure totality. When a case statement is triggered, the target expr is eagerly evaluated, and passed into the first element of branch tuple of the branch as its first argument `((eq trgt 100) ret1)`. If the resulting expression evaluates to `True`, then the second element of the branches tuple (the return value) is evaluated and returned.
 
-If a quoted expression is passed into a `case` statement as the target, then structural pattern matching can be performed. When pattern matching, the pattern for a branch must also be quoted. For cases where the entirety of the targeted structure isn't relevant, a hole type (**?**) can be used.
+`case` can also destructure Arrays and Records. A branch whose pattern is a Record, or contains a hole (`?`), matches the *value* of the target against that shape:
+
+- `?` matches anything, and `?name` binds the matched value to `name` inside the branch.
+- `?..name` binds everything that is left: the remaining elements of an Array, or the fields of a Record that the pattern doesn't mention.
+- Anything else in a pattern (a literal, a variable, an expression) is evaluated and compared by value.
+
+Because Ouro has no side effects, an expression and its value are interchangeable, so patterns only ever see values. `((+ 2 4) 3)` and `(6 3)` match exactly the same patterns:
 
 ```clojure
-(:trgt   ((+ 2 3) (- 2 2))
- :result (case (quote trgt)
-               ('((- ? ?) ?)  "fails")
-               ('((+ ? ?) ?)  "matched")
-               (otherwise     "default")))
+(:trgt   ((+ 2 4) 3)
+ :result (case trgt
+               ((6 ?x)    x)
+               (otherwise 0)))
 ```
 
-Here we are pattern matching on a list of expressions and checking to see if the operation of each element in the list is addition. This block resolves to the following just before compilation:
+...which compiles to:
 
 ```clojure
-(:trgt   (5 0)
- :result "matched")
+(:trgt   (6 3)
+ :result 3)
 ```
-
-...which can then be serialised.
 
 A case statement in Ouro also supports multiple clauses in a branches pattern allowing for a more condensed syntax for when multiple branches return the same value. This done by putting the conditions for the branch in a list.
 
@@ -160,17 +156,19 @@ Is de-sugared to:
       (otherwise getty))
 ```
 
-`(case)` can also be used to de-structure and pattern match on **quoted** Arrays and Records, the following:
+A list of literals without holes, like `("Manet" "Proust")` above, is always this alternatives sugar rather than a pattern.
+
+Array patterns match by position. The following:
 
  ``` clojure
  (graph case-statements
    :trgt (1 2 3)
-   :res  (case (quote trgt)
-               ('(?head ?..rest) rest)
-               (otherwise        trgt)))
+   :res  (case trgt
+               ((?head ?..rest) rest)
+               (otherwise       trgt)))
  ```
  
-... matches the head of the list, and binds it the variable `head`, which is the returned. This uses the syntax `?..` to indicate to the compiler to de-structure. This graph compiles to:
+... binds the first element to `head` and the remaining elements to `rest`, which is returned. A `?..rest` hole must come last in an Array pattern. This graph compiles to:
 
 ``` json
 {
@@ -186,16 +184,16 @@ Is de-sugared to:
 }
 ```
 
-...similarly the following Ouro graph:
+Record patterns match by key, in any order, and fields the pattern doesn't mention are allowed, so `((:type "Person") ...)` matches any Person record. The following Ouro graph matches the `name` field without binding it, and returns the other fields:
 
 ``` clojure
  (graph case-statements
    :trgt (:name "Manet"
           :id   "https://linked.art/example/person/manet"
           :type "Person")
-   :res  (case (quote trgt)
-               ('(?head ?..rest) rest)
-               (otherwise        trgt)))
+   :res  (case trgt
+               ((:name ? ?..rest) rest)
+               (otherwise         trgt)))
 ```
 
 ...compiles to:
@@ -213,23 +211,6 @@ Is de-sugared to:
   }
 }
 ```
-
-### Quote
-
-The `(quote)` special form is used to return un-evaluated AST nodes of the argument expression.
-
-1. `(quote (+ 2 3))` returns `'(+ 2 3)` without evaluation, it programmatically the same as just `'(+ 2 3)`.
-2. `(quote symbol)` will lookup the symbol in the environment and return the AST bound to it un-evaluated.
-
-### Eval
-
-The dual of `(quote)`, `(eval)` takes a quoted expression and simply evaluates it.
-
-``` clojure
-(eval '(+ 2 3))
-```
-
-Evaluates to 5.
 
 ### List
 
@@ -443,14 +424,9 @@ An example of a simple function is the following:
 
 Ultimately functions in Ouro can be seen a JSON-LD graph nodes with a hole in them, where said hole is filled by the passed in arguments.
 
-### Meta-programming Functions 
+### Functions as Values
 
-Functions can also support quoted arguments and defer evaluation of said arguments until an arbitrary point within the function, allowing for the powerful meta-programming abilities Lisps are synonymous with.By default, functions will eagerly evaluate their arguments at the call site before passing them in. To defer this, you use the standard quote '(...) to pass the argument as raw, un-evaluated data (an AST node). 
-
-- If the variable needs to be looked up before passing into the functions then the special form `(quote)` can be used. 
-- If the variable is deeply nested then `get'` can also be used to return the quoted expression. 
-
-The function can then decide if, when, and how to execute that data using the (eval) special form. This deferred evaluation is incredibly useful for creating conditional logic or custom control structures that need to guarantee certain JSON-LD outputs aren't prematurely evaluated or injected into the graph.
+Functions are values in Ouro: they can be passed to other functions as arguments and called there. Since Ouro has no side effects, there is never a need to quote an argument to delay its evaluation.
 
 Consider the following Ouro code:
 
@@ -463,8 +439,8 @@ Consider the following Ouro code:
   :function-env environment) ;; => "development"
 
  (defun meta-sandbox! (fn)
-    (inlay (eval fn))
-    :desc "the function arg was eval'd and inlayed")
+    (inlay (fn))
+    :desc "the function arg was called and inlayed")
 
 ;; Anywhere else in the file, 'environment' still evaluates to "production"
 (graph test
@@ -472,10 +448,10 @@ Consider the following Ouro code:
   :global-env   environment
   (inlay (local-sandbox!))
   ;; This meta function takes a function, calls it and inlays it in the return Record
-  :meta-function (meta-sandbox! (quote local-sandbox!)))
+  :meta-function (meta-sandbox! local-sandbox!))
 ```
 
-Here the function `meta-sandbox!` takes a quoted function as an argument, evaluates it, and returns that functions content inlay-ed in a Record. This code compiles to the following JSON:
+Here the function `meta-sandbox!` takes a function as an argument, calls it, and returns that function's content inlay-ed in a Record. This code compiles to the following JSON:
 
 ``` json
 {
@@ -483,7 +459,7 @@ Here the function `meta-sandbox!` takes a quoted function as an argument, evalua
   "function-env": "development",
   "meta-function": {
     "function-env": "development",
-    "desc": "the function arg was eval'd and inlayed"
+    "desc": "the function arg was called and inlayed"
   }
 }
 ```

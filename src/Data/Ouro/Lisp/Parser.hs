@@ -260,9 +260,6 @@ pExpr = do
                              Tkn.TagRecordEmpty -> capture (S.Literal (Tkn.pos t) S.EmptyRec)
                              Tkn.TagArrEmpty    -> capture (S.Literal (Tkn.pos t) S.EmptyArr)
 
-                             -- Quoted Expr
-                             Tkn.Quote          -> put ts >> parseQuotedNode (Tkn.pos t)
-
                              -- Hole Type
                              Tkn.Hole txt       -> capture (S.Hole (Tkn.pos t) txt)
 
@@ -319,12 +316,6 @@ parseAttrNode pos attrName = do
                                                , S.Literal pos (S.Str attrName)
                                                , nextExpr
                                                ]
-
-
-parseQuotedNode :: SourcePos -> Parser S.Expr
-parseQuotedNode startPos = do
-                           nextExpr <- pExpr
-                           pure $ S.Quoted startPos nextExpr
 
 
 -- Parsing Stream State Helpers

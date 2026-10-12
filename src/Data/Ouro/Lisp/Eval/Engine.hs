@@ -25,20 +25,21 @@ import           Data.Ouro.Error.Types          (ErrorContext (..),
 import qualified Data.Ouro.Internal.Expr        as I
 import           Data.Ouro.Lisp.Eval.Builtins   (builtinRegistry, parseISO8601)
 import           Data.Ouro.Lisp.Eval.Schema     (parseContextDirectives)
-import           Data.Ouro.Lisp.Eval.Scope      (lookupVar, quoteVar)
+import           Data.Ouro.Lisp.Eval.Pattern    (matchPattern)
+import           Data.Ouro.Lisp.Eval.Scope      (lookupVar)
 import           Data.Ouro.Lisp.Eval.Structural (BlockTarget (..), compileArray,
                                                  compileRecord, evalFunction,
                                                  determineBlockTarget,
                                                  resolvePath)
 import           Data.Ouro.Lisp.Eval.Types      (Env (..), Expr (..),
-                                                 humanReadableType, localScope)
+                                                 humanReadableType)
 import qualified Data.Ouro.Lisp.Eval.Types      as L
 import           Data.Ouro.Lisp.Module.Types    (Module)
 import qualified Data.Ouro.Lisp.Surface         as S
 import           Data.Text                      (Text)
 import qualified Data.Text                      as T
 import qualified Data.Vector                    as V
-import           Lens.Micro.Platform            ((%~))
+import           Lens.Micro.Platform            ((.~))
 import           Text.Megaparsec                (SourcePos)
 import qualified Text.URI                       as URI
 
@@ -82,7 +83,6 @@ evalExpr expr = do
         S.Literal _ S.EmptyRec  -> pure $ Primitive I.EmptyRec
 
         S.Tagged _   tag   payload -> assertTag tag payload
-        S.Quoted _   quote         -> pure $ Quote quote
         S.Symbol pos name          -> lookupVar evalExpr pos name env
 
         --- INTERCEPT SPECIAL FORMS ---
@@ -95,24 +95,11 @@ evalExpr expr = do
                    actual      -> pure $ EvalError $ OuroError pos
                                         $ typeMismatch "Schema" (humanReadableType actual)
 
-        S.Form _ (S.Symbol _ "get'" : rootTarget : pathExpressions)
-            -> case validatePathKeys pathExpressions of
-                   EvalError err     -> pure (EvalError err)
-                   -- Match on the open ArrayVal superset node instead of the old frozen GADT variant
-                   Array     pathVal -> case resolvePath (Nothing) env rootTarget pathVal of
-                                              EvalError err -> pure (EvalError err)
-                                              -- The path resolved cleanly to a final Quote, pass it forward
-                                              quotedVal   -> pure quotedVal
-                   _unexpectedExpr -> internalValueLeak "Path validation returned an unexpected L.Expr variant."
-                                      & OuroError (S.exprPos rootTarget)
-                                      & EvalError
-                                      & pure
-
         S.Form _ (S.Symbol _ "get" : rootTarget : pathExpressions)
             -> case validatePathKeys pathExpressions of
                    EvalError err     -> pure (EvalError err)
                    -- Match on the open ArrayVal superset node instead of the old frozen GADT variant
-                   Array     pathVal -> case resolvePath (Just evalExpr) env rootTarget pathVal of
+                   Array     pathVal -> case resolvePath evalExpr env rootTarget pathVal of
                                               EvalError err -> pure (EvalError err)
                                               -- The path resolved cleanly to a final L.Expr, pass it forward
                                               resolvedVal   -> pure resolvedVal
@@ -121,8 +108,6 @@ evalExpr expr = do
                                       & EvalError
                                       & pure
 
-        S.Form _ [S.Symbol _ "quote", S.Symbol pos name] -> quoteVar pos name env
-        S.Form _ [S.Symbol _ "quote", payload]           -> pure $ Quote payload
         S.Form _ (S.Symbol _ "list" : items)             -> Array <$> mapM evalExpr items
 
         S.Form _ [S.Symbol _ "attr", nameExpr, aExpr]
@@ -139,23 +124,10 @@ evalExpr expr = do
 
 
 
-        S.Form _ [S.Symbol pos "eval", qExpr]
-            -> case runReader (evalExpr qExpr) env of
-                   EvalError err   -> pure $ EvalError err
-                   Quote     quote -> evalExpr quote
-                   notAQuote       -> typeMismatch "a quoted expression"
-                                                   ("a non quoted expression that was evaluated to " <> (humanReadableType notAQuote))
-                                      & withBlurb (typeMismatchBlurb notAQuote)
-                                      & OuroError pos
-                                      & EvalError
-                                      & pure
-
-
         S.Form _ (S.Symbol pos "case" : target : patterns)
             -> case (hasValidOtherwise patterns) of
                    True -> case runReader (evalExpr target) env of
                                EvalError err   -> pure $ EvalError err
-                               Quote     quote -> patternMatch   evalExpr pos quote 0 patterns
                                resolvedTarget  -> evaluateGuards evalExpr env pos   resolvedTarget 0 patterns
 
                    False -> missingOtherwise
@@ -476,6 +448,20 @@ evaluateGuards eval env pos target attempts branches =
                                Primitive (I.Boolean True) -> eval body
                                _nextCase                  -> evaluateGuards eval env pos target (attempts + 1) rest
 
+                   -- Destructuring: a record form, or a form containing '?' holes
+                   _ | S.isPatternForm pattern
+                       -> do
+                          matchRes <- matchPattern eval pattern target
+                          case matchRes of
+                              Left  err             -> pure $ EvalError err
+                              Right Nothing         -> evaluateGuards eval env pos target (attempts + 1) rest
+                              -- The holes are bound in a new frame around the branch body
+                              Right (Just bindings) -> local (\scope -> scope
+                                                                       & L.localScope .~ Map.empty
+                                                                       & L.valueScope .~ Map.fromList bindings
+                                                                       & L.parentEnv  .~ Just scope)
+                                                             (eval body)
+
                    -- If just a literal is passed in we can default to eq
                    S.Literal lpos lvalue
                        -> do
@@ -489,48 +475,6 @@ evaluateGuards eval env pos target attempts branches =
                    invalidPattern
                        -> inexhaustiveCase "Guard condition operator missing from internal builtin registry." attempts
                           & OuroError (S.exprPos invalidPattern)
-                          & EvalError
-                          & pure
-
-        (_malformed : _)
-            -> malformedCaseBranch
-               & OuroError pos
-               & EvalError
-               & pure
-
-
-patternMatch
-    :: (S.Expr -> EvalM L.Expr)
-    -> SourcePos
-    -> S.Expr
-    -> Int
-    -> [S.Expr]
-    -> EvalM L.Expr
-patternMatch eval pos qTrgt attempts branches =
-    case branches of
-        [] -> inexhaustiveCase "Case statement fell through" attempts
-              & withBlurb (inexhaustiveCaseBlurb attempts)
-              & OuroError pos
-              & EvalError
-              & pure
-
-        -- Deconstruct the next branch form
-        (S.Form _ [pattern, body] : rest)
-            -> do
-               -- Catch the otherwise reserved keyword
-               case pattern of
-                   S.Symbol _ "otherwise"
-                       -> eval body
-
-                   S.Quoted _ qPattern
-                       -> case qTrgt `S.structuralEq` qPattern of
-                              -- Inject bindings captured from Hole type into the local env of the return branch
-                              Just    bindings -> local (\env -> env & localScope %~ Map.union (Map.fromList bindings)) (eval body)
-                              Nothing          -> patternMatch eval pos qTrgt (attempts + 1) rest
-
-                   notAQuote
-                       -> inexhaustiveCase "PatternMatching requires quoted patterns" attempts
-                          & OuroError (S.exprPos notAQuote)
                           & EvalError
                           & pure
 

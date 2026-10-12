@@ -68,7 +68,6 @@ import qualified Data.Ouro.Lisp.Lexer        as LX
 import           Data.Ouro.Lisp.Module.Types (HigherExpression (..),
                                               graphRegistry, mapModuleExpr)
 import qualified Data.Ouro.Lisp.Parser       as LP
-import qualified Data.Ouro.Lisp.Surface      as S
 import           Data.Text                   (Text)
 import qualified Data.Text                   as T
 import qualified Data.Text.Lazy              as TL
@@ -163,14 +162,6 @@ validateAST' gPos path valueGraph = case valueGraph of
                                                           & OuroError gPos
                                                           & pure
                               Primitive _              -> []
-                              -- Unevaluated quotes cannot be present in the final AST
-                              Quote     payload        -> typeMismatch "a resolved type" "an unevaluated Quoted expression"
-                                                          & withBlurb ( "All expressions in Ouro must be evaluated before compilation can be finished."
-                                                                     <> "\n\nPerhaps remove the quote (\') from this expression to evaluate it."
-                                                                      )
-                                                          & OuroError (S.exprPos payload)
-                                                          & pure
-
                               -- Compile-time only values (Durations, functions, schemas...) have no JSON form
                               unserialisable           -> typeMismatch
                                                               "a JSON value (String, Number, Boolean, Null, URI, Date, Record or Array)"

@@ -32,9 +32,6 @@ tests = Group "Evaluation Tests (Surface to Higher IR)"
     , ("lowers Null syntax to Primitive I.Null",       prop_lower_null)
     , ("lowers Empty collections correctly",           prop_lower_empty)
 
-    , ("wraps raw S.Quoted syntax nodes in L.Quote",   prop_quote_raw)
-    , ("intercepts (quote payload) special form",      prop_quote_form)
-
     , ("evaluates (list ...) forms",                   prop_list_form)
     , ("evaluates (attr \"key\" val) forms",           prop_attr_form)
 
@@ -48,8 +45,6 @@ tests = Group "Evaluation Tests (Surface to Higher IR)"
     , ("returns L.EvalError for invalid attr name",    prop_error_invalid_attr)
     , ("returns L.EvalError for out-of-bounds nth",    prop_error_nth_bounds)
 
-    , ("unwraps L.Quote and evaluates its payload",    prop_eval_quote)
-    , ("yields L.EvalError if evaluating unquoted",    prop_eval_unquoted)
 
     , ("rejects a Duration as a graph value",          prop_reject_duration)
     , ("rejects a builtin as a graph value",           prop_reject_builtin)
@@ -84,20 +79,6 @@ prop_lower_empty :: Property
 prop_lower_empty = withTests 1 . property $ do
     runEval (S.Literal dummyPos S.EmptyArr) === L.Primitive I.EmptyArr
     runEval (S.Literal dummyPos S.EmptyRec) === L.Primitive I.EmptyRec
-
-
--- Quoting Mechanics
-prop_quote_raw :: Property
-prop_quote_raw = withTests 1 . property $ do
-    let target = S.Literal dummyPos (S.Num 99)
-    let expr   = S.Quoted dummyPos target
-    runEval expr === L.Quote target
-
-prop_quote_form :: Property
-prop_quote_form = withTests 1 . property $ do
-    let target = S.Literal dummyPos (S.Str "unevaluated")
-    let expr   = S.Form dummyPos [S.Symbol dummyPos "quote", target]
-    runEval expr === L.Quote target
 
 
 -- Structural Interceptions (Special Forms)
@@ -189,23 +170,6 @@ prop_error_nth_bounds = withTests 1 . property $ do
     let expr = S.Form dummyPos [S.Symbol dummyPos "nth", indexExpr, targetArray]
 
     let result = runEval expr
-    annotateShow result
-    assert (isEvalError result)
-
-
--- Dynamic Evaluation (eval)
-prop_eval_quote :: Property
-prop_eval_quote = withTests 1 . property $ do
-    let quotedExpr = S.Form dummyPos [S.Symbol dummyPos "quote", S.Literal dummyPos (S.Num 42)]
-    let evalForm   = S.Form dummyPos [S.Symbol dummyPos "eval", quotedExpr]
-
-    runEval evalForm === L.Primitive (I.Number 42)
-
-prop_eval_unquoted :: Property
-prop_eval_unquoted = withTests 1 . property $ do
-    let evalForm = S.Form dummyPos [S.Symbol dummyPos "eval", S.Literal dummyPos (S.Num 42)]
-
-    let result = runEval evalForm
     annotateShow result
     assert (isEvalError result)
 

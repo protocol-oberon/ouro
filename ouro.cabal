@@ -73,6 +73,7 @@ library
         Data.Ouro.Lisp.Canon
         Data.Ouro.Lisp.Eval.Builtins
         Data.Ouro.Lisp.Eval.Engine
+        Data.Ouro.Lisp.Eval.Pattern
         Data.Ouro.Lisp.Eval.Schema
         Data.Ouro.Lisp.Eval.Scope
         Data.Ouro.Lisp.Eval.Structural

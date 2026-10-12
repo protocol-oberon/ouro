@@ -60,6 +60,8 @@ compileRecord evaluator env fields =
                    Right rawMap
                        -> let isolatedEnv = envWithFuncs
                                             & L.localScope .~ rawMap
+                                            -- Pattern values live in their own frame further up the chain
+                                            & L.valueScope .~ Map.empty
                                             -- Knot-tying: the parent of the isolated scope is the ambient env
                                             & L.parentEnv  .~ Just env
                           in emitProps evaluator isolatedEnv fields
@@ -148,9 +150,6 @@ emitProps evaluator env expressions = go I.EmptyMeta expressions
 
                                         -- 2. Clean primitive values (frozen GADTs)
                                         Primitive prim -> Record finalMeta ((key, Primitive prim) : nextPairs)
-
-                                        -- 2.5 Quotes
-                                        Quote q -> Record finalMeta ((key, Quote q) : nextPairs)
 
                                         -- 3. Accept nested object configurations
                                         Record m p -> Record finalMeta ((key, Record m p) : nextPairs)
@@ -365,12 +364,12 @@ determineBlockTarget fields =
 --   3. Defensive Boundary Isolation: Terminal primitive leafs or missing path segments safely trigger
 --      failures via 'missingPathKey' before deep internal evaluation can result in invalid mutations.
 resolvePath
-    :: Maybe (S.Expr -> Reader Env L.Expr)
+    :: (S.Expr -> Reader Env L.Expr)
     -> Env
     -> S.Expr
     -> [L.Expr]
     -> L.Expr
-resolvePath shouldEval fullEnv originalExpr pathVals = go fullEnv originalExpr (extractKeys pathVals)
+resolvePath evaluator fullEnv originalExpr pathVals = go fullEnv originalExpr (extractKeys pathVals)
     where
     -- Extract bare Text strings from the newly provisioned Array superset layout
     extractKeys :: [L.Expr] -> [Text]
@@ -382,9 +381,7 @@ resolvePath shouldEval fullEnv originalExpr pathVals = go fullEnv originalExpr (
 
     go :: Env -> S.Expr -> [Text] -> L.Expr
     go env currentExpr keys = case keys of
-        [] -> case shouldEval of
-                  Just evaluator -> runReader (evaluator currentExpr) env
-                  Nothing        -> L.Quote currentExpr
+        [] -> runReader (evaluator currentExpr) env
 
         (targetKey : remainingKeys)
             -> case currentExpr of
@@ -503,6 +500,7 @@ evalFunction evaluator parentEnv pos name params bodyExprs actualArgs =
                                let argMap      = Map.fromList (zip params actualArgs)
                                    functionEnv = parentEnv
                                                & L.localScope       .~ argMap
+                                               & L.valueScope       .~ Map.empty
                                                & L.parentEnv        .~ Just parentEnv
                                                & L.activeLookups    .~ Set.empty
                                                & L.functionRegistry .~ (parentEnv ^. L.functionRegistry)

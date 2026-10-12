@@ -12,10 +12,10 @@ import qualified Text.Megaparsec            as M
 import           Text.Megaparsec            (MonadParsec (eof, lookAhead),
                                              ParseError (..), Parsec, choice,
                                              getSourcePos, many, manyTill,
-                                             notFollowedBy, oneOf, optional,
-                                             runParser, some, try, (<|>))
+                                             oneOf, optional, runParser, some,
+                                             try, (<|>))
 import           Text.Megaparsec.Char       (alphaNumChar, char, letterChar,
-                                             space1, spaceChar, string)
+                                             space1, string)
 import qualified Text.Megaparsec.Char.Lexer as L
 import           Text.Megaparsec.Error      (ErrorItem (Tokens),
                                              ParseErrorBundle)
@@ -102,13 +102,6 @@ pReaderTags = lexeme . withPos $ do
                                      other       -> M.region (\err -> M.setErrorOffset startOffset err)
                                                              (fail ("Invalid type assertion tag: #" ++ other))
 
-pQuote :: Parser Tkn.Token
-pQuote = lexeme . withPos . try $ do
-                            _  <- char '\''
-                            notFollowedBy spaceChar
-                            pure Tkn.Quote
-
-
 -- Structural Holes for Pattern Matching (? or ?name)
 pHole :: Parser Tkn.Token
 pHole = lexeme . withPos $ do
@@ -178,7 +171,6 @@ pSingleToken =  pDelims
             <|> pCoreKeywords
             <|> pAttributes
             <|> pReaderTags
-            <|> pQuote
             <|> pHole
             <|> pLiterals
             <|> pSymbol

@@ -90,7 +90,7 @@ buildLazyEnv = curry $ \case
 
     -- Reserved special forms
     isReserved :: Text -> Bool
-    isReserved name = name `elem` ["nth", "list", "quote", "eval", "case", "get", "get'", "context", "define", "inlay", "insert", "attr", "defun", "return"]
+    isReserved name = name `elem` ["nth", "list", "case", "get", "context", "define", "inlay", "insert", "attr", "defun", "return"]
 
 
 -- Scans a list of surface expressions for nested functions, lifting them into
@@ -156,73 +156,34 @@ lookupVar evaluator pos name fullEnv =
                  & OuroError pos
                  & L.EvalError
                  & pure
-        False -> lookupVar' (Just evaluator) pos name fullEnv
+        False -> lookupVar' evaluator pos name fullEnv
 
 lookupVar'
-    :: Maybe (S.Expr -> Reader Env L.Expr)
+    :: (S.Expr -> Reader Env L.Expr)
     -> SourcePos
     -> Text
     -> Env
     -> Reader Env L.Expr
-lookupVar' mEvaluator pos name env =
+lookupVar' evaluator pos name env =
     case Map.lookup name (env ^. L.localScope) of
-        Just surfaceExpr -> case mEvaluator of
-                                Just evaluator -> local (L.activeLookups %~ Set.insert name) (evaluator surfaceExpr)
-                                Nothing        -> pure $ L.Quote surfaceExpr
-        -- Pass lookupVar' as the walker to check functions before moving to the parent
-        Nothing -> lookupFunction lookupVar' mEvaluator pos name env
-
-
--- Quote lookup the same as lookupVar but returns a thunk
-quoteVar
-  :: SourcePos
-  -> Text
-  -> Env
-  -> Reader Env L.Expr
-quoteVar pos name fullEnv =
-    case Set.member name (fullEnv ^. L.activeLookups) of
-        True  -> cyclicDependency name
-                 & withBlurb ( "An infinite lookup loop was detected. The identifier '" <> name
-                            <> "' directly or indirectly references itself during evaluation." )
-                 & OuroError pos
-                 & L.EvalError
-                 & pure
-        False -> quoteVar' Nothing pos name fullEnv
-
-quoteVar'
-    :: Maybe (S.Expr -> Reader Env L.Expr)
-    -> SourcePos
-    -> Text
-    -> Env
-    -> Reader Env L.Expr
-quoteVar' mEvaluator pos name env =
-    case Map.lookup name (env ^. L.localScope) of
-        Just surfaceAst -> pure $ L.Quote surfaceAst
-        -- Pass quoteVar' as the walker to preserve the thunking state up the chain
-        Nothing         -> lookupFunction quoteVar' mEvaluator pos name env
+        Just surfaceExpr -> local (L.activeLookups %~ Set.insert name) (evaluator surfaceExpr)
+        Nothing          -> case Map.lookup name (env ^. L.valueScope) of
+                                -- Values bound by a case pattern are already evaluated
+                                Just value -> pure value
+                                Nothing    -> lookupFunction evaluator pos name env
 
 
 -- Resolves structural function blueprints at the CURRENT scope level, then steps up.
 lookupFunction
-    :: (Maybe (S.Expr -> Reader Env L.Expr) -> SourcePos -> Text -> Env -> Reader Env L.Expr)
-    -> Maybe (S.Expr -> Reader Env L.Expr)
+    :: (S.Expr -> Reader Env L.Expr)
     -> SourcePos
     -> Text
     -> Env
     -> Reader Env L.Expr
-lookupFunction scopeWalker mEvaluator pos name env =
+lookupFunction evaluator pos name env =
     case Map.lookup name (env ^. L.functionRegistry) of
-        Just (M.Function tPos tName tArgs (S.Form _ bodyExprs))
-            -> let argNodes = map (S.Symbol tPos) tArgs -- Reconstruct the argument bindings
-                   rawAst   = S.Form tPos $             -- Reassemble the raw AST into (defun name (args...) body...)
-                            [ S.Symbol tPos "defun"
-                            , S.Symbol tPos tName
-                            , S.Form tPos argNodes
-                            ] ++ bodyExprs
-
-               in case mEvaluator of
-                     Just _eval -> pure $ L.FunctionClosure env name tArgs bodyExprs
-                     Nothing    -> pure $ L.Quote rawAst
+        Just (M.Function _ _ tArgs (S.Form _ bodyExprs))
+            -> pure $ L.FunctionClosure env name tArgs bodyExprs
 
         Just _ -> astCorruption name "Corrupted function registry entry."
                   & OuroError pos
@@ -231,7 +192,7 @@ lookupFunction scopeWalker mEvaluator pos name env =
 
         -- SCHEME SCOPING If not in local functions, look into parent env
         Nothing -> case env ^. L.parentEnv of
-                       Just pEnv -> scopeWalker mEvaluator pos name pEnv
+                       Just pEnv -> lookupVar' evaluator pos name pEnv
                        -- If no parent exists, we are at the root. Fall back to Builtins.
                        Nothing   -> lookupBuiltin pos name env
 

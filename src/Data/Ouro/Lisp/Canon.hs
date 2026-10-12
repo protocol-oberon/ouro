@@ -15,7 +15,6 @@ construct = \case
              node@(S.Symbol      _ _) -> node
              node@(S.DefunSymbol _ _) -> node
              node@(S.Literal     _ _) -> node
-             node@(S.Quoted      _ _) -> node
              node@(S.Hole        _ _) -> node
 
 
@@ -165,8 +164,8 @@ desugarCase =
                                   S.Symbol _ "otherwise"
                                       -> [S.Form bPos [pattern, desugaredBody]]
 
-                                  -- Keep Quoted patterns intact for structural matching mode
-                                  S.Quoted _ _
+                                  -- Keep destructuring patterns intact, e.g. ((?head ?..rest) body)
+                                  _ | S.isPatternForm pattern
                                       -> [S.Form bPos [pattern, desugaredBody]]
 
                                   -- THE DESUGARING STEP:

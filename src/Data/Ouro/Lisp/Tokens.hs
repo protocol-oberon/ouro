@@ -52,8 +52,6 @@ data TokenType
     | TagBool          -- '#bool'      (enforces expression resolves to a Boolean)
     | TagRecordEmpty   -- '#rec-empty' (instantiates Record Nil Nil)
     | TagArrEmpty      -- '#arr-empty' (instantiates Array Nil)
-    -- Quote
-    | Quote
     -- Hole
     | Hole !Text
     deriving (Show, Eq, Generic)

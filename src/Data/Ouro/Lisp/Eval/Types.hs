@@ -43,19 +43,19 @@ import           Unsafe.Coerce               (unsafeCoerce)
 --     parent fallback link, anchoring the absolute bottom of the variable resolution ladder.
 data Env = Env
     { _localScope       :: Map.Map Text S.Expr
+    , _valueScope       :: Map.Map Text Expr      -- values bound by case patterns
     , _parentEnv        :: Maybe Env
     , _activeLookups    :: Set Text
     , _functionRegistry :: Map.Map Text (M.HigherExpression 'M.FunctionExpr)
     , _callStack        :: Set Text
     }
 
-makeLenses ''Env
-
 
 -- Default root environment.
 defaultEnv :: M.Module -> Env
 defaultEnv moduleEnv = Env
     { _localScope       = Map.empty
+    , _valueScope       = Map.empty
     , _parentEnv        = Nothing
     , _activeLookups    = Set.empty
     , _functionRegistry = (moduleEnv ^. M.functionRegistry)
@@ -66,23 +66,12 @@ defaultEnv moduleEnv = Env
 emptyEnv :: Env
 emptyEnv = Env
     { _localScope       = Map.empty
+    , _valueScope       = Map.empty
     , _parentEnv        = Nothing
     , _activeLookups    = Set.empty
     , _functionRegistry = Map.empty
     , _callStack        = Set.empty
     }
-
-
--- Traverses the entire environment scope chain to collect every active
--- bind handle currently available to the evaluator context.
-allEnvKeys :: Env -> Set.Set Text
-allEnvKeys env =
-    let localKeys  = Map.keysSet (env ^. localScope)
-        tmpltKeys  = Map.keysSet (env ^. functionRegistry)
-        currentSet = Set.union localKeys tmpltKeys
-    in case env ^. parentEnv of
-           Nothing     -> currentSet
-           Just parent -> Set.union currentSet (allEnvKeys parent)
 
 
 -- Expr.
@@ -140,9 +129,6 @@ data Expr where
     -- and continue evaluating sibling nodes.
     EvalError   :: OuroError -> Expr
 
-    -- Quote -> Stored Surface Expr
-    Quote       :: S.Expr -> Expr
-
 type NativeFunction = SourcePos -> [Expr] -> Reader Env Expr
 
 
@@ -163,7 +149,6 @@ instance Eq Expr where
     PrimitiveOp _       == PrimitiveOp _       = False
     Closure     _  _  _ == Closure     _  _  _ = False
     EvalError   a       == EvalError   b       = a  == b
-    Quote       q1      == Quote       q2      = q1 == q2
 
     -- Function Macro
     FunctionClosure _ _ _ _ == FunctionClosure _ _ _ _ = False
@@ -187,7 +172,6 @@ instance Show Expr where
     FunctionClosure _ name args bodies -> showString "FunctionClosure <env> " . showsPrec 11 name . showChar ' ' . showsPrec 11 args . showChar ' ' . showsPrec 11 bodies
 
     EvalError err -> showString "EvalError " . showsPrec 11 err
-    Quote     q   -> showString "Quote "     . showsPrec 11 q
 
 
 -- Structural equivalence, also checks for homogeneous arrays.
@@ -203,7 +187,6 @@ structuralEq =
              (Directive   _,     Directive   _)     -> True
              (PrimitiveOp _,     PrimitiveOp _)     -> True
              (EvalError   _,     EvalError   _)     -> True
-             (Quote       _,     Quote       _)     -> True
              _                                      -> False
 
 
@@ -264,7 +247,6 @@ humanReadableType =
      PrimitiveOp _      -> "a Built-in function"
      Closure     _ _ _  -> "an unexecuted function (lambda)"
      EvalError   _      -> "an Error"
-     Quote       _      -> "an unevaluated expression"
      Record      _ _    -> "a Record"
      Attr        _ _    -> "an unbound Attribute pair"
      FunctionClosure _ _ _ _ -> "an unexecuted function"
@@ -302,3 +284,20 @@ describePrimitive =
      I.EmptyRec       -> "Empty Record"
      I.Record    _ _  -> "Record"
      I.Array     _    -> "Array"
+
+
+-- Generated last: Env refers to 'Expr' (through '_valueScope'), and Expr to 'PeriodUnit'
+makeLenses ''Env
+
+
+-- Traverses the entire environment scope chain to collect every active
+-- bind handle currently available to the evaluator context.
+allEnvKeys :: Env -> Set.Set Text
+allEnvKeys env =
+    let localKeys  = Map.keysSet (env ^. localScope)
+        valueKeys  = Map.keysSet (env ^. valueScope)
+        tmpltKeys  = Map.keysSet (env ^. functionRegistry)
+        currentSet = Set.unions [localKeys, valueKeys, tmpltKeys]
+    in case env ^. parentEnv of
+           Nothing     -> currentSet
+           Just parent -> Set.union currentSet (allEnvKeys parent)

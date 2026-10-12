@@ -18,6 +18,7 @@ main = do
         , Structural.tests
         -- Scoping redesign: each step adds its group here when it lands
         , Scoping.baseline
+        , Scoping.valuePatterns
         ]
 
     -- If all groups passed (True), exit gracefully. Otherwise, fail the CI.

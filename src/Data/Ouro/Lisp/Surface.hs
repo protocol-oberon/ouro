@@ -2,7 +2,6 @@
 module Data.Ouro.Lisp.Surface where
 
 import           Data.Text       (Text)
-import qualified Data.Text       as T
 import           Text.Megaparsec (SourcePos)
 
 
@@ -47,8 +46,7 @@ data Expr
     | DefunSymbol SourcePos Text            -- function identifiers
     | Literal     SourcePos LiteralValue    -- Raw String, Number, Boolean, Null
     | Tagged      SourcePos ReaderTag Expr  -- #uri "...", #date "..."
-    | Quoted      SourcePos Expr            -- Un-eval'd Asts
-    | Hole        SourcePos Text            -- Type hole for structural shape
+    | Hole        SourcePos Text            -- ?, ?name or ?..name in a case pattern
     | Form        SourcePos [Expr]          -- (...) nested lists
     | Bracket     SourcePos [Expr]          -- [...] scoping or block grouping
     deriving (Show, Eq)
@@ -85,64 +83,34 @@ exprPos = \case
            DefunSymbol pos _   -> pos
            Literal     pos _   -> pos
            Tagged      pos _ _ -> pos
-           Quoted      pos _   -> pos
            Hole        pos _   -> pos
            Form        pos _   -> pos
            Bracket     pos _   -> pos
 
 
-structuralEq :: Expr -> Expr -> Maybe [(Text, Expr)]
-structuralEq e1 e2 =
-    case (e1, e2) of
-        -- 1. Hole matching a single expression
-        (Hole _ name, target)               -> bindHole name target
-        (target     , Hole _ name)          -> bindHole name target
+-- A case branch head is a destructuring pattern when it is a record form,
+-- or when a '?' hole appears anywhere inside it. Other forms keep their
+-- meaning as guards or as the alternatives sugar.
+isPatternForm :: Expr -> Bool
+isPatternForm = \case
+                 Form _ elems -> any isAttrForm elems || any containsHole elems
+                 _notAForm    -> False
 
-        -- 2. Exact leaf matches (return empty bindings on success)
-        (Symbol  _ a, Symbol  _ b) | a == b -> Just []
-        (Literal _ a, Literal _ b) | a == b -> Just []
 
-        -- 3. Recursive matches
-        (Quoted  _ a, Quoted   _ b)         -> structuralEq a b
-        (Form    _ xs, Form    _ ys)        -> matchForms xs ys
-        (Bracket _ xs, Bracket _ ys)        -> matchForms xs ys
+containsHole :: Expr -> Bool
+containsHole = \case
+                Hole   _ _       -> True
+                Form   _ elems   -> any containsHole elems
+                Tagged _ _ inner -> containsHole inner
+                _leaf            -> False
 
-        -- 4. Fallthrough: Mismatch
-        _typeMismatch                       -> Nothing
 
-    where
-    -- Helper to capture the binding.
-    -- Ignores pure wildcards ("?") so they don't pollute the environment.
-    bindHole :: Text -> Expr -> Maybe [(Text, Expr)]
-    bindHole holeName matchExpr =
-        case (holeName, matchExpr) of
-            ("?",  _)    -> Just []
-            (name, expr) -> let cleanName = T.dropWhile (\c -> c == '?' || c == '.') name
-                            in Just [(cleanName, expr)]
+-- Matches the parsed form of a ':key value' pair
+isAttrForm :: Expr -> Bool
+isAttrForm = \case
+              Form _ (Symbol _ "attr" : _) -> True
+              _notAnAttr                   -> False
 
-    matchForms :: [Expr] -> [Expr] -> Maybe [(Text, Expr)]
-    matchForms xs ys =
-        case (xs, ys) of
-            -- Both empty: end of list reached simultaneously
-            ([], [])
-                -> Just []
-
-            -- "?.." captures the rest of the expression
-            (targetRemainder, Hole pos name : [])
-                | T.isPrefixOf "?.." name
-                  -> bindHole name (Form pos targetRemainder)
-
-            -- Pure Positional Matching
-            -- We remove the greedy 'Hole' catch here so that a list like
-            -- (?expr ?plus) matches exactly two elements 1:1.
-            (x:xs', y:ys')
-                -> do
-                   headBindings <- structuralEq x   y
-                   tailBindings <- matchForms   xs' ys'
-                   return (headBindings ++ tailBindings)
-
-            _misMatchedLen
-                -> Nothing
 
 -- A runtime truth table to tell what shap of ast is present
 data ExprMarker
@@ -150,7 +118,6 @@ data ExprMarker
     | SymbolMarker
     | LiteralMarker
     | TaggedMarker
-    | QuotedMarker
     | HoleMarker
     | FormMarker
     | BracketMarker
@@ -163,7 +130,6 @@ mark = \case
         DefunSymbol _ _   -> SymbolMarker
         Literal     _ _   -> LiteralMarker
         Tagged      _ _ _ -> TaggedMarker
-        Quoted      _ _   -> QuotedMarker
         Hole        _ _   -> HoleMarker
         Form        _ _   -> FormMarker
         Bracket     _ _   -> BracketMarker
