@@ -19,8 +19,8 @@ import qualified Data.Ouro.Internal.Kinds    as JLD
 import           Data.Ouro.Internal.Utils    (rankBySimilarity)
 import           Data.Ouro.Lisp.Eval.Schema  (parseContextDirectives)
 import           Data.Ouro.Lisp.Eval.Scope   (FrameEntry (..), allocFrame,
-                                              bindableAttr, buildLocalFunction,
-                                              collectBindings, force)
+                                              bindableAttr, collectBindings,
+                                              force, localFunctions)
 import           Data.Ouro.Lisp.Eval.Types   (Binding (..), Env (..), EvalM, Expr (..),
                                               allEnvKeys, humanReadableType,
                                               localScope)
@@ -41,7 +41,7 @@ import           Text.Megaparsec             (SourcePos)
 -- type-safe graph layers. Rather than applying standard top-down sequential evaluation, it operates in three distinct,
 -- highly deliberate stages to enforce declarative order-independence within the local block:
 --
---   1. Sweeping & Binding: It passes over the fields using both 'collectBindings' and 'buildLocalFunction'
+--   1. Sweeping & Binding: It passes over the fields using both 'collectBindings' and 'localFunctions'
 --      to harvest un-evaluated attributes and macro-blueprints into isolated dictionaries.
 --   2. Environment Isolation & Knot-Tying: It constructs a fresh lexical 'Env' frame containing both scopes.
 --      By linking this frame as its own parent and passing it downward, variables and functions inside the block
@@ -53,11 +53,11 @@ compileRecord
     -> [S.Expr]
     -> EvalM L.Expr
 compileRecord evaluator env fields =
-    case buildLocalFunction env fields of
+    case localFunctions fields of
         Left err
             -> pure (EvalError err)
 
-        Right envWithFuncs
+        Right locals
             -> case collectBindings fields of
                    -- Dynamic environment allocation failures represent a catastrophic scope break
                    Left err
@@ -66,9 +66,10 @@ compileRecord evaluator env fields =
                    Right entries
                        -> do
                           -- Every binding becomes a promise in a new frame, whose parent is the ambient env
-                          (frame, addrs) <- allocFrame (\names -> envWithFuncs
-                                                                  & L.localScope .~ names
-                                                                  & L.parentEnv  .~ Just env)
+                          (frame, addrs) <- allocFrame (\names -> env
+                                                                  & L.localScope       .~ names
+                                                                  & L.functionRegistry .~ locals
+                                                                  & L.parentEnv        .~ Just env)
                                                        entries
                           -- Each output field is evaluated through its own promise, found by its position
                           let fieldAddrs = Map.fromList [ (entryPos entry, addr) | (entry, addr) <- zip entries addrs, entryIsField entry ]
@@ -221,9 +222,16 @@ compileArray
     -> [S.Expr]
     -> EvalM L.Expr
 compileArray evaluator env pos elements =
-    case buildLocalFunction env elements of
-        Right envWithTmplts -> Array <$> compileElements envWithTmplts elements
-        Left  err           -> pure (EvalError err)
+    case localFunctions elements of
+        -- Functions defined inside an array get their own frame
+        Right locals
+            | Map.null locals -> Array <$> compileElements env elements
+            | otherwise       -> Array <$> compileElements (env
+                                                            & L.localScope       .~ Map.empty
+                                                            & L.functionRegistry .~ locals
+                                                            & L.parentEnv        .~ Just env)
+                                                        elements
+        Left  err -> pure (EvalError err)
 
     where
     compileElements :: Env -> [S.Expr] -> EvalM [L.Expr]
@@ -404,7 +412,6 @@ resolvePath evaluator fullEnv originalExpr pathVals = go fullEnv originalExpr (e
                    -- Strategy 1: Resolve symbol pointers out of environment frames
                    S.Symbol pos varName -> case Map.lookup varName (env ^. L.localScope) of
                        -- Follow a binding into its code, in the environment it was written in
-                       Just (Unshared linkedExpr) -> go env linkedExpr (targetKey : remainingKeys)
                        Just (Promised addr)
                            -> do
                               promise <- gets (IntMap.! addr)
@@ -492,75 +499,85 @@ matchTokenStream targetKey stream =
 
 -- evalFunction
 --
--- Executes an AST blueprint within an isolated lexical bubble.
--- By mapping formal parameters directly to un-evaluated argument expressions,
--- this achieves macro-style lazy expansion without the messy string-substitution logic.
+-- Calls a function. Each argument becomes a promise over the caller's environment,
+-- so it means what it meant where it was written, and is evaluated at most once (and
+-- only if used). The body runs in the function's closure (the frame it was defined
+-- in) extended with a frame for the parameters.
+--
+-- Recursion is forbidden: the call stack comes from the caller and records each
+-- function by identity, so nesting a call, like (f! (f! x)), is not recursion.
 evalFunction
     :: (S.Expr -> EvalM L.Expr)       -- Core evaluator function
-    -> Env                            -- The current ambient environment (Call site)
+    -> Env                            -- The function's closure: the frame it is defined in
     -> SourcePos                      -- Callsite position
-    -> Text                           -- Function name
+    -> L.FunctionId                   -- The function's name and definition position
     -> [Text]                         -- The function's formal parameters (e.g., (name year))
     -> [S.Expr]                       -- The un-evaluated body expressions of the function
     -> [S.Expr]                       -- The actual arguments passed at the call site
     -> EvalM L.Expr                   -- The returned evaluated expr
-evalFunction evaluator parentEnv pos name params bodyExprs actualArgs =
-    let parLen       = length params
-        actLen       = length actualArgs
-        currentStack = parentEnv ^. L.callStack
-    in case parLen == actLen of
-           True  -> do
-                    case Set.member name currentStack of
-                        True  -> typeMismatch
-                                     "a terminating function call"
-                                     "a recursive function call"
-                                 & withBlurb ("Recursion is strictly forbidden in Ouro. The function '" <> name <> "' attempted to call itself.")
-                                 & OuroError pos
-                                 & EvalError
-                                 & pure
-                        False
-                            -> do
-                               -- Arguments stay unevaluated expressions until step 4 of the scoping redesign
-                               let argMap      = Map.fromList (zip params (map Unshared actualArgs))
-                                   functionEnv = parentEnv
-                                               & L.localScope       .~ argMap
-                                               & L.parentEnv        .~ Just parentEnv
-                                               & L.activeLookups    .~ Set.empty
-                                               & L.functionRegistry .~ (parentEnv ^. L.functionRegistry)
-                                               & L.callStack        .~ (Set.insert name currentStack)
+evalFunction evaluator closureEnv pos fnId@(name, _) params bodyExprs actualArgs = do
+    callerEnv <- ask
+    let parLen      = length params
+        actLen      = length actualArgs
+        callerStack = callerEnv ^. L.callStack
 
-                                   -- Evaluate an expression in an explicit environment
-                                   evaluator' currentEnv expr' = local (const currentEnv) (evaluator expr')
+    case (parLen == actLen, Set.member fnId callerStack) of
+        (False, _)
+            -> incorrectArity name parLen actLen
+               & OuroError pos
+               & L.EvalError
+               & pure
 
-                               case returnExpr bodyExprs of
-                                   Just (S.Form _ (_ : val : _))
-                                       -> do
-                                           case collectBindings bodyExprs of
-                                               Right entries -> do
-                                                                (bodyFrame, _) <- allocFrame (\names -> functionEnv
-                                                                                                       & L.localScope .~ names
-                                                                                                       & L.parentEnv  .~ Just functionEnv)
-                                                                                             entries
-                                                                evaluator' bodyFrame val
-                                               Left  err     -> pure $ EvalError err
+        (True, True)
+            -> typeMismatch
+                   "a terminating function call"
+                   "a recursive function call"
+               & withBlurb ("Recursion is strictly forbidden in Ouro. The function '" <> name <> "' attempted to call itself.")
+               & OuroError pos
+               & EvalError
+               & pure
 
-                                   _noReturnExpression
-                                       -> case determineBlockTarget bodyExprs of
-                                               TargetRecord      -> compileRecord evaluator' functionEnv bodyExprs
-                                               TargetList        -> compileArray  evaluator' functionEnv pos bodyExprs
-                                               TargetFunctionApp -> typeMismatch
-                                                                       "a function with a concrete return type (Array, Record, Primitive or another Function)"
-                                                                       "a function with a dangling expression"
-                                                                   & withBlurb
-                                                                       ("Perhaps wrap the body of the function: '" <> name <> "' in a (return) expresion.")
-                                                                   & OuroError pos
-                                                                   & L.EvalError
-                                                                   & pure
+        (True, False)
+            -> do
+               -- The arguments' promises close over the caller's environment
+               (_, argAddrs) <- allocFrame (const callerEnv)
+                                    [ FrameEntry param (S.exprPos arg) arg False | (param, arg) <- zip params actualArgs ]
 
-           False -> incorrectArity name parLen actLen
-                    & OuroError pos
-                    & L.EvalError
-                    & pure
+               let functionEnv = closureEnv
+                               & L.localScope       .~ Map.fromList (zip params (map Promised argAddrs))
+                               & L.functionRegistry .~ Map.empty
+                               & L.parentEnv        .~ Just closureEnv
+                               & L.callStack        .~ Set.insert fnId callerStack
+
+                   -- Evaluate an expression in an explicit environment
+                   evaluator' currentEnv expr' = local (const currentEnv) (evaluator expr')
+
+               case returnExpr bodyExprs of
+                   Just (S.Form _ (_ : val : _))
+                       -> case (collectBindings bodyExprs, localFunctions bodyExprs) of
+                              (Right entries, Right locals)
+                                  -> do
+                                     (bodyFrame, _) <- allocFrame (\names -> functionEnv
+                                                                             & L.localScope       .~ names
+                                                                             & L.functionRegistry .~ locals
+                                                                             & L.parentEnv        .~ Just functionEnv)
+                                                                  entries
+                                     evaluator' bodyFrame val
+                              (Left err, _) -> pure $ EvalError err
+                              (_, Left err) -> pure $ EvalError err
+
+                   _noReturnExpression
+                       -> case determineBlockTarget bodyExprs of
+                              TargetRecord      -> compileRecord evaluator' functionEnv bodyExprs
+                              TargetList        -> compileArray  evaluator' functionEnv pos bodyExprs
+                              TargetFunctionApp -> typeMismatch
+                                                      "a function with a concrete return type (Array, Record, Primitive or another Function)"
+                                                      "a function with a dangling expression"
+                                                  & withBlurb
+                                                      ("Perhaps wrap the body of the function: '" <> name <> "' in a (return) expresion.")
+                                                  & OuroError pos
+                                                  & L.EvalError
+                                                  & pure
 
     where
     returnExpr :: [S.Expr] -> Maybe S.Expr

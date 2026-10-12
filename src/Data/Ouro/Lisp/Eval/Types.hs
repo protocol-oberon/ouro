@@ -47,9 +47,8 @@ import           Unsafe.Coerce               (unsafeCoerce)
 data Env = Env
     { _localScope       :: Map.Map Text Binding
     , _parentEnv        :: Maybe Env
-    , _activeLookups    :: Set Text
-    , _functionRegistry :: Map.Map Text (M.HigherExpression 'M.FunctionExpr)
-    , _callStack        :: Set Text
+    , _functionRegistry :: FunctionRegistry   -- Functions defined in this frame only
+    , _callStack        :: Set FunctionId   -- The functions currently being called
     }
 
 
@@ -58,7 +57,6 @@ defaultEnv :: M.Module -> Env
 defaultEnv moduleEnv = Env
     { _localScope       = Map.empty
     , _parentEnv        = Nothing
-    , _activeLookups    = Set.empty
     , _functionRegistry = (moduleEnv ^. M.functionRegistry)
     , _callStack        = Set.empty
     }
@@ -68,7 +66,6 @@ emptyEnv :: Env
 emptyEnv = Env
     { _localScope       = Map.empty
     , _parentEnv        = Nothing
-    , _activeLookups    = Set.empty
     , _functionRegistry = Map.empty
     , _callStack        = Set.empty
     }
@@ -123,7 +120,7 @@ data Expr where
     Closure     :: Env -> Text -> S.Expr -> Expr
 
     -- Function Macro Closure
-    FunctionClosure :: Env -> Text -> [Text] -> [S.Expr] -> Expr
+    FunctionClosure :: Env -> FunctionId -> [Text] -> [S.Expr] -> Expr
 
     -- The Universal Error Leaf: Allows the engine to bypass crashes
     -- and continue evaluating sibling nodes.
@@ -158,12 +155,17 @@ data PromiseState
     | Forcing                       -- Being evaluated: reaching it again is a cycle
     | Forced Expr
 
--- What a name in a frame is bound to
-data Binding
-    = Promised Addr                 -- Record fields, defines and pattern variables
-    | Unshared S.Expr               -- Function arguments (until step 4): evaluated where referenced
+-- What a name in a frame is bound to: a promise for a record field, define,
+-- function argument or pattern variable
+newtype Binding = Promised Addr
 
 type Addr = Int
+
+-- A function's identity: its name and where it is defined. A local defun can share
+-- a name with another function, so the recursion check compares both.
+type FunctionId = (Text, SourcePos)
+
+type FunctionRegistry = Map.Map Text (M.HigherExpression 'M.FunctionExpr)
 
 
 runEvalM :: Env -> EvalM a -> a
@@ -207,7 +209,7 @@ instance Show Expr where
     PrimitiveOp _          -> showString "PrimitiveOp <native_function>"
 
     Closure         _ name body        -> showString "Closure <env> "         . showsPrec 11 name . showChar ' ' . showsPrec 11 body
-    FunctionClosure _ name args bodies -> showString "FunctionClosure <env> " . showsPrec 11 name . showChar ' ' . showsPrec 11 args . showChar ' ' . showsPrec 11 bodies
+    FunctionClosure _ (name, _) args bodies -> showString "FunctionClosure <env> " . showsPrec 11 name . showChar ' ' . showsPrec 11 args . showChar ' ' . showsPrec 11 bodies
 
     EvalError err -> showString "EvalError " . showsPrec 11 err
 

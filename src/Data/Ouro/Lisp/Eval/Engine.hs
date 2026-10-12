@@ -451,8 +451,9 @@ evaluateGuards eval env pos target attempts branches =
                               Right (Just bindings) -> do
                                                        scope        <- ask
                                                        patternFrame <- allocValues (\names -> scope
-                                                                                              & L.localScope .~ names
-                                                                                              & L.parentEnv  .~ Just scope)
+                                                                                              & L.localScope       .~ names
+                                                                                              & L.functionRegistry .~ Map.empty
+                                                                                              & L.parentEnv        .~ Just scope)
                                                                                    (S.exprPos pattern)
                                                                                    bindings
                                                        local (const patternFrame) (eval body)

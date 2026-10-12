@@ -3,7 +3,7 @@
 module Data.Ouro.Lisp.Eval.Scope where
 
 import           Control.Monad                (foldM)
-import           Control.Monad.Reader         (asks, local)
+import           Control.Monad.Reader         (local)
 import           Control.Monad.State.Strict   (gets, modify)
 import qualified Data.IntMap.Strict           as IntMap
 import           Data.Function                ((&))
@@ -23,7 +23,7 @@ import qualified Data.Ouro.Lisp.Surface       as S
 import qualified Data.Set                     as Set
 import           Data.Text                    (Text)
 import qualified Data.Text                    as T
-import           Lens.Micro                   ((%~), (.~), (^.))
+import           Lens.Micro                   ((.~), (^.))
 import           Lens.Micro.Platform          (at, (?~))
 import           Text.Megaparsec              (SourcePos)
 
@@ -153,13 +153,14 @@ cyclicLookup pos name =
     & L.EvalError
 
 
--- Scans a list of surface expressions for nested functions, lifting them into
--- HigherExpressions and binding them into the local Environment.
-buildLocalFunction :: Env -> [S.Expr] -> Either OuroError Env
-buildLocalFunction = foldM processNode
+-- Scans a block for the functions it defines (including inside define blocks).
+-- A frame's registry holds only these, so a function is found by walking outward
+-- through the frames, and its closure is the frame it was defined in.
+localFunctions :: [S.Expr] -> Either OuroError L.FunctionRegistry
+localFunctions = foldM processNode Map.empty
     where
-    processNode :: Env -> S.Expr -> Either OuroError Env
-    processNode env = \case
+    processNode :: L.FunctionRegistry -> S.Expr -> Either OuroError L.FunctionRegistry
+    processNode registry = \case
         -- Intercept top-level function forms and lift them
         S.Form pos (S.Symbol _ "defun" : S.Symbol namePos name : S.Form _ argNodes : bodyExprs)
             -> do
@@ -173,8 +174,8 @@ buildLocalFunction = foldM processNode
 
                let liftedFunction = M.Function pos name args (S.Form pos bodyExprs)
 
-               env & L.functionRegistry . at name ?~ liftedFunction
-                   & Right
+               registry & at name ?~ liftedFunction
+                        & Right
 
         -- Catch malformed function definitions
         S.Form pos (S.Symbol _ "defun" : _)
@@ -184,11 +185,11 @@ buildLocalFunction = foldM processNode
 
         -- Recurse into define blocks
         S.Form _ (S.Symbol _ "define" : rest)
-            -> foldM processNode env rest
+            -> foldM processNode registry rest
 
         -- Safely ignore variables, contexts, and attributes
         _other
-            -> Right env
+            -> Right registry
 
 
     -- Helper to safely extract Text from an argument node
@@ -204,9 +205,7 @@ buildLocalFunction = foldM processNode
 -- lookupVar.
 --
 -- Resolves a name by walking outward through the frames, then function definitions,
--- then builtins. Promised bindings are forced in their own environment. Function
--- arguments are still evaluated where they are referenced (until step 4), so loops
--- through them are tracked by name in 'activeLookups'.
+-- then builtins. Every binding is a promise, forced in the environment it was written in.
 lookupVar
   :: (S.Expr -> EvalM L.Expr)
   -> SourcePos
@@ -217,13 +216,6 @@ lookupVar evaluator pos name env =
     case Map.lookup name (env ^. L.localScope) of
         Just (Promised addr)
             -> force evaluator pos addr
-
-        Just (Unshared argExpr)
-            -> do
-               active <- asks (^. L.activeLookups)
-               case Set.member name active of
-                   True  -> pure (cyclicLookup pos name)
-                   False -> local (L.activeLookups %~ Set.insert name) (evaluator argExpr)
 
         Nothing
             -> lookupFunction evaluator pos name env
@@ -238,8 +230,9 @@ lookupFunction
     -> EvalM L.Expr
 lookupFunction evaluator pos name env =
     case Map.lookup name (env ^. L.functionRegistry) of
-        Just (M.Function _ _ tArgs (S.Form _ bodyExprs))
-            -> pure $ L.FunctionClosure env name tArgs bodyExprs
+        -- The closure is this frame: the one the function is defined in
+        Just (M.Function tPos _ tArgs (S.Form _ bodyExprs))
+            -> pure $ L.FunctionClosure env (name, tPos) tArgs bodyExprs
 
         Just _ -> astCorruption name "Corrupted function registry entry."
                   & OuroError pos
