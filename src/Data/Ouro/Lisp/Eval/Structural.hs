@@ -15,12 +15,13 @@ import qualified Data.Ouro.Internal.Expr     as I
 import qualified Data.Ouro.Internal.Kinds    as JLD
 import           Data.Ouro.Lisp.Eval.Schema  (parseContextDirectives)
 import           Data.Ouro.Lisp.Eval.Scope   (FrameEntry (..), allocFrame,
-                                              bindableAttr, collectBindings,
-                                              force, localFunctions)
+                                              bindableAttr, checkNamespace,
+                                              collectBindings, force,
+                                              localFunctions)
 import           Data.Ouro.Lisp.Eval.Types   (Binding (..), Env (..), EvalM, Expr (..),
                                               humanReadableType, localScope)
 import qualified Data.Ouro.Lisp.Eval.Types   as L
-import           Data.Ouro.Lisp.FunctionBody (functionBody)
+import           Data.Ouro.Lisp.Function     (functionBody)
 import qualified Data.Ouro.Lisp.Surface      as S
 import qualified Data.Set                    as Set
 import           Data.Text                   (Text)
@@ -54,7 +55,7 @@ compileRecord evaluator env fields =
             -> pure (EvalError err)
 
         Right locals
-            -> case collectBindings fields of
+            -> case collectBindings fields >>= \entries -> entries <$ checkNamespace entries locals of
                    -- Dynamic environment allocation failures represent a catastrophic scope break
                    Left err
                        -> pure (EvalError err)
@@ -428,6 +429,10 @@ evalFunction evaluator closureEnv pos fnId@(name, _) params bodyExprs actualArgs
                    Right (declarations, result)
                        -> case (collectBindings declarations, localFunctions declarations) of
                               (Right entries, Right locals)
+                                  | Left err <- checkNamespace entries locals
+                                  -> pure (EvalError err)
+
+                                  | otherwise
                                   -> do
                                      (bodyFrame, _) <- allocFrame (\names -> functionEnv
                                                                              & L.localScope       .~ names

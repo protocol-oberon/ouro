@@ -13,7 +13,8 @@ import qualified Data.Map                    as Map
 import           Data.Ouro.Error.Diagnostics (lexicalError, unbalancedDelimiter)
 import           Data.Ouro.Error.Types       (ErrorContext (..), OuroError (..),
                                               SyntaxError (..))
-import           Data.Ouro.Lisp.FunctionBody (functionBody)
+import           Data.Ouro.Lisp.Function     (checkFunctionName, duplicateFunction,
+                                              functionBody)
 import           Data.Ouro.Lisp.Module.Types (Declaration (..),
                                               HigherExpression (..),
                                               Module (..), graphRegistry,
@@ -22,7 +23,7 @@ import qualified Data.Ouro.Lisp.Surface      as S
 import qualified Data.Ouro.Lisp.Tokens       as Tkn
 import           Data.Text                   (Text)
 import qualified Data.Text                   as T
-import           Lens.Micro.Platform         (at, (&), (?~))
+import           Lens.Micro.Platform         (at, (&), (?~), (^.))
 import           Text.Megaparsec             (SourcePos)
 import qualified Text.Megaparsec.Pos         as M
 
@@ -53,7 +54,12 @@ buildModuleRegistry = foldM insertDecl emptyModule
 
     insertDecl :: Module -> ParsedDecl -> Either OuroError Module
     insertDecl m = \case
-                    (PFunction t@(Function _ name _ _))  -> Right $ m & functionRegistry . at name ?~ t
+                    (PFunction t@(Function pos name _ _))
+                        -> do
+                           checkFunctionName name pos
+                           case Map.member name (m ^. functionRegistry) of
+                               True  -> Left (duplicateFunction name pos)
+                               False -> Right $ m & functionRegistry . at name ?~ t
                     (PGraph    g@(Graph    _ name body)) -> do
                                                             validateGraphBody body
                                                             Right $ m & graphRegistry    . at name ?~ g
@@ -100,8 +106,7 @@ pHigherExpression = do
 
 pDefun :: SourcePos -> Parser ParsedDecl
 pDefun pos = do
-    -- We specifically enforce the FunctionSymbol (e.g., ends in '!')
-    name <- expectFunctionSymbol "Expected function name ending with '!'"
+    name <- expectSymbol "Expected a function name"
     args <- pArgs
     body <- collectUntil Tkn.CloseParen
 
@@ -138,17 +143,6 @@ expectSymbol err = do
                            F.& OuroError (Tkn.pos t)
                            F.& Left
                            F.& lift
-
-
-expectFunctionSymbol :: Text -> Parser Text
-expectFunctionSymbol err = do
-    t <- popToken err
-    case Tkn.tokenType t of
-        Tkn.FunctionSymbol name -> pure name
-        _notAFunctionSymbol     -> lexicalError err
-                                   F.& OuroError (Tkn.pos t)
-                                   F.& Left
-                                   F.& lift
 
 
 expectCloseParen :: Parser ()
@@ -208,7 +202,6 @@ pExpr = do
 
                              -- Parameterized Identifiers
                              Tkn.Symbol         txt -> capture (S.Symbol (Tkn.pos t) txt)
-                             Tkn.FunctionSymbol txt -> capture (S.Symbol (Tkn.pos t) txt)
 
                              -- Flags & Attributes (Reader Macro -> `(attr "key" expr)`)
                              Tkn.FlagVocab      -> put ts >> parseAttrNode (Tkn.pos t) "vocab"

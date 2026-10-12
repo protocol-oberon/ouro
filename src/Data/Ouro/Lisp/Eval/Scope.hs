@@ -11,19 +11,19 @@ import qualified Data.Map                     as Map
 import           Data.Ouro.Error.Diagnostics  (astCorruption, cyclicDependency,
                                                lexicalError, shadowedVariable,
                                                shadowedVariableBlurb,
-                                               unboundIdentifier, withBlurb, invalidFunctionName)
+                                               unboundIdentifier, withBlurb)
 import           Data.Ouro.Error.Types        (OuroError (..))
 import           Data.Ouro.Internal.Utils     (rankBySimilarity)
 import           Data.Ouro.Lisp.Eval.Builtins (builtinRegistry)
 import           Data.Ouro.Lisp.Eval.Types    (Binding (..), Env (..), EvalM,
                                                allEnvKeys)
 import qualified Data.Ouro.Lisp.Eval.Types    as L
-import           Data.Ouro.Lisp.FunctionBody  (functionBody)
+import           Data.Ouro.Lisp.Function      (checkFunctionName, duplicateFunction,
+                                               functionBody)
 import qualified Data.Ouro.Lisp.Module.Types  as M
 import qualified Data.Ouro.Lisp.Surface       as S
 import qualified Data.Set                     as Set
 import           Data.Text                    (Text)
-import qualified Data.Text                    as T
 import           Lens.Micro                   ((.~), (^.))
 import           Lens.Micro.Platform          (at, (?~))
 import           Text.Megaparsec              (SourcePos)
@@ -95,6 +95,18 @@ bindableAttr = \case
                         _otherForm                           -> False
 
 
+-- Values and functions share one namespace, so a block cannot bind the same name
+-- as both: which one a lookup found would depend on the order of the checks.
+checkNamespace :: [FrameEntry] -> L.FunctionRegistry -> Either OuroError ()
+checkNamespace entries locals =
+    case [ (name, fnPos) | M.Function fnPos name _ _ <- Map.elems locals, name `elem` map entryKey entries ] of
+        []                -> Right ()
+        (name, fnPos) : _ -> lexicalError ("'" <> name <> "' is defined as both a function and a value in the same block.")
+                             & withBlurb "Functions and values share one namespace. Perhaps rename one of them."
+                             & OuroError fnPos
+                             & Left
+
+
 -- allocFrame.
 --
 -- Allocates one unforced promise per entry and builds the frame that binds their
@@ -164,11 +176,11 @@ localFunctions = foldM processNode Map.empty
         -- Intercept top-level function forms and lift them
         S.Form pos (S.Symbol _ "defun" : S.Symbol namePos name : S.Form _ argNodes : bodyExprs)
             -> do
-               case "!" `T.isSuffixOf` name of
-                   True  -> Right ()
-                   False -> invalidFunctionName name
-                            & OuroError namePos
-                            & Left
+               checkFunctionName name namePos
+
+               case Map.member name registry of
+                   True  -> Left (duplicateFunction name namePos)
+                   False -> Right ()
 
                args <- traverse (extractArg pos) argNodes
 
@@ -182,7 +194,7 @@ localFunctions = foldM processNode Map.empty
 
         -- Catch malformed function definitions
         S.Form pos (S.Symbol _ "defun" : _)
-            -> lexicalError "Malformed function declaration. Expected format: (defun name! (args...) body...)"
+            -> lexicalError "Malformed function declaration. Expected format: (defun name (args...) body)"
                & OuroError pos
                & Left
 

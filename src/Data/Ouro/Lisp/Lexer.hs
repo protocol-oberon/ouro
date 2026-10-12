@@ -158,12 +158,7 @@ pSymbol = lexeme . withPos $
     first <- letterChar <|> oneOf ("_+-*/<>=!&|~" :: String)
     rest  <- many (alphaNumChar <|> oneOf ("_-+*/<>=!?&|~'" :: String))
 
-    let raw = T.pack (first : rest)
-
-    -- Lexical bifurcation: If it ends in '!', it is strictly a function.
-    pure $ case T.last raw == '!' of
-               True  -> Tkn.FunctionSymbol raw
-               False -> Tkn.Symbol         raw
+    pure (Tkn.Symbol (T.pack (first : rest)))
 
 
 pSingleToken :: Parser Tkn.Token

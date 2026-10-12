@@ -38,7 +38,6 @@ data TokenType
     -- Identifiers
     | Attr   !Text     -- ':id', ':type' (stores the string without the leading ':')
     | Symbol !Text     -- 'lambda', variable names like 'node' or 'x'
-    | FunctionSymbol !Text -- NEW: Variables/identifiers that explicitly end in '!'
     -- Literals
     | String  !Text    -- "Update", "Core aggregation update for Van Gogh..."
     | Number  !Double  -- 42, 3.14159

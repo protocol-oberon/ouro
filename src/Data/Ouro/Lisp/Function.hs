@@ -1,9 +1,12 @@
-module Data.Ouro.Lisp.FunctionBody
-( functionBody
+module Data.Ouro.Lisp.Function
+( checkFunctionName
+, duplicateFunction
+, functionBody
 ) where
 
 import           Data.Function               ((&))
-import           Data.Ouro.Error.Diagnostics (lexicalError, withBlurb)
+import           Data.Ouro.Error.Diagnostics (invalidFunctionName, lexicalError,
+                                              withBlurb)
 import           Data.Ouro.Error.Types       (OuroError (..))
 import qualified Data.Ouro.Lisp.Surface      as S
 import           Data.Text                   (Text)
@@ -77,3 +80,31 @@ functionBody name pos body
     isReturn = \case
                 S.Form _ (S.Symbol _ "return" : _) -> True
                 _notAReturn                        -> False
+
+
+-- Function names are plain symbols, in one namespace with values. A trailing '!'
+-- is allowed but not required. A name cannot be a special form: special forms are
+-- recognised before names are looked up, so such a function could never be called.
+checkFunctionName :: Text -> SourcePos -> Either OuroError ()
+checkFunctionName name pos
+    | name `elem` specialForms
+        = invalidFunctionName name
+          & withBlurb ("'" <> name <> "' is a special form, so it cannot be used as a function name. Perhaps choose another name.")
+          & OuroError pos
+          & Left
+    | otherwise
+        = Right ()
+
+
+-- A function can be defined once in each scope
+duplicateFunction :: Text -> SourcePos -> OuroError
+duplicateFunction name pos =
+    lexicalError ("The function '" <> name <> "' is defined more than once in the same scope.")
+    & withBlurb "Perhaps rename one of the definitions, or remove the one you no longer need."
+    & OuroError pos
+
+
+-- Forms the evaluator recognises by their head symbol, before any name lookup
+specialForms :: [Text]
+specialForms = [ "attr", "case", "context", "define", "defun", "get", "graph", "inlay"
+               , "insert", "list", "nth", "replace-at", "thru" ]

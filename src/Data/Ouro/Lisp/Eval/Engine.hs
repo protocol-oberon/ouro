@@ -20,8 +20,7 @@ import           Data.Ouro.Error.Diagnostics    (astCorruption,
                                                  missingPathKey,
                                                  targetMismatch, typeMismatch,
                                                  typeMismatchBlurb,
-                                                 unbalancedDelimiter,
-                                                 unboundIdentifier, withBlurb)
+                                                 unbalancedDelimiter, withBlurb)
 import           Data.Ouro.Error.Types          (ErrorContext (..),
                                                  OuroError (..), TypeError (..))
 import qualified Data.Ouro.Internal.Expr        as I
@@ -404,15 +403,16 @@ applyFunction pos fields =
                           pure $ runReader (nativeFunc pos evaledArgs) env
 
                    err@(EvalError _) -> pure err
-                   otherVal          -> unboundIdentifier (humanReadableType otherVal)
-                                       & withBlurb ("The evaluator attempted to invoke the form head as a callable function handle, "
-                                                   <> "but the identifier resolved to an immutable "
-                                                   <> humanReadableType otherVal
-                                                   <> " primitive instead.\n\n"
-                                                   <> "Perhaps check that target value is in scope.")
-                                       & OuroError pos
-                                       & EvalError
-                                       & pure
+                   otherVal          -> let what = case operatorExpr of
+                                                       S.Symbol _ name -> "'" <> name <> "'"
+                                                       _notAName       -> "This expression"
+                                        in typeMismatch "a function to call" (humanReadableType otherVal)
+                                           & withBlurb ( what <> " is " <> humanReadableType otherVal <> ", not a function, so it cannot be called."
+                                                      <> "\n\nFunctions and values share one namespace: a value with the same name as a function shadows it."
+                                                       )
+                                           & OuroError pos
+                                           & EvalError
+                                           & pure
 
         [] -> unbalancedDelimiter "an active form operator symbol" "Empty Brackets"
               & withBlurb ( "Empty structural framing brackets are invalid executable values in Ouro. "

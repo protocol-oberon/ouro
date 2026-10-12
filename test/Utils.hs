@@ -103,3 +103,20 @@ describe = \case
 
 tshow :: Show a => a -> Text
 tshow = T.pack . show
+
+-- The program fails to compile, and one of its errors mentions the given text
+failsWith :: Text -> Text -> Property
+failsWith message src = withTests 1 . property $
+    case compileG src of
+        CompilationFailure _ errs
+            | any (T.isInfixOf message . T.pack . show) errs
+                -> success
+            | otherwise
+                -> do
+                   annotate ("failed, but no error mentions: " <> T.unpack message)
+                   annotate (show errs)
+                   failure
+        CompilationSuccess _ ast
+            -> do
+               annotate ("compiled to: " <> TL.unpack (toJSON defaultOptions ast))
+               failure
