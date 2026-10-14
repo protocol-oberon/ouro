@@ -3,6 +3,7 @@ module Ouro.LanguageTest
 , formsAndBuiltins
 , returnedFunctions
 , recordKeys
+, types
 , knownGaps
 ) where
 
@@ -125,6 +126,56 @@ recordKeys = Group "Records: each key once"
     base = "(defn base () (:type \"Base\" :id \"1\")) "
 
 
+-- The type rules as they are: values carry their types, built-ins check them, and nothing
+-- is converted implicitly. Several rules here are under review (array homogeneity,
+-- equality across types, ordering, extending URIs); a change to one flips its test.
+types :: Group
+types = Group "Types: the rules as they are"
+    [ -- Arrays
+      ("an array may mix types",                    compilesToJSON "(graph g (:r (1 \"a\" true)))"
+                                                                   "{\"r\": [1, \"a\", true]}")
+    , ("+ joins arrays whose first elements match", compilesToJSON "(graph g (:r (+ (1 \"a\") (2 3))))"
+                                                                   "{\"r\": [1, \"a\", 2, 3]}")
+    , ("+ rejects arrays whose first elements differ", failsWith "Matching Arrays of the same type"
+                                                              "(graph g (:r (+ (1 2) (\"a\"))))")
+    , ("insert checks the element's type",          failsWith "a datatype for insertion matching"
+                                                              "(graph g (:r (insert 0 \"x\" (1 2))))")
+
+      -- Equality
+    , ("eq across types is false",                  compilesToJSON "(graph g (:r (eq 1 \"1\") :s (eq true 1)))"
+                                                                   "{\"r\": false, \"s\": false}")
+    , ("a URI is not equal to its String",          compilesToJSON "(graph g (:r (eq #uri \"https://a.org\" \"https://a.org\")))"
+                                                                   "{\"r\": false}")
+    , ("a case literal of another type never matches", compilesToJSON "(graph g (:r (case 5 (\"5\" \"string\") (otherwise \"number\"))))"
+                                                                   "{\"r\": \"number\"}")
+    , ("records are equal whatever their field order", compilesToJSON "(graph g (:r (eq (:a 1 :b 2) (:b 2 :a 1))))"
+                                                                   "{\"r\": true}")
+
+      -- Ordering and arithmetic
+    , ("dates cannot be ordered",                   failsWith "a Date > a Date"
+                                                              ("(graph g (:r (> " <> date <> " " <> date <> ")))"))
+    , ("dates cannot be subtracted",                failsWith "a Date - a Date"
+                                                              ("(graph g (:r (- " <> date <> " " <> date <> ")))"))
+    , ("strings cannot be ordered",                 failsWith "a String < a String"
+                                                              "(graph g (:r (< \"a\" \"b\")))")
+    , ("a URI cannot be extended",                  failsWith "a URI + a String"
+                                                              "(graph g (:r (+ #uri \"https://a.org/\" \"x\")))")
+    , ("durations do not add",                      failsWith "a Duration time period + a Duration time period"
+                                                              "(graph g (:r (+ (days 1) (days 2))))")
+    , ("null has no arithmetic",                    failsWith "a Null value + a Number"
+                                                              "(graph g (:r (+ null 1)))")
+
+      -- Assertions check, and only #uri and #date convert a String
+    , ("#num does not convert a String",            failsWith "a Number"
+                                                              "(graph g (:r #num \"5\"))")
+    , ("#uri does not accept a Date",               failsWith "a URI layout"
+                                                              ("(graph g (:r #uri " <> date <> "))"))
+    ]
+
+    where
+    date = "#date \"2020-01-01T00:00:00Z\""
+
+
 -- Known gaps, numbered as in the specification's Appendix B. Each test pins the current,
 -- incorrect behaviour; the change that fixes a gap flips its test to the correct one.
 knownGaps :: Group
@@ -149,8 +200,14 @@ knownGaps = Group "Known gaps: current, incorrect behaviour"
                                                               "(defn inc (x) (+ x 1)) (graph g (:r (list inc)))")
     , ("gap 10: get's missing-key hint mentions define", failsWith "'define'"
                                                               "(graph g (:p (:a 1) :r (get p b)))")
+    , ("gap 10: subtraction's hint names L.Duration", failsWith "L.Duration"
+                                                              "(graph g (:r (- \"a\" 1)))")
     , ("gap 11: a parameter named fn",              failsWith "A fn is written"
                                                               "(defn call (fn) (fn)) (graph g (:r (call 1)))")
     , ("gap 14: a record of only inlays is an array", failsWith "a valid Array to inlay"
                                                               "(defn a () (:k 1)) (defn b () (:j 2)) (graph g ((inlay (a)) (inlay (b))))")
+    , ("gap 15: an empty array cannot be extended",  failsWith "an empty Array + an Array containing a Number"
+                                                              "(graph g (:r (+ () (1))))")
+    , ("gap 15: nor can two empty arrays be joined", failsWith "an empty Array + an empty Array"
+                                                              "(graph g (:r (+ () ())))")
     ]
