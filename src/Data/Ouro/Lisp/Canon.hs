@@ -2,25 +2,28 @@
 module Data.Ouro.Lisp.Canon where
 
 import qualified Data.Ouro.Lisp.Surface as S
+import           Data.Text              (Text)
 import           Text.Megaparsec        (SourcePos)
 
 
--- Desugars an expression that stands on its own, such as a graph's body.
--- 'construct' rewrites the elements of a form, so the expression itself is desugared
--- as the only element of a list.
+-- Desugars an expression that stands on its own, such as a graph's body or the payload
+-- of a type tag. 'construct' rewrites the elements of a form, so the expression itself
+-- is desugared as the only element of a list. Sugar that expands into several elements,
+-- like a bare (thru ...), has no meaning on its own and is left for the evaluator to report.
 constructRoot :: S.Expr -> S.Expr
 constructRoot expr =
     case desugar [construct expr] of
         [root]         -> root
-        _expandedSugar -> expr
+        _expandedSugar -> construct expr
 
 
 -- Main API entry point for the pipeline
 construct :: S.Expr -> S.Expr
 construct = \case
-             S.Form    r   exprs -> S.Form    r   (desugar (map construct exprs))
+             -- Guards are marked before the children are desugared, bottom-up
+             S.Form    r   exprs -> S.Form    r   (desugar (map construct (markGuards exprs)))
              S.Bracket r   exprs -> S.Bracket r   (desugar (map construct exprs))
-             S.Tagged  r t expr  -> S.Tagged  r t (construct expr)
+             S.Tagged  r t expr  -> S.Tagged  r t (constructRoot expr)
 
              node@(S.Symbol      _ _) -> node
              node@(S.DefunSymbol _ _) -> node
@@ -59,7 +62,7 @@ desugar = \case
 
            -- Deep Recurse: Bottom-Up evaluation pass
            (S.Form pos items : xs)
-               -> let desugaredItems = desugar items           -- Expand 'thru' and desugar children FIRST
+               -> let desugaredItems = desugar (markGuards items) -- Expand 'thru' and desugar children FIRST
                       unrolled       = desugarCase             -- Expand multi-match cases
                                      $ desugarBinOp            -- Unroll variadic ops
                                      $ desugarComparison       -- Unroll comparisons
@@ -148,6 +151,29 @@ desugarThru pos target = case target of
     mkDur unit val = S.Form pos [ S.Symbol pos unit, S.Literal pos (S.Num val) ]
 
 
+-- Marks the guards of a case form before its parts are desugared. A guard such as
+-- ((< 10 20) body) compares the case's target with its operands, (< target 10 20), so
+-- it must not be desugared as a comparison of its own operands. The head becomes
+-- (%guard < 10 20); '%' cannot be written in Ouro, so the marker cannot be shadowed.
+markGuards :: [S.Expr] -> [S.Expr]
+markGuards = \case
+    cSym@(S.Symbol _ "case") : target : branches -> cSym : target : map markBranch branches
+    other                                        -> other
+
+    where
+    markBranch = \case
+        S.Form bPos [S.Form gPos (opNode@(S.Symbol sPos op) : operands), body]
+            | op `elem` guardOperators
+            -> S.Form bPos [S.Form gPos (S.Symbol sPos "%guard" : opNode : operands), body]
+        branch
+            -> branch
+
+
+-- The comparisons that can head a case guard
+guardOperators :: [Text]
+guardOperators = [">=", ">", "<=", "<", "eq", "neq"]
+
+
 desugarCase :: S.Expr -> S.Expr
 desugarCase =
     \case
@@ -166,8 +192,8 @@ desugarCase =
                     S.Form bPos [pattern, body]
                         -> let desugaredBody = desugarCase body
                            in case pattern of
-                                  -- Keep recognized guard operators intact (e.g., (> 5))
-                                  S.Form _ (S.Symbol _ op : _) | op `elem` [">=", ">", "<=", "<", "eq", "neq"]
+                                  -- Keep guards intact (e.g., (> 5)), marked by 'markGuards'
+                                  S.Form _ (S.Symbol _ "%guard" : _)
                                       -> [S.Form bPos [pattern, desugaredBody]]
 
                                   -- Keep 'otherwise' intact

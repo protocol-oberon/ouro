@@ -38,6 +38,7 @@ main = do
         , Language.returnedFunctions
         , Language.recordKeys
         , Language.types
+        , Language.operators
         -- Known gaps: pinned as they are today; a fix flips its test
         , Language.knownGaps
         ]

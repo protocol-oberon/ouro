@@ -495,9 +495,8 @@ evaluateGuards eval env pos target attempts branches =
                case pattern of
                    S.Symbol _ "otherwise" -> eval body
 
-                   -- If the symbol is something that indecates a bool then
-                   -- case operates as a guard statement
-                   S.Form _ (S.Symbol opPos op : guardArgs) | op `elem` [">=", ">", "<=", "<", "eq", "neq"]
+                   -- A guard, marked by the desugarer: (%guard op operand ...)
+                   S.Form _ (S.Symbol _ "%guard" : S.Symbol opPos op : guardArgs)
                         -> do
                            guardRes <- evalGuardCond eval env opPos op target guardArgs
                            case guardRes of
@@ -567,19 +566,28 @@ evalGuardCond eval env pos op target runtimeArgs =
         Just handler -> do
                         evaledArgs <- mapM eval runtimeArgs
 
-                        -- Inject the target as the implicity first argument of the guard
-                        let allArgs = target : evaledArgs
+                        -- The target is the guard's first operand: ((< 10) ...) asks (< target 10).
+                        -- With more operands the comparison chains, like (< target 10 20).
+                        -- 'neq' does not chain, so its handler reports the wrong operand count.
+                        let operands    = target : evaledArgs
+                            compareWith = \a b -> runReader (handler pos [a, b]) env
 
-                        -- Reslove the builtin
-                        let res = runReader (handler pos allArgs) env
-
-                        -- Verify that the builtin resolved fully
-                        pure res
+                        pure $ case op /= "neq" && length operands > 2 of
+                                   True  -> allOf (zipWith compareWith operands (drop 1 operands))
+                                   False -> runReader (handler pos operands) env
 
         Nothing      -> astCorruption op "Guard condition operator missing from internal builtin registry."
                         & OuroError pos
                         & EvalError
                         & pure
+
+
+    where
+    -- The pairwise results of a chained comparison: the first error, or whether all hold
+    allOf results =
+        case [ err | err@(EvalError _) <- results ] of
+            err : _  -> err
+            []       -> Primitive (I.Boolean (and [ b | Primitive (I.Boolean b) <- results ]))
 
 
 -- validatePathKeys.

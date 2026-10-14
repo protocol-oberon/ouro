@@ -143,7 +143,8 @@ prop_case_routing = withTests 1 . property $ do
     let fallback = S.Form dummyPos [S.Symbol dummyPos "otherwise", S.Literal dummyPos (S.Num 2)]
     let expr     = S.Form dummyPos [S.Symbol dummyPos "case", target, branch1, fallback]
 
-    runEval expr === L.Primitive (I.Number 1)
+    -- Guards are marked by the desugarer, so the case goes through it first
+    runEval (Canon.constructRoot expr) === L.Primitive (I.Number 1)
 
 
 -- Fault Isolation and Error Propagation

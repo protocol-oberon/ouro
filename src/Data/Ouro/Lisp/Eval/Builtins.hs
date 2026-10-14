@@ -13,7 +13,8 @@ import           Data.Function               ((&))
 import qualified Data.Map                    as Map
 import           Data.Ouro.Error.Diagnostics (astCorruption,
                                               binaryOpMismatchBlurb,
-                                              typeMismatch, withBlurb)
+                                              incorrectArity, typeMismatch,
+                                              withBlurb)
 import           Data.Ouro.Error.Types       (ErrorContext (..), OuroError (..),
                                               SyntaxError (..))
 import qualified Data.Ouro.Internal.Expr     as I
@@ -98,9 +99,9 @@ handleAddition pos =
                        & L.EvalError
                        & pure
 
-     -- Arity Fallback: The desugar pass failed to normalize the AST
-     _badAST
-         -> Data.Ouro.Error.Diagnostics.astCorruption "+" "Addition received non-binary arguments after desugaring."
+     -- The wrong number of operands, as written: each operator compares or combines two values
+     operands
+         -> wrongOperandCount "+" operands
             & OuroError pos
             & L.EvalError
             & pure
@@ -129,9 +130,9 @@ handleSubtraction pos =
                           & L.EvalError
                           & pure
 
-     -- Arity Fallback: The desugar pass failed to normalize the AST
-     _badAST
-         -> Data.Ouro.Error.Diagnostics.astCorruption "-" "Addition received non-binary arguments after desugaring."
+     -- The wrong number of operands, as written: each operator compares or combines two values
+     operands
+         -> wrongOperandCount "-" operands
             & OuroError pos
             & L.EvalError
             & pure
@@ -159,9 +160,9 @@ handleMultiplication pos =
                           & L.EvalError
                           & pure
 
-     -- Arity Fallback: The desugar pass failed to normalize the AST
-     _badAST
-         -> Data.Ouro.Error.Diagnostics.astCorruption "*" "Addition received non-binary arguments after desugaring."
+     -- The wrong number of operands, as written: each operator compares or combines two values
+     operands
+         -> wrongOperandCount "*" operands
             & OuroError pos
             & L.EvalError
             & pure
@@ -200,9 +201,9 @@ handleDivision pos =
                 & L.EvalError
                 & pure
 
-     -- Arity Fallback: The desugar pass failed to normalize the AST
-     _badAST
-         -> Data.Ouro.Error.Diagnostics.astCorruption "/" "Division received non-binary arguments after desugaring."
+     -- The wrong number of operands, as written: each operator compares or combines two values
+     operands
+         -> wrongOperandCount "/" operands
             & OuroError pos
             & L.EvalError
             & pure
@@ -225,9 +226,9 @@ handleGreater pos =
                           & L.EvalError
                           & pure
 
-     -- Arity Fallback: The desugar pass failed to normalize the AST
-     _badAST
-         -> Data.Ouro.Error.Diagnostics.astCorruption ">" "Greater than received non-binary arguments after desugaring."
+     -- The wrong number of operands, as written: each operator compares or combines two values
+     operands
+         -> wrongOperandCount ">" operands
             & OuroError pos
             & L.EvalError
             & pure
@@ -251,9 +252,9 @@ handleGreaterEq pos =
                           & L.EvalError
                           & pure
 
-     -- Arity Fallback: The desugar pass failed to normalize the AST
-     _badAST
-         -> Data.Ouro.Error.Diagnostics.astCorruption ">=" "Greater than or equal to, received non-binary arguments after desugaring."
+     -- The wrong number of operands, as written: each operator compares or combines two values
+     operands
+         -> wrongOperandCount ">=" operands
             & OuroError pos
             & L.EvalError
             & pure
@@ -277,9 +278,9 @@ handleLess pos =
                            & L.EvalError
                            & pure
 
-     -- Arity Fallback
-     _badAST
-         -> Data.Ouro.Error.Diagnostics.astCorruption "<" "Less than received non-binary arguments after desugaring."
+     -- The wrong number of operands, as written: each operator compares or combines two values
+     operands
+         -> wrongOperandCount "<" operands
             & OuroError pos
             & L.EvalError
             & pure
@@ -303,9 +304,9 @@ handleLessEq pos =
                            & L.EvalError
                            & pure
 
-     -- Arity Fallback
-     _badAST
-         -> Data.Ouro.Error.Diagnostics.astCorruption "<=" "Less than or equal to, received non-binary arguments after desugaring."
+     -- The wrong number of operands, as written: each operator compares or combines two values
+     operands
+         -> wrongOperandCount "<=" operands
             & OuroError pos
             & L.EvalError
             & pure
@@ -329,9 +330,9 @@ handleEquality pos =
                    -- Comparison using structural equality
                    (v1, v2) -> pure $ L.Primitive (I.Boolean (v1 == v2))
 
-     -- Arity Fallback: The desugar pass failed to normalize the AST
-     _badAST
-         -> Data.Ouro.Error.Diagnostics.astCorruption "eq" "Equality received non-binary arguments after desugaring."
+     -- The wrong number of operands, as written: each operator compares or combines two values
+     operands
+         -> wrongOperandCount "eq" operands
              & OuroError pos
              & L.EvalError
              & pure
@@ -355,9 +356,9 @@ handleNeq pos =
                    -- Comparison using structural equality
                    (v1, v2) -> pure $ L.Primitive (I.Boolean (v1 /= v2))
 
-     -- Arity Fallback: The desugar pass failed to normalize the AST
-     _badAST
-         -> Data.Ouro.Error.Diagnostics.astCorruption "not" "Equality received non-binary arguments after desugaring."
+     -- The wrong number of operands, as written: each operator compares or combines two values
+     operands
+         -> wrongOperandCount "neq" operands
              & OuroError pos
              & L.EvalError
              & pure
@@ -410,6 +411,13 @@ functionComparison pos op a b =
     & OuroError pos
     & L.EvalError
     & pure
+
+
+-- An operator written with the wrong number of operands, e.g. (+ 1) or (neq 1 2 3).
+-- Variadic arithmetic and comparisons are unrolled into pairs by the desugarer, so only
+-- a count that is wrong as written reaches a handler.
+wrongOperandCount :: Text -> [L.Expr] -> ErrorContext
+wrongOperandCount op operands = Data.Ouro.Error.Diagnostics.incorrectArity op 2 (length operands)
 
 
 isNumber :: L.Expr -> Bool

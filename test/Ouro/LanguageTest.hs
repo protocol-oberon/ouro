@@ -4,6 +4,7 @@ module Ouro.LanguageTest
 , returnedFunctions
 , recordKeys
 , types
+, operators
 , knownGaps
 ) where
 
@@ -176,18 +177,47 @@ types = Group "Types: the rules as they are"
     date = "#date \"2020-01-01T00:00:00Z\""
 
 
+-- Operators take two operands. Variadic arithmetic and comparisons are unrolled into pairs
+-- wherever they are written, including under a type tag; a case guard compares the case's
+-- target with its operands, chaining like a comparison. A count that is wrong as written
+-- is an arity error.
+operators :: Group
+operators = Group "Operators: operands and desugaring"
+    [ ("variadic + under a type tag",               compilesToJSON "(graph g (:u #uri (+ \"https://a.org/\" \"b/\" \"c\")))"
+                                                                   "{\"u\": \"https://a.org/b/c\"}")
+    , ("thru under a type tag",                     compilesToJSON "(graph g (:d #date (+ #date \"2020-01-01T00:00:00Z\" (thru (days 1)))))"
+                                                                   "{\"d\": \"2020-01-02T23:59:59Z\"}")
+    , ("a chained comparison under a type tag",     compilesToJSON "(graph g (:r #bool (< 1 2 3) :s #num (* 2 3 4)))"
+                                                                   "{\"r\": true, \"s\": 24}")
+    , ("a tagged function body",                    compilesToJSON "(defn f () #uri (+ \"https://a.org/\" \"b/\" \"c\")) (graph g (:r (f)))"
+                                                                   "{\"r\": \"https://a.org/b/c\"}")
+    , ("a guard compares the target",               compilesToJSON "(defn size (n) (case n ((> 100) \"large\") ((< 10) \"small\") (otherwise \"medium\"))) (graph g (:a (size 150) :b (size 5) :c (size 50)))"
+                                                                   "{\"a\": \"large\", \"b\": \"small\", \"c\": \"medium\"}")
+    , ("a guard with two operands chains",          compilesToJSON "(graph g (:r (case 5 ((< 10 20) \"a\") (otherwise \"b\")) :s (case 15 ((< 10 20) \"a\") (otherwise \"b\"))))"
+                                                                   "{\"r\": \"a\", \"s\": \"b\"}")
+    , ("a guard with three operands chains",        compilesToJSON "(graph g (:r (case 5 ((< 10 20 30) \"a\") (otherwise \"b\"))))"
+                                                                   "{\"r\": \"a\"}")
+    , ("a guard's operands are desugared",          compilesToJSON "(graph g (:r (case 5 ((< (+ 1 2 3) 10) \"a\") (otherwise \"b\"))))"
+                                                                   "{\"r\": \"a\"}")
+    , ("an operator needs two operands",            failsWith "IncorrectArity"
+                                                              "(graph g (:r (+ 1)))")
+    , ("a comparison needs two operands",           failsWith "IncorrectArity"
+                                                              "(graph g (:r (< 1)))")
+    , ("neq compares exactly two values",           failsWith "IncorrectArity"
+                                                              "(graph g (:r (neq 1 2 3)))")
+    , ("so a neq guard takes one operand",          failsWith "IncorrectArity"
+                                                              "(graph g (:r (case 5 ((neq 1 2) \"a\") (otherwise \"b\"))))")
+    , ("a bare thru is not a value",                failsWith "thru"
+                                                              "(graph g (:r #date (thru (days 1))))")
+    ]
+
+
 -- Known gaps, numbered as in the specification's Appendix B. Each test pins the current,
 -- incorrect behaviour; the change that fixes a gap flips its test to the correct one.
 knownGaps :: Group
 knownGaps = Group "Known gaps: current, incorrect behaviour"
     [ ("gap 1: a remote context with local terms nests", compilesToJSON "(graph g ((context (remote-context \"https://x.org/c.json\" vocab \"https://e.org/\")) :a 1))"
                                                                    "{\"@context\": {\"@context\": \"https://x.org/c.json\", \"@vocab\": \"https://e.org/\"}, \"a\": 1}")
-    , ("gap 2: variadic + under a type tag",        failsWith "non-binary arguments after desugaring"
-                                                              "(graph g (:u #uri (+ \"https://a.org/\" \"b/\" \"c\")))")
-    , ("gap 2: thru under a type tag",              failsWith "non-binary arguments after desugaring"
-                                                              "(graph g (:d #date (+ #date \"2020-01-01T00:00:00Z\" (thru (days 1)))))")
-    , ("gap 3: a guard with two arguments",         failsWith "non-binary arguments after desugaring"
-                                                              "(graph g (:r (case 5 ((< 10 20) \"a\") (otherwise \"b\"))))")
     , ("gap 4: months roll over",                   compilesToJSON "(graph g (let (:d #date \"2020-01-31T00:00:00Z\") (:r (+ d (months 1)))))"
                                                                    "{\"r\": \"2020-03-02T00:00:00Z\"}")
     , ("gap 5: computed keys are dropped",          compilesToJSON "(graph g (let (:k \"key\") (:a 1 (attr k 2))))"
