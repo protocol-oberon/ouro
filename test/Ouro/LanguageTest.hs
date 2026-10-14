@@ -5,6 +5,7 @@ module Ouro.LanguageTest
 , recordKeys
 , types
 , operators
+, dates
 , knownGaps
 ) where
 
@@ -217,14 +218,38 @@ operators = Group "Operators: operands and desugaring"
     ]
 
 
+-- Calendar arithmetic. Months and years clip to the end of a shorter month instead of
+-- rolling over into the next one, so a shift never skips past the month it lands in.
+dates :: Group
+dates = Group "Dates: calendar arithmetic"
+    [ ("a month after 31 January is 29 February",   compilesToJSON ("(graph g (:r (+ " <> date "2020-01-31" <> " (months 1))))")
+                                                                   "{\"r\": \"2020-02-29T00:00:00Z\"}")
+    , ("or 28 February outside a leap year",        compilesToJSON ("(graph g (:r (+ " <> date "2021-01-31" <> " (months 1))))")
+                                                                   "{\"r\": \"2021-02-28T00:00:00Z\"}")
+    , ("a month after 31 May is 30 June",           compilesToJSON ("(graph g (:r (+ " <> date "2020-05-31" <> " (months 1))))")
+                                                                   "{\"r\": \"2020-06-30T00:00:00Z\"}")
+    , ("a month before 31 March is 29 February",    compilesToJSON ("(graph g (:r (- " <> date "2020-03-31" <> " (months 1))))")
+                                                                   "{\"r\": \"2020-02-29T00:00:00Z\"}")
+    , ("a year after 29 February is 28 February",   compilesToJSON ("(graph g (:r (+ " <> date "2020-02-29" <> " (years 1)) :s (+ " <> date "2020-02-29" <> " (years 4))))")
+                                                                   "{\"r\": \"2021-02-28T00:00:00Z\", \"s\": \"2024-02-29T00:00:00Z\"}")
+    , ("thru a month ends that month",              compilesToJSON ("(graph g (:r (+ " <> date "2020-01-31" <> " (thru (months 1))) :s (+ " <> date "2020-01-31" <> " (thru (months 0)))))")
+                                                                   "{\"r\": \"2020-02-29T23:59:59Z\", \"s\": \"2020-01-31T23:59:59Z\"}")
+    , ("thru a year ends that year",                compilesToJSON ("(graph g (:r (+ " <> date "2020-02-29" <> " (thru (years 1)))))")
+                                                                   "{\"r\": \"2021-12-31T23:59:59Z\"}")
+    , ("days do not clip",                          compilesToJSON ("(graph g (:r (+ " <> date "2020-01-31" <> " (days 30))))")
+                                                                   "{\"r\": \"2020-03-01T00:00:00Z\"}")
+    ]
+
+    where
+    date day = "#date \"" <> day <> "T00:00:00Z\""
+
+
 -- Known gaps, numbered as in the specification's Appendix B. Each test pins the current,
 -- incorrect behaviour; the change that fixes a gap flips its test to the correct one.
 knownGaps :: Group
 knownGaps = Group "Known gaps: current, incorrect behaviour"
     [ ("gap 1: a remote context with local terms nests", compilesToJSON "(graph g ((context (remote-context \"https://x.org/c.json\" vocab \"https://e.org/\")) :a 1))"
                                                                    "{\"@context\": {\"@context\": \"https://x.org/c.json\", \"@vocab\": \"https://e.org/\"}, \"a\": 1}")
-    , ("gap 4: months roll over",                   compilesToJSON "(graph g (let (:d #date \"2020-01-31T00:00:00Z\") (:r (+ d (months 1)))))"
-                                                                   "{\"r\": \"2020-03-02T00:00:00Z\"}")
     , ("gap 5: computed keys are dropped",          compilesToJSON "(graph g (let (:k \"key\") (:a 1 (attr k 2))))"
                                                                    "{\"a\": 1}")
     , ("gap 7: a field cannot see its outer name",  failsWith "references itself"

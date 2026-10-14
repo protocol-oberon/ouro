@@ -39,6 +39,7 @@ main = do
         , Language.recordKeys
         , Language.types
         , Language.operators
+        , Language.dates
         -- Known gaps: pinned as they are today; a fix flips its test
         , Language.knownGaps
         ]

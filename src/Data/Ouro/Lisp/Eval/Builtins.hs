@@ -26,8 +26,8 @@ import           Data.Time                   (UTCTime (..), addUTCTime,
                                               fromGregorian,
                                               gregorianMonthLength, toGregorian)
 import           Data.Time.Calendar          (addDays,
-                                              addGregorianMonthsRollOver,
-                                              addGregorianYearsRollOver)
+                                              addGregorianMonthsClip,
+                                              addGregorianYearsClip)
 import           Data.Time.Format            (defaultTimeLocale, parseTimeM)
 import           Text.Megaparsec             (SourcePos)
 
@@ -420,22 +420,24 @@ isNumber = \case
 
 
 --- Time Shifting & L.Duration Modifiers ---
--- Direct calendar shifting calendar logic
+-- Shifts a date by a duration. Months and years clip to the end of a shorter month rather
+-- than rolling over into the next: 31 January + 1 month is the last day of February, and
+-- 29 February + 1 year is 28 February. A shift never skips past the month it lands in.
 applyDuration :: Integral a => UTCTime -> PeriodUnit -> a -> UTCTime
 applyDuration utc unit amt = case unit of
-                                 Years   -> utc { utctDay = addGregorianYearsRollOver (fromIntegral amt) (utctDay utc) }
-                                 Months  -> utc { utctDay = addGregorianMonthsRollOver (fromIntegral amt) (utctDay utc) }
+                                 Years   -> utc { utctDay = addGregorianYearsClip (fromIntegral amt) (utctDay utc) }
+                                 Months  -> utc { utctDay = addGregorianMonthsClip (fromIntegral amt) (utctDay utc) }
                                  Days    -> utc { utctDay = addDays (fromIntegral amt) (utctDay utc) }
                                  Hours   -> addUTCTime (fromIntegral amt * 3600) utc
                                  Minutes -> addUTCTime (fromIntegral amt * 60) utc
                                  Seconds -> addUTCTime (fromIntegral amt) utc
 
                                  -- Runtime handles for dynamic calendar snapping
-                                 YearsToEnd -> let advancedDay = addGregorianYearsRollOver (fromIntegral amt) (utctDay utc)
+                                 YearsToEnd -> let advancedDay = addGregorianYearsClip (fromIntegral amt) (utctDay utc)
                                                    (y, _, _)   = toGregorian advancedDay
                                                in utc { utctDay = fromGregorian y 12 31, utctDayTime = 86399 }
 
-                                 MonthsToEnd -> let advancedDay = addGregorianMonthsRollOver (fromIntegral amt) (utctDay utc)
+                                 MonthsToEnd -> let advancedDay = addGregorianMonthsClip (fromIntegral amt) (utctDay utc)
                                                     (y, m, _)   = toGregorian advancedDay
                                                     lastDay     = gregorianMonthLength y m
                                                 in utc { utctDay = fromGregorian y m lastDay, utctDayTime = 86399 }
