@@ -128,19 +128,24 @@ recordKeys = Group "Records: each key once"
 
 
 -- The type rules as they are: values carry their types, built-ins check them, and nothing
--- is converted implicitly. Several rules here are under review (array homogeneity,
--- equality across types, ordering, extending URIs); a change to one flips its test.
+-- is converted implicitly. Arrays are like JSON arrays: their elements can be of any type.
+-- Several rules here are under review (equality across types, ordering, extending URIs);
+-- a change to one flips its test.
 types :: Group
 types = Group "Types: the rules as they are"
     [ -- Arrays
       ("an array may mix types",                    compilesToJSON "(graph g (:r (1 \"a\" true)))"
                                                                    "{\"r\": [1, \"a\", true]}")
-    , ("+ joins arrays whose first elements match", compilesToJSON "(graph g (:r (+ (1 \"a\") (2 3))))"
-                                                                   "{\"r\": [1, \"a\", 2, 3]}")
-    , ("+ rejects arrays whose first elements differ", failsWith "Matching Arrays of the same type"
-                                                              "(graph g (:r (+ (1 2) (\"a\"))))")
-    , ("insert checks the element's type",          failsWith "a datatype for insertion matching"
-                                                              "(graph g (:r (insert 0 \"x\" (1 2))))")
+    , ("+ joins any two arrays",                    compilesToJSON "(graph g (:r (+ (1 \"a\") (2 3)) :s (+ (1 2) (\"a\"))))"
+                                                                   "{\"r\": [1, \"a\", 2, 3], \"s\": [1, 2, \"a\"]}")
+    , ("+ joins empty arrays",                      compilesToJSON "(graph g (:r (+ () (1)) :s (+ () ()) :t (+ #arr-empty (1))))"
+                                                                   "{\"r\": [1], \"s\": [], \"t\": [1]}")
+    , ("insert takes any value into an array",      compilesToJSON "(graph g (:r (insert 0 \"x\" (1 2)) :s (insert 0 1 #arr-empty)))"
+                                                                   "{\"r\": [\"x\", 1, 2], \"s\": [1]}")
+    , ("a field cannot be inserted into an array",  failsWith "a datatype for insertion matching"
+                                                              "(graph g (:r (insert 0 :k 1 (1 2))))")
+    , ("a mixed array is described as mixed",       failsWith "an Array of mixed values"
+                                                              "(graph g (:r (+ 1 (1 \"a\"))))")
 
       -- Equality
     , ("eq across types is false",                  compilesToJSON "(graph g (:r (eq 1 \"1\") :s (eq true 1)))"
@@ -236,8 +241,4 @@ knownGaps = Group "Known gaps: current, incorrect behaviour"
                                                               "(defn call (fn) (fn)) (graph g (:r (call 1)))")
     , ("gap 14: a record of only inlays is an array", failsWith "a valid Array to inlay"
                                                               "(defn a () (:k 1)) (defn b () (:j 2)) (graph g ((inlay (a)) (inlay (b))))")
-    , ("gap 15: an empty array cannot be extended",  failsWith "an empty Array + an Array containing a Number"
-                                                              "(graph g (:r (+ () (1))))")
-    , ("gap 15: nor can two empty arrays be joined", failsWith "an empty Array + an empty Array"
-                                                              "(graph g (:r (+ () ())))")
     ]

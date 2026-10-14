@@ -241,9 +241,11 @@ evalExpr expr = do
                    (_, EvalError e, _) -> pure $ EvalError e
                    (_, _, EvalError e) -> pure $ EvalError e
 
-                   -- Array manipulation (non-empty)
-                   (Primitive (I.Number i), pVal, Array elems@(x : _))
-                        | L.structuralEq pVal x
+                   -- Array manipulation: any value can be an element, but a ':key value'
+                   -- field belongs in a record
+                   (Primitive (I.Number i), pVal, target)
+                        | Just elems <- L.asArray target
+                        , notAField pVal
                        -> let len     = length elems
                               idx     = case i < 0 of
                                             True  -> len + (floor i)
@@ -262,18 +264,6 @@ evalExpr expr = do
                                                                 True  -> drop 1 after
                                                                 False -> after
                                           in pure $ Array (before <> [payloadVal] <> actualAfter)
-
-                   -- Array manipulation (empty)
-                   (Primitive (I.Number i), _, Array [])
-                       -> let isValid = case opName == "insert" of
-                                            True  -> (floor i :: Int) == 0
-                                            False -> False
-                          in case isValid of
-                                 False -> indexOutOfBounds opName "Array" (floor i) 0
-                                          & OuroError (S.exprPos structExpr)
-                                          & EvalError
-                                          & pure
-                                 True  -> pure $ Array [payloadVal]
 
                    -- Record manipulation
                    (Primitive (I.Number i), Attr key value, Record meta kvs)
@@ -648,6 +638,13 @@ getPath value = \case
                                            )
                                & OuroError keyPos
                                & EvalError
+
+
+-- A ':key value' field, as a value, belongs in a record, not an array
+notAField :: L.Expr -> Bool
+notAField = \case
+    Attr _ _     -> False
+    _notAField   -> True
 
 
 -- A function argument is a bare name

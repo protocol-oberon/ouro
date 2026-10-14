@@ -222,20 +222,13 @@ instance Show Expr where
     EvalError err -> showString "EvalError " . showsPrec 11 err
 
 
--- Structural equivalence, also checks for homogeneous arrays.
-structuralEq :: Expr -> Expr -> Bool
-structuralEq =
-    curry $ \case
-             (Primitive   a,     Primitive   b)     -> I.structuralEq a b
-             (Metadata    _,     Metadata    _)     -> True
-             (Record      _ _,   Record      _ _)   -> True
-             (Array      (x:_),  Array       (y:_)) -> structuralEq x y
-             (Duration    _ _,   Duration    _ _)   -> True
-             (SchemaVal   _,     SchemaVal   _)     -> True
-             (Directive   _,     Directive   _)     -> True
-             (PrimitiveOp _,     PrimitiveOp _)     -> True
-             (EvalError   _,     EvalError   _)     -> True
-             _                                      -> False
+-- The elements of an array value. An array literal and '#arr-empty' are both arrays;
+-- like JSON arrays, their elements can be of any type.
+asArray :: Expr -> Maybe [Expr]
+asArray = \case
+    Array elements       -> Just elements
+    Primitive I.EmptyArr -> Just []
+    _notAnArray          -> Nothing
 
 
 -- Type collapses L.Expr into internal I.Expr
@@ -303,9 +296,13 @@ describeArray :: [Expr] -> Text
 describeArray =
     \case
      []    -> "an empty Array"
-     (x:_) -> case x of
-                  Array inner -> "an Array of "         <> describeInnerArray inner
-                  _innerArray -> "an Array containing " <> humanReadableType x
+     elems@(x:_)
+         | any ((/= humanReadableType x) . humanReadableType) elems
+                 -> "an Array of mixed values"
+         | otherwise
+                 -> case x of
+                        Array inner -> "an Array of "         <> describeInnerArray inner
+                        _innerArray -> "an Array containing " <> humanReadableType x
 
 -- Recursively pluralizes nested Arrays until it hits the payload
 describeInnerArray :: [Expr] -> Text
