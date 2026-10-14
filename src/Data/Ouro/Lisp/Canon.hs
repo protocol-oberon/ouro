@@ -20,8 +20,8 @@ constructRoot expr =
 -- Main API entry point for the pipeline
 construct :: S.Expr -> S.Expr
 construct = \case
-             -- Guards are marked before the children are desugared, bottom-up
-             S.Form    r   exprs -> S.Form    r   (desugar (map construct (markGuards exprs)))
+             -- Guards and let bindings are prepared before the children are desugared, bottom-up
+             S.Form    r   exprs -> S.Form    r   (desugar (map construct (prepare exprs)))
              S.Bracket r   exprs -> S.Bracket r   (desugar (map construct exprs))
              S.Tagged  r t expr  -> S.Tagged  r t (constructRoot expr)
 
@@ -62,7 +62,7 @@ desugar = \case
 
            -- Deep Recurse: Bottom-Up evaluation pass
            (S.Form pos items : xs)
-               -> let desugaredItems = desugar (markGuards items) -- Expand 'thru' and desugar children FIRST
+               -> let desugaredItems = desugar (prepare items)    -- Expand 'thru' and desugar children FIRST
                       unrolled       = desugarCase             -- Expand multi-match cases
                                      $ desugarBinOp            -- Unroll variadic ops
                                      $ desugarComparison       -- Unroll comparisons
@@ -149,6 +149,38 @@ desugarThru pos target = case target of
 
     where
     mkDur unit val = S.Form pos [ S.Symbol pos unit, S.Literal pos (S.Num val) ]
+
+
+-- Rewrites that must happen before a form's parts are desugared, because they depend on
+-- the form's own shape: case guards, and the bindings of a let
+prepare :: [S.Expr] -> [S.Expr]
+prepare = pairBindings . markGuards
+
+
+-- Pairs each '$name' in a let's binding list with the value after it:
+-- (let ($a 1 $b 2) body) becomes (let ((%bind "a" 1) (%bind "b" 2)) body). Pairing comes
+-- first, so a value that desugars into several elements stays inside its binding. A name
+-- with no value after it is left as (%bind "name"), which the evaluator reports.
+pairBindings :: [S.Expr] -> [S.Expr]
+pairBindings = \case
+    letSym@(S.Symbol _ "let") : S.Form lPos bindings : rest -> letSym : S.Form lPos (pairUp bindings) : rest
+    other                                                   -> other
+
+    where
+    pairUp = \case
+        S.Form bPos [S.Symbol sPos "%binder", name] : value : more
+            | not (isBinder value)
+            -> S.Form bPos [S.Symbol sPos "%bind", name, value] : pairUp more
+        S.Form bPos [S.Symbol sPos "%binder", name] : more
+            -> S.Form bPos [S.Symbol sPos "%bind", name] : pairUp more
+        item : more
+            -> item : pairUp more
+        []
+            -> []
+
+    isBinder = \case
+        S.Form _ (S.Symbol _ "%binder" : _) -> True
+        _notABinder                         -> False
 
 
 -- Marks the guards of a case form before its parts are desugared. A guard such as

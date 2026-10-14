@@ -153,7 +153,7 @@ evalExpr expr = do
             -> pure (EvalError (removedLocalDefn pos))
 
         -- A private binding belongs in a let
-        S.Form pos (S.Symbol _ "%bind" : S.Literal _ (S.Str name) : _)
+        S.Form pos [S.Symbol _ "%binder", S.Literal _ (S.Str name)]
             -> pure (EvalError (misplacedBinding name pos))
 
         -- (fn (args) expr): an anonymous function, closed over the scope it is written in

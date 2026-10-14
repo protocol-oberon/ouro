@@ -18,14 +18,15 @@ import           Data.Ouro.Lisp.Eval.Builtins (builtinRegistry)
 import           Data.Ouro.Lisp.Eval.Types    (Binding (..), Env (..), EvalM,
                                                allEnvKeys)
 import qualified Data.Ouro.Lisp.Eval.Types    as L
-import           Data.Ouro.Lisp.Function      (isFunctionKeyword, keyInLet,
+import           Data.Ouro.Lisp.Function      (bindingWithoutValue,
+                                               isFunctionKeyword, keyInLet,
                                                misplacedBinding, removedDefine,
                                                removedLocalDefn)
 import qualified Data.Ouro.Lisp.Module.Types  as M
 import qualified Data.Ouro.Lisp.Surface       as S
 import qualified Data.Set                     as Set
 import           Data.Text                    (Text)
-import           Lens.Micro                   ((.~), (^.))
+import           Lens.Micro                   ((%~), (.~), (^.))
 import           Text.Megaparsec              (SourcePos)
 
 
@@ -61,7 +62,7 @@ collectBindings = \case
     S.Form pos (S.Symbol _ keyword : _) : _ | isFunctionKeyword keyword
         -> Left (removedLocalDefn pos)
 
-    S.Form pos (S.Symbol _ "%bind" : S.Literal _ (S.Str name) : _) : _
+    S.Form pos [S.Symbol _ "%binder", S.Literal _ (S.Str name)] : _
         -> Left (misplacedBinding name pos)
 
     attrExpr : xs
@@ -82,6 +83,9 @@ letBindings :: [S.Expr] -> Either OuroError [FrameEntry]
 letBindings = traverse $ \case
     S.Form pos [S.Symbol _ "%bind", S.Literal _ (S.Str name), valExpr]
         -> FrameEntry name pos valExpr False <$ checkBindableName name pos
+
+    S.Form pos [S.Symbol _ "%bind", S.Literal _ (S.Str name)]
+        -> Left (bindingWithoutValue name pos)
 
     S.Form pos (S.Symbol _ "attr" : S.Literal _ (S.Str key) : _)
         -> Left (keyInLet key pos)
@@ -126,8 +130,10 @@ bindableAttr = \case
 --
 -- Allocates one unforced promise per entry and builds the frame that binds their
 -- names. Every promise closes over that same frame, so the bindings can refer to
--- each other in any order (Scheme's letrec). Lookups see the first entry for each
--- name. Returns the frame and the entries' addresses, in entry order.
+-- each other in any order (Scheme's letrec), but a binding never sees itself: inside
+-- its own expression, its name refers to the enclosing scope, so (:id id) outputs the
+-- 'id' around the record. Lookups see the first entry for each name. Returns the frame
+-- and the entries' addresses, in entry order.
 allocFrame :: (Map.Map Text Binding -> Env) -> [FrameEntry] -> EvalM (Env, [L.Addr])
 allocFrame mkFrame entries =
     allocate mkFrame [ (entryKey e, entryPos e, entryExpr e, L.Unforced) | e <- entries ]
@@ -146,8 +152,17 @@ allocate mkFrame entries = do
         names  = Map.fromListWith (\_later first -> first)
                      [ (name, Promised addr) | ((name, _, _, _), addr) <- zip entries addrs ]
         frame  = mkFrame names
+
+        -- A binding's own expression is evaluated without its name in scope. Only a
+        -- name this frame binds to this very promise is hidden: an argument's promise
+        -- closes over the caller's frame, where the same name is a different binding.
+        ownEnv name addr =
+            case Map.lookup name (frame ^. L.localScope) of
+                Just (Promised bound) | bound == addr -> frame & L.localScope %~ Map.delete name
+                _otherBinding                         -> frame
+
     modify $ IntMap.union $ IntMap.fromList
-        [ (addr, L.Promise frame expr name pos st) | ((name, pos, expr, st), addr) <- zip entries addrs ]
+        [ (addr, L.Promise (ownEnv name addr) expr name pos st) | ((name, pos, expr, st), addr) <- zip entries addrs ]
     pure (frame, addrs)
 
 

@@ -75,4 +75,37 @@ letAndFn = Group "Bindings: let, fn and defn"
                                                              "(graph g (:r (1 $b 2)))")
     , ("a $ binding as a value is an error",       failsWith "is a private binding"
                                                              "(graph g (:r $b 2))")
+
+    -- '$' only defines: a reference is the bare name, and a stray '$name' never takes
+    -- the expression after it
+    , ("$name in a call is reported, not paired",  failsWith "write its name without '$': base"
+                                                             "(graph g (let ($base \"https://a.org/\") (:r (+ $base \"x\"))))")
+    , ("$name before a closing parenthesis",       failsWith "write its name without '$': base"
+                                                             "(defn f (x) x) (graph g (let ($base 1) (:r (f $base))))")
+    , ("$name as a field's value",                 failsWith "write its name without '$': base"
+                                                             "(graph g (let ($base 1) (:r $base)))")
+    , ("a $ name needs a value",                   failsWith "has no value"
+                                                             "(graph g (let ($a 1 $b) a))")
+    , ("a binding's value can desugar",            compilesToJSON "(graph g (let ($end (+ #date \"2020-01-01T00:00:00Z\" (thru (days 1)))) (:r end)))"
+                                                                  "{\"r\": \"2020-01-02T23:59:59Z\"}")
+    , ("a binding's value can be typed",           compilesToJSON "(graph g (let ($base #uri \"https://a.org/b\") (:r base)))"
+                                                                  "{\"r\": \"https://a.org/b\"}")
+
+    -- A binding never sees itself: inside its own expression, its name refers outward
+    , ("a field outputs the binding of its name",  compilesToJSON "(graph g (let ($label \"Spring\") (:label label)))"
+                                                                  "{\"label\": \"Spring\"}")
+    , ("a template outputs its parameters by name", compilesToJSON "(defn node (id type) (:id id :type type)) (graph g (:r (node \"1\" \"Type\")))"
+                                                                  "{\"r\": {\"id\": \"1\", \"type\": \"Type\"}}")
+    , ("a nested field sees the outer field",      compilesToJSON "(graph g (:label \"outer\" :inner (:label label)))"
+                                                                  "{\"label\": \"outer\", \"inner\": {\"label\": \"outer\"}}")
+    , ("a let binding sees the outer one",         compilesToJSON "(graph g (let ($x 1) (:r (let ($x (+ x 1)) x))))"
+                                                                  "{\"r\": 2}")
+    , ("with nothing outside, the name is unbound", failsWith "ScopeError"
+                                                             "(graph g (:a a))")
+    , ("siblings still see each other",            compilesToJSON "(graph g (:a b :b 1))"
+                                                                  "{\"a\": 1, \"b\": 1}")
+    , ("siblings in a cycle are still an error",   failsWith "references itself"
+                                                             "(graph g (:a b :b a))")
+    , ("an argument is the caller's binding",      compilesToJSON "(defn f (x) (:x x)) (graph g (let ($x \"caller\") (:r (f x))))"
+                                                                  "{\"r\": {\"x\": \"caller\"}}")
     ]

@@ -1,5 +1,6 @@
 module Data.Ouro.Lisp.Function
-( checkFunctionName
+( bindingWithoutValue
+, checkFunctionName
 , duplicateFunction
 , functionBody
 , graphBody
@@ -129,13 +130,23 @@ keyInLet name pos =
     & OuroError pos
 
 
--- A '$name value' binding is private, so it belongs in a let
+-- '$' only defines a private binding, in a let. Written anywhere else it is usually a
+-- reference with a sigil it does not need, or a binding outside its let.
 misplacedBinding :: Text -> SourcePos -> OuroError
 misplacedBinding name pos =
     lexicalError ("'$" <> name <> "' is a private binding, which can only be written in a let.")
-    & withBlurb ( "Perhaps write ':" <> name <> " value' to make it a field of the output, "
-               <> "or bind it around the expression that uses it: (let ($" <> name <> " value) expr)."
+    & withBlurb ( "To refer to a binding, write its name without '$': " <> name <> ". "
+               <> "To output a value, write ':" <> name <> " value' in a record; "
+               <> "to bind one, write (let ($" <> name <> " value) expr)."
                 )
+    & OuroError pos
+
+
+-- A '$name' in a let with no value after it
+bindingWithoutValue :: Text -> SourcePos -> OuroError
+bindingWithoutValue name pos =
+    lexicalError ("'$" <> name <> "' has no value.")
+    & withBlurb ("A let binds each name to the value written after it: (let ($" <> name <> " value ...) expr).")
     & OuroError pos
 
 

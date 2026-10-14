@@ -272,7 +272,7 @@ compileArray evaluator env pos elements = Array <$> compileElements env elements
                 -> (EvalError (removedLocalDefn dPos) :) <$> compileElements env' xs
 
             -- A private binding belongs in a let
-            S.Form dPos (S.Symbol _ "%bind" : S.Literal _ (S.Str name) : _) : xs
+            S.Form dPos [S.Symbol _ "%binder", S.Literal _ (S.Str name)] : xs
                 -> (EvalError (misplacedBinding name dPos) :) <$> compileElements env' xs
 
             -- Case B: TRUE ERASURE: Skip context blocks completely inside arrays
