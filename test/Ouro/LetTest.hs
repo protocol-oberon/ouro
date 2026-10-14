@@ -3,7 +3,8 @@ module Ouro.LetTest
 ) where
 
 import           Hedgehog
-import           Utils    (compilesToJSON, failsWith)
+import           Utils    (compilesToJSON, compilesWithoutWarnings, failsWith,
+                           warnsWith)
 
 
 -- 'let' and 'fn' replace 'define' and a local 'defun', and 'defun' is now 'defn':
@@ -49,6 +50,19 @@ letAndFn = Group "Bindings: let, fn and defn"
                                                                   "{\"r\": 15}")
     , ("a function body is one let, not several",  failsWith "more than one result expression"
                                                              "(defn f (x) (let ($a 1) a) (let ($b 2) b)) (graph g (:r (f 1)))")
+
+    -- A result is written as it would be anywhere else, so one value in parentheses is
+    -- an array of that value. It compiles, with a warning.
+    , ("a parenthesised result is an array",       compilesToJSON "(defn f () (\"hello\")) (graph g (:r (f)))"
+                                                                  "{\"r\": [\"hello\"]}")
+    , ("a defn result in parentheses warns",       warnsWith "The result of 'f' is an array of one value"
+                                                             "(defn f () (\"hello\")) (graph g (:r (f)))")
+    , ("a fn result in parentheses warns",         warnsWith "Perhaps remove the parentheses: 1"
+                                                             "(graph g (let ($f (fn () (1))) (:r (f))))")
+    , ("a bare result does not warn",              compilesWithoutWarnings "(defn f () \"hello\") (graph g (:r (let ($h (fn () true)) (h)) :s (f)))")
+    , ("a record or call result does not warn",    compilesWithoutWarnings "(defn one () 1) (defn f () (:a (one))) (graph g (:r (f) :s ((one))))")
+    , ("an array of several values does not warn", compilesWithoutWarnings "(defn f () (1 2)) (graph g (:r (f)))")
+    , ("a parenthesised field value does not warn", compilesWithoutWarnings "(graph g (:r (\"hello\")))")
 
     -- Errors, checked by message
     , ("a cycle in let is an error",               failsWith "references itself"

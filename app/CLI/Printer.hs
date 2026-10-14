@@ -388,6 +388,11 @@ splitWarningContext ctx =
                , [ labeled "Legacy Structure: " (pretty feature) ]
                , Just blurb
                )
+        Lint (ParenthesisedResult _ val)
+            -> ( title
+               , [ labeled "Array of: " (highlightDiagnostic val) ]
+               , Just blurb
+               )
         Semantic (ElidedPropertyAssign key construct)
             -> ( title
                , [ labeled "Omitted Attribute: " (highlightDiagnostic key)

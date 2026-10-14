@@ -277,6 +277,17 @@ data LinterWarning
     | DeprecatedSyntax
       { structuralFeature :: Text -- The name or token layout string of the legacy feature
       }
+
+    -- LINT WARNING: PARENTHESISED RESULT
+    -- Occurs when a function's result is a single plain value in parentheses, such as
+    -- (fn () ("hello")). Parentheses around values make an array, so the function
+    -- returns ["hello"], which is rarely what was meant.
+    --
+    -- * Remediation: Issue warning. Suggest the value without its parentheses.
+    | ParenthesisedResult
+      { resultOwner :: Text -- The function's name, or "fn"
+      , resultValue :: Text -- The value inside the parentheses
+      }
     deriving (Show, Eq, Ord, Generic)
 
 

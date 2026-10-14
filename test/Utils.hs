@@ -7,6 +7,8 @@ import           Data.Char                    (isSpace)
 import           Data.Maybe                   (fromJust)
 import           Data.Ouro                    (CompilationResult (..), compile,
                                                defaultOptions, toJSON)
+import           Data.Ouro.Error.Diagnostics  (warningBlurb, warningSummary)
+import           Data.Ouro.Error.Types        (OuroWarning (..))
 import qualified Data.Ouro.Internal.Expr      as I
 import qualified Data.Ouro.Internal.Kinds     as JLD
 import           Data.Ouro.Lisp.Eval.Builtins (parseISO8601)
@@ -149,3 +151,37 @@ compilesToJSON src expected = withTests 1 . property $
                                     failure
     where
     squash = T.filter (not . isSpace)
+
+-- The program compiles, and one of its warnings mentions the given text
+warnsWith :: Text -> Text -> Property
+warnsWith message src = withTests 1 . property $
+    case compileG src of
+        CompilationSuccess warnings _
+            | any (T.isInfixOf message . warningText) warnings
+                -> success
+            | otherwise
+                -> do
+                   annotate ("no warning mentions: " <> T.unpack message)
+                   annotate (show warnings)
+                   failure
+        failed
+            -> do
+               annotate (describe failed)
+               failure
+
+-- The program compiles without any warnings
+compilesWithoutWarnings :: Text -> Property
+compilesWithoutWarnings src = withTests 1 . property $
+    case compileG src of
+        CompilationSuccess [] _ -> success
+        CompilationSuccess warnings _
+            -> do
+               annotate (show warnings)
+               failure
+        failed
+            -> do
+               annotate (describe failed)
+               failure
+
+warningText :: OuroWarning -> Text
+warningText (OuroWarning _ context) = warningSummary context <> "\n" <> warningBlurb context

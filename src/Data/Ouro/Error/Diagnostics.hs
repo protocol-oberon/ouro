@@ -260,6 +260,13 @@ deprecatedSyntax feature = Lint $ DeprecatedSyntax
     { structuralFeature = feature
     }
 
+-- Create a lint warning for a function result that is one value in parentheses
+parenthesisedResult :: Text -> Text -> WarningContext
+parenthesisedResult owner val = Lint $ ParenthesisedResult
+    { resultOwner = owner
+    , resultValue = val
+    }
+
 -- Create a compile-time elided property assignment semantic warning
 elidedPropertyAssign :: Text -> Text -> WarningContext
 elidedPropertyAssign key construct = Semantic $ ElidedPropertyAssign
@@ -305,6 +312,11 @@ warningBlurb = \case
         -> "The structural pattern '" <> feature <> "' has been designated as obsolete legacy syntax. "
         <> "While still parsed for backwards-compatibility, it will be completely removed in future breaking spec bumps."
 
+    Lint (ParenthesisedResult _ val)
+        -> "A function's result is one expression, and parentheses around values make an array: "
+        <> "(" <> val <> ") is [" <> val <> "].\n\n"
+        <> "Perhaps remove the parentheses: " <> val <> ", if a single value is intended."
+
     Semantic (ElidedPropertyAssign key construct)
         -> "The expression assigned to the property attribute '" <> key <> "' evaluates exclusively to a compile-time '"
         <> construct <> "' block. Because elided control structures leave zero footprint in final binary payloads, "
@@ -321,5 +333,6 @@ warningSummary :: WarningContext -> Text
 warningSummary = \case
     Lint (UnanchoredLiteral _ val)      -> "Unanchored primitive literal " <> val <> " detected"
     Lint (DeprecatedSyntax feature)     -> "Use of deprecated syntactic feature: " <> feature
+    Lint (ParenthesisedResult owner _)  -> "The result of '" <> owner <> "' is an array of one value"
     Semantic (ElidedPropertyAssign k _) -> "Property assignment '" <> k <> "' binds to an elided value"
     Vocab (UnboundTypeReference t _)    -> "Unbound schema type reference '" <> t <> "'"

@@ -103,6 +103,9 @@ compile filename trgt content = compilationResult . runWriter . runExceptT $ com
                           Left  parseErr  -> throwError $ pure parseErr
                           Right moduleEnv -> return moduleEnv
 
+               -- Pass 3.0: Linting the parsed functions and graphs
+               tell $ LN.lintModule ouroModule
+
                -- Pass 3.1 Desugar all ASTs
                let desugaredModule = mapModuleExpr Canon.construct ouroModule
 
