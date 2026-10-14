@@ -30,9 +30,10 @@ import           Data.Ouro.Lisp.Eval.Schema     (parseContextDirectives)
 import           Data.Ouro.Lisp.Eval.Pattern    (matchPattern)
 import           Data.Ouro.Lisp.Eval.Scope      (allocFrame, allocValues, force,
                                                  letBindings, lookupVar)
-import           Data.Ouro.Lisp.Eval.Structural (BlockTarget (..), compileArray,
-                                                 compileRecord, evalFunction,
-                                                 determineBlockTarget)
+import           Data.Ouro.Lisp.Eval.Structural (BlockTarget (..), alreadyAField,
+                                                 compileArray, compileRecord,
+                                                 determineBlockTarget,
+                                                 evalFunction)
 import           Data.Ouro.Lisp.Eval.Types      (Env (..), EvalM, Expr (..),
                                                  humanReadableType)
 import qualified Data.Ouro.Lisp.Eval.Types      as L
@@ -294,7 +295,11 @@ evalExpr expr = do
                                               actualAfter = case opName == "replace-at" of
                                                                 True  -> drop 1 after
                                                                 False -> after
-                                          in pure $ Record meta (before <> [(key, value)] <> actualAfter)
+                                              -- The fields the new one is placed among: a key can appear once
+                                              others      = before <> actualAfter
+                                          in case lookup key others of
+                                                 Just _  -> pure $ EvalError (alreadyAField key (S.exprPos payloadExpr))
+                                                 Nothing -> pure $ Record meta (before <> [(key, value)] <> actualAfter)
 
                    -- Type Errors
                    (Primitive (I.Number _), _, _)

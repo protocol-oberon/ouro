@@ -2,6 +2,7 @@ module Ouro.LanguageTest
 ( serialisation
 , formsAndBuiltins
 , returnedFunctions
+, recordKeys
 , knownGaps
 ) where
 
@@ -91,6 +92,39 @@ returnedFunctions = Group "Functions: arity and returned functions"
     ]
 
 
+-- A key appears once in a record. Inlays are layers: a later inlay overrides an earlier
+-- one, and a field written in the record overrides both, whatever the order. insert and
+-- replace-at cannot duplicate a key.
+recordKeys :: Group
+recordKeys = Group "Records: each key once"
+    [ ("a key written twice is an error",           failsWith "is written twice"
+                                                              "(graph g (:a 1 :a 2))")
+    , ("also in a nested record",                   failsWith "is written twice"
+                                                              "(graph g (:x (:a 1 :a 2)))")
+    , ("two contexts are an error",                 failsWith "The key 'context' is written twice"
+                                                              "(graph g (:context \"https://x.org/c.json\" :context \"https://y.org/c.json\" :a 1))")
+    , ("a written field wins over an inlaid one",   compilesToJSON (base <> "(graph g (:type \"Mine\" (inlay (base))))")
+                                                                   "{\"type\": \"Mine\", \"id\": \"1\"}")
+    , ("whatever the order",                        compilesToJSON (base <> "(graph g ((inlay (base)) :type \"Mine\"))")
+                                                                   "{\"id\": \"1\", \"type\": \"Mine\"}")
+    , ("a lookup sees the written field",           compilesToJSON (base <> "(graph g (:type \"Mine\" :r type (inlay (base))))")
+                                                                   "{\"type\": \"Mine\", \"r\": \"Mine\", \"id\": \"1\"}")
+    , ("a later inlay overrides an earlier one",    compilesToJSON "(defn a () (:k 1 :j 1)) (defn b () (:k 2)) (graph g (:x 0 (inlay (a)) (inlay (b))))"
+                                                                   "{\"x\": 0, \"j\": 1, \"k\": 2}")
+    , ("a written field settles two inlays",        compilesToJSON "(defn a () (:k 1)) (defn b () (:k 2)) (graph g (:k 3 (inlay (a)) (inlay (b))))"
+                                                                   "{\"k\": 3}")
+    , ("insert cannot add an existing key",         failsWith "already has a field"
+                                                              "(graph g (:r (insert 0 :a 9 (:a 1))))")
+    , ("replace-at can keep the field's own key",   compilesToJSON "(graph g (:r (replace-at 0 :a 9 (:a 1 :b 2))))"
+                                                                   "{\"r\": {\"a\": 9, \"b\": 2}}")
+    , ("replace-at cannot duplicate another key",   failsWith "already has a field"
+                                                              "(graph g (:r (replace-at 0 :b 9 (:a 1 :b 2))))")
+    ]
+
+    where
+    base = "(defn base () (:type \"Base\" :id \"1\")) "
+
+
 -- Known gaps, numbered as in the specification's Appendix B. Each test pins the current,
 -- incorrect behaviour; the change that fixes a gap flips its test to the correct one.
 knownGaps :: Group
@@ -107,8 +141,6 @@ knownGaps = Group "Known gaps: current, incorrect behaviour"
                                                                    "{\"r\": \"2020-03-02T00:00:00Z\"}")
     , ("gap 5: computed keys are dropped",          compilesToJSON "(graph g (let (:k \"key\") (:a 1 (attr k 2))))"
                                                                    "{\"a\": 1}")
-    , ("gap 6: duplicate keys are emitted twice",   compilesToJSON "(graph g (:a 1 :a 2))"
-                                                                   "{\"a\": 1, \"a\": 2}")
     , ("gap 7: a field cannot see its outer name",  failsWith "references itself"
                                                               "(graph g (let (:name \"outer\") (:name name)))")
     , ("gap 9: no suggestion for a local name",     failsWithout "Perhaps you meant"
@@ -119,4 +151,6 @@ knownGaps = Group "Known gaps: current, incorrect behaviour"
                                                               "(graph g (:p (:a 1) :r (get p b)))")
     , ("gap 11: a parameter named fn",              failsWith "A fn is written"
                                                               "(defn call (fn) (fn)) (graph g (:r (call 1)))")
+    , ("gap 14: a record of only inlays is an array", failsWith "a valid Array to inlay"
+                                                              "(defn a () (:k 1)) (defn b () (:j 2)) (graph g ((inlay (a)) (inlay (b))))")
     ]

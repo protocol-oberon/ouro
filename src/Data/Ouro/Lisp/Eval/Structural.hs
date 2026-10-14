@@ -8,8 +8,8 @@ import           Data.Functor                ((<&>))
 import           Data.Function               ((&))
 import qualified Data.Map                    as Map
 import           Data.Ouro.Error.Diagnostics (incorrectArity, internalValueLeak,
-                                              typeMismatch, typeMismatchBlurb,
-                                              withBlurb)
+                                              lexicalError, typeMismatch,
+                                              typeMismatchBlurb, withBlurb)
 import           Data.Ouro.Error.Types       (OuroError (..))
 import qualified Data.Ouro.Internal.Expr     as I
 import qualified Data.Ouro.Internal.Kinds    as JLD
@@ -78,12 +78,33 @@ emitProps
     -> EvalM L.Expr
 emitProps evaluator env fieldAddrs expressions = go I.EmptyMeta expressions
     where
+    -- The keys written in this record. A key can be written once: a later field with the
+    -- same key is an error, and so is a second context. Inlays are layers: a later inlay
+    -- overrides an earlier one, and written fields override both.
+    writtenFields = [ (key, fieldPos) | Just (key, fieldPos, _) <- map bindableAttr expressions ]
+    writtenKeys   = Set.fromList (map fst writtenFields)
+
+    writtenAgain :: Map.Map SourcePos OuroError
+    writtenAgain  = Map.fromList
+        [ (fieldPos, writtenTwice key fieldPos)
+        | (i, (key, fieldPos)) <- zip [0 :: Int ..] writtenFields
+        , key `elem` map fst (take i writtenFields)
+        ]
+
+    laterContexts = drop 1 [ pos | S.Form _ (S.Symbol pos "context" : _) <- expressions ]
+
     go :: I.Expr 'JLD.Meta -> [S.Expr] -> EvalM L.Expr
     go metaAcc = \case
                   [] -> pure (Record metaAcc [])
 
                   -- Case A: Intercept ANY context form variant at the top-level and route to the schema engine
                   -- (Schema parsing only reads the environment, so it runs outside EvalM)
+                  S.Form _ (S.Symbol pos "context" : _) : remaining
+                      | pos `elem` laterContexts
+                      -> go metaAcc remaining <&> \case
+                             Record finalMeta nextPairs -> Record finalMeta (("@context", EvalError (writtenTwice "context" pos)) : nextPairs)
+                             otherVal                   -> otherVal
+
                   S.Form _ (S.Symbol pos "context" : directives) : remaining
                       -> case runReader (parseContextDirectives directives) env of
                              EvalError err
@@ -123,8 +144,13 @@ emitProps evaluator env fieldAddrs expressions = go I.EmptyMeta expressions
                                                     -- 1. If evaluation fails, embed the error so the tree retains it
                                                     EvalError err -> Record finalMeta (("*err*", EvalError err) : nextPairs)
 
-                                                    -- 2. The successful path: Merge the evaluated pairs (p) into the current scope
-                                                    Record _ p    -> Record finalMeta (p <> nextPairs)
+                                                    -- 2. The successful path: Merge the evaluated pairs (p) into the current scope.
+                                                    --    A key written in this record, or supplied by a later inlay
+                                                    --    (already in nextPairs), overrides this inlay's field.
+                                                    Record _ p    -> let laterKeys = Set.fromList [ k | (k, _) <- nextPairs, k `notElem` ["*err*", "@context"] ]
+                                                                         overridden k = Set.member k writtenKeys || Set.member k laterKeys
+                                                                         spliced   = [ (k, v) | (k, v) <- p, not (overridden k) ]
+                                                                     in Record finalMeta (spliced <> nextPairs)
 
                                                     -- 3. If it evaluated to something other than a record, throw a type mismatch
                                                     otherVal      -> let err = typeMismatch
@@ -137,6 +163,13 @@ emitProps evaluator env fieldAddrs expressions = go I.EmptyMeta expressions
 
                   -- Case C: Extract valid body pairs using the new structured attribute form.
                   -- The value comes from the field's promise, which lookups of the same field share.
+                  attrExpr : rest
+                      | Just (key, fieldPos, _) <- bindableAttr attrExpr
+                      , Just err <- Map.lookup fieldPos writtenAgain
+                      -> go metaAcc rest <&> \case
+                             Record finalMeta nextPairs -> Record finalMeta ((key, EvalError err) : nextPairs)
+                             otherVal                   -> otherVal
+
                   attrExpr : rest
                       | Just (key, fieldPos, valExpr) <- bindableAttr attrExpr
                       -> go metaAcc rest >>= \case
@@ -197,6 +230,22 @@ emitProps evaluator env fieldAddrs expressions = go I.EmptyMeta expressions
     -- 'force' switches to the promise's env; evaluate in whatever env is current
     inCurrentEnv :: S.Expr -> EvalM L.Expr
     inCurrentEnv expr' = ask >>= \current -> evaluator current expr'
+
+
+-- A key can appear once in a record
+writtenTwice :: Text -> SourcePos -> OuroError
+writtenTwice key pos =
+    lexicalError ("The key '" <> key <> "' is written twice in the same record.")
+    & withBlurb "Each key can appear once in a record. Perhaps remove one of the fields, or rename it."
+    & OuroError pos
+
+
+-- 'insert' (or 'replace-at') would give a record the same key twice
+alreadyAField :: Text -> SourcePos -> OuroError
+alreadyAField key pos =
+    lexicalError ("The record already has a field '" <> key <> "'.")
+    & withBlurb "Each key can appear once in a record. Perhaps use replace-at to change the existing field."
+    & OuroError pos
 
 
 -- Compiles a collection of nested Lisp blocks into a uniform Array

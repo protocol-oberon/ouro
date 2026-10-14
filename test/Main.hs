@@ -36,6 +36,7 @@ main = do
         , Language.serialisation
         , Language.formsAndBuiltins
         , Language.returnedFunctions
+        , Language.recordKeys
         -- Known gaps: pinned as they are today; a fix flips its test
         , Language.knownGaps
         ]
