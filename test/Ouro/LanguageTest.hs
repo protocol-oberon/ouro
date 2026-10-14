@@ -254,6 +254,10 @@ knownGaps = Group "Known gaps: current, incorrect behaviour"
                                                                    "{\"a\": 1}")
     , ("gap 7: a field cannot see its outer name",  failsWith "references itself"
                                                               "(graph g (let ($name \"outer\") (:name name)))")
+    , ("gap 7: a template cannot output its parameters by name", failsWith "references itself"
+                                                              "(defn node (id type) (:id id :type type)) (graph g (:r (node \"1\" \"Type\")))")
+    , ("gap 7: a nested field cannot see the outer field", failsWith "references itself"
+                                                              "(graph g (:label \"outer\" :inner (:label label)))")
     , ("gap 9: no suggestion for a local name",     failsWithout "Perhaps you meant"
                                                                  "(graph g (let ($artist 1) (:r artst)))")
     , ("gap 10: the function hint uses old syntax", failsWith "(name! args)"
@@ -268,4 +272,10 @@ knownGaps = Group "Known gaps: current, incorrect behaviour"
                                                               "(defn call (fn) (fn)) (graph g (:r (call 1)))")
     , ("gap 14: a record of only inlays is an array", failsWith "a valid Array to inlay"
                                                               "(defn a () (:k 1)) (defn b () (:j 2)) (graph g ((inlay (a)) (inlay (b))))")
+    , ("gap 16: $name in a call takes the next argument", failsWith "IncorrectArity"
+                                                              "(graph g (let ($base \"https://a.org/\") (:r (+ $base \"x\"))))")
+    , ("gap 16: $name before a closing parenthesis", failsWith "Orphaned Closing Parenthesis"
+                                                              "(defn f (x) x) (graph g (let ($base 1) (:r (f $base))))")
+    , ("gap 16: $name as a field's value",  failsWith "is a private binding"
+                                                              "(graph g (let ($base 1) (:r $base :s 2)))")
     ]
