@@ -39,6 +39,16 @@ letAndFn = Group "Bindings: let, fn and defn"
                                                                   "{\"r\": 42}")
     , ("a function body can use let",              compilesToJSON "(defn person (who) (let ($t \"Person\") (:type t :_label who))) (graph g (:p (person \"Manet\")))"
                                                                   "{\"p\": {\"type\": \"Person\", \"_label\": \"Manet\"}}")
+    , ("a let in a function sees its parameters",  compilesToJSON "(defn label-of (who) (let ($full (+ who \" (painter)\")) (:_label full))) (graph g (:p (label-of \"Manet\")))"
+                                                                  "{\"p\": {\"_label\": \"Manet (painter)\"}}")
+    , ("a fn body can use let",                    compilesToJSON "(graph g (:r (let ($twice (fn (n) (let ($m (* n 2)) m))) (twice 21))))"
+                                                                  "{\"r\": 42}")
+    , ("a let can be a field of a function's record", compilesToJSON "(defn node (id) (:id id :part (let ($sub (+ id \"/1\")) (:id sub)))) (graph g (:r (node \"x\")))"
+                                                                  "{\"r\": {\"id\": \"x\", \"part\": {\"id\": \"x/1\"}}}")
+    , ("a returned fn keeps its function's let",   compilesToJSON "(defn adder (base) (let ($add (fn (n) (+ base n))) add)) (graph g (:r (let ($add10 (adder 10)) (add10 5))))"
+                                                                  "{\"r\": 15}")
+    , ("a function body is one let, not several",  failsWith "more than one result expression"
+                                                             "(defn f (x) (let ($a 1) a) (let ($b 2) b)) (graph g (:r (f 1)))")
 
     -- Errors, checked by message
     , ("a cycle in let is an error",               failsWith "references itself"
@@ -63,6 +73,8 @@ letAndFn = Group "Bindings: let, fn and defn"
                                                                   "{\"r\": true, \"s\": 2}")
     , ("a $ binding can hold a record",            compilesToJSON "(graph g (let ($node (:type \"Type\" :_label \"Painting\")) (:r node)))"
                                                                   "{\"r\": {\"type\": \"Type\", \"_label\": \"Painting\"}}")
+    , ("list puts a bound record in an array",    compilesToJSON "(graph g (let ($m (:id \"manet\")) (:r (list m))))"
+                                                                  "{\"r\": [{\"id\": \"manet\"}]}")
     , ("a key in a let is an error",               failsWith "marks a key in the output"
                                                              "(graph g (:r (let (:a 1) a)))")
     , ("a let binds only $ pairs",                 failsWith "A let binds private values"

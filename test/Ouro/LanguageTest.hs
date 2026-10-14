@@ -6,6 +6,7 @@ module Ouro.LanguageTest
 , types
 , operators
 , dates
+, classification
 , knownGaps
 ) where
 
@@ -218,6 +219,26 @@ operators = Group "Operators: operands and desugaring"
     ]
 
 
+-- How a form is read, from its direct elements only, never their types: a call if it
+-- starts with a symbol, a record if any element is a ':key value' field (or a context),
+-- and an array otherwise. A record inside an array has its own parentheses.
+classification :: Group
+classification = Group "Classification: records, arrays and calls"
+    [ ("an array holds values of any type",         compilesToJSON "(graph g (:r (1 \"a\" true (:k 1) (2 3) null)))"
+                                                                   "{\"r\": [1, \"a\", true, {\"k\": 1}, [2, 3], null]}")
+    , ("a record in an array has its own parentheses", compilesToJSON "(graph g (:r ((:k 1) \"x\" 3)))"
+                                                                   "{\"r\": [{\"k\": 1}, \"x\", 3]}")
+    , ("an array of one record",                    compilesToJSON "(graph g (:r ((:a 1))))"
+                                                                   "{\"r\": [{\"a\": 1}]}")
+    , ("a field makes a record",                    compilesToJSON "(graph g (:r (:a 1)))"
+                                                                   "{\"r\": {\"a\": 1}}")
+    , ("a loose value in a record is an error",     failsWith "an unbound expression"
+                                                              "(graph g (:r (:a 1 2)))")
+    , ("one field among values makes a record",     failsWith "an unbound expression"
+                                                              "(graph g (:r (1 :a 2)))")
+    ]
+
+
 -- Calendar arithmetic. Months and years clip to the end of a shorter month instead of
 -- rolling over into the next one, so a shift never skips past the month it lands in.
 dates :: Group
@@ -268,4 +289,6 @@ knownGaps = Group "Known gaps: current, incorrect behaviour"
                                                               "(defn a () (:k 1)) (defn b () (:j 2)) (graph g ((inlay (a)) (inlay (b))))")
     , ("gap 17: a URI's empty root path is dropped", compilesToJSON "(graph g (:u #uri \"https://a.org/\"))"
                                                                    "{\"u\": \"https://a.org\"}")
+    , ("gap 18: a field among values has no hint",  failsWithout "(1 (:a 2))"
+                                                                 "(graph g (:r (1 :a 2)))")
     ]
