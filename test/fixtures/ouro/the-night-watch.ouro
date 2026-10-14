@@ -1,6 +1,6 @@
 (graph the-night-watch
- (let (:linked-art    "https://linked.art/example/"
-       :piece-started #date "1642-01-01T00:00:00Z")
+ (let ($linked-art    "https://linked.art/example/"
+       $piece-started #date "1642-01-01T00:00:00Z")
 
   (:context     "https://linked.art/ns/v1/linked-art.json"
 

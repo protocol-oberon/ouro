@@ -21,7 +21,8 @@ import           Data.Ouro.Lisp.Eval.Types   (Binding (..), Env (..), EvalM, Exp
                                               humanReadableType)
 import qualified Data.Ouro.Lisp.Eval.Types   as L
 import           Data.Ouro.Lisp.Function     (functionBody, isFunctionKeyword,
-                                              removedDefine, removedLocalDefn)
+                                              misplacedBinding, removedDefine,
+                                              removedLocalDefn)
 import qualified Data.Ouro.Lisp.Surface      as S
 import qualified Data.Set                    as Set
 import           Data.Text                   (Text)
@@ -269,6 +270,10 @@ compileArray evaluator env pos elements = Array <$> compileElements env elements
 
             S.Form dPos (S.Symbol _ keyword : _) : xs | isFunctionKeyword keyword
                 -> (EvalError (removedLocalDefn dPos) :) <$> compileElements env' xs
+
+            -- A private binding belongs in a let
+            S.Form dPos (S.Symbol _ "%bind" : S.Literal _ (S.Str name) : _) : xs
+                -> (EvalError (misplacedBinding name dPos) :) <$> compileElements env' xs
 
             -- Case B: TRUE ERASURE: Skip context blocks completely inside arrays
             S.Form _ [S.Symbol _ "context", S.Form _ _] : xs

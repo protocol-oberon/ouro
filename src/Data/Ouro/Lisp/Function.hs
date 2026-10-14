@@ -4,6 +4,8 @@ module Data.Ouro.Lisp.Function
 , functionBody
 , graphBody
 , isFunctionKeyword
+, keyInLet
+, misplacedBinding
 , removedDefine
 , removedLocalDefn
 , renamedDefun
@@ -24,7 +26,7 @@ import           Text.Megaparsec             (SourcePos)
 -- its value is the function's result. Private values are bound around it with 'let':
 --
 --   (defn getty () "http://vocab.getty.edu/aat/")              ; a literal
---   (defn person (who) (let (:t "Person")                       ; a record
+--   (defn person (who) (let ($t "Person")                       ; a record
 --                        (:type t :_label who)))
 --
 -- Checked when a function is defined, so a malformed function is reported even if it
@@ -101,7 +103,7 @@ graphBody name pos = \case
     where
     spliced = lexicalError ("The graph '" <> name <> "' must be one expression.")
               & withBlurb ( "Perhaps wrap its fields in parentheses: (graph " <> name <> " (:key value ...)). "
-                         <> "Private values are bound around it with let: (graph " <> name <> " (let (:name value) (:key value ...)))."
+                         <> "Private values are bound around it with let: (graph " <> name <> " (let ($name value) (:key value ...)))."
                           )
               & OuroError pos
               & Left
@@ -112,7 +114,28 @@ graphBody name pos = \case
 removedDefine :: SourcePos -> OuroError
 removedDefine pos =
     lexicalError "'define' has been replaced by let."
-    & withBlurb "Bind private values around the expression that uses them: (let (:name value ...) expr)."
+    & withBlurb "Bind private values around the expression that uses them: (let ($name value ...) expr)."
+    & OuroError pos
+
+
+-- ':' marks a key in the output, so it does not belong in a let, whose bindings are
+-- never output. A private binding is written '$name value'.
+keyInLet :: Text -> SourcePos -> OuroError
+keyInLet name pos =
+    lexicalError ("':" <> name <> "' marks a key in the output, but a let's bindings are never output.")
+    & withBlurb ( "A let binds private values with '$': (let ($" <> name <> " value ...) expr). "
+               <> "To output the value, write ':" <> name <> " value' in a record."
+                )
+    & OuroError pos
+
+
+-- A '$name value' binding is private, so it belongs in a let
+misplacedBinding :: Text -> SourcePos -> OuroError
+misplacedBinding name pos =
+    lexicalError ("'$" <> name <> "' is a private binding, which can only be written in a let.")
+    & withBlurb ( "Perhaps write ':" <> name <> " value' to make it a field of the output, "
+               <> "or bind it around the expression that uses it: (let ($" <> name <> " value) expr)."
+                )
     & OuroError pos
 
 
@@ -120,7 +143,7 @@ removedDefine pos =
 removedLocalDefn :: SourcePos -> OuroError
 removedLocalDefn pos =
     lexicalError "A defn can only appear at the top level of a file."
-    & withBlurb "Write a local function with fn, bound by let: (let (:name (fn (args) body)) expr)."
+    & withBlurb "Write a local function with fn, bound by let: (let ($name (fn (args) body)) expr)."
     & OuroError pos
 
 

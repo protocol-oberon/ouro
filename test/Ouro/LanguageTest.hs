@@ -17,7 +17,7 @@ import           Utils    (compilesToJSON, failsWith, failsWithout)
 -- compile-time values must be used up before then, or the graph does not compile.
 serialisation :: Group
 serialisation = Group "Serialisation: only values reach the output"
-    [ ("a let-bound fn is not output",              compilesToJSON "(graph g (let (:f (fn (x) x)) (:r (f 1))))"
+    [ ("a let-bound fn is not output",              compilesToJSON "(graph g (let ($f (fn (x) x)) (:r (f 1))))"
                                                                    "{\"r\": 1}")
     , ("a fn as a field is an error",               failsWith "an unexecuted function"
                                                               "(graph g (:f (fn (x) x)))")
@@ -35,7 +35,7 @@ serialisation = Group "Serialisation: only values reach the output"
                                                               "(graph g (:r +))")
     , ("a fn spliced by inlay is an error",         failsWith "an unexecuted function"
                                                               "(defn mk () (:f (fn (x) x))) (graph g (:a 1 (inlay (mk))))")
-    , ("let bindings are not output",               compilesToJSON "(graph g (let (:hidden 1) (:shown hidden)))"
+    , ("let bindings are not output",               compilesToJSON "(graph g (let ($hidden 1) (:shown hidden)))"
                                                                    "{\"shown\": 1}")
     ]
 
@@ -55,17 +55,17 @@ formsAndBuiltins = Group "Special forms and built-ins"
                                                                    "{\"r\": {\"x\": 1, \"y\": {\"b\": 2, \"c\": 3}}}")
     , ("empty records and arrays",                  compilesToJSON "(graph g (:r #rec-empty :s #arr-empty :t ()))"
                                                                    "{\"r\": {}, \"s\": [], \"t\": []}")
-    , ("list makes an array headed by a variable",  compilesToJSON "(graph g (let (:x 1) (:r (list x x))))"
+    , ("list makes an array headed by a variable",  compilesToJSON "(graph g (let ($x 1) (:r (list x x))))"
                                                                    "{\"r\": [1, 1]}")
     , ("a form headed by a variable is a call",     failsWith "not a function"
-                                                              "(graph g (let (:x 1) (:r (x x))))")
+                                                              "(graph g (let ($x 1) (:r (x x))))")
     , ("a remote context",                          compilesToJSON "(graph g (:context \"https://linked.art/ns/v1/linked-art.json\" :a 1))"
                                                                    "{\"@context\": \"https://linked.art/ns/v1/linked-art.json\", \"a\": 1}")
     , ("a local vocab directive",                   compilesToJSON "(graph g ((context (vocab \"https://example.org/\")) :a 1))"
                                                                    "{\"@context\": {\"@vocab\": \"https://example.org/\"}, \"a\": 1}")
-    , ("thru extends days to their last second",    compilesToJSON "(graph g (let (:start #date \"2020-01-01T00:00:00Z\") (:end (+ start (thru (days 1))))))"
+    , ("thru extends days to their last second",    compilesToJSON "(graph g (let ($start #date \"2020-01-01T00:00:00Z\") (:end (+ start (thru (days 1))))))"
                                                                    "{\"end\": \"2020-01-02T23:59:59Z\"}")
-    , ("thru (years 0) ends the current year",      compilesToJSON "(graph g (let (:start #date \"2020-03-01T00:00:00Z\") (:end (+ start (thru (years 0))))))"
+    , ("thru (years 0) ends the current year",      compilesToJSON "(graph g (let ($start #date \"2020-03-01T00:00:00Z\") (:end (+ start (thru (years 0))))))"
                                                                    "{\"end\": \"2020-12-31T23:59:59Z\"}")
     , ("comparisons chain, and null is a value",    compilesToJSON "(graph g (:a (eq 1 1 1) :b (neq 1 2) :c null))"
                                                                    "{\"a\": true, \"b\": true, \"c\": null}")
@@ -84,9 +84,9 @@ returnedFunctions :: Group
 returnedFunctions = Group "Functions: arity and returned functions"
     [ ("functions are not curried",                 failsWith "IncorrectArity"
                                                               "(defn add (a b) (+ a b)) (graph g (:r (add 1)))")
-    , ("a returned fn is called through let",       compilesToJSON "(defn greet () (fn () \"hello\")) (graph g (let (:f (greet)) (:r (f))))"
+    , ("a returned fn is called through let",       compilesToJSON "(defn greet () (fn () \"hello\")) (graph g (let ($f (greet)) (:r (f))))"
                                                                    "{\"r\": \"hello\"}")
-    , ("currying by hand, through let",             compilesToJSON "(defn adder (n) (fn (x) (+ n x))) (graph g (let (:inc (adder 1)) (:r (inc 2))))"
+    , ("currying by hand, through let",             compilesToJSON "(defn adder (n) (fn (x) (+ n x))) (graph g (let ($inc (adder 1)) (:r (inc 2))))"
                                                                    "{\"r\": 3}")
     , ("a form headed by a call is an array",       compilesToJSON "(defn one () 1) (graph g (:r ((one))))"
                                                                    "{\"r\": [1]}")
@@ -250,18 +250,20 @@ knownGaps :: Group
 knownGaps = Group "Known gaps: current, incorrect behaviour"
     [ ("gap 1: a remote context with local terms nests", compilesToJSON "(graph g ((context (remote-context \"https://x.org/c.json\" vocab \"https://e.org/\")) :a 1))"
                                                                    "{\"@context\": {\"@context\": \"https://x.org/c.json\", \"@vocab\": \"https://e.org/\"}, \"a\": 1}")
-    , ("gap 5: computed keys are dropped",          compilesToJSON "(graph g (let (:k \"key\") (:a 1 (attr k 2))))"
+    , ("gap 5: computed keys are dropped",          compilesToJSON "(graph g (let ($k \"key\") (:a 1 (attr k 2))))"
                                                                    "{\"a\": 1}")
     , ("gap 7: a field cannot see its outer name",  failsWith "references itself"
-                                                              "(graph g (let (:name \"outer\") (:name name)))")
+                                                              "(graph g (let ($name \"outer\") (:name name)))")
     , ("gap 9: no suggestion for a local name",     failsWithout "Perhaps you meant"
-                                                                 "(graph g (let (:artist 1) (:r artst)))")
+                                                                 "(graph g (let ($artist 1) (:r artst)))")
     , ("gap 10: the function hint uses old syntax", failsWith "(name! args)"
                                                               "(defn inc (x) (+ x 1)) (graph g (:r (list inc)))")
     , ("gap 10: get's missing-key hint mentions define", failsWith "'define'"
                                                               "(graph g (:p (:a 1) :r (get p b)))")
     , ("gap 10: subtraction's hint names L.Duration", failsWith "L.Duration"
                                                               "(graph g (:r (- \"a\" 1)))")
+    , ("gap 10: a reserved $ name is called an attribute key", failsWith "for your attribute"
+                                                              "(graph g (let ($get 1) (:r get)))")
     , ("gap 11: a parameter named fn",              failsWith "A fn is written"
                                                               "(defn call (fn) (fn)) (graph g (:r (call 1)))")
     , ("gap 14: a record of only inlays is an array", failsWith "a valid Array to inlay"

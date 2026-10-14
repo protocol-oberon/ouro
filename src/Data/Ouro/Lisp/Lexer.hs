@@ -155,18 +155,28 @@ pLiterals = lexeme . withPos $ choice
 
 -- Fallback General Symbols (Variables, functions, operations)
 pSymbol :: Parser Tkn.Token
-pSymbol = lexeme . withPos $
-    do
-    first <- letterChar <|> oneOf ("_+-*/<>=!&|~" :: String)
-    rest  <- many (alphaNumChar <|> oneOf ("_-+*/<>=!?&|~'" :: String))
+pSymbol = lexeme . withPos $ Tkn.Symbol <$> symbolName
 
-    pure (Tkn.Symbol (T.pack (first : rest)))
+
+-- Private bindings in a let, written '$name value'. The name is any symbol, so the
+-- binding can be referred to by that symbol.
+pBinding :: Parser Tkn.Token
+pBinding = lexeme . withPos $ Tkn.Binding <$> (char '$' *> symbolName)
+
+
+-- The characters of a symbol
+symbolName :: Parser Text
+symbolName = do
+             first <- letterChar <|> oneOf ("_+-*/<>=!&|~" :: String)
+             rest  <- many (alphaNumChar <|> oneOf ("_-+*/<>=!?&|~'" :: String))
+             pure (T.pack (first : rest))
 
 
 pSingleToken :: Parser Tkn.Token
 pSingleToken =  pDelims
             <|> pCoreKeywords
             <|> pAttributes
+            <|> pBinding
             <|> pReaderTags
             <|> pHole
             <|> pLiterals

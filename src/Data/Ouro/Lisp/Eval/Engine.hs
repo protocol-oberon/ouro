@@ -38,6 +38,7 @@ import           Data.Ouro.Lisp.Eval.Types      (Env (..), EvalM, Expr (..),
                                                  humanReadableType)
 import qualified Data.Ouro.Lisp.Eval.Types      as L
 import           Data.Ouro.Lisp.Function        (isFunctionKeyword,
+                                                 misplacedBinding,
                                                  removedDefine,
                                                  removedLocalDefn)
 import           Data.Ouro.Lisp.Module.Types    (Module)
@@ -123,7 +124,7 @@ evalExpr expr = do
 
         S.Form _ (S.Symbol _ "list" : items)             -> Array <$> mapM evalExpr items
 
-        -- (let (:name expr ...) expr): private bindings, in any order, around one result
+        -- (let ($name expr ...) expr): private bindings, in any order, around one result
         S.Form pos (S.Symbol _ "let" : rest)
             -> case rest of
                    [S.Form _ bindings, body]
@@ -137,7 +138,7 @@ evalExpr expr = do
                                                                         entries
                                                local (const frame) (evalExpr body)
                    _malformed
-                       -> lexicalError "A let is written (let (:name value ...) expr), with exactly one result expression."
+                       -> lexicalError "A let is written (let ($name value ...) expr), with exactly one result expression."
                           & withBlurb "Perhaps wrap several values in parentheses to make an Array or a Record."
                           & OuroError pos
                           & EvalError
@@ -150,6 +151,10 @@ evalExpr expr = do
         S.Form pos (S.Symbol _ keyword : _)
             | isFunctionKeyword keyword
             -> pure (EvalError (removedLocalDefn pos))
+
+        -- A private binding belongs in a let
+        S.Form pos (S.Symbol _ "%bind" : S.Literal _ (S.Str name) : _)
+            -> pure (EvalError (misplacedBinding name pos))
 
         -- (fn (args) expr): an anonymous function, closed over the scope it is written in
         S.Form pos [S.Symbol _ "fn", S.Form _ params, body]

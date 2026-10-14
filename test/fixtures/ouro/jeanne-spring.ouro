@@ -1,7 +1,7 @@
 ;; let bindings are elided at compilation
 (graph jeanne-spring
- (let (:getty-uri      "http://vocab.getty.edu/aat/"
-       :linked-art-uri "https://linked.art/example/")
+ (let ($getty-uri      "http://vocab.getty.edu/aat/"
+       $linked-art-uri "https://linked.art/example/")
 
   (:context "https://linked.art/ns/v1/linked-art.json"
 

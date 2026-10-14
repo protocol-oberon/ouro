@@ -219,6 +219,7 @@ pExpr = do
                              Tkn.TypeMappingID  -> put ts >> parseAttrNode (Tkn.pos t) "id"
                              Tkn.TypeMappingIRI -> put ts >> parseAttrNode (Tkn.pos t) "iri"
                              Tkn.Attr           txt -> put ts >> parseAttrNode (Tkn.pos t) txt
+                             Tkn.Binding        txt -> put ts >> parseBindingNode (Tkn.pos t) txt
 
                              -- Core Data Literals
                              Tkn.String txt     -> capture (S.Literal (Tkn.pos t) (S.Str txt))
@@ -294,6 +295,17 @@ parseAttrNode pos attrName = do
                                                , S.Literal pos (S.Str attrName)
                                                , nextExpr
                                                ]
+
+
+-- A private binding, '$name value', read as (%bind "name" value). '%' cannot be written
+-- in Ouro, so the head cannot be confused with a user's function.
+parseBindingNode :: SourcePos -> Text -> Parser S.Expr
+parseBindingNode pos name = do
+                            nextExpr <- pExpr
+                            pure $ S.Form pos [ S.Symbol pos "%bind"
+                                              , S.Literal pos (S.Str name)
+                                              , nextExpr
+                                              ]
 
 
 -- Parsing Stream State Helpers

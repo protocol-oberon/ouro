@@ -18,7 +18,8 @@ import           Data.Ouro.Lisp.Eval.Builtins (builtinRegistry)
 import           Data.Ouro.Lisp.Eval.Types    (Binding (..), Env (..), EvalM,
                                                allEnvKeys)
 import qualified Data.Ouro.Lisp.Eval.Types    as L
-import           Data.Ouro.Lisp.Function      (isFunctionKeyword, removedDefine,
+import           Data.Ouro.Lisp.Function      (isFunctionKeyword, keyInLet,
+                                               misplacedBinding, removedDefine,
                                                removedLocalDefn)
 import qualified Data.Ouro.Lisp.Module.Types  as M
 import qualified Data.Ouro.Lisp.Surface       as S
@@ -45,7 +46,8 @@ data FrameEntry = FrameEntry
 --
 -- Sweeps a Record's expressions for the fields it binds, in source order. Context
 -- forms, malformed attributes and loose expressions bind nothing. 'define' and a local
--- 'defn' were replaced by 'let' and 'fn', and are reported where they appear.
+-- 'defn' were replaced by 'let' and 'fn', and a private '$name value' binding belongs
+-- in a let; all are reported where they appear.
 collectBindings :: [S.Expr] -> Either OuroError [FrameEntry]
 collectBindings = \case
     [] -> pure []
@@ -59,6 +61,9 @@ collectBindings = \case
     S.Form pos (S.Symbol _ keyword : _) : _ | isFunctionKeyword keyword
         -> Left (removedLocalDefn pos)
 
+    S.Form pos (S.Symbol _ "%bind" : S.Literal _ (S.Str name) : _) : _
+        -> Left (misplacedBinding name pos)
+
     attrExpr : xs
         | Just (key, pos, valExpr) <- bindableAttr attrExpr
         -> do
@@ -71,18 +76,21 @@ collectBindings = \case
 
 -- letBindings.
 --
--- The bindings of (let (:name value ...) expr): only ':name value' pairs. They are
+-- The bindings of (let ($name value ...) expr): only '$name value' pairs. They are
 -- not part of any output, and can refer to each other in any order.
 letBindings :: [S.Expr] -> Either OuroError [FrameEntry]
-letBindings = traverse $ \binding ->
-    case bindableAttr binding of
-        Just (key, pos, valExpr)
-            -> FrameEntry key pos valExpr False <$ checkBindableName key pos
-        Nothing
-            -> lexicalError "A let binds names with ':name value' pairs."
-               & withBlurb "Perhaps write (let (:name value ...) expr)."
-               & OuroError (S.exprPos binding)
-               & Left
+letBindings = traverse $ \case
+    S.Form pos [S.Symbol _ "%bind", S.Literal _ (S.Str name), valExpr]
+        -> FrameEntry name pos valExpr False <$ checkBindableName name pos
+
+    S.Form pos (S.Symbol _ "attr" : S.Literal _ (S.Str key) : _)
+        -> Left (keyInLet key pos)
+
+    binding
+        -> lexicalError "A let binds private values with '$name value' pairs."
+           & withBlurb "Perhaps write (let ($name value ...) expr)."
+           & OuroError (S.exprPos binding)
+           & Left
 
 
 -- Special forms are recognised by their head symbol, so they cannot be bound as names

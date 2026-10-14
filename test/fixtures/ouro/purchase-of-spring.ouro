@@ -1,7 +1,7 @@
 (defn transfer! (id-type type-of-type name)
-  (let (:getty      "http://vocab.getty.edu/aat/"
-        :linked-art "https://linked.art/example/"
-        :uri_type   (case id-type
+  (let ($getty      "http://vocab.getty.edu/aat/"
+        $linked-art "https://linked.art/example/"
+        $uri_type   (case id-type
                           (("manet" "proust") (+ linked-art "person/"))
                           ("spring"           (+ linked-art "object/"))
                           ("manet_proust/1"   (+ linked-art "provenance/"))

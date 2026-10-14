@@ -24,13 +24,13 @@ expressionBodies = Group "Functions: a body is one result expression"
                                                                "(graph g (:r (:type \"Person\" :_label \"Manet\")))")
     , ("a let around a record",                   compilesLike (T.unlines
                                                                  [ "(defn node! (x)"
-                                                                 , "  (let (:next (+ x 1))"
+                                                                 , "  (let ($next (+ x 1))"
                                                                  , "    (:value next)))"
                                                                  , "(graph g (:r (node! 1)))" ])
                                                                "(graph g (:r (:value 2)))")
-    , ("a let around a primitive",               compilesLike "(defn twice-next! (x) (let (:next (+ x 1)) (* next 2))) (graph g (:r (twice-next! 1)))"
+    , ("a let around a primitive",               compilesLike "(defn twice-next! (x) (let ($next (+ x 1)) (* next 2))) (graph g (:r (twice-next! 1)))"
                                                                "(graph g (:r 4))")
-    , ("a let-bound fn in the body",             compilesLike "(defn outer! () (let (:inner (fn () 7)) (inner))) (graph g (:r (outer!)))"
+    , ("a let-bound fn in the body",             compilesLike "(defn outer! () (let ($inner (fn () 7)) (inner))) (graph g (:r (outer!)))"
                                                                "(graph g (:r 7))")
 
     -- The old forms are errors
@@ -49,7 +49,7 @@ plainNames = Group "Functions: names are plain symbols, in one namespace"
                                                                 "(graph g (:r 4))")
     , ("a constant with a plain name",             compilesLike "(defn getty () \"http://vocab.getty.edu/aat/\") (graph g (:u (getty)))"
                                                                 "(graph g (:u \"http://vocab.getty.edu/aat/\"))")
-    , ("a local function with a plain name",       compilesLike "(defn outer () (let (:inner (fn () 7)) (inner))) (graph g (:r (outer)))"
+    , ("a local function with a plain name",       compilesLike "(defn outer () (let ($inner (fn () 7)) (inner))) (graph g (:r (outer)))"
                                                                 "(graph g (:r 7))")
     , ("functions passed as values",               compilesLike "(defn apply-to (f x) (f x)) (defn inc (n) (+ n 1)) (graph g (:r (apply-to inc 1)))"
                                                                 "(graph g (:r 2))")
@@ -61,7 +61,7 @@ plainNames = Group "Functions: names are plain symbols, in one namespace"
                                                                 "(graph g (:r 1))")
 
     -- Checked by message: today every program here already fails, but for another reason
-    , ("a let value shadows a top-level function", compilesLike "(defn label () \"function\") (graph g (let (:label \"value\") (:r label)))"
+    , ("a let value shadows a top-level function", compilesLike "(defn label () \"function\") (graph g (let ($label \"value\") (:r label)))"
                                                                 "(graph g (:r \"value\"))")
     , ("a function defined twice",                 failsWith "defined more than once"
                                                              "(defn f () 1) (defn f () 2) (graph g (:r (f)))")

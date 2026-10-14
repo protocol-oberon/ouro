@@ -32,8 +32,8 @@ baseline = Group "Scoping: baseline (must keep passing)"
     , ("nested records see outer bindings",       compilesLike "(graph g (:x 1 :inner (:y x)))"
                                                                "(graph g (:x 1 :inner (:y 1)))")
     , ("function defines shadow without leaking", compilesLike (T.unlines
-                                                                 [ "(defn sandbox! () (let (:env \"dev\") (:fenv env)))"
-                                                                 , "(graph g (let (:env \"prod\") (:genv env (inlay (sandbox!)))))" ])
+                                                                 [ "(defn sandbox! () (let ($env \"dev\") (:fenv env)))"
+                                                                 , "(graph g (let ($env \"prod\") (:genv env (inlay (sandbox!)))))" ])
                                                                "(graph g (:genv \"prod\" :fenv \"dev\"))")
     , ("functions are first-class values",        compilesLike (T.unlines
                                                                  [ "(defn mk! () (:v 1))"
@@ -53,10 +53,10 @@ baseline = Group "Scoping: baseline (must keep passing)"
     , ("cyclic bindings are an error",            failsToCompile "(graph g (:a b :b a))")
     , ("wrong arity is an error",                 failsToCompile "(defn id! (a) a) (graph g (:r (id! 1 2)))")
     , ("direct recursion is an error",            failsToCompile "(defn f! (n) (f! n)) (graph g (:r (f! 1)))")
-    , ("let values stay private to get",          failsToCompile "(graph g (:rec (let (:hidden 5) (:a 1)) :r (get rec hidden)))")
+    , ("let values stay private to get",          failsToCompile "(graph g (:rec (let ($hidden 5) (:a 1)) :r (get rec hidden)))")
     , ("local functions shadow top-level ones",   compilesLike (T.unlines
                                                                  [ "(defn helper () \"top\")"
-                                                                 , "(defn caller! () (let (:helper (fn () \"local\")) (:r (helper))))"
+                                                                 , "(defn caller! () (let ($helper (fn () \"local\")) (:r (helper))))"
                                                                  , "(graph g (:res (caller!)))" ])
                                                                "(graph g (:res (:r \"local\")))")
     , ("an expression can be replaced by its value", prop_substitution)
@@ -72,7 +72,7 @@ lexicalRecords = Group "Scoping: lexical records, shared bindings"
 callSiteArguments :: Group
 callSiteArguments = Group "Scoping: arguments evaluate at the call site"
     [ ("callee defines do not capture arguments", compilesLike (T.unlines
-                                                                 [ "(defn f! (a) (let (:x \"inside\") (:out a)))"
+                                                                 [ "(defn f! (a) (let ($x \"inside\") (:out a)))"
                                                                  , "(graph g (:x \"outside\" :res (f! x)))" ])
                                                                "(graph g (:x \"outside\" :res (:out \"outside\")))")
     , ("callee parameters do not capture arguments", compilesLike "(defn f! (a b) b) (graph g (:a \"caller\" :r (f! 1 a)))"
@@ -86,7 +86,7 @@ lexicalFunctions = Group "Scoping: functions resolve names where they are define
     [ ("a function uses the helper defined next to it", compilesLike (T.unlines
                                                                  [ "(defn helper () \"defined next to uses-helper!\")"
                                                                  , "(defn uses-helper! () (helper))"
-                                                                 , "(defn caller! () (let (:helper (fn () \"caller's own helper\")) (:r (uses-helper!))))"
+                                                                 , "(defn caller! () (let ($helper (fn () \"caller's own helper\")) (:r (uses-helper!))))"
                                                                  , "(graph g (:res (caller!)))" ])
                                                                "(graph g (:res (:r \"defined next to uses-helper!\")))")
     ]
@@ -123,7 +123,7 @@ valueGetAndErrors = Group "Scoping: value-based get, no hidden errors"
                                                                "(graph g (:f 1 :rec (:a \"one\") :r \"one\"))")
     , ("get through an inlay",                    compilesLike "(defn mk! (n) (:a n)) (graph g (:rec (:inner (:x 0 (inlay (mk! 1)))) :r (get rec inner a)))"
                                                                "(graph g (:rec (:inner (:x 0 :a 1)) :r 1))")
-    , ("errors in unused let bindings are reported", failsToCompile "(graph g (let (:unused (/ 1 0)) (:a 1)))")
+    , ("errors in unused let bindings are reported", failsToCompile "(graph g (let ($unused (/ 1 0)) (:a 1)))")
     , ("errors in unused arguments are reported", failsToCompile "(defn k! (a b) a) (graph g (:a (k! 1 (/ 1 0))))")
     ]
 

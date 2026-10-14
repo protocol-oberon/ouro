@@ -1,9 +1,9 @@
 ;; A JSON-LD graph must be named
 (graph auction-of-stowe-house
  ;; Private values, bound around the record that uses them
- (let (:auction-start   #date "1848-08-01T00:00:00Z"
-       :auction-restart #date "1848-09-09T00:00:00Z"
-       :getty           "http://vocab.getty.edu/aat/")
+ (let ($auction-start   #date "1848-08-01T00:00:00Z"
+       $auction-restart #date "1848-09-09T00:00:00Z"
+       $getty           "http://vocab.getty.edu/aat/")
 
   (:context       #uri "https://linked.art/ns/v1/linked-art.json"
 

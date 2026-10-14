@@ -38,6 +38,7 @@ data TokenType
     | TypeMappingIRI   -- ':iri'
     -- Identifiers
     | Attr   !Text     -- ':id', ':type' (stores the string without the leading ':')
+    | Binding !Text    -- '$name' in a let (stores the name without the leading '$')
     | Symbol !Text     -- 'lambda', variable names like 'node' or 'x'
     -- Literals
     | String  !Text    -- "Update", "Core aggregation update for Van Gogh..."

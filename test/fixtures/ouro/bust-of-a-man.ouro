@@ -2,8 +2,8 @@
    "http://vocab.getty.edu/aat/")
 
 (defn id-node! (id-of-id type-of-type lable)
-   (let (:getty-ulan "http://vocab.getty.edu/ulan/"
-         :uri        (case type-of-type
+   (let ($getty-ulan "http://vocab.getty.edu/ulan/"
+         $uri        (case type-of-type
                            ("Person"  getty-ulan)
                            (otherwise (getty-att!))))
 
