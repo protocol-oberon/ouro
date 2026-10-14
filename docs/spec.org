@@ -1,0 +1,891 @@
+#+title: Ouro Language Specification
+
+* Outline
+
+0. Design Goals and Philosophy
+   - Ouro is a DSL for constructing and serialising CIDOC-CRM / Linked Art compliant JSON-LD knowledge graphs, written by curators rather than programmers.
+   - Static integrity via reverse gradual typing: a resilient, dynamic evaluation phase (~L.Expr~), followed by a mandatory collapse into a strictly typed JSON-LD GADT (~I.Expr~).
+   - Lexical scope with lazy, memoised bindings: declaration order never matters, every binding is evaluated at most once, and cycles are reported rather than looping.
+   - Referential transparency: there are no side effects, no quoting and no recursion, so any expression can be replaced by its value.
+   - Structural topology: the shape of the source is the shape of the JSON output.
+   - No runtime: everything is resolved at compile time; the output is a static document.
+   - Deterministic serialisation: a fold over the validated GADT, in source order.
+
+1. The Language (Syntax Layer)
+   - Program structure (=defn=, =graph=), lexical elements, the EBNF grammar.
+   - Records, arrays, bindings, functions, special forms, patterns, built-ins, =@context=.
+   - The surface tree ~S.Expr~, desugaring (~Canon~), and structural classification.
+
+2. Intermediate Representation and Evaluation
+   - ~L.Expr~, the resilient evaluation superset.
+   - The environment model: ~Env~, ~EvalM~, the promise ~Store~.
+   - The evaluation life-cycle: records, =let=, calls, lookup, forcing.
+
+3. The Verification Gate
+   - ~validateAST~: errors in the output, errors in unused bindings, and unserialisable values.
+   - ~freeze~: the type collapse from ~L.Expr~ into ~I.Expr~.
+
+4. The Internal Model
+   - The ~I.Expr~ GADT, its kind indices, and the schema model.
+
+5. The Emission Engine
+   - The ~Printer~ monad: ~ReaderT PrinterEnv (StateT PrinterState Identity)~.
+
+6. Architectural Boundaries
+   - Module layering, and Ouro's scope as a structural assembler.
+
+Appendix A lists the features that were removed and their replacements; Appendix B lists the
+known gaps in the current implementation.
+
+* Design Goals
+
+Ouro is a domain-specific language engineered for the ergonomic construction, validation and serialisation of CIDOC-CRM knowledge graphs, in particular Linked Art JSON-LD. It bridges human-readable data modelling and strict Semantic Web standards: a program that compiles produces well-formed JSON.
+
+** Structural topology
+
+Ouro code mirrors its output. A record ~(:key value ...)~ becomes a JSON object, a form of values ~(a b c)~ becomes a JSON array, and nesting carries through unchanged. Nothing appears in the output unless it is written as a field or an element; everything else either produces a value in place (calls, =case=, =get=, =let=) or disappears (=let= bindings, =defn=).
+
+The rule of thumb is /structure is written, values are computed/: parentheses give the shape, and anything that is not a field or an element evaluates to a value in the position where it is written. The one construct that changes shape is =inlay=, which splices a record's fields (or an array's elements) into the surrounding one.
+
+Ouro is still written as s-expressions, but it is no longer homoiconic in practice: quoting and =eval= were removed, so programs never manipulate code as data. The s-expression is kept for its other property, a uniform notation whose nesting is the nesting of the data.
+
+** Referential transparency
+
+Ouro has no side effects, no mutable state, no quoting and no recursion. Every expression can be replaced by its value without changing the program: ~((+ 2 4) 3)~ and ~(6 3)~ are the same array, match the same patterns and serialise identically. A property test checks this (~prop_substitution~ in =ScopingTest.hs=).
+
+** Lexical scope, lazily
+
+Every name means what it meant where it was written. To find what a name refers to, read
+outward through the enclosing parentheses, never through the call stack.
+
+- *Order independence:* the fields of a record and the bindings of a =let= can refer to each other in any order, like Scheme's =letrec=. Curators can write a graph in the order that reads best.
+
+- *Call-by-need:* every binding (record field, =let= binding, function argument) is a promise, evaluated at most once and only when needed, in the scope it was written in. A chain of 40 bindings that each use the previous one twice compiles instantly (~prop_sharedChain~ in =ScopingTest.hs=).
+
+- *Cycles are errors:* a binding that depends on itself is reported ("…references itself…"), never evaluated forever.
+
+- *No hidden errors:* after the output is built, every promise it never needed is forced, so an error in an unused binding is still reported.
+
+** No runtime
+
+Ouro is a compiler, not an interpreter for a program that runs later. All names, calls and patterns are resolved at compile time; the result is a static JSON-LD document. There is no virtual machine, no I/O and no network access during compilation (see [[*6. Architectural Boundaries][Architectural Boundaries]]).
+
+** Reverse gradual typing
+
+Evaluation happens in a flexible, dynamically typed sandbox (~L.Expr~) in which errors are values. Before anything is serialised, the evaluated tree must pass the verification gate and is then collapsed into ~I.Expr~, a GADT indexed by JSON-LD kinds. Ouro is dynamic where curators write code and static where the output is produced.
+
+** Errors for curators
+
+Errors are part of the design, not an afterthought. Every surface node carries its ~SourcePos~, every error is reported with its position, a short message and a blurb that suggests a fix, and evaluation continues past an error so that one compile reports them all. Removed syntax is recognised and answered with its replacement (for example "'define' has been replaced by let.").
+
+** Deterministic serialisation
+
+Records keep their fields in source order (association lists, not maps), and the serialiser is a single fold over the frozen GADT. The same input always produces byte-identical output.
+
+** The Ouro compilation pipeline
+
+The flow from source to JSON is strictly linear (~Data.Ouro.compile~):
+
+| Pass | Module                        | Input → Output                                      |
+|------+-------------------------------+-----------------------------------------------------|
+|    1 | ~Lisp.Lexer~                  | source text → ~[Token]~                             |
+|    2 | ~Error.Linter~                | ~[Token]~ → warnings (does not stop compilation)    |
+|    3 | ~Lisp.Parser~                 | ~[Token]~ → ~Module~ of =defn= and =graph= ~S.Expr~ |
+|  3.1 | ~Lisp.Canon~                  | ~S.Expr~ → desugared ~S.Expr~                       |
+|  3.2 | ~Data.Ouro~                   | select the target graph (with a "did you mean")     |
+|    4 | ~Lisp.Eval.Engine~            | ~S.Expr~ → ~(L.Expr, [OuroError])~                  |
+|    5 | ~Data.Ouro.validateAST~       | the verification gate                               |
+|    6 | ~Lisp.Eval.Types.freeze~      | ~L.Expr~ → ~I.Expr 'Primitive~                      |
+|    7 | ~Json.Serializer.toJSON~      | ~I.Expr~ → JSON text                                |
+
+Errors from passes 1 and 3 stop compilation immediately (there is no tree to continue with).
+From pass 4 onwards, errors are collected and reported together.
+
+* The Language (Syntax Layer)
+** Program structure
+
+An Ouro file (a module) is a sequence of top-level declarations, in any order:
+
+#+BEGIN_SRC clojure
+(defn name (arg ...) expr)   ; a named function, visible throughout the file
+(graph name expr)            ; a JSON-LD graph, compiled with -t name
+#+END_SRC
+
+Every body is exactly one expression: a function's body is its result, and a graph's body is its document (usually a record). Private values are bound around that expression with =let=.
+
+#+BEGIN_SRC clojure
+(defn getty-aat ()
+  "http://vocab.getty.edu/aat/")
+
+(defn type-node (aat-id label)
+  (let (:prefix "Type: ")
+    (:id     #uri (+ (getty-aat) aat-id)
+     :type   "Type"
+     :_label (+ prefix label))))
+
+(graph spring
+  (let (:artist "Manet")
+    (:context       "https://linked.art/ns/v1/linked-art.json"
+     :_label        (+ artist ", Spring")
+     :classified_as ((type-node "300033618" "Painting")))))
+#+END_SRC
+
+Compiles (with ~ouro compile file.ouro -t spring~) to:
+
+#+BEGIN_SRC json
+{
+  "@context": "https://linked.art/ns/v1/linked-art.json",
+  "_label": "Manet, Spring",
+  "classified_as": [
+    {
+      "id": "http://vocab.getty.edu/aat/300033618",
+      "type": "Type",
+      "_label": "Type: Painting"
+    }
+  ]
+}
+#+END_SRC
+
+Only graphs are serialised. Functions exist to build and reuse values. A module-wide constant is written as a zero-argument function, such as =getty-aat= above.
+
+** Lexical elements
+
+| Element        | Written as                               | Notes                                                               |
+|----------------+------------------------------------------+---------------------------------------------------------------------|
+| Line comment   | =;; text=                                | from =;= to the end of the line                                     |
+| Block comment  | see below the table                      | may span lines                                                      |
+| String         | ="text"=                                 | Haskell-style character escapes                                     |
+| Number         | =42=, =-3.5=, =1e3=                      | a Double: integers are exact up to 2^53                             |
+| Boolean / null | =true=, =false=, =null=                  |                                                                     |
+| Symbol         | =artist=, =type-node=, =+=, =legacy!=    | starts with a letter or an operator character (see below the table) |
+| Attribute      | =:key=                                   | letters, digits, =-= and =_=; the key of a field                    |
+| Reader tag     | =#uri=, =#date=, =#str=, =#num=, =#bool= | asserts the type of the expression that follows                     |
+| Empty values   | =#rec-empty=, =#arr-empty=, =()=         | ={}=, =[]= and =[]=                                                 |
+| Hole           | =?=, =?name=, =?..name=                  | only inside a =case= pattern                                        |
+| Delimiters     | =( )=                                    | =[ ]= is reserved: it parses, but has no meaning yet                |
+| Keywords       | =defn=, =graph=, =import=, =export=      | a keyword that only begins a longer name (=defnode=) is a symbol    |
+
+Block comments are written ~#| … |#~. A symbol starts with a letter or one of the operator characters ~_ + - * / < > = ! & | ~~, and may also contain digits, ~?~ and ~'~.
+
+A trailing =!= on a function name is allowed but has no meaning. Names live in one namespace, values and functions share it, and an inner value shadows an outer function of the same name.
+
+** Formal grammar (EBNF)
+
+The grammar below describes the language accepted by the parser and evaluator together. Several productions share the same parenthesised notation; [[*Structural classification][structural classification]] decides which one a form is.
+
+#+BEGIN_SRC ebnf
+(* ---------- Modules ---------- *)
+module       = { declaration } ;
+declaration  = defn | graph ;
+defn         = "(" , "defn" , symbol , params , expression , ")" ;
+graph        = "(" , "graph" , symbol , expression , ")" ;
+params       = "(" , { symbol } , ")" ;
+
+(* ---------- Expressions ---------- *)
+expression   = literal | tagged | symbol | record | array | call | special-form ;
+
+literal      = string | number | "true" | "false" | "null"
+             | "#rec-empty" | "#arr-empty" | "(" , ")" ;
+tagged       = tag , expression ;
+tag          = "#uri" | "#date" | "#str" | "#num" | "#bool" ;
+
+(* A record: at least one field or context directive *)
+record       = "(" , { record-item } , ")" ;
+record-item  = field | context | inlay ;
+field        = attribute , expression ;
+attribute    = ":" , key ;
+
+(* An array: a form whose first element is not a symbol, or an explicit list *)
+array        = "(" , [ non-symbol-expr , { expression } ] , ")"
+             | "(" , "list" , { expression } , ")" ;
+
+(* A call: a form headed by an expression that evaluates to a function *)
+call         = "(" , symbol , { expression } , ")" ;
+
+(* ---------- Special forms ---------- *)
+special-form = let | fn | case | get | nth | insert | replace-at | attr ;
+let          = "(" , "let" , "(" , { field } , ")" , expression , ")" ;
+fn           = "(" , "fn" , params , expression , ")" ;
+case         = "(" , "case" , expression , { branch } , "(" , "otherwise" , expression , ")" , ")" ;
+branch       = "(" , ( pattern | guard | alternatives ) , expression , ")" ;
+guard        = "(" , comparison , expression , ")" ;
+alternatives = "(" , literal , { literal } , ")" ;
+get          = "(" , "get" , expression , symbol , { symbol } , ")" ;
+nth          = "(" , "nth" , expression , expression , ")" ;
+insert       = "(" , "insert" , expression , ( expression | field ) , expression , ")" ;
+replace-at   = "(" , "replace-at" , expression , ( expression | field ) , expression , ")" ;
+attr         = "(" , "attr" , expression , expression , ")" ;     (* a computed key *)
+inlay        = "(" , "inlay" , expression , ")" ;
+context      = ":context" , expression
+             | "(" , "context" , "(" , { directive-key , expression } , ")" , ")" ;
+directive-key = "vocab" | "base" | "language" | "remote-context" ;
+
+(* ---------- Patterns (inside case) ---------- *)
+pattern      = hole | record-pattern | array-pattern ;
+hole         = "?" | "?" , name ;
+rest-hole    = "?.." , name ;
+record-pattern = "(" , { attribute , sub-pattern } , [ rest-hole ] , ")" ;
+array-pattern  = "(" , { sub-pattern } , [ rest-hole ] , ")" ;  (* contains at least one hole *)
+sub-pattern  = hole | record-pattern | array-pattern | expression ;
+#+END_SRC
+
+** Values
+
+| Value    | Written as                          | JSON         |
+|----------+-------------------------------------+--------------|
+| String   | ="Manet"=, =#str expr=              | string       |
+| Number   | =3000=, =#num expr=                 | number       |
+| Boolean  | =true=, =#bool expr=                | boolean      |
+| Null     | =null=                              | null         |
+| URI      | =#uri "https://..."=                | string       |
+| Date     | =#date "1881-01-01T00:00:00Z"=      | string       |
+| Record   | =(:key value ...)=                  | object       |
+| Array    | =(a b c)=, =(list a b c)=           | array        |
+| Duration | =(years 2)=, =(days 19)=            | none         |
+| Function | =(fn (x) ...)=, a =defn= name, =+=  | none         |
+
+Durations and functions are values during compilation, but have no JSON form: they must be consumed (added to a date, called) before they reach the output.
+
+*Type assertions.* =#uri= checks that a string is a URI with a scheme; =#date= checks that a string is an ISO-8601 timestamp (=YYYY-MM-DDTHH:mm:ssZ=) =#str=, =#num= and =#bool= check the type of any expression. An assertion on a value that is already a URI or a Date passes it through. Assertions are how URIs and dates, which look like strings in JSON, keep their meaning inside Ouro.
+
+** Records and arrays
+
+A record is a form containing =:key value= fields (or a context directive). Its fields are output in source order, and they are also bindings: inside the record, a field's name refers to its value, in any order.
+
+#+BEGIN_SRC clojure
+(:begin_of_the_begin #date "1848-08-01T00:00:00Z"
+ :end_of_the_begin   (+ begin_of_the_begin (thru (days 19))))
+#+END_SRC
+
+A form of values is an array. Because a form headed by a symbol is a call, an array whose first element is a variable is written with =list=:
+
+#+BEGIN_SRC clojure
+(1 2 3)            ; an array
+(("Manet") 1)      ; an array whose first element is an array
+(list artist 1)    ; an array whose first element is the value of 'artist'
+(artist 1)         ; a call to 'artist' (an error if it is not a function)
+#+END_SRC
+
+An array of one record is written with nested parentheses, ~((:type "Name" ...))~, which is the usual Linked Art shape for =classified_as=, =identified_by= and similar properties.
+
+** Bindings: records and =let=
+
+There are two ways to bind a name, with a difference in serialisation:
+
+| Form                          | Binds          | Output?                | Scope                         |
+|-------------------------------+----------------+------------------------+-------------------------------|
+| =(:name expr ...)= (a record) | its fields     | yes, every field       | the record's own expressions  |
+| =(let (:name expr ...) body)= | its bindings   | no, only =body=        | the bindings and =body=       |
+
+Both are recursive (=letrec=): the bindings can refer to each other in any order, and a cycle is an error. An inner binding shadows an outer one, but a binding is always evaluated in the scope where it was written:
+
+#+BEGIN_SRC clojure
+(let (:artist "Manet"
+      :painted-by artist)                 ; written here, so "Manet"
+  (:provenance (:artist     "Proust"
+                :owner      artist        ; the inner 'artist': "Proust"
+                :painted-by painted-by))) ; still "Manet"
+#+END_SRC
+
+A field cannot refer to an outer binding of the same name: in ~(:name name)~ the field refers to itself, which is a cycle (see [[*Appendix B: Known gaps][known gaps]]).
+
+** Functions: =defn=, =fn= and calls
+
+| Form                     | Meaning                                                             |
+|--------------------------+---------------------------------------------------------------------|
+| =(defn name (x y) expr)= | a named function; top level only; visible throughout the file       |
+| =(fn (x y) expr)=        | an anonymous function value, closed over the scope it is written in |
+| =(f a b)=                | a call: =f= is any expression that evaluates to a function          |
+
+A local function is a =let=-bound =fn=:
+
+#+BEGIN_SRC clojure
+(let (:attribute (fn (label) (+ label " (attributed)")))
+  (:attributed (attribute (attribute "Manet"))))
+#+END_SRC
+
+Semantics of a call:
+
+- *Arity* is checked: a call with the wrong number of arguments is an error.
+
+- *Arguments are call-by-need:* each argument becomes a promise over the caller's scope. It is evaluated at most once, only if the function uses it, and always means what it meant at the call site, so a function's own bindings can never capture it.
+
+- *The body is evaluated in the function's closure*, extended with a frame for the parameters. For a =defn= the closure is the module; for a =fn= it is the scope where the =fn= was written.
+
+  A function cannot see its caller's bindings.
+
+- *Recursion is forbidden.* Calling a function that is already being called (identified by name and definition position) is an error. Nesting a call, ~(f (f x))~, is two calls, not recursion.
+
+- *Functions are values:* they can be passed as arguments and returned, but cannot be compared (=eq= on functions is a type error) or serialised.
+
+A =defn= body is checked when the file is parsed: it must be one expression, cannot be a spliced record (~(defn f (x) :k v)~), and cannot contain =define= or a nested =defn=.
+
+** Special forms
+
+Special forms are recognised by their head symbol before any name lookup, so they cannot be shadowed or used as function names.
+
+| Form                                     | Meaning                                                                      |
+|------------------------------------------+------------------------------------------------------------------------------|
+| =(let (:n e ...) body)=                  | private recursive bindings around one expression                             |
+| =(fn (args) body)=                       | an anonymous function                                                        |
+| =(case target branch ... (otherwise e))= | pattern matching and guards; =otherwise= is required and last                |
+| =(get record key ...)=                   | the value at a path of keys through evaluated records                        |
+| =(nth i coll)=                           | the i-th element of an array, or the i-th field value of a record            |
+| =(insert i x coll)=                      | insert =x= at index =i= (an array element, or a =:key value= field)          |
+| =(replace-at i x coll)=                  | replace the element or field at index =i=                                    |
+| =(inlay expr)=                           | splice a record's fields into a record, or an array's elements into an array |
+| =(list e ...)=                           | an array, whatever its first element is                                      |
+| =(thru duration)=                        | extend a duration to the end of its unit (see Built-ins)                     |
+| =(attr key-expr value)=                  | a field with a computed key (used with =insert=)                             |
+| =:context e=, =(context (...))=          | the record's JSON-LD =@context=                                              |
+
+Negative indexes count from the end in =nth=, =insert= and =replace-at=. =insert= into an array requires the new element to have the same shape as the existing ones, which keeps arrays homogeneous.
+
+*Value-based =get=.* =get= evaluates its target and walks the resulting records, so it works through function results, =inlay=, =case= and =let= alike. Only a record's fields can be reached, =let= bindings are private. Path components are bare symbols (=(get p q r)=, not =(get p :q)=) arrays are indexed with =nth=.
+
+** =case= and patterns
+
+#+BEGIN_SRC clojure
+(case target
+  (("Manet" "Proust") "person")   ; alternatives: equal to any of the literals
+  ((> 100)            "large")    ; a guard: (op args...) with target as first argument
+  ((?head ?..rest)    rest)       ; an array pattern
+  ((:type "Person" :_label ?l) l) ; a record pattern
+  (otherwise          "other"))
+#+END_SRC
+
+The target is evaluated once; the branches are tried in order and the first match is evaluated.
+A branch head is:
+
+- =otherwise=: always matches; it is required, and must be the last branch.
+
+- *A guard*, a form headed by a comparison (~>~, ~>=~, ~<~, ~<=~, =eq=, =neq=): the target is inserted as the comparison's first argument.
+
+- *A pattern*, a record form or a form containing a =?= hole (described below).
+
+- *Alternatives*, a form of literals: sugar for one branch per literal.
+
+- *A literal*: compared with =eq=.
+
+Patterns match /values/, written in Ouro's own construction syntax:
+
+- *Record patterns*, =(:key pattern ... ?..rest)=, match by key in any order. They are open, extra fields are allowed, and =?..rest= binds them as a record.
+
+- *Array patterns*, =(pattern ... ?..rest)=, match by position; =?..rest= must come last and binds the remaining elements as an array.
+
+- *Holes:* =?= matches anything; =?name= binds the value.
+
+- *Anything else* (literals, symbols, calls) is evaluated and compared by value, so   ~((+ 2 4) ?x)~ and ~(6 ?x)~ are the same pattern.
+
+Pattern variables are bound in a frame around the branch body. A record written in the body
+shadows them with its own fields.
+
+** Built-ins
+
+| Group       | Names                                     | Notes                                                                                   |
+|-------------+-------------------------------------------+-----------------------------------------------------------------------------------------|
+| Arithmetic  | ~+~ ~-~ ~*~ ~/~                           | variadic, left-associative; =+= also joins strings, adds durations to dates             |
+| Comparison  | ~eq~ ~neq~ ~>~ ~>=~ ~<~ ~<=~              | variadic comparisons are chained: ~(< a b c)~ = a<b and b<c                             |
+| Durations   | =years months days hours minutes seconds= | ~(days 19)~ is a Duration                                                               |
+| End-of-unit | =(thru d)=                                | ~(thru (days 1))~ = 1 day 23:59:59; ~(thru (years 0))~ = to the end of the current year |
+
+Dates are shifted with =+=: ~(+ start (days 19))~. =thru= exists for Linked Art timespans, whose
+=end_of_the_end= is the last moment of a period:
+
+#+BEGIN_SRC clojure
+:begin_of_the_begin #date "1642-01-01T00:00:00Z"
+:end_of_the_end     (+ begin_of_the_begin (thru (years 0)))   ; 1642-12-31T23:59:59Z
+#+END_SRC
+
+** =@context=
+
+A record's JSON-LD context is written as its first item:
+
+#+BEGIN_SRC clojure
+(:context "https://linked.art/ns/v1/linked-art.json" ...)     ; a remote context
+((context (vocab "https://example.org/" language "en")) ...)  ; local directives
+#+END_SRC
+
+=:context "url"= is sugar for ~(context (remote-context "url"))~. The supported directives are =vocab=, =base=, =language= and =remote-context=. Context handling is the least finished part of Ouro (see [[*Appendix B: Known gaps][known gaps]]).
+
+** Surface representation (~S.Expr~)
+
+The parser produces an untyped tree, ~S.Expr~, that mirrors the source. Every node carries its ~SourcePos~, so every later error can point at the exact place in the file.
+
+#+BEGIN_SRC haskell
+-- In src/Data/Ouro/Lisp/Surface.hs
+data Expr
+    = Symbol      SourcePos Text            -- names, functions and special-form heads
+    | DefunSymbol SourcePos Text            -- function identifiers (unused by the parser)
+    | Literal     SourcePos LiteralValue    -- String, Number, Boolean, Null, empty Array/Record
+    | Tagged      SourcePos ReaderTag Expr  -- #uri "...", #date "..."
+    | Hole        SourcePos Text            -- ?, ?name or ?..name in a case pattern
+    | Form        SourcePos [Expr]          -- (...)
+    | Bracket     SourcePos [Expr]          -- [...], reserved
+#+END_SRC
+
+There is no separate constructor for fields: the parser reads =:key value= as the form ~(attr "key" value)~, so a record is a ~Form~ of ~attr~ forms. A module is the parser's other output: a registry of =defn= declarations and a registry of =graph= declarations, each a ~HigherExpression~ indexed by its kind:
+
+#+BEGIN_SRC haskell
+data HigherExpression (t :: Declaration) where
+    Function :: SourcePos -> Text -> [Text] -> Expr -> HigherExpression 'FunctionExpr
+    Graph    :: SourcePos -> Text -> Expr           -> HigherExpression 'GraphExpr
+#+END_SRC
+
+The parser also enforces the module-level rules: a function name cannot be a special form, a function cannot be defined twice, a body must be one expression, and the removed keywords (=defun=, =define=, a nested =defn=) are reported with their replacements.
+
+** Desugaring (~Canon~)
+
+Before evaluation, ~Canon.construct~ rewrites sugar bottom-up into a smaller core:
+
+| Sugar                                   | Core                                                          |
+|-----------------------------------------+---------------------------------------------------------------|
+| =:context "url"=                        | ~(context (remote-context "url"))~                            |
+| ~(+ a b c)~ (also =- * /=)              | ~(+ (+ a b) c)~                                               |
+| ~(< a b c)~ (also ~eq > >= <=~)         | ~(%and (< a b) (< b c))~; =%and= cannot be written by users   |
+| ~(thru (days n))~                       | ~(days n) (hours 23) (minutes 59) (seconds 59)~               |
+| ~(thru (years n))~, ~(thru (months n))~ | ~(years-end n)~, ~(months-end n)~ (resolved against the date) |
+| =case= alternatives ~(("a" "b") e)~     | one branch per literal                                        |
+
+~Canon.constructRoot~ applies the same rewriting to an expression that stands on its own, such as a graph's body.
+
+** Structural classification
+
+A plain form can be a record, an array or a call. ~determineBlockTarget~ decides which, from the
+form's contents alone, before anything is evaluated:
+
+#+BEGIN_SRC haskell
+determineBlockTarget :: [S.Expr] -> BlockTarget
+determineBlockTarget fields =
+    case fields of
+        []       -> TargetList
+        (x : xs) -> case isFunctionApplication (x : xs) of
+                        True  -> TargetFunctionApp
+                        False -> case any isStructuralField fields of
+                                     True  -> TargetRecord
+                                     False -> TargetList
+    where
+    isFunctionApplication = \case
+        (S.Symbol _ name : _) -> not (isFunctionKeyword name || name `elem` ["let", "context"])
+        _notAFunction         -> False
+
+    isStructuralField = \case
+        S.Form _ (S.Symbol _ "attr"    : _) -> True
+        S.Form _ (S.Symbol _ "context" : _) -> True
+        _other                              -> False
+#+END_SRC
+
+- *Call*: the first element is a symbol.
+- *Record*: otherwise, if any element is a field or a context directive.
+- *Array*: everything else, including the empty form ~()~.
+
+Special forms are matched by =evalExpr= before classification, so =let=, =case= and the others never reach it. These rules are why an array beginning with a variable needs =list=.
+
+** Example projection
+
+#+BEGIN_SRC clojure
+:timespan (:type               "TimeSpan"
+           :identified_by      ((:type    "Name"
+                                 :content "40 days in August and September, 1848"))
+           :begin_of_the_begin #date "1848-08-01T00:00:00Z"
+           :end_of_the_begin   (+ begin_of_the_begin (thru (days 19))))
+#+END_SRC
+
+- =:timespan (...)= opens a nested record: its parentheses are the JSON object's braces.
+
+- =:identified_by ((...))= is an array holding one record: the outer parentheses are the array, the inner ones the object.
+
+- =#date= asserts that the string is a timestamp. The value stays a Date inside Ouro, so it can be shifted with =+=, and is written back as an ISO-8601 string.
+
+- =end_of_the_begin= refers to its sibling =begin_of_the_begin=, a binding in the record's own frame. Order does not matter.
+
+* Intermediate Representation and Evaluation
+
+Evaluation turns the surface tree of the selected graph into ~L.Expr~, a value tree that may still contain errors and compile-time-only values. Its design mandates are:
+
+1. *Lexical, lazy, shared:* bindings are promises evaluated at most once, in the scope where they were written.
+2. *Value-based:* everything (=get=, patterns, comparison) works on evaluated values, never on code.
+3. *Error isolation:* a failure becomes an ~EvalError~ leaf in place, and evaluation of the surrounding tree continues.
+
+** ~L.Expr~
+
+#+BEGIN_SRC haskell
+-- In src/Data/Ouro/Lisp/Eval/Types.hs
+data Expr where
+    -- Frozen targets: already valid JSON-LD
+    Primitive       :: I.Expr 'JLD.Primitive -> Expr
+    Metadata        :: I.Expr 'JLD.Meta      -> Expr
+
+    -- Open structure: may contain errors at any depth
+    Record          :: I.Expr 'JLD.Meta -> [(Text, Expr)] -> Expr
+    Attr            :: Text -> Expr -> Expr          -- a computed field, from (attr k v)
+    Array           :: [Expr] -> Expr
+
+    -- Compile-time-only values: no JSON form
+    Duration        :: PeriodUnit -> Int -> Expr
+    SchemaVal       :: Schema -> Expr
+    Directive       :: SchemaDirective -> Expr
+    PrimitiveOp     :: NativeFunction -> Expr       -- a built-in
+    FunctionClosure :: Env -> FunctionId -> [Text] -> [S.Expr] -> Expr
+
+    -- The universal error leaf
+    EvalError       :: OuroError -> Expr
+
+type NativeFunction = SourcePos -> [Expr] -> Reader Env Expr
+#+END_SRC
+
+Records are association lists, ~[(Text, Expr)]~, rather than maps:
+
+1. *Source order is output order*, which keeps serialisation deterministic and the output recognisably shaped like the source.
+2. *Errors stay local:* a failed field is an ~EvalError~ under its own key; its siblings are unaffected.
+3. *One linear pass* collects every error in a record.
+
+(Laziness no longer comes from the list: it comes from the promise store, below.)
+
+** The environment model
+
+#+BEGIN_SRC haskell
+data Env = Env
+    { _localScope       :: Map Text Binding     -- this frame's names
+    , _parentEnv        :: Maybe Env            -- the enclosing frame
+    , _functionRegistry :: FunctionRegistry     -- functions defined in this frame only
+    , _callStack        :: Set FunctionId       -- the functions currently being called
+    }
+
+newtype Binding  = Promised Addr               -- every name is bound to a promise
+type    Addr     = Int
+type FunctionId  = (Text, SourcePos)           -- a function's name and definition position
+
+type EvalM = ReaderT Env (State Store)          -- read the scope, thread the store
+type Store = IntMap Promise
+
+data Promise = Promise
+    { _promiseEnv   :: Env                      -- the scope it was written in
+    , _promiseExpr  :: S.Expr                   -- its code
+    , _promiseName  :: Text
+    , _promisePos   :: SourcePos
+    , _promiseState :: PromiseState
+    }
+
+data PromiseState = Unforced | Forcing | Forced Expr
+#+END_SRC
+
+This is the environment model of Scheme (SICP §3.2) with call-by-need bindings, as in Launchbury's natural semantics for lazy evaluation:
+
+- *Frames:* an ~Env~ is a chain of immutable frames. A record, a =let=, a call and a =case= branch each push one frame. The root frame holds the module's =defn= functions.
+
+- *Promises:* every binding is a promise in the ~Store~, which is the only state in the evaluator. ~Reader~ carries the current scope downwards; ~State~ carries the store across, so a promise forced in one place is already forced everywhere else.
+
+- *Functions:* each frame's function registry holds only the functions defined in that frame, so function lookup is lexical too.
+
+- *Built-ins* read the environment only: ~NativeFunction~ runs in ~Reader Env~, never touching the store.
+
+** Evaluation life-cycle
+*** Allocating a frame
+
+A record or a =let= is evaluated in two steps:
+
+1. ~collectBindings~ (records) or ~letBindings~ (=let=) sweeps the forms for =:key value= pairs and returns their un-evaluated expressions as ~FrameEntry~ values. Removed forms (=define=, a local =defn=) are reported here.
+
+2. ~allocFrame~ allocates one ~Unforced~ promise per entry and builds the frame that binds their names. Every promise's environment is that same frame. This is what makes the bindings recursive: each binding sees all of its siblings, in any order.
+
+#+BEGIN_SRC haskell
+allocFrame :: (Map Text Binding -> Env) -> [FrameEntry] -> EvalM (Env, [Addr])
+#+END_SRC
+
+When a name appears more than once in a frame, lookups see the first.
+
+*** Forcing
+
+#+BEGIN_SRC haskell
+force :: (S.Expr -> EvalM L.Expr) -> SourcePos -> Addr -> EvalM L.Expr
+force evaluator refPos addr = do
+    promise <- gets (IntMap.! addr)
+    case promise ^. promiseState of
+        Forced value -> pure value                                  -- shared
+        Forcing      -> pure (cyclicLookup refPos (promise ^. promiseName))
+        Unforced     -> do
+                        setState Forcing
+                        value <- local (const (promise ^. promiseEnv))
+                                       (evaluator (promise ^. promiseExpr))
+                        setState (Forced value)
+                        pure value
+#+END_SRC
+
+A promise is evaluated in /its own/ environment, not the one where it is referenced: this is what makes scoping lexical. Reaching a promise that is still being forced means the binding depends on itself, which becomes a cycle error instead of an infinite loop.
+
+*** Looking up a name
+
+~lookupVar~ walks outward from the current frame. In each frame it checks the bound names, then the functions defined in that frame, then moves to the parent. At the root it falls back to the built-ins. An unbound name is an error with a "Perhaps you meant" suggestion, ranked by edit distance.
+
+*** Emitting a record
+
+~emitProps~ walks the record's forms again, in source order:
+
+- A =context= directive becomes the record's metadata (~I.Context~).
+
+- A field is forced through /its own promise/ (found by the position of its =:key=), so a field that is both output and referenced is evaluated once.
+
+- =inlay= evaluates its expression and splices the resulting record's fields in place.
+
+- A field's value must be serialisable (a primitive, record or array; see the ([[*3. The Verification Gate][verification gate]]), otherwise the field becomes an error.
+
+- A loose expression that is not a field is an error ("Unbound expressions are not allowed inside =Record= blocks").
+
+Arrays (~compileArray~) evaluate their elements in order, with =inlay= splicing arrays.
+
+*** Calling a function
+
+~evalFunction~ checks arity and recursion, allocates one promise per argument over the /caller's/ environment, and evaluates the body in the closure extended with a parameter frame:
+
+#+BEGIN_SRC haskell
+(_, argAddrs) <- allocFrame (const callerEnv) [ FrameEntry param (exprPos arg) arg False | ... ]
+let functionEnv = closureEnv
+                & localScope       .~ Map.fromList (zip params (map Promised argAddrs))
+                & functionRegistry .~ Map.empty
+                & parentEnv        .~ Just closureEnv
+                & callStack        .~ Set.insert fnId callerStack
+#+END_SRC
+
+*** Finishing
+
+~evaluate~ evaluates the graph, then forces every promise that is still ~Unforced~, repeating until none are left (forcing can allocate new promises). The errors found in those values are returned alongside the graph:
+
+#+BEGIN_SRC haskell
+evaluate :: Module -> S.Expr -> (L.Expr, [OuroError])
+#+END_SRC
+
+Only error leaves count: a binding that holds a Duration or a function is fine as long as it never reaches the output. Forcing a =fn= creates its closure but does not run its body, so an error inside a function that is never called is not reported.
+
+** Error isolation
+
+Ouro does not short-circuit. Each failure becomes an ~EvalError~ at the position where it happened, and the evaluator carries on with the rest of the tree. Operations propagate an error argument rather than failing again, so one mistake produces one message. Errors are constructed in ~Error.Diagnostics~ and carry a code derived from their constructor (=SYN=, =TYP=, =SCP=, =INT=, and =WRN= for warnings), a message and a blurb.
+
+* The Verification Gate
+
+Before anything is serialised, ~validateAST~ walks the evaluated tree and collects:
+
+1. Every ~EvalError~ in the output.
+
+2. Every value that has no JSON form: Durations, functions, built-ins and schema values, reported at the graph's position with the key path to the value (for example ='produced_by.timespan'=).
+
+3. Infinity and NaN, which JSON cannot represent.
+
+4. the errors found in unused bindings, passed in from ~evaluate~.
+
+Errors are de-duplicated (an error in a binding that is also in the output is reported once) and sorted by position. *A graph compiles if and only if this list is empty.*
+
+There are two guards against compile-time-only values. ~emitProps~ checks each record field as it is emitted, which catches most mistakes with a precise position. ~validateAST~ then checks the whole tree, which also covers the graph root and array elements.
+
+** Type collapse (~freeze~)
+
+A tree that passes the gate contains only ~Primitive~, ~Record~ and ~Array~ nodes. ~freeze~ folds it into the ~I.Expr~ GADT:
+
+#+BEGIN_SRC haskell
+freeze :: Expr -> I.Expr 'JLD.Primitive
+freeze = \case
+    Primitive p -> p
+    Record  m p -> I.Record m (foldRecordToGADT p)
+    Array     p -> I.Array (foldArrayToGADT p)
+    other       -> error ("Invariant: Non-serializable node type: " ++ ...)
+#+END_SRC
+
+Building a statically indexed GADT from runtime lists requires an ~unsafeCoerce~ in the bridge to ~I.Expr any~. It is justified by the gate: ~validateAST~ is the lemma that every node is one of the three serialisable shapes. The ~error~ calls in ~freeze~ are internal invariants, not user errors; reaching one means a value bypassed the gate, which is a compiler bug.
+
+* The Internal Model (~I.Expr~)
+
+JSON-LD is represented by a GADT indexed by a promoted kind, so that ill-formed documents cannot
+be constructed:
+
+#+BEGIN_SRC haskell
+-- In src/Data/Ouro/Internal/Kinds.hs
+data Type = Primitive | Context | List | Meta
+
+-- In src/Data/Ouro/Internal/Expr.hs
+data Expr (t :: JLD.Type) where
+    -- Leaves
+    String    :: Text    -> Expr 'JLD.Primitive
+    Number    :: Double  -> Expr 'JLD.Primitive
+    Boolean   :: Bool    -> Expr 'JLD.Primitive
+    URI       :: URI     -> Expr 'JLD.Primitive
+    Date      :: UTCTime -> Expr 'JLD.Primitive
+    Null      ::            Expr 'JLD.Primitive
+    BlankNode :: Text    -> Expr 'JLD.Primitive
+    EmptyArr  ::            Expr 'JLD.Primitive
+    EmptyRec  ::            Expr 'JLD.Primitive
+
+    -- Metadata
+    Context   :: Schema -> Expr 'JLD.Meta
+    EmptyMeta ::           Expr 'JLD.Meta
+
+    -- The list backbone
+    Cons      :: Expr head -> Expr tail -> Expr 'JLD.List
+    Attr      :: Text      -> Expr any  -> Expr 'JLD.List
+    Nil       ::                           Expr 'JLD.List
+
+    -- Boundary gates
+    Record    :: Expr 'JLD.Meta -> Expr 'JLD.List -> Expr 'JLD.Primitive
+    Array     :: Expr 'JLD.List                   -> Expr 'JLD.Primitive
+#+END_SRC
+
+| JSON-LD         | Ouro                 | ~I.Expr~ constructor     | Haskell type       | Kind      |
+|-----------------+----------------------+--------------------------+--------------------+-----------|
+| string          | ="text"=             | ~String~                 | ~Text~             | Primitive |
+| number          | =42=                 | ~Number~                 | ~Double~           | Primitive |
+| boolean         | =true=               | ~Boolean~                | ~Bool~             | Primitive |
+| null            | =null=               | ~Null~                   | none               | Primitive |
+| IRI             | =#uri "..."=         | ~URI~                    | ~Text.URI.URI~     | Primitive |
+| xsd:dateTime    | =#date "..."=        | ~Date~                   | ~UTCTime~          | Primitive |
+| blank node      | not yet written      | ~BlankNode~              | ~Text~             | Primitive |
+| ={}= / =[]=     | =#rec-empty= / =()=  | ~EmptyRec~ / ~EmptyArr~  | none               | Primitive |
+| node object     | =(:k v ...)=         | ~Record~                 | meta + list        | Primitive |
+| array           | =(a b ...)=          | ~Array~                  | list               | Primitive |
+| =@context=      | =:context ...=       | ~Context~ / ~EmptyMeta~  | ~Schema~           | Meta      |
+| member / field  | none                 | ~Cons~, ~Attr~, ~Nil~    | none               | List      |
+
+The indices enforce three boundaries:
+
+- *Leaves are leaves:* primitives are indexed ~'Primitive~ and cannot appear where a list spine is expected.
+
+- *The spine is isolated:* ~Cons~, ~Attr~ and ~Nil~ are indexed ~'List~, so collection mechanics never leak into a leaf position.
+
+- *Metadata has one slot:* the first argument of ~Record~ is the only place a ~'Meta~ value can go, so a context can never be written as an ordinary value.
+
+~Record~ and ~Array~ are the gates that lift a spine back to a ~'Primitive~ value. (The ~Context~ kind is currently unused.)
+
+The schema model (~Internal.Schema~) is a list of directives:
+
+#+BEGIN_SRC haskell
+newtype Schema = Schema [SchemaDirective]      -- a Monoid: directives accumulate
+
+data SchemaDirective
+    = ClearContext
+    | DefineTerm    Text TermDefinition
+    | RemoteContext URI
+    | SetBase       Text
+    | SetLanguage   Text
+    | SetVocab      (Either URI Text)
+#+END_SRC
+
+Only =RemoteContext=, =SetVocab=, =SetBase= and =SetLanguage= can currently be written in Ouro.
+
+* The Emission Engine
+
+Serialisation (~Json.Serializer.toJSON~) is a catamorphism over ~I.Expr~: one recursive descent, ~buildJSON~, that emits each node exactly once, in order.
+
+#+BEGIN_SRC haskell
+newtype Printer a = Printer
+    { runPrinterP :: ReaderT PrinterEnv (StateT PrinterState Identity) a }
+
+data PrinterEnv   = PrinterEnv   { options :: !PrinterOptions, nestingLevel :: !Int }
+data PrinterState = PrinterState { activeDirectives :: ![SchemaDirective]
+                                 , outputBuffer     :: !Builder }
+#+END_SRC
+
+- *Reader for layout:* the nesting level flows downwards with ~local~, so entering a structure indents its children without affecting its siblings.
+
+- *State as an append-only buffer:* serialisation is monotonic: output is only ever appended, never rewound. A ~Text.Lazy.Builder~ accumulates it without repeated string concatenation.
+
+- *Strict fields:* the bang patterns on ~PrinterState~ prevent a chain of unevaluated thunks from building up across a deep traversal (the classic lazy-state space leak).
+
+- *Identity at the base:* the stack has no ~IO~. The printer is a pure function from a frozen tree to text; nothing is "run" in a virtual machine.
+
+The output is UTF-8 with LF line endings and a trailing newline. Numbers that are whole print without a decimal point.
+
+The same serialiser backs ~ouro validate~, which parses JSON-LD into ~I.Expr~ (~Json.Parser~) and prints it back, as a check that a document is representable.
+
+* Architectural Boundaries
+** Module layering
+
+Dependencies flow in one direction, from the pure JSON-LD core upwards:
+
+| Layer        | Modules                                                                                                          | May import              |
+|--------------+------------------------------------------------------------------------------------------------------------------+-------------------------|
+| JSON-LD core | ~Internal.Kinds~, ~Internal.Schema~, ~Internal.Expr~, ~Internal.Utils~                                           | each other only         |
+| JSON I/O     | ~Json.Parser~, ~Json.Serializer~                                                                                 | the core                |
+| Errors       | ~Error.Types~ ← ~Error.Diagnostics~, ~Error.Linter~                                                              | the core, ~Lisp.Tokens~ |
+| Front end    | ~Lisp.Tokens~, ~Lisp.Lexer~, ~Lisp.Surface~, ~Lisp.Function~, ~Lisp.Parser~, ~Lisp.Canon~, ~Lisp.Module.Types~   | errors, each other      |
+| Evaluator    | ~Eval.Types~ ← ~Eval.Builtins~, ~Eval.Schema~, ~Eval.Pattern~ ← ~Eval.Scope~ ← ~Eval.Structural~ ← ~Eval.Engine~ | everything below        |
+| Pipeline     | ~Data.Ouro~                                                                                                      | everything              |
+| Command line | =app/= (~CLI.Parser~, ~CLI.Runner~, ~CLI.Printer~)                                                               | ~Data.Ouro~ only        |
+
+Invariants:
+
+- The JSON-LD core never imports the evaluator: ~I.Expr~ knows nothing about Ouro.
+
+- The front end never evaluates: parsing, rule checks and desugaring work on ~S.Expr~ alone.
+
+- Built-ins and the schema parser only read the environment (~Reader Env~); only ~Scope~, ~Structural~ and ~Engine~ touch the promise store.
+
+- One exception to note: ~Error.Diagnostics~ imports ~Eval.Types~ (to describe values in messages), so the error layer is not entirely below the evaluator.
+
+** Ouro as a structural assembler
+
+Ouro's compiler guarantees structural validity: a compiled graph is well-formed JSON whose values have the types they were asserted to have. It does not resolve vocabularies, fetch remote contexts or check terms against CIDOC-CRM.
+
+- *Justification:* limiting the compiler to structure keeps it deterministic, offline and immune to failures in external Linked Data services.
+
+- *Boundary rule:* URIs and keys are accepted as literal (or computed) strings. Semantic expansion (context resolution, RDF conversion, shape validation) is left to specialised tools after compilation, in keeping with the Unix philosophy.
+
+** Imports and exports (planned)
+
+Modules will import and export /functions only/, never graphs or data:
+
+- Frames will be layered as local frames → module frame → import frame → built-ins.
+
+- Because exports are functions, modules stay stateless: no promises cross files, and there can be no cross-module data cycles (shared constants are zero-argument functions).
+
+- Two imports exporting the same name will be a compile error.
+
+- Builds will be described in =build.ouro=, itself written in Ouro.
+
+The =import= and =export= keywords are lexed, and ~Module~ has an unwired ~_importRegistry~.
+
+* Appendix A: Removed features
+
+| Removed                                            | Replacement                                        | Reported as                                                                     |
+|----------------------------------------------------+----------------------------------------------------+---------------------------------------------------------------------------------|
+| =defun=                                            | =defn=                                             | ='defun' has been renamed defn.=                                                |
+| =(define :name value ...)=                         | =(let (:name value ...) expr)=                     | ='define' has been replaced by let.=                                            |
+| a local =defun= / =defn=                           | a =let=-bound =fn=                                 | =A defn can only appear at the top level of a file.=                            |
+| spliced graph bodies                               | =(graph name (:key value ...))=                    | =The graph 'g' must be one expression.=                                         |
+| spliced function bodies, =return=                  | one result expression                              | "has a ':key value' field directly in its body", "'return' is no longer needed" |
+| required =!= on function names                     | plain names (=!= still allowed)                    | none                                                                            |
+| =quote=, ='=, =eval=, =get'=                       | values: Ouro has no metaprogramming                | none                                                                            |
+| code-shape =get= (=resolvePath=)                   | value-based =get= (~getPath~)                      | none                                                                            |
+| dynamic scope                                      | lexical scope                                      | none                                                                            |
+| ~Reader Env~ evaluation, ~buildLazyEnv~ knot-tying | ~ReaderT Env (State Store)~ with memoised promises | none                                                                            |
+
+Why quoting went: curators compose and restructure records; they do not manipulate code. Without quoting, code and values cannot be confused, which is what makes the language referentially transparent.
+
+* Appendix B: Known gaps
+
+Recorded 2026-10-12; none are caused by the redesign.
+
+1. *=@context= handling is incomplete (highest priority).* Only =vocab=, =base=, =language= and =remote-context= are accepted; term definitions and =clear= are not. A remote context combined with local directives serialises as a nested =@context= object, which is invalid JSON-LD (it should be an array).
+
+2. *Variadic operators under a type tag hit an internal error.* ~#uri (+ a b c)~, or ~#date (+ d (thru (days 1)))~, report =INT0001 … non-binary arguments after desugaring=: the desugarer does not rewrite the payload of a tag. Workaround: bind the value with =let=, or put the tag on the base value only.
+
+3. *Guards with more than one argument hit the same internal error*, e.g. ~((< 10 20) ...)~.
+
+4. *Month arithmetic rolls over:* 31 January + 1 month is 3 March. Linked Art timespans need clipping to the end of the month.
+
+5. *Computed keys are dropped inside records:* ~((attr k 1))~ produces ={}=. They only work via =insert=.
+
+6. *Duplicate keys are emitted twice:* ~(:a 1 :a 2)~ produces ={"a":1,"a":2}=, while lookups see the first.
+
+7. *~(:name name)~ is a self-reference* (a cycle), not a copy of the outer =name=. Design question: should a field's own expression see the enclosing scope instead?
+
+8. *Source is not read as UTF-8 on Windows*, so accented names are garbled. (A =λ= alias for =fn= would follow once input is UTF-8.)
+
+9. *Suggestions miss local names:* "Perhaps you meant" ranks only the root scope.
+
+10. *Stale wording in messages:* the arity error reads "Got: 2number of argumnets instead."; the hint for a function used as a value suggests =(name! args)=; =get='s missing-key blurb mentions =define=.
+
+11. *A parameter named after a special form* (e.g. =fn=) gives a confusing error about =fn= syntax.
+
+12. *Zero-argument functions re-evaluate* on every call; as pure constants they could be shared.
+
+13. *Code health:* the =[ ]= bracket syntax parses but has no meaning; =validate= without =-o= overwrites its input; no tests yet for contexts, dates, =nth=, =insert= or the CLI.
+
+#  LocalWords:  Ouro LD
