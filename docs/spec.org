@@ -111,20 +111,20 @@ An Ouro file (a module) is a sequence of top-level declarations, in any order:
 (graph name expr)            ; a JSON-LD graph, compiled with -t name
 #+END_SRC
 
-Every body is exactly one expression: a function's body is its result, and a graph's body is its document (usually a record). Private values are bound around that expression with =let=.
+Every body is exactly one expression: a function's body is its result, and a graph's body is its document (usually a record). Private values are bound around that expression with =let=. A function's header can also declare its types (see [[*Functions: =defn=, =fn= and calls][signatures]]).
 
 #+BEGIN_SRC clojure
 (defn getty-aat ()
   "http://vocab.getty.edu/aat/")
 
-(defn type-node (aat-id label)
-  (let (:prefix "Type: ")
+(defn type-node #rec (#str aat-id label)
+  (let ($prefix "Type: ")
     (:id     #uri (+ (getty-aat) aat-id)
      :type   "Type"
      :_label (+ prefix label))))
 
 (graph spring
-  (let (:artist "Manet")
+  (let ($artist "Manet")
     (:context       "https://linked.art/ns/v1/linked-art.json"
      :_label        (+ artist ", Spring")
      :classified_as ((type-node "300033618" "Painting")))))
@@ -159,7 +159,8 @@ Only graphs are serialised. Functions exist to build and reuse values. A module-
 | Boolean / null | =true=, =false=, =null=                  |                                                                     |
 | Symbol         | =artist=, =type-node=, =+=, =legacy!=    | starts with a letter or an operator character (see below the table) |
 | Attribute      | =:key=                                   | letters, digits, =-= and =_=; the key of a field                    |
-| Reader tag     | =#uri=, =#date=, =#str=, =#num=, =#bool= | asserts the type of the expression that follows                     |
+| Binding        | =$name=                                  | any symbol; a private binding, only inside a =let=                  |
+| Reader tag     | =#uri=, =#date=, =#str=, =#num=, =#bool= | asserts the type of what follows; also =#rec=, =#arr=, =#fn=        |
 | Empty values   | =#rec-empty=, =#arr-empty=, =()=         | ={}=, =[]= and =[]=                                                 |
 | Hole           | =?=, =?name=, =?..name=                  | only inside a =case= pattern                                        |
 | Delimiters     | =( )=                                    | =[ ]= is reserved: it parses, but has no meaning yet                |
@@ -177,9 +178,9 @@ The grammar below describes the language accepted by the parser and evaluator to
 (* ---------- Modules ---------- *)
 module       = { declaration } ;
 declaration  = defn | graph ;
-defn         = "(" , "defn" , symbol , params , expression , ")" ;
+defn         = "(" , "defn" , symbol , [ tag ] , params , expression , ")" ;
 graph        = "(" , "graph" , symbol , expression , ")" ;
-params       = "(" , { symbol } , ")" ;
+params       = "(" , { [ tag ] , symbol } , ")" ;     (* a tag types the parameter after it *)
 
 (* ---------- Expressions ---------- *)
 expression   = literal | tagged | symbol | record | array | call | special-form ;
@@ -187,7 +188,7 @@ expression   = literal | tagged | symbol | record | array | call | special-form 
 literal      = string | number | "true" | "false" | "null"
              | "#rec-empty" | "#arr-empty" | "(" , ")" ;
 tagged       = tag , expression ;
-tag          = "#uri" | "#date" | "#str" | "#num" | "#bool" ;
+tag          = "#uri" | "#date" | "#str" | "#num" | "#bool" | "#rec" | "#arr" | "#fn" ;
 
 (* A record: at least one field or context directive *)
 record       = "(" , { record-item } , ")" ;
@@ -204,8 +205,9 @@ call         = "(" , symbol , { expression } , ")" ;
 
 (* ---------- Special forms ---------- *)
 special-form = let | fn | case | get | nth | insert | replace-at | attr ;
-let          = "(" , "let" , "(" , { field } , ")" , expression , ")" ;
-fn           = "(" , "fn" , params , expression , ")" ;
+let          = "(" , "let" , "(" , { binding } , ")" , expression , ")" ;
+binding      = "$" , symbol , expression ;
+fn           = "(" , "fn" , [ tag ] , params , expression , ")" ;
 case         = "(" , "case" , expression , { branch } , "(" , "otherwise" , expression , ")" , ")" ;
 branch       = "(" , ( pattern | guard | alternatives ) , expression , ")" ;
 guard        = "(" , comparison , expression , ")" ;
@@ -231,22 +233,22 @@ sub-pattern  = hole | record-pattern | array-pattern | expression ;
 
 ** Values
 
-| Value    | Written as                          | JSON         |
-|----------+-------------------------------------+--------------|
-| String   | ="Manet"=, =#str expr=              | string       |
-| Number   | =3000=, =#num expr=                 | number       |
-| Boolean  | =true=, =#bool expr=                | boolean      |
-| Null     | =null=                              | null         |
-| URI      | =#uri "https://..."=                | string       |
-| Date     | =#date "1881-01-01T00:00:00Z"=      | string       |
-| Record   | =(:key value ...)=                  | object       |
-| Array    | =(a b c)=, =(list a b c)=           | array        |
-| Duration | =(years 2)=, =(days 19)=            | none         |
-| Function | =(fn (x) ...)=, a =defn= name, =+=  | none         |
+| Value    | Written as                                     | JSON    |
+|----------+------------------------------------------------+---------|
+| String   | ="Manet"=, =#str expr=                         | string  |
+| Number   | =3000=, =#num expr=                            | number  |
+| Boolean  | =true=, =#bool expr=                           | boolean |
+| Null     | =null=                                         | null    |
+| URI      | =#uri "https://..."=                           | string  |
+| Date     | =#date "1881-01-01T00:00:00Z"=                 | string  |
+| Record   | =(:key value ...)=, =#rec expr=                | object  |
+| Array    | =(a b c)=, =(list a b c)=, =#arr expr=         | array   |
+| Duration | =(years 2)=, =(days 19)=                       | none    |
+| Function | =(fn (x) ...)=, a =defn= name, =+=, =#fn expr= | none    |
 
 Durations and functions are values during compilation, but have no JSON form: they must be consumed (added to a date, called) before they reach the output.
 
-*Type assertions.* =#uri= checks that a string is a URI with a scheme; =#date= checks that a string is an ISO-8601 timestamp (=YYYY-MM-DDTHH:mm:ssZ=) =#str=, =#num= and =#bool= check the type of any expression. An assertion on a value that is already a URI or a Date passes it through. Assertions are how URIs and dates, which look like strings in JSON, keep their meaning inside Ouro.
+*Type assertions.* =#uri= checks that a string is a URI with a scheme; =#date= checks that a string is an ISO-8601 timestamp (=YYYY-MM-DDTHH:mm:ssZ=); =#str=, =#num=, =#bool=, =#rec=, =#arr= and =#fn= check the type of any expression (=#fn= accepts a =fn=, a =defn= name or a built-in). An assertion on a value that is already a URI or a Date passes it through. Assertions are how URIs and dates, which look like strings in JSON, keep their meaning inside Ouro.
 
 ** Records and arrays
 
@@ -275,13 +277,13 @@ There are two ways to bind a name, with a difference in serialisation:
 | Form                          | Binds          | Output?                | Scope                         |
 |-------------------------------+----------------+------------------------+-------------------------------|
 | =(:name expr ...)= (a record) | its fields     | yes, every field       | the record's own expressions  |
-| =(let (:name expr ...) body)= | its bindings   | no, only =body=        | the bindings and =body=       |
+| =(let ($name expr ...) body)= | its bindings   | no, only =body=        | the bindings and =body=       |
 
 Both are recursive (=letrec=): the bindings can refer to each other in any order, and a cycle is an error. An inner binding shadows an outer one, but a binding is always evaluated in the scope where it was written:
 
 #+BEGIN_SRC clojure
-(let (:artist "Manet"
-      :painted-by artist)                 ; written here, so "Manet"
+(let ($artist "Manet"
+      $painted-by artist)                 ; written here, so "Manet"
   (:provenance (:artist     "Proust"
                 :owner      artist        ; the inner 'artist': "Proust"
                 :painted-by painted-by))) ; still "Manet"
@@ -297,18 +299,22 @@ A field cannot refer to an outer binding of the same name: in ~(:name name)~ the
 | =(fn (x y) expr)=        | an anonymous function value, closed over the scope it is written in |
 | =(f a b)=                | a call: =f= is any expression that evaluates to a function          |
 
+Both kinds of function take an optional signature: =(defn name #type (#type x y) expr)=, =(fn #type (#type x) expr)=.
+
 A local function is a =let=-bound =fn=:
 
 #+BEGIN_SRC clojure
-(let (:attribute (fn (label) (+ label " (attributed)")))
+(let ($attribute (fn (label) (+ label " (attributed)")))
   (:attributed (attribute (attribute "Manet"))))
 #+END_SRC
 
+*The body.* A function's body is one expression, written exactly as it would be anywhere else, and its value is the result. A body can be a =let=, so a function binds its private values the same way a graph does. Because parentheses around values make an array, ~(fn () ("hello"))~ returns ~["hello"]~; the compiler warns (=WRN0002=) when a result is a single plain value in parentheses, unless a return type of =#arr= says the array is intended.
+
 Semantics of a call:
 
-- *Arity* is checked: a call with the wrong number of arguments is an error.
+- *Arity* is checked: a call with the wrong number of arguments is an error. Functions are not curried.
 
-- *Arguments are call-by-need:* each argument becomes a promise over the caller's scope. It is evaluated at most once, only if the function uses it, and always means what it meant at the call site, so a function's own bindings can never capture it.
+- *Arguments are call-by-need:* each argument becomes a promise over the caller's scope. It is evaluated at most once, when the function first uses it, and always means what it meant at the call site, so a function's own bindings can never capture it. An argument the function never uses is still evaluated when the graph is finished, so its errors are reported.
 
 - *The body is evaluated in the function's closure*, extended with a frame for the parameters. For a =defn= the closure is the module; for a =fn= it is the scope where the =fn= was written.
 
@@ -318,7 +324,33 @@ Semantics of a call:
 
 - *Functions are values:* they can be passed as arguments and returned, but cannot be compared (=eq= on functions is a type error) or serialised.
 
-A =defn= body is checked when the file is parsed: it must be one expression, cannot be a spliced record (~(defn f (x) :k v)~), and cannot contain =define= or a nested =defn=.
+- *A returned function is called through =let=.* A form headed by a call is an array, so ~((f x) y)~ does not call the result of ~(f x)~. Bind it first: ~(let ($g (f x)) (g y))~. Partial application is written this way, with a function that returns a =fn= waiting for the remaining arguments:
+
+  #+BEGIN_SRC clojure
+  (defn adder (n) (fn (x) (+ n x)))
+
+  (graph g
+    (let ($inc (adder 1))
+      (:r (inc 2))))              ; {"r": 3}
+  #+END_SRC
+
+A =defn= body is checked when the file is parsed: it must be one expression and cannot be a spliced record (~(defn f (x) :k v)~). A =define= or a nested =defn= in it is reported with its replacement, =let= or a =let=-bound =fn=.
+
+*Signatures.* A function's types are tags in its header: a tag between the name and the parameters is the return type, and a tag before a parameter is that parameter's type. Either can be left out, and so can any parameter's.
+
+#+BEGIN_SRC clojure
+(defn node #rec (#uri id type)
+  (:id id :type type))
+
+(let ($double (fn #num (#num n) (* n 2)))
+  (:r (double 21)))               ; {"r": 42}
+#+END_SRC
+
+- The types are the type tags: =#str=, =#num=, =#bool=, =#uri=, =#date=, =#rec=, =#arr= and =#fn=. There is one sigil for types: =#= always asserts a type, and its position says what it applies to.
+- A signature's tag behaves exactly as the same tag would anywhere else: it checks the value, and =#uri= and =#date= convert a string. In =node= above, =id= arrives as a URI.
+- Each argument is checked where the call is written, so a mismatch is reported at the argument, in the call. The result is checked where the body is, and a mismatch is reported there.
+- An argument is checked even if the function never uses it.
+- Nothing is inferred: an untyped parameter or result is not checked, and unannotated code behaves as before.
 
 ** Special forms
 
@@ -326,8 +358,8 @@ Special forms are recognised by their head symbol before any name lookup, so the
 
 | Form                                     | Meaning                                                                      |
 |------------------------------------------+------------------------------------------------------------------------------|
-| =(let (:n e ...) body)=                  | private recursive bindings around one expression                             |
-| =(fn (args) body)=                       | an anonymous function                                                        |
+| =(let ($n e ...) body)=                  | private recursive bindings around one expression                             |
+| =(fn (args) body)=                       | an anonymous function, optionally with a signature                           |
 | =(case target branch ... (otherwise e))= | pattern matching and guards; =otherwise= is required and last                |
 | =(get record key ...)=                   | the value at a path of keys through evaluated records                        |
 | =(nth i coll)=                           | the i-th element of an array, or the i-th field value of a record            |
@@ -585,7 +617,7 @@ This is the environment model of Scheme (SICP §3.2) with call-by-need bindings,
 
 A record or a =let= is evaluated in two steps:
 
-1. ~collectBindings~ (records) or ~letBindings~ (=let=) sweeps the forms for =:key value= pairs and returns their un-evaluated expressions as ~FrameEntry~ values. Removed forms (=define=, a local =defn=) are reported here.
+1. ~collectBindings~ (records) or ~letBindings~ (=let=) sweeps the forms for =:key value= fields (records) or =$name value= bindings (=let=) and returns their un-evaluated expressions as ~FrameEntry~ values. Removed forms (=define=, a local =defn=) are reported here.
 
 2. ~allocFrame~ allocates one ~Unforced~ promise per entry and builds the frame that binds their names. Every promise's environment is that same frame. This is what makes the bindings recursive: each binding sees all of its siblings, in any order.
 
@@ -636,12 +668,12 @@ Arrays (~compileArray~) evaluate their elements in order, with =inlay= splicing 
 
 *** Calling a function
 
-~evalFunction~ checks arity and recursion, allocates one promise per argument over the /caller's/ environment, and evaluates the body in the closure extended with a parameter frame:
+~evalFunction~ checks arity and recursion, allocates one promise per argument over the /caller's/ environment (under its parameter's tag, if the parameter is typed), and evaluates the body in the closure extended with a parameter frame:
 
 #+BEGIN_SRC haskell
-(_, argAddrs) <- allocFrame (const callerEnv) [ FrameEntry param (exprPos arg) arg False | ... ]
+(_, argAddrs) <- allocFrame (const callerEnv) [ FrameEntry (paramName param) (exprPos arg) (typedArgument param arg) False | ... ]
 let functionEnv = closureEnv
-                & localScope       .~ Map.fromList (zip params (map Promised argAddrs))
+                & localScope       .~ Map.fromList (zip (map paramName params) (map Promised argAddrs))
                 & functionRegistry .~ Map.empty
                 & parentEnv        .~ Just closureEnv
                 & callStack        .~ Set.insert fnId callerStack
@@ -846,7 +878,7 @@ The =import= and =export= keywords are lexed, and ~Module~ has an unwired ~_impo
 | Removed                                            | Replacement                                        | Reported as                                                                     |
 |----------------------------------------------------+----------------------------------------------------+---------------------------------------------------------------------------------|
 | =defun=                                            | =defn=                                             | ='defun' has been renamed defn.=                                                |
-| =(define :name value ...)=                         | =(let (:name value ...) expr)=                     | ='define' has been replaced by let.=                                            |
+| =(define :name value ...)=                         | =(let ($name value ...) expr)=                     | ='define' has been replaced by let.=                                            |
 | a local =defun= / =defn=                           | a =let=-bound =fn=                                 | =A defn can only appear at the top level of a file.=                            |
 | spliced graph bodies                               | =(graph name (:key value ...))=                    | =The graph 'g' must be one expression.=                                         |
 | spliced function bodies, =return=                  | one result expression                              | "has a ':key value' field directly in its body", "'return' is no longer needed" |

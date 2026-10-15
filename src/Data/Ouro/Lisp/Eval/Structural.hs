@@ -22,7 +22,7 @@ import           Data.Ouro.Lisp.Eval.Types   (Binding (..), Env (..), EvalM, Exp
 import qualified Data.Ouro.Lisp.Eval.Types   as L
 import           Data.Ouro.Lisp.Function     (functionBody, isFunctionKeyword,
                                               misplacedBinding, removedDefine,
-                                              removedLocalDefn)
+                                              removedLocalDefn, typedArgument)
 import qualified Data.Ouro.Lisp.Surface      as S
 import qualified Data.Set                    as Set
 import           Data.Text                   (Text)
@@ -396,18 +396,18 @@ determineBlockTarget fields =
 -- evalFunction
 --
 -- Calls a function. Each argument becomes a promise over the caller's environment,
--- so it means what it meant where it was written, and is evaluated at most once (and
--- only if used). The body runs in the function's closure (the frame it was defined
--- in) extended with a frame for the parameters.
+-- so it means what it meant where it was written, and is evaluated at most once. A
+-- typed parameter's argument is checked under its tag. The body runs in the function's
+-- closure (the frame it was defined in) extended with a frame for the parameters.
 --
 -- Recursion is forbidden: the call stack comes from the caller and records each
--- function by identity, so nesting a call, like (f! (f! x)), is not recursion.
+-- function by identity, so nesting a call, like (f (f x)), is not recursion.
 evalFunction
     :: (S.Expr -> EvalM L.Expr)       -- Core evaluator function
     -> Env                            -- The function's closure: the frame it is defined in
     -> SourcePos                      -- Callsite position
     -> L.FunctionId                   -- The function's name and definition position
-    -> [Text]                         -- The function's formal parameters (e.g., (name year))
+    -> [S.Param]                      -- The function's formal parameters (e.g., (name #num year))
     -> [S.Expr]                       -- The un-evaluated body expressions of the function
     -> [S.Expr]                       -- The actual arguments passed at the call site
     -> EvalM L.Expr                   -- The returned evaluated expr
@@ -435,12 +435,14 @@ evalFunction evaluator closureEnv pos fnId@(name, _) params bodyExprs actualArgs
 
         (True, False)
             -> do
-               -- The arguments' promises close over the caller's environment
+               -- The arguments' promises close over the caller's environment. A typed
+               -- parameter's argument is checked under its tag, where the call is written.
                (_, argAddrs) <- allocFrame (const callerEnv)
-                                    [ FrameEntry param (S.exprPos arg) arg False | (param, arg) <- zip params actualArgs ]
+                                    [ FrameEntry (S.paramName param) (S.exprPos arg) (typedArgument param arg) False
+                                    | (param, arg) <- zip params actualArgs ]
 
                let functionEnv = closureEnv
-                               & L.localScope       .~ Map.fromList (zip params (map Promised argAddrs))
+                               & L.localScope       .~ Map.fromList (zip (map S.paramName params) (map Promised argAddrs))
                                & L.functionRegistry .~ Map.empty
                                & L.parentEnv        .~ Just closureEnv
                                & L.callStack        .~ Set.insert fnId callerStack

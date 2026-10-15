@@ -1,15 +1,17 @@
 module Ouro.FunctionTest
 ( expressionBodies
 , plainNames
+, signatures
 ) where
 
 import qualified Data.Text as T
 import           Hedgehog
-import           Utils     (compilesLike, failsToCompile, failsWith)
+import           Utils     (compilesLike, compilesToJSON, compilesWithoutWarnings,
+                            failsToCompile, failsWith)
 
 
--- A function body is any number of defines followed by exactly one expression: its
--- result, written exactly as it would be anywhere else.
+-- A function body is exactly one expression: its result, written exactly as it would be
+-- anywhere else. Private values are bound around it with let.
 expressionBodies :: Group
 expressionBodies = Group "Functions: a body is one result expression"
     [ ("a literal result",                        compilesLike "(defn getty! () \"http://vocab.getty.edu/aat/\") (graph g (:u (getty!)))"
@@ -69,4 +71,48 @@ plainNames = Group "Functions: names are plain symbols, in one namespace"
                                                              "(defn get (x) x) (graph g (:r 1))")
     , ("calling a value that shadows a function",  failsWith "not a function"
                                                              "(defn label () \"function\") (graph g (:label \"value\" :r (label)))")
+    ]
+
+
+-- A signature's types are tags in a function's header: one between the name and the
+-- parameters for the result, and one before a parameter for that parameter. A tag checks
+-- (and converts to #uri or #date) exactly as it would anywhere else. An argument is
+-- checked where the call is written, and the result where the body is.
+signatures :: Group
+signatures = Group "Functions: signatures are tags in the header"
+    [ ("a typed defn",                            compilesToJSON "(defn node #rec (#uri id type) (:id id :type type)) (graph g (:r (node \"https://a.org/x\" \"Type\")))"
+                                                                 "{\"r\": {\"id\": \"https://a.org/x\", \"type\": \"Type\"}}")
+    , ("a typed fn",                              compilesToJSON "(graph g (let ($double (fn #num (#num n) (* n 2))) (:r (double 21))))"
+                                                                 "{\"r\": 42}")
+    , ("an untyped parameter beside a typed one", compilesToJSON "(defn pair (#num a b) (list a b)) (graph g (:r (pair 1 \"two\")))"
+                                                                 "{\"r\": [1, \"two\"]}")
+    , ("a typed parameter converts to a date",    compilesToJSON "(defn year-end #date (#date d) (+ d (thru (years 1)))) (graph g (:r (year-end \"2020-01-01T00:00:00Z\")))"
+                                                                 "{\"r\": \"2021-12-31T23:59:59Z\"}")
+    , ("#rec and #arr in a signature",            compilesToJSON "(defn wrap #arr (#rec r) (list r)) (graph g (:r (wrap (:a 1))))"
+                                                                 "{\"r\": [{\"a\": 1}]}")
+    , ("#fn in a signature",                      compilesToJSON "(defn apply #num (#fn f x) (f x)) (graph g (:r (apply (fn (n) (+ n 1)) 1)))"
+                                                                 "{\"r\": 2}")
+    , ("#rec and #arr are tags anywhere",         compilesToJSON "(graph g (:r #rec (:a 1) :s #arr (1 2)))"
+                                                                 "{\"r\": {\"a\": 1}, \"s\": [1, 2]}")
+
+    -- Mismatches, checked by message and by where they are reported
+    , ("an argument of the wrong type",           failsWith "expectedType = \"a Number\", actualType = \"a String\""
+                                                            "(defn double (#num n) (* n 2)) (graph g (:r (double \"x\")))")
+    , ("it is reported at the argument",          failsWith "line 1, col 53"
+                                                            "(defn double (#num n) (* n 2)) (graph g (:r (double \"x\")))")
+    , ("an unused argument is still checked",     failsWith "expectedType = \"a Number\""
+                                                            "(defn second (#num a b) b) (graph g (:r (second \"x\" 2)))")
+    , ("a result of the wrong type",              failsWith "expectedType = \"a Number\", actualType = \"a String\""
+                                                            "(defn label #num (who) (+ who \"!\")) (graph g (:r (label \"a\")))")
+    , ("it is reported at the body",              failsWith "line 1, col 24"
+                                                            "(defn label #num (who) (+ who \"!\")) (graph g (:r (label \"a\")))")
+    , ("a fn result of the wrong type",           failsWith "expectedType = \"a String\""
+                                                            "(graph g (let ($f (fn #str (n) n)) (:r (f 1))))")
+    , ("a value that is not a function",          failsWith "expectedType = \"a function\""
+                                                            "(defn apply (#fn f x) (f x)) (graph g (:r (apply 1 2)))")
+    , ("a type needs a parameter after it",       failsWith "written before its name"
+                                                            "(defn f (#num) 1) (graph g (:r (f)))")
+
+    -- A return type says what the result is, so a typed one-value array is not a mistake
+    , ("#arr silences the one-value warning",     compilesWithoutWarnings "(defn f #arr () (\"x\")) (graph g (:r (f) :s (let ($h (fn #arr () (\"y\"))) (h))))")
     ]

@@ -6,7 +6,7 @@
 module Data.Ouro.Lisp.Module.Types where
 
 import qualified Data.Map.Strict        as Map
-import           Data.Ouro.Lisp.Surface (Expr)
+import           Data.Ouro.Lisp.Surface (Expr, Param)
 import           Data.Text              (Text)
 import           Lens.Micro.TH          (makeLenses)
 import           Text.Megaparsec        (SourcePos)
@@ -21,8 +21,8 @@ data Declaration
 
 -- Higher Expression Surface AST of a module, indexed by the DeclType
 data HigherExpression (t :: Declaration) where
-    Function :: SourcePos -> Text -> [Text] -> Expr -> HigherExpression 'FunctionExpr
-    Graph    :: SourcePos -> Text -> Expr           -> HigherExpression 'GraphExpr
+    Function :: SourcePos -> Text -> [Param] -> Expr -> HigherExpression 'FunctionExpr
+    Graph    :: SourcePos -> Text -> Expr            -> HigherExpression 'GraphExpr
 
 deriving instance Show (HigherExpression t)
 deriving instance Eq   (HigherExpression t)

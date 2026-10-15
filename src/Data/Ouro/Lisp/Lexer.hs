@@ -99,6 +99,9 @@ pReaderTags = lexeme . withPos $ do
                                      "str"       -> pure Tkn.TagStr
                                      "num"       -> pure Tkn.TagNum
                                      "bool"      -> pure Tkn.TagBool
+                                     "rec"       -> pure Tkn.TagRec
+                                     "arr"       -> pure Tkn.TagArr
+                                     "fn"        -> pure Tkn.TagFn
                                      "rec-empty" -> pure Tkn.TagRecordEmpty
                                      "arr-empty" -> pure Tkn.TagArrEmpty
                                      other       -> M.region (\err -> M.setErrorOffset startOffset err)

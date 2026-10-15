@@ -72,9 +72,20 @@ data ReaderTag
     | StrTag   -- For explicit string enforcement (#str variable)
     | NumTag   -- For numeric assertion (#num variable)
     | BoolTag  -- For boolean assertion (#bool variable)
+    | RecTag   -- For record assertion (#rec variable)
+    | ArrTag   -- For array assertion (#arr variable)
+    | FnTag    -- For function assertion (#fn variable)
     | RecEmpty
     | ArrEmpty
     deriving (Show, Eq)
+
+
+-- A function's parameter: its name, and the type tag written before it, if any, as in
+-- (defn node (#uri id type) ...)
+data Param = Param
+    { paramName :: Text
+    , paramType :: Maybe (SourcePos, ReaderTag)
+    } deriving (Show, Eq)
 
 
 exprPos :: Expr -> SourcePos

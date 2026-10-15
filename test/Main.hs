@@ -27,9 +27,10 @@ main = do
         , Scoping.lexicalFunctions
         , Scoping.valueGetAndErrors
         , Scoping.cleanup
-        -- Functions: bodies are one result expression, names are plain symbols
+        -- Functions: bodies are one result expression, names are plain symbols, signatures
         , Function.expressionBodies
         , Function.plainNames
+        , Function.signatures
         -- Bindings: let, fn and defn replace define and defun
         , Let.letAndFn
         -- The language as specified: what reaches the output, special forms and built-ins

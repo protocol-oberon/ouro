@@ -40,7 +40,7 @@ import qualified Data.Ouro.Lisp.Eval.Types      as L
 import           Data.Ouro.Lisp.Function        (isFunctionKeyword,
                                                  misplacedBinding,
                                                  removedDefine,
-                                                 removedLocalDefn)
+                                                 removedLocalDefn, typedResult)
 import           Data.Ouro.Lisp.Module.Types    (Module)
 import qualified Data.Ouro.Lisp.Surface         as S
 import           Data.Text                      (Text)
@@ -53,7 +53,7 @@ import qualified Text.URI                       as URI
 
 -- High-level engine entry point.
 -- Evaluates the graph, then forces every promise its output never needed (unused
--- defines and arguments), so that errors in them are reported too. Returns the
+-- let bindings and arguments), so that errors in them are reported too. Returns the
 -- graph's value, with its errors embedded, and the errors found in those bindings.
 evaluate :: Module -> S.Expr -> (L.Expr, [OuroError])
 evaluate moduleEnv rootExpr = L.runEvalM (L.defaultEnv moduleEnv) $ do
@@ -156,13 +156,19 @@ evalExpr expr = do
         S.Form pos [S.Symbol _ "%binder", S.Literal _ (S.Str name)]
             -> pure (EvalError (misplacedBinding name pos))
 
-        -- (fn (args) expr): an anonymous function, closed over the scope it is written in
+        -- (fn (args) expr): an anonymous function, closed over the scope it is written in.
+        -- A return type is read as a tag on the parameter list: (fn #num (n) expr).
         S.Form pos [S.Symbol _ "fn", S.Form _ params, body]
-            | Just names <- traverse paramName params
-            -> pure (FunctionClosure env ("fn", pos) names [body])
+            | Just typed <- traverse param params
+            -> pure (FunctionClosure env ("fn", pos) typed [body])
+
+        S.Form pos [S.Symbol _ "fn", S.Tagged tPos tag (S.Form _ params), body]
+            | Just typed <- traverse param params
+            -> pure (FunctionClosure env ("fn", pos) typed [typedResult (Just (tPos, tag)) body])
 
         S.Form pos (S.Symbol _ "fn" : _)
-            -> lexicalError "A fn is written (fn (args) expr): bare argument names, then exactly one result expression."
+            -> lexicalError "A fn is written (fn (args) expr): argument names, each with an optional type, then exactly one result expression."
+               & withBlurb "A signature's types are tags: (fn #num (#num n) (* n 2))."
                & OuroError pos
                & EvalError
                & pure
@@ -346,6 +352,9 @@ assertTag tag payload = do
                                  S.StrTag  -> isString   pos evaluatedVal
                                  S.NumTag  -> isNumber   pos evaluatedVal
                                  S.BoolTag -> isBoolean  pos evaluatedVal
+                                 S.RecTag  -> isRecord   pos evaluatedVal
+                                 S.ArrTag  -> isArray    pos evaluatedVal
+                                 S.FnTag   -> isFn       pos evaluatedVal
                                  _badTag   -> malformedTag (T.pack (show tag)) "You cannot type assert an empty object or array"
                                               & OuroError pos
                                               & EvalError
@@ -360,6 +369,20 @@ assertTag tag payload = do
     isNumber pos v = case v of
                          Primitive (I.Number _) -> pure v
                          other                  -> failMismatch pos "a Number" (humanReadableType other) other
+
+    isRecord pos v = case v of
+                         Record _ _           -> pure v
+                         Primitive I.EmptyRec -> pure v
+                         other                -> failMismatch pos "a Record" (humanReadableType other) other
+
+    isArray pos v = case L.asArray v of
+                        Just _  -> pure v
+                        Nothing -> failMismatch pos "an Array" (humanReadableType v) v
+
+    isFn pos v = case v of
+                     FunctionClosure _ _ _ _ -> pure v
+                     PrimitiveOp _           -> pure v
+                     other                   -> failMismatch pos "a function" (humanReadableType other) other
 
     isBoolean pos v = case v of
                           Primitive (I.Boolean _) -> pure v
@@ -652,8 +675,9 @@ notAField = \case
     _notAField   -> True
 
 
--- A function argument is a bare name
-paramName :: S.Expr -> Maybe Text
-paramName = \case
-    S.Symbol _ name -> Just name
-    _notAName       -> Nothing
+-- A function argument is a name, optionally typed by the tag before it: n or #num n
+param :: S.Expr -> Maybe S.Param
+param = \case
+    S.Symbol _ name                    -> Just (S.Param name Nothing)
+    S.Tagged pos tag (S.Symbol _ name) -> Just (S.Param name (Just (pos, tag)))
+    _notAName                          -> Nothing

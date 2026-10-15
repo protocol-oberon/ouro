@@ -16,7 +16,7 @@ import           Data.Ouro.Error.Types       (ErrorContext (..), OuroError (..),
 import           Data.Ouro.Lisp.Function     (checkFunctionName, duplicateFunction,
                                               functionBody, graphBody,
                                               isFunctionKeyword, removedLocalDefn,
-                                              renamedDefun)
+                                              renamedDefun, typedResult)
 import           Data.Ouro.Lisp.Module.Types (Declaration (..),
                                               HigherExpression (..),
                                               Module (..), graphRegistry,
@@ -108,14 +108,26 @@ pHigherExpression = do
 
 pDefn :: SourcePos -> Parser ParsedDecl
 pDefn pos = do
-    name <- expectSymbol "Expected a function name"
-    args <- pArgs
-    body <- collectUntil Tkn.CloseParen
+    name    <- expectSymbol "Expected a function name"
+    retType <- pReturnType
+    args    <- pArgs
+    body    <- collectUntil Tkn.CloseParen
 
-    -- A body is exactly one result expression
-    _ <- lift (functionBody name pos body)
+    -- A body is exactly one result expression, checked against the return type
+    result <- lift (functionBody name pos body)
 
-    pure $ PFunction (Function pos name args (S.Form pos body))
+    pure $ PFunction (Function pos name args (S.Form pos [typedResult retType result]))
+
+
+-- A type tag between a function's name and its parameters is its return type
+pReturnType :: Parser (Maybe (SourcePos, S.ReaderTag))
+pReturnType = do
+    stream <- get
+    case stream of
+        t : ts | Just tag <- typeTag (Tkn.tokenType t)
+            -> put ts >> pure (Just (Tkn.pos t, tag))
+        _noReturnType
+            -> pure Nothing
 
 
 pGraph :: SourcePos -> Parser ParsedDecl
@@ -162,7 +174,8 @@ expectCloseParen = do
                           F.& lift
 
 
-pArgs :: Parser [Text]
+-- A parameter list: names, each optionally typed by the tag before it, (#uri id type)
+pArgs :: Parser [S.Param]
 pArgs = do
     t <- popToken "Expected '(' for argument list"
     case Tkn.tokenType t of
@@ -177,11 +190,30 @@ pArgs = do
         t <- popToken "Expected argument or ')'"
         case Tkn.tokenType t of
             Tkn.CloseParen      -> pure $ reverse acc
-            Tkn.Symbol     name -> collectArgs (name : acc)
+            Tkn.Symbol     name -> collectArgs (S.Param name Nothing : acc)
+            tkn | Just tag <- typeTag tkn
+                                -> do
+                                   name <- expectSymbol "A parameter's type is written before its name, as in (#num n)"
+                                   collectArgs (S.Param name (Just (Tkn.pos t, tag)) : acc)
             _notASymbol         -> lexicalError "Argument lists can only contain symbols"
                                    F.& OuroError (Tkn.pos t)
                                    F.& Left
                                    F.& lift
+
+
+-- The tags that name a type, in an expression or a signature. '#rec-empty' and
+-- '#arr-empty' are values, not types.
+typeTag :: Tkn.TokenType -> Maybe S.ReaderTag
+typeTag = \case
+    Tkn.TagUri  -> Just S.Uri
+    Tkn.TagDate -> Just S.Date
+    Tkn.TagStr  -> Just S.StrTag
+    Tkn.TagNum  -> Just S.NumTag
+    Tkn.TagBool -> Just S.BoolTag
+    Tkn.TagRec  -> Just S.RecTag
+    Tkn.TagArr  -> Just S.ArrTag
+    Tkn.TagFn   -> Just S.FnTag
+    _notAType   -> Nothing
 
 -- Recursive Expr Router
 pExpr :: Parser S.Expr
@@ -229,11 +261,8 @@ pExpr = do
 
                              -- Reader Macros & Type Assertions
                              -- Note: We intentionally pop 'ts' here to advance past the macro tag
-                             Tkn.TagUri         -> put ts >> parseTaggedNode (Tkn.pos t) S.Uri
-                             Tkn.TagDate        -> put ts >> parseTaggedNode (Tkn.pos t) S.Date
-                             Tkn.TagStr         -> put ts >> parseTaggedNode (Tkn.pos t) S.StrTag
-                             Tkn.TagNum         -> put ts >> parseTaggedNode (Tkn.pos t) S.NumTag
-                             Tkn.TagBool        -> put ts >> parseTaggedNode (Tkn.pos t) S.BoolTag
+                             tkn | Just tag <- typeTag tkn
+                                                -> put ts >> parseTaggedNode (Tkn.pos t) tag
 
                              -- Empty Collections instantiate as direct fallback values
                              Tkn.TagRecordEmpty -> capture (S.Literal (Tkn.pos t) S.EmptyRec)

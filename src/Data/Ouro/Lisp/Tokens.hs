@@ -51,6 +51,9 @@ data TokenType
     | TagStr           -- '#str'       (enforces expression resolves to a String)
     | TagNum           -- '#num'       (enforces expression resolves to a Number)
     | TagBool          -- '#bool'      (enforces expression resolves to a Boolean)
+    | TagRec           -- '#rec'       (enforces expression resolves to a Record)
+    | TagArr           -- '#arr'       (enforces expression resolves to an Array)
+    | TagFn            -- '#fn'        (enforces expression resolves to a function)
     | TagRecordEmpty   -- '#rec-empty' (instantiates Record Nil Nil)
     | TagArrEmpty      -- '#arr-empty' (instantiates Array Nil)
     -- Hole

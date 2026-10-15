@@ -10,6 +10,8 @@ module Data.Ouro.Lisp.Function
 , removedDefine
 , removedLocalDefn
 , renamedDefun
+, typedArgument
+, typedResult
 ) where
 
 import           Data.Function               ((&))
@@ -19,6 +21,26 @@ import           Data.Ouro.Error.Types       (OuroError (..))
 import qualified Data.Ouro.Lisp.Surface      as S
 import           Data.Text                   (Text)
 import           Text.Megaparsec             (SourcePos)
+
+
+-- Signatures.
+--
+-- A function's types are written as tags in its header: one between the name and the
+-- parameters for the result, and one before a parameter for that parameter:
+--
+--   (defn node #rec (#uri id type) (:id id :type type))
+--   (fn #num (n) (* n 2))
+--
+-- A signature's tag checks a value just as the same tag would anywhere else, and
+-- converts to a URI or a Date in the same way. The result is the body under the return
+-- tag, and each argument is put under its parameter's tag where the call is written, so
+-- a mismatch is reported at the argument. Nothing is inferred: an untyped parameter or
+-- result is not checked.
+typedResult :: Maybe (SourcePos, S.ReaderTag) -> S.Expr -> S.Expr
+typedResult = maybe id (uncurry S.Tagged)
+
+typedArgument :: S.Param -> S.Expr -> S.Expr
+typedArgument param arg = maybe arg (\(pos, tag) -> S.Tagged pos tag arg) (S.paramType param)
 
 
 -- functionBody.

@@ -119,7 +119,7 @@ data Expr where
     PrimitiveOp :: NativeFunction -> Expr
 
     -- A function, closed over the frame it is defined in
-    FunctionClosure :: Env -> FunctionId -> [Text] -> [S.Expr] -> Expr
+    FunctionClosure :: Env -> FunctionId -> [S.Param] -> [S.Expr] -> Expr
 
     -- The Universal Error Leaf: Allows the engine to bypass crashes
     -- and continue evaluating sibling nodes.
@@ -154,8 +154,8 @@ data PromiseState
     | Forcing                       -- Being evaluated: reaching it again is a cycle
     | Forced Expr
 
--- What a name in a frame is bound to: a promise for a record field, define,
--- function argument or pattern variable
+-- What a name in a frame is bound to: a promise for a record field, let
+-- binding, function argument or pattern variable
 newtype Binding = Promised Addr
 
 type Addr = Int
