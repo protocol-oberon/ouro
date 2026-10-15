@@ -4,40 +4,52 @@ Ouro is a domain-specific language (DSL) engineered for the ergonomic constructi
 
 # Syntax
 
-Ouro like any other lisp is anchored around the opening parentheses of an expression `()`. Its compiler uses a semi-complex lookahead to determine the target JSON-LD structure of incoming Ouro source code, weather it maps to an JSON-LD Array, Record or is an Ouro specific function application. Ouro also makes use of lisp key words to match the classic JSON *key* : *value* syntax (these are referred to as **Attributes**). This allows for an Ouro file's source code to roughly match the topology of JSON that it compiles to. 
+Ouro like any other lisp is anchored around the opening parentheses of an expression `()`. Its compiler uses a lookahead to determine the target JSON-LD structure of incoming Ouro source code, whether it maps to a JSON-LD Array, Record or is an Ouro specific function application. Ouro also makes use of lisp key words to match the classic JSON *key* : *value* syntax (these are referred to as **Attributes**). This allows for an Ouro file's source code to roughly match the topology of JSON that it compiles to. 
 
 A Ouro file consists of a collection of top-level, _higher expressions_. There are two types of higher expressions:
 
-1. `(graph)`: Expressions then encode JSON-LD graphs
-2. `(defn)`: Ouro supports _higher order functions_,  `(defn)` is a named function. `(fn (x y) expr)` is a lambda function. 
+1. `(graph name expr)`: Expressions that encode JSON-LD graphs. A graph is one expression, usually a record.
+2. `(defn name (args) expr)`: Ouro supports _higher order functions_,  `(defn)` is a named function. `(fn (x y) expr)` is a lambda function. 
 
-The target structure of Ouro code is determined by a few simple rules: 
+The target structure of Ouro code is determined by a few simple rules, which only look at an expression's direct elements, never at their types:
 
-1. An expression that contains a attribute pair `(:key value)` will compile to a JSON-LD **Object**.
-2. An expression that contains only literals `(1 2 3)` will compile to a JSON-LD **List** of those literals.
-3. An expression that contains only symbols `(sym expr expr)` will be treated as function application, where the first symbol in the expression is the function and the body of the expression are its arguments.
+1. An expression whose first element is a symbol `(sym expr expr)` is a function application, where the symbol is the function and the rest of the expression are its arguments.
+2. Otherwise, an expression that contains an attribute pair `(:key value)` will compile to a JSON-LD **Object**.
+3. Anything else, such as `(1 2 3)` or `()`, will compile to a JSON-LD **Array**.
 
-Through composition of these rules it is possible to ergonomically express any JSON-LD structure in Ouro with just parentheses. For example to make an nested list of objects the following syntax would be used `((:key val) (:key val))`. I
+Through composition of these rules it is possible to ergonomically express any JSON-LD structure in Ouro with just parentheses. For example to make an nested list of objects the following syntax would be used `((:key val) (:key val))`.
 
-- Arrays in Ouro, like JSON arrays, may contain values of mixed types. Note that `(insert)` into an Array requires the inserted value to match the type of the Array's first element.
+- Arrays in Ouro, like JSON arrays, may contain values of mixed types, `(1 "a" (:k 1))`. `(insert)` can put any value into an Array, but not a `:key value` field.
 
 Ouro is 100% declarative, and lazily evaluated. This allows for the values of records to not only be referenced within the local scope of the expression, but also out of declaration order. To reference the value of a field, simply call the key without the colon, so `:lookup value` becomes `lookup`, which returns the `value`.
+
+Each key can appear once in a record: writing a key twice is an error. A field never sees itself, so in `(:label label)` the `label` being looked up is the one from the enclosing scope. This is what lets a template simply write `(defn node (id type) (:id id :type type))`.
 
 ## Type assertions
 
 In JSON-LD, there are many datatypes which can look similar to a compiler. To ensure that the compiled JSON from Ouro code is always well formed, we can use type assertions to tell the compiler how to treat the next expression it encounters. Type assertions are denoted by `#type (expr)`.
 
-There are 7 type assertion tags:
+There are 8 type assertion tags:
 
 | Tag          | Description                                                                              |
 |:-------------|:-----------------------------------------------------------------------------------------|
 | `#uri`       | Ensures that any expression that evaluates to a URI is properly formed.                  |
 | `#date`      | Ensures valid ISO 8601 date-time formats and enables temporal desugaring (e.g., `thru`). |
 | `#num`       | Asserts that the evaluated result is a numeric primitive.                                |
-| `#str`       | Asserts that the evaluated result is a string literal.                                   |
+| `#str`       | Asserts that the evaluated result is a string.                                           |
 | `#bool`      | Asserts that the evaluated result is a boolean primitive.                                |
-| `#arr-empty` | Conveys to the compiler that the targeted array structure contains zero elements.        |
-| `#rec-empty` | Conveys to the compiler that the targeted graph node contains no key-value attributes.   |
+| `#rec`       | Asserts that the evaluated result is a Record.                                           |
+| `#arr`       | Asserts that the evaluated result is an Array.                                           |
+| `#fn`        | Asserts that the evaluated result is a function (a `fn`, a `defn` name or a built-in).   |
+
+The same tags are used to type a function's parameters and result (see [Functions](#functions)).
+
+Two further tags are values rather than assertions, written in place of an empty collection:
+
+| Tag          | Description                                                                              |
+|:-------------|:-----------------------------------------------------------------------------------------|
+| `#arr-empty` | An empty Array, `[]` (the same as `()`).                                                 |
+| `#rec-empty` | An empty Record, `{}`.                                                                   |
 
 ## Special forms
 
@@ -48,9 +60,9 @@ Ouro contains special forms designed for increased ergonomics for creating JSON-
 In Ouro there are two ways to bind a name, with difference in serialisation.
 
 | Form                           | Binds          | Output?                | Scope                         |
-|--------------------------------+----------------+------------------------+-------------------------------|
+|:-------------------------------|:---------------|:-----------------------|:------------------------------|
 | `(:name expr ...)` (a record)  | its fields     | yes, every field       | the record's own expressions  |
-| `(let ($name expr ...) body)`  | its bindings   | no, only =body=        | the bindings and =body=       |
+| `(let ($name expr ...) body)`  | its bindings   | no, only `body`        | the bindings and `body`       |
 
 Both are recursive (`letrec`), the bindings can refer to each other in any order, and a cycle is an error. An inner binding shadows an outer one, but a binding is always evaluated in the scope where it was written:
 
@@ -73,16 +85,33 @@ Here `res` will evaluate to 2.
 
 ### Context
 
-To add context to a JSON-LD record, the `(context)` special form is used. This form expects any number of Schema Directives:
+To add context to a JSON-LD record, the `(context)` special form is written as the record's first item. It holds Schema Directives, written as pairs of a directive name and its value:
 
-1. `(remote-context uri)`: Imports an external JSON-LD context from the specified URI.
-2. `(define-term term definition)`: Maps a local string term to a specific URI or complex term definition.
-3. `(set-base uri)`: Defines the `@base` IRI against which relative document URIs are resolved.
-4. `(set-vocab uri)`: Defines the default `@vocab` IRI used to resolve property and class names.
-5. `(set-language lang)`: Sets the default `@language` tag (e.g., "en", "fr") for all string values in the scope.
-6. `(clear-context)`: Nullifies the currently active context (evaluates to `@context: null`), effectively resetting the scope.
+1. `remote-context uri`: Imports an external JSON-LD context from the specified URI.
+2. `base uri`: Defines the `@base` IRI against which relative document URIs are resolved.
+3. `vocab uri`: Defines the default `@vocab` IRI used to resolve property and class names.
+4. `language lang`: Sets the default `@language` tag (e.g., "en", "fr") for all string values in the scope.
 
-...and creates a `@context` sub-record in the current scope.
+...and creates a `@context` sub-record in the current scope. For example:
+
+```clojure
+((context (vocab "https://example.org/" language "en"))
+ :a 1)
+```
+
+...compiles to:
+
+``` json
+{
+  "@context": {
+    "@vocab": "https://example.org/",
+    "@language": "en"
+  },
+  "a": 1
+}
+```
+
+Term definitions and clearing the context are not supported yet, and a remote context combined with local directives does not yet produce valid JSON-LD.
 
 The `(context)` special form also has syntax sugar for the common case of having a single remote context. Using `:context value` will automatically desugar into an isolated schema directive frame.
 
@@ -179,10 +208,10 @@ Array patterns match by position. The following:
 
  ``` clojure
  (graph case-statements
-   :trgt (1 2 3)
-   :res  (case trgt
-               ((?head ?..rest) rest)
-               (otherwise       trgt)))
+   (:trgt (1 2 3)
+    :res  (case trgt
+                ((?head ?..rest) rest)
+                (otherwise       trgt))))
  ```
  
 ... binds the first element to `head` and the remaining elements to `rest`, which is returned. A `?..rest` hole must come last in an Array pattern. This graph compiles to:
@@ -205,12 +234,12 @@ Record patterns match by key, in any order, and fields the pattern doesn't menti
 
 ``` clojure
  (graph case-statements
-   :trgt (:name "Manet"
-          :id   "https://linked.art/example/person/manet"
-          :type "Person")
-   :res  (case trgt
-               ((:name ? ?..rest) rest)
-               (otherwise         trgt)))
+   (:trgt (:name "Manet"
+           :id   "https://linked.art/example/person/manet"
+           :type "Person")
+    :res  (case trgt
+                ((:name ? ?..rest) rest)
+                (otherwise         trgt))))
 ```
 
 ...compiles to:
@@ -231,7 +260,7 @@ Record patterns match by key, in any order, and fields the pattern doesn't menti
 
 ### List
 
-While the Ouro is statically typed and the compiler has enough type inference to tell potentially ambiguous forms apart, there are still cases where the developer intent must be made clear to the compiler. An example of this is the following expression `(id name type)`. The compiler will infer this as an expression where a function, `id` takes two arguments `name` and `type`.  However if the developer indents for this to be a list of values where the variables `id`, `name` and `type` are looked up, then they will have to use the `(list)` special form.
+The compiler decides what an expression is from its shape alone, so there are cases where the developer intent must be made clear to the compiler. An example of this is the following expression `(id name type)`. Because its first element is a symbol, the compiler reads this as an expression where a function, `id` takes two arguments `name` and `type`.  However if the developer intends for this to be a list of values where the variables `id`, `name` and `type` are looked up, then they will have to use the `(list)` special form. The same goes for an Array of one bound value: `(manet)` would call `manet`, while `(list manet)` is an Array holding its value.
 
 ```clojure
 (list id name type)
@@ -240,12 +269,10 @@ While the Ouro is statically typed and the compiler has enough type inference to
 This form simply tells the compiler to evaluation every expression after a `list` and store them in-place. So the following Ouro code:
 
 ``` clojure
-((define
-  :name "Manet"
-  :id   "https://linked.art/example/person/manet"
-  :type "Person")
-
- :_list (list name id type))
+(let ($name "Manet"
+      $id   "https://linked.art/example/person/manet"
+      $type "Person")
+  (:_list (list name id type)))
 ```
 
 ...complies to the following JSON-LD:
@@ -271,7 +298,7 @@ For example:
 
 ``` json
 {
-  "trgt" : [1, 2, 3]
+  "trgt" : [1, 2, 3],
   "get_nth" : 2
 }
 ```
@@ -322,6 +349,25 @@ current record. For example the following Ouro code:
   "_label": "Purchase of Spring by Proust",
   "begin_of_the_begin": "1881-01-01T00:00:00Z",
   "end_of_the_end": "1883-12-31T23:59:59Z"
+}
+```
+
+Inlays are layers. Since each key can appear once in a record, when an inlaid record has a key that is already written in the record, the written field wins, wherever the inlay is placed. When two inlays share a key, the later inlay wins. This makes inlaying a template and overriding some of its fields straightforward:
+
+``` clojure
+(defn base () (:type "Type" :_label "Painting"))
+
+(graph overridden
+  (:_label "Spring"
+   (inlay (base))))
+```
+
+...compiles to:
+
+``` json
+{
+  "_label": "Spring",
+  "type": "Type"
 }
 ```
 
@@ -383,6 +429,8 @@ The following Ouro code:
 }
 ```
 
+A record can't end up with a key twice, so inserting a field whose key already exists is an error. To change an existing field or element, use `(replace-at)`, which takes the same arguments and replaces whatever is at the index. Negative indexes count from the end in `(insert)` and `(replace-at)`, as they do in `(nth)`.
+
 ## Builtin Functions
 
 Ouro has the following built in functions:
@@ -393,58 +441,115 @@ Ouro has the following built in functions:
 |:---------|:---------------------------------------|:------------------------------------------------------------------|
 | **`+`**  | `(+ 2 2 6)` -> `10`                    | Computes the sum of all numerical arguments.                      |
 |          | `(+ #date "2026-06-14..." (years 1))`  | When provided a `#date` head, applies time windows forward.       |
+|          | `(+ "Type: " label)`                   | Joins strings.                                                    |
+|          | `(+ (1 2) (3))` -> `(1 2 3)`           | Concatenates arrays.                                              |
 | **`-`**  | `(- 20 5 2)` -> `13`                   | Sequentially subtracts values from the first argument.            |
 |          | `(- #date "2026-06-14..." (months 2))` | When provided a `#date` head, rolls time windows backward.        |
 | **`*`**  | `(* 2 3 4)` -> `24`                    | Computes the product of all numerical arguments.                  |
 | **`/`**  | `(/ 100 2 5)` -> `10`                  | Sequentially divides the first argument by the subsequent values. |
-|          |                                        |                                                                   |
 
-**Relational Comparisons:** Relational operators evaluate numbers and dates. They support variadic chaining, verifying that the comparison holds true sequentially across every element in the expression.
+Time windows are made with `(years n)`, `(months n)`, `(days n)`, `(hours n)`, `(minutes n)` and `(seconds n)`. Shifting by months or years clips to the end of a shorter month instead of rolling over into the next one, so 31 March minus one month is the last day of February.
 
-| Function | Syntax Example | Evaluation Matrix                                 |
-|:---------|:---------------|:--------------------------------------------------|
-| **`>`**  | `(> 10 5 2)`   | Evaluates to `true` (Strictly decreasing stream). |
-| **`>=`** | `(>= 10 10 5)` | Evaluates to `true` (Decreasing or equal stream). |
-| **`<`**  | `(< 2 5 10)`   | Evaluates to `true` (Strictly increasing stream). |
-| **`<=`** | `(<= 5 5 10)`  | Evaluates to `true` (Increasing or equal stream). |
+**Relational Comparisons:** Relational operators evaluate numbers. They support variadic chaining, verifying that the comparison holds true sequentially across every element in the expression.
+
+| Function  | Syntax Example | Evaluation Matrix                                 |
+|:----------|:---------------|:--------------------------------------------------|
+| **`>`**   | `(> 10 5 2)`   | Evaluates to `true` (Strictly decreasing stream). |
+| **`>=`**  | `(>= 10 10 5)` | Evaluates to `true` (Decreasing or equal stream). |
+| **`<`**   | `(< 2 5 10)`   | Evaluates to `true` (Strictly increasing stream). |
+| **`<=`**  | `(<= 5 5 10)`  | Evaluates to `true` (Increasing or equal stream). |
+| **`eq`**  | `(eq 1 1 1)`   | Evaluates to `true` (All values are equal).       |
+| **`neq`** | `(neq 1 2)`    | Evaluates to `true` (The values differ).          |
+
+Using an operator with the wrong number of operands is an arity error.
 
 ## Functions
 
-Like any good Lisp, Ouro supports powerful first order functions. Functions in Ouro return either a Record, Array or a Primitive. To return a Primitive from a function the `(return)` special form must be used.
+Like any good Lisp, Ouro supports powerful first class functions. A function's body is one expression, written exactly as it would be anywhere else, and its value is the result: a Record, an Array or a Primitive.
 
 ```clojure
-(defun add-one! (n)
-  (return (+ 1 n)))
+(defn add-one (n)
+  (+ 1 n))
 ```
 
 | Form                     | Meaning                                                             |
-|--------------------------+---------------------------------------------------------------------|
-| =(defn name (x y) expr)= | a named function; top level only; visible throughout the file       |
-| =(fn (x y) expr)=        | an anonymous function value, closed over the scope it is written in |
-| =(f a b)=                | a call: =f= is any expression that evaluates to a function          |
+|:-------------------------|:--------------------------------------------------------------------|
+| `(defn name (x y) expr)` | a named function; top level only; visible throughout the file       |
+| `(fn (x y) expr)`        | an anonymous function value, closed over the scope it is written in |
+| `(f a b)`                | a call: `f` is any expression that evaluates to a function          |
 
-A local function is a =let=-bound =fn=:
+A local function is a `let`-bound `fn`:
 
- ``` clojure
-(let (:attribute (fn (label) (+ label " (attributed)")))
+``` clojure
+(let ($attribute (fn (label) (+ label " (attributed)")))
   (:attributed (attribute (attribute "Manet"))))
 ```
 
+A function binds its own private values with `let`, just as a graph does:
+
+``` clojure
+(defn type-node (aat-id label)
+  (let ($prefix "Type: ")
+    (:id     #uri (+ "http://vocab.getty.edu/aat/" aat-id)
+     :type   "Type"
+     :_label (+ prefix label))))
+```
+
+Because parentheses around values make an Array, `(fn () ("hello"))` returns `["hello"]`, not `"hello"`. The compiler warns about this (`WRN0002`) when a result is a single plain value in parentheses.
+
 Semantics of a call:
 
-- *Arity* is checked: a call with the wrong number of arguments is an error.
+- *Arity* is checked: a call with the wrong number of arguments is an error. Functions are not curried.
 
-- *Arguments are call-by-need:* each argument becomes a promise over the caller's scope. It is evaluated at most once, only if the function uses it, and always means what it meant at the call site, so a function's own bindings can never capture it.
+- *Arguments are call-by-need:* each argument becomes a promise over the caller's scope. It is evaluated at most once, when the function first uses it, and always means what it meant at the call site, so a function's own bindings can never capture it. An argument the function never uses is still checked for errors.
 
-- *The body is evaluated in the function's closure*, extended with a frame for the parameters. For a `defn` the closure is the module, for a `fn` it is the scope where the `fn` was written.
-
-A function cannot see its caller's bindings.
+- *The body is evaluated in the function's closure*, extended with a frame for the parameters. For a `defn` the closure is the module, for a `fn` it is the scope where the `fn` was written. A function cannot see its caller's bindings.
 
 - *Recursion is forbidden.* Calling a function that is already being called (identified by name and definition position) is an error. Nesting a call, `(f (f x))`, is two calls, not recursion.
 
 - *Functions are values:* they can be passed as arguments and returned, but cannot be compared (`eq` on functions is a type error) or serialised.
 
-A `defn` body is checked when the file is parsed: it must be one expression, cannot be a spliced record (`(defn f (x) :k v)`), and cannot contain or a nested `defn`.
+- *A returned function is called through `let`.* An expression whose first element is a call is an Array, so `((f x) y)` does not call the result of `(f x)`. Bind it first: `(let ($g (f x)) (g y))`. Partial application is written this way, with a function that returns a `fn` waiting for the remaining arguments:
+
+  ``` clojure
+  (defn adder (n) (fn (x) (+ n x)))
+
+  (graph partial
+    (let ($inc (adder 1))
+      (:r (inc 2))))
+  ```
+
+  ...compiles to `{"r": 3}`.
+
+A `defn` body is checked when the file is parsed: it must be one expression and cannot be a spliced record (`(defn f (x) :k v)`). A `define` or a nested `defn` in it is reported with its replacement, `let` or a `let`-bound `fn`.
+
+### Signatures
+
+A function's types are written as type assertion tags in its header. A tag between the name and the parameters is the return type, and a tag before a parameter is that parameter's type. Any of them can be left out.
+
+``` clojure
+(defn node #rec (#uri id type)
+  (:id id :type type))
+
+(graph typed
+  (let ($double (fn #num (#num n) (* n 2)))
+    (:r (double 21)
+     :n (node "https://linked.art/example/object/spring" "HumanMadeObject"))))
+```
+
+- A signature's tag behaves exactly as the same tag would anywhere else: it checks the value, and `#uri` and `#date` convert a string. In `node` above, `id` arrives as a URI.
+- Each argument is checked where the call is written, so a mismatch is reported at the argument, in the call. The result is checked where the body is.
+- An argument is checked even if the function never uses it.
+- Nothing is inferred: an untyped parameter or result is not checked.
+- A return type of `#arr` says that a one-value Array is intended, so `(defn f #arr () ("x"))` does not warn.
+
+### Contracts
+
+Ouro's signatures are *contracts*, in the sense of Racket's contracts, rather than static types. A signature is a promise between two parties: the caller promises arguments of the right types, and the function promises a result of the right type. It is checked when values cross it, and when a check fails, the party that broke its promise is blamed: a bad argument is reported at the call, a bad result at the function's body.
+
+Since Ouro evaluates everything at compile time, contracts cost nothing in the output: every check has already run before the JSON-LD is written.
+
+Where contracts are going next is described under [Planned](#planned).
      
 ## Syntax Sugar
 
@@ -453,9 +558,9 @@ Ouro offers some syntax sugar to make common Linked Art JSON-LD patterns a bit m
 ```clojure
 
  (graph syntax-sugar
-   :timespan (:type               "TimeSpan"
-              :begin_of_the_begin #date "1881-01-01T00:00:00Z"
-              :end_of_the_end     #date (+ begin_of_the_begin (thru (years 2)))))
+   (:timespan (:type               "TimeSpan"
+               :begin_of_the_begin #date "1881-01-01T00:00:00Z"
+               :end_of_the_end     #date (+ begin_of_the_begin (thru (years 2))))))
 ```
 
 # Lexical Scoping
@@ -655,7 +760,7 @@ If you prefer a traditional Haskell environment, you can build Ouro directly fro
    
 # Using the Compiler
 
-The ouro compile as the following commands (shown via running `ouro -h`):
+The ouro compiler has the following commands (shown via running `ouro -h`):
 
 ``` bash
 Ouro v0.0.0.1
@@ -683,4 +788,46 @@ Available options:
   -o,--output DIR          Output directory
 ```
 
-For compile if you supply a fully filepath then that is what the compiled JSON will be written to, otherwise the name of the graph expression will be the name of the resulting JSON file in the specified output directory.
+For compile, if the `-o` path has a file extension then that is the file the compiled JSON will be written to. Otherwise the path is a directory, and the name of the graph expression will be the name of the resulting JSON file in it. Without `-o`, the file is written to the current directory. For example, `ouro compile purchase.ouro -t purchase-of-spring -o out` writes `out/purchase-of-spring.json`.
+
+# Planned
+
+These are agreed directions for Ouro, roughly in the order they will be built. None of them is implemented yet.
+
+## Placeholders for partial application
+
+A call with `?` holes will be a function of its holes, so arguments can be fixed now and the rest supplied later, without writing a `fn` that returns a `fn`:
+
+``` clojure
+(defn node (base type id label)
+  (:id #uri (+ base id) :type type :_label label))
+
+(let ($aat-type (node "http://vocab.getty.edu/aat/" "Type" ? ?))
+  (:classified_as (list (aat-type "300033618" "Painting"))))
+```
+
+Holes become parameters in order, a repeated named hole (`?id`) is one parameter, and a hole belongs to its innermost call. Functions themselves stay uncurried. Still to settle: `?` is shared with `case` patterns, and `?..rest` would be an error in a call.
+
+## `map`
+
+`(map f xs)` will apply a function to each element of an Array. With placeholders, most uses need no `fn`: `(map (aat-type ? "Painting") ids)`.
+
+## Contracts
+
+- **Function contracts:** a `#fn` parameter that also says what the function takes and returns, checked each time it is called.
+- **Collection contracts:** "an Array of Records", the most common Linked Art shape, e.g. `(#arr #rec)`.
+- **Shapes from patterns:** using a `case` pattern such as `(:type "Person" :_label ?)` as a contract, so a shape is written the same way whether it is matched or checked.
+- **Module-level contracts:** once modules can import and export functions, the exported functions' contracts will be checked at the module boundary, blaming the importing module for a bad argument and the exporting module for a bad result.
+- **Blame in messages:** error wording that names who broke the contract, e.g. "the call to `node` passed a Number where `#uri` was expected".
+
+## Imports and exports
+
+Modules will import and export functions only, never graphs or data, so modules stay stateless and there can be no data cycles between files. Two imports exporting the same name will be a compile error. Builds will be described in `build.ouro`, itself written in Ouro.
+
+## A threading form
+
+`->` is kept free for a possible Clojure-style threading form for record composition, `(-> (base-node ...) (with :_label "Painting"))`.
+
+## UTF-8 encoding
+
+Source files are not yet read as UTF-8 on Windows, so accented names such as "Édouard Manet" are garbled. Once input is read as UTF-8, `λ` will follow as an alias for `fn`: `(λ (x) (+ x 1))`.

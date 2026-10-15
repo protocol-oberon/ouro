@@ -4,7 +4,7 @@
 
 0. Design Goals and Philosophy
    - Ouro is a DSL for constructing and serialising CIDOC-CRM / Linked Art compliant JSON-LD knowledge graphs, written by curators rather than programmers.
-   - Static integrity via reverse gradual typing: a resilient, dynamic evaluation phase (~L.Expr~), followed by a mandatory collapse into a strictly typed JSON-LD GADT (~I.Expr~).
+   - Dynamic code, static output: a resilient, dynamically typed evaluation phase (~L.Expr~) with optional checked annotations, followed by a mandatory collapse into a strictly typed JSON-LD GADT (~I.Expr~).
    - Lexical scope with lazy, memoised bindings: declaration order never matters, every binding is evaluated at most once, and cycles are reported rather than looping.
    - Referential transparency: there are no side effects, no quoting and no recursion, so any expression can be replaced by its value.
    - Structural topology: the shape of the source is the shape of the JSON output.
@@ -70,9 +70,15 @@ outward through the enclosing parentheses, never through the call stack.
 
 Ouro is a compiler, not an interpreter for a program that runs later. All names, calls and patterns are resolved at compile time; the result is a static JSON-LD document. There is no virtual machine, no I/O and no network access during compilation (see [[*6. Architectural Boundaries][Architectural Boundaries]]).
 
-** Reverse gradual typing
+** Dynamic code, static output
+
+Ouro is dynamically typed, with optional type annotations that are checked when values cross them. Its output is statically typed: everything is evaluated at compile time, so every document passes the verification gate before a byte is written.
 
 Evaluation happens in a flexible, dynamically typed sandbox (~L.Expr~) in which errors are values. Before anything is serialised, the evaluated tree must pass the verification gate and is then collapsed into ~I.Expr~, a GADT indexed by JSON-LD kinds. Ouro is dynamic where curators write code and static where the output is produced.
+
+The annotations are type tags, on an expression or in a function's [[*Functions: =defn=, =fn= and calls][signature]]. They behave like contracts (as in Racket) rather than static types: nothing is checked before evaluation, and an annotation on code that is never evaluated is never checked. When a check fails, the blame falls where it belongs: a bad argument is reported at the call, and a bad result at the function's body.
+
+This is not gradual typing in the sense of Siek and Taha, where annotated code is checked statically and checks are inserted only at the boundary with untyped code.
 
 ** Errors for curators
 
@@ -91,6 +97,7 @@ The flow from source to JSON is strictly linear (~Data.Ouro.compile~):
 |    1 | ~Lisp.Lexer~                  | source text → ~[Token]~                             |
 |    2 | ~Error.Linter~                | ~[Token]~ → warnings (does not stop compilation)    |
 |    3 | ~Lisp.Parser~                 | ~[Token]~ → ~Module~ of =defn= and =graph= ~S.Expr~ |
+|  3.0 | ~Error.Linter~                | ~Module~ → warnings (does not stop compilation)     |
 |  3.1 | ~Lisp.Canon~                  | ~S.Expr~ → desugared ~S.Expr~                       |
 |  3.2 | ~Data.Ouro~                   | select the target graph (with a "did you mean")     |
 |    4 | ~Lisp.Eval.Engine~            | ~S.Expr~ → ~(L.Expr, [OuroError])~                  |
@@ -252,7 +259,7 @@ Durations and functions are values during compilation, but have no JSON form: th
 
 ** Records and arrays
 
-A record is a form containing =:key value= fields (or a context directive). Its fields are output in source order, and they are also bindings: inside the record, a field's name refers to its value, in any order.
+A record is a form containing =:key value= fields (or a context directive). Its fields are output in source order, and they are also bindings: inside the record, a field's name refers to its value, in any order. Each key appears once: writing a key twice in the same record (or two contexts) is an error.
 
 #+BEGIN_SRC clojure
 (:begin_of_the_begin #date "1848-08-01T00:00:00Z"
@@ -268,7 +275,17 @@ A form of values is an array. Because a form headed by a symbol is a call, an ar
 (artist 1)         ; a call to 'artist' (an error if it is not a function)
 #+END_SRC
 
-An array of one record is written with nested parentheses, ~((:type "Name" ...))~, which is the usual Linked Art shape for =classified_as=, =identified_by= and similar properties.
+An array of one record is written with nested parentheses, ~((:type "Name" ...))~, which is the usual Linked Art shape for =classified_as=, =identified_by= and similar properties. An array of one bound value is written with =list=, ~(list manet)~, since ~(manet)~ is a call.
+
+Arrays, like JSON arrays, can hold values of any type: ~(1 "a" (:k 1) (2 3))~.
+
+*Inlays are layers.* =inlay= splices a record's fields into the surrounding record, but a key still appears once. A field written in the record wins over an inlaid field with the same key, wherever the =inlay= is placed, and a later =inlay= wins over an earlier one:
+
+#+BEGIN_SRC clojure
+(defn base () (:type "Type" :_label "Painting"))
+
+(:_label "Spring" (inlay (base)))   ; {"_label": "Spring", "type": "Type"}
+#+END_SRC
 
 ** Bindings: records and =let=
 
@@ -289,7 +306,9 @@ Both are recursive (=letrec=): the bindings can refer to each other in any order
                 :painted-by painted-by))) ; still "Manet"
 #+END_SRC
 
-A field cannot refer to an outer binding of the same name: in ~(:name name)~ the field refers to itself, which is a cycle (see [[*Appendix B: Known gaps][known gaps]]).
+*A binding never sees itself.* Inside its own expression, a binding's name refers to the enclosing scope, so in ~(:name name)~ the field outputs the =name= from outside the record, and in ~(let ($x (+ x 1)) x)~ the =x= being added to is the outer one. This is what makes templates such as ~(defn node (id type) (:id id :type type))~ work. A name with nothing outside is unbound, and siblings that refer to each other in a cycle are still an error.
+
+A =let= binds private values with =$name value= pairs. The =$= marks a binding that is never output, as =:= marks a key that is. A =:key= in a =let='s bindings is an error, and so is a =$name= anywhere outside them: a binding is referred to by its bare name.
 
 ** Functions: =defn=, =fn= and calls
 
@@ -352,6 +371,8 @@ A =defn= body is checked when the file is parsed: it must be one expression and 
 - An argument is checked even if the function never uses it.
 - Nothing is inferred: an untyped parameter or result is not checked, and unannotated code behaves as before.
 
+*Signatures are contracts.* A signature is a promise between two parties: the caller promises arguments of the parameters' types, and the function promises a result of its return type. It is checked when values cross it, as a contract is (Findler and Felleisen's higher-order contracts, as in Racket), not before evaluation, as a static type is. A failed check blames the party that broke its promise: a bad argument is reported at the call, and a bad result at the function's body. Because Ouro evaluates everything at compile time, contracts cost nothing in the output: every check has run before the document is written.
+
 ** Special forms
 
 Special forms are recognised by their head symbol before any name lookup, so they cannot be shadowed or used as function names.
@@ -371,7 +392,7 @@ Special forms are recognised by their head symbol before any name lookup, so the
 | =(attr key-expr value)=                  | a field with a computed key (used with =insert=)                             |
 | =:context e=, =(context (...))=          | the record's JSON-LD =@context=                                              |
 
-Negative indexes count from the end in =nth=, =insert= and =replace-at=. =insert= into an array requires the new element to have the same shape as the existing ones, which keeps arrays homogeneous.
+Negative indexes count from the end in =nth=, =insert= and =replace-at=. =insert= puts any value into an array, but not a =:key value= field. Neither =insert= nor =replace-at= can give a record a key it already has: that is an error, and =replace-at= may keep the replaced field's own key.
 
 *Value-based =get=.* =get= evaluates its target and walks the resulting records, so it works through function results, =inlay=, =case= and =let= alike. Only a record's fields can be reached, =let= bindings are private. Path components are bare symbols (=(get p q r)=, not =(get p :q)=) arrays are indexed with =nth=.
 
@@ -416,12 +437,14 @@ shadows them with its own fields.
 
 | Group       | Names                                     | Notes                                                                                   |
 |-------------+-------------------------------------------+-----------------------------------------------------------------------------------------|
-| Arithmetic  | ~+~ ~-~ ~*~ ~/~                           | variadic, left-associative; =+= also joins strings, adds durations to dates             |
+| Arithmetic  | ~+~ ~-~ ~*~ ~/~                           | variadic, left-associative; =+= also joins strings and arrays, adds durations to dates  |
 | Comparison  | ~eq~ ~neq~ ~>~ ~>=~ ~<~ ~<=~              | variadic comparisons are chained: ~(< a b c)~ = a<b and b<c                             |
 | Durations   | =years months days hours minutes seconds= | ~(days 19)~ is a Duration                                                               |
 | End-of-unit | =(thru d)=                                | ~(thru (days 1))~ = 1 day 23:59:59; ~(thru (years 0))~ = to the end of the current year |
 
-Dates are shifted with =+=: ~(+ start (days 19))~. =thru= exists for Linked Art timespans, whose
+An operator written with the wrong number of operands is an arity error. Ordering (~>~ ~>=~ ~<~ ~<=~) compares numbers only.
+
+Dates are shifted with =+= and =-=: ~(+ start (days 19))~. Shifting by months or years clips to the end of a shorter month instead of rolling over, so 31 March minus one month is the last day of February. =thru= exists for Linked Art timespans, whose
 =end_of_the_end= is the last moment of a period:
 
 #+BEGIN_SRC clojure
@@ -450,19 +473,27 @@ data Expr
     = Symbol      SourcePos Text            -- names, functions and special-form heads
     | DefunSymbol SourcePos Text            -- function identifiers (unused by the parser)
     | Literal     SourcePos LiteralValue    -- String, Number, Boolean, Null, empty Array/Record
-    | Tagged      SourcePos ReaderTag Expr  -- #uri "...", #date "..."
+    | Tagged      SourcePos ReaderTag Expr  -- #uri "...", #date "...", #rec (...)
     | Hole        SourcePos Text            -- ?, ?name or ?..name in a case pattern
     | Form        SourcePos [Expr]          -- (...)
     | Bracket     SourcePos [Expr]          -- [...], reserved
+
+-- A function's parameter, and the type tag written before it, if any
+data Param = Param
+    { paramName :: Text
+    , paramType :: Maybe (SourcePos, ReaderTag)
+    }
 #+END_SRC
 
-There is no separate constructor for fields: the parser reads =:key value= as the form ~(attr "key" value)~, so a record is a ~Form~ of ~attr~ forms. A module is the parser's other output: a registry of =defn= declarations and a registry of =graph= declarations, each a ~HigherExpression~ indexed by its kind:
+There is no separate constructor for fields: the parser reads =:key value= as the form ~(attr "key" value)~, so a record is a ~Form~ of ~attr~ forms. A =$name= is read on its own as ~(%binder "name")~ and paired with its value only inside a =let= (see [[*Desugaring (~Canon~)][desugaring]]). A module is the parser's other output: a registry of =defn= declarations and a registry of =graph= declarations, each a ~HigherExpression~ indexed by its kind:
 
 #+BEGIN_SRC haskell
 data HigherExpression (t :: Declaration) where
-    Function :: SourcePos -> Text -> [Text] -> Expr -> HigherExpression 'FunctionExpr
-    Graph    :: SourcePos -> Text -> Expr           -> HigherExpression 'GraphExpr
+    Function :: SourcePos -> Text -> [Param] -> Expr -> HigherExpression 'FunctionExpr
+    Graph    :: SourcePos -> Text -> Expr            -> HigherExpression 'GraphExpr
 #+END_SRC
+
+A =defn='s return type is applied when it is parsed: its body is stored under the return tag, as ~Tagged~. A =fn= is an ordinary form until it is evaluated, where a return tag is read from its parameter list, ~(fn #num (n) ...)~.
 
 The parser also enforces the module-level rules: a function name cannot be a special form, a function cannot be defined twice, a body must be one expression, and the removed keywords (=defun=, =define=, a nested =defn=) are reported with their replacements.
 
@@ -478,8 +509,12 @@ Before evaluation, ~Canon.construct~ rewrites sugar bottom-up into a smaller cor
 | ~(thru (days n))~                       | ~(days n) (hours 23) (minutes 59) (seconds 59)~               |
 | ~(thru (years n))~, ~(thru (months n))~ | ~(years-end n)~, ~(months-end n)~ (resolved against the date) |
 | =case= alternatives ~(("a" "b") e)~     | one branch per literal                                        |
+| a =case= guard ~((< 10) e)~             | ~((%guard < 10) e)~, chained with the target as first operand |
+| =$name value= in a =let='s bindings     | ~(%bind "name" value)~                                        |
 
-~Canon.constructRoot~ applies the same rewriting to an expression that stands on its own, such as a graph's body.
+Guards and =$= bindings are prepared (~Canon.prepare~) before a form's children are desugared, because desugaring is bottom-up. A =$name= with no value becomes ~(%bind "name")~ and is reported as having no value; a =$name= anywhere outside a =let='s bindings stays ~(%binder "name")~ and is reported where it is evaluated. Like =%and=, the =%= heads cannot be written by users.
+
+~Canon.constructRoot~ applies the same rewriting to an expression that stands on its own, such as a graph's body or the payload of a type tag.
 
 ** Structural classification
 
@@ -498,7 +533,7 @@ determineBlockTarget fields =
                                      False -> TargetList
     where
     isFunctionApplication = \case
-        (S.Symbol _ name : _) -> not (isFunctionKeyword name || name `elem` ["let", "context"])
+        (S.Symbol _ name : _) -> not (isFunctionKeyword name || name `elem` ["define", "context"])
         _notAFunction         -> False
 
     isStructuralField = \case
@@ -510,6 +545,8 @@ determineBlockTarget fields =
 - *Call*: the first element is a symbol.
 - *Record*: otherwise, if any element is a field or a context directive.
 - *Array*: everything else, including the empty form ~()~.
+
+Only the direct elements of a form matter, never their types: ~(1 "a" (:k 1))~ is an array, because its record has its own parentheses, while ~(1 :a 2)~ is a record with a loose value, which is an error. A record made only of inlays has no written field, so it is read as an array (see [[*Appendix B: Known gaps][known gaps]]).
 
 Special forms are matched by =evalExpr= before classification, so =let=, =case= and the others never reach it. These rules are why an array beginning with a variable needs =list=.
 
@@ -558,7 +595,7 @@ data Expr where
     SchemaVal       :: Schema -> Expr
     Directive       :: SchemaDirective -> Expr
     PrimitiveOp     :: NativeFunction -> Expr       -- a built-in
-    FunctionClosure :: Env -> FunctionId -> [Text] -> [S.Expr] -> Expr
+    FunctionClosure :: Env -> FunctionId -> [S.Param] -> [S.Expr] -> Expr
 
     -- The universal error leaf
     EvalError       :: OuroError -> Expr
@@ -619,13 +656,13 @@ A record or a =let= is evaluated in two steps:
 
 1. ~collectBindings~ (records) or ~letBindings~ (=let=) sweeps the forms for =:key value= fields (records) or =$name value= bindings (=let=) and returns their un-evaluated expressions as ~FrameEntry~ values. Removed forms (=define=, a local =defn=) are reported here.
 
-2. ~allocFrame~ allocates one ~Unforced~ promise per entry and builds the frame that binds their names. Every promise's environment is that same frame. This is what makes the bindings recursive: each binding sees all of its siblings, in any order.
+2. ~allocFrame~ allocates one ~Unforced~ promise per entry and builds the frame that binds their names. Every promise's environment is that same frame, minus the promise's own name. This is what makes the bindings recursive, each binding sees all of its siblings in any order, while a binding never sees itself: its own name resolves in the enclosing scope.
 
 #+BEGIN_SRC haskell
 allocFrame :: (Map Text Binding -> Env) -> [FrameEntry] -> EvalM (Env, [Addr])
 #+END_SRC
 
-When a name appears more than once in a frame, lookups see the first.
+Only a name that the frame binds to that very promise is hidden from it. A function argument's promise closes over the caller's frame, where the same name is a different binding, so it is untouched. A record cannot bind a key twice (that is reported when it is emitted); in a =let=, a name bound twice resolves to the first binding.
 
 *** Forcing
 
@@ -658,7 +695,9 @@ A promise is evaluated in /its own/ environment, not the one where it is referen
 
 - A field is forced through /its own promise/ (found by the position of its =:key=), so a field that is both output and referenced is evaluated once.
 
-- =inlay= evaluates its expression and splices the resulting record's fields in place.
+- =inlay= evaluates its expression and splices the resulting record's fields in place, as a layer: an inlaid field is dropped when the record writes the same key, or when a later =inlay= has it.
+
+- A key written twice, or a second context, is an error at the second occurrence.
 
 - A field's value must be serialisable (a primitive, record or array; see the ([[*3. The Verification Gate][verification gate]]), otherwise the field becomes an error.
 
@@ -831,15 +870,15 @@ The same serialiser backs ~ouro validate~, which parses JSON-LD into ~I.Expr~ (~
 
 Dependencies flow in one direction, from the pure JSON-LD core upwards:
 
-| Layer        | Modules                                                                                                          | May import              |
-|--------------+------------------------------------------------------------------------------------------------------------------+-------------------------|
-| JSON-LD core | ~Internal.Kinds~, ~Internal.Schema~, ~Internal.Expr~, ~Internal.Utils~                                           | each other only         |
-| JSON I/O     | ~Json.Parser~, ~Json.Serializer~                                                                                 | the core                |
-| Errors       | ~Error.Types~ ← ~Error.Diagnostics~, ~Error.Linter~                                                              | the core, ~Lisp.Tokens~ |
-| Front end    | ~Lisp.Tokens~, ~Lisp.Lexer~, ~Lisp.Surface~, ~Lisp.Function~, ~Lisp.Parser~, ~Lisp.Canon~, ~Lisp.Module.Types~   | errors, each other      |
-| Evaluator    | ~Eval.Types~ ← ~Eval.Builtins~, ~Eval.Schema~, ~Eval.Pattern~ ← ~Eval.Scope~ ← ~Eval.Structural~ ← ~Eval.Engine~ | everything below        |
-| Pipeline     | ~Data.Ouro~                                                                                                      | everything              |
-| Command line | =app/= (~CLI.Parser~, ~CLI.Runner~, ~CLI.Printer~)                                                               | ~Data.Ouro~ only        |
+| Layer        | Modules                                                                                                          | May import                                                   |
+|--------------+------------------------------------------------------------------------------------------------------------------+--------------------------------------------------------------|
+| JSON-LD core | ~Internal.Kinds~, ~Internal.Schema~, ~Internal.Expr~, ~Internal.Utils~                                           | each other only                                              |
+| JSON I/O     | ~Json.Parser~, ~Json.Serializer~                                                                                 | the core                                                     |
+| Errors       | ~Error.Types~ ← ~Error.Diagnostics~, ~Error.Linter~                                                              | the core, ~Lisp.Tokens~, ~Lisp.Surface~, ~Lisp.Module.Types~ |
+| Front end    | ~Lisp.Tokens~, ~Lisp.Lexer~, ~Lisp.Surface~, ~Lisp.Function~, ~Lisp.Parser~, ~Lisp.Canon~, ~Lisp.Module.Types~   | errors, each other                                           |
+| Evaluator    | ~Eval.Types~ ← ~Eval.Builtins~, ~Eval.Schema~, ~Eval.Pattern~ ← ~Eval.Scope~ ← ~Eval.Structural~ ← ~Eval.Engine~ | everything below                                             |
+| Pipeline     | ~Data.Ouro~                                                                                                      | everything                                                   |
+| Command line | =app/= (~CLI.Parser~, ~CLI.Runner~, ~CLI.Printer~)                                                               | ~Data.Ouro~ only                                             |
 
 Invariants:
 
@@ -859,26 +898,13 @@ Ouro's compiler guarantees structural validity: a compiled graph is well-formed 
 
 - *Boundary rule:* URIs and keys are accepted as literal (or computed) strings. Semantic expansion (context resolution, RDF conversion, shape validation) is left to specialised tools after compilation, in keeping with the Unix philosophy.
 
-** Imports and exports (planned)
-
-Modules will import and export /functions only/, never graphs or data:
-
-- Frames will be layered as local frames → module frame → import frame → built-ins.
-
-- Because exports are functions, modules stay stateless: no promises cross files, and there can be no cross-module data cycles (shared constants are zero-argument functions).
-
-- Two imports exporting the same name will be a compile error.
-
-- Builds will be described in =build.ouro=, itself written in Ouro.
-
-The =import= and =export= keywords are lexed, and ~Module~ has an unwired ~_importRegistry~.
-
 * Appendix A: Removed features
 
 | Removed                                            | Replacement                                        | Reported as                                                                     |
 |----------------------------------------------------+----------------------------------------------------+---------------------------------------------------------------------------------|
 | =defun=                                            | =defn=                                             | ='defun' has been renamed defn.=                                                |
 | =(define :name value ...)=                         | =(let ($name value ...) expr)=                     | ='define' has been replaced by let.=                                            |
+| =(let (:name value ...) expr)=                     | =(let ($name value ...) expr)=                     | =':name' marks a key in the output, but a let's bindings are never output.=     |
 | a local =defun= / =defn=                           | a =let=-bound =fn=                                 | =A defn can only appear at the top level of a file.=                            |
 | spliced graph bodies                               | =(graph name (:key value ...))=                    | =The graph 'g' must be one expression.=                                         |
 | spliced function bodies, =return=                  | one result expression                              | "has a ':key value' field directly in its body", "'return' is no longer needed" |
@@ -892,32 +918,42 @@ Why quoting went: curators compose and restructure records; they do not manipula
 
 * Appendix B: Known gaps
 
-Recorded 2026-10-12; none are caused by the redesign.
+Recorded 2026-10-12 and kept up to date since; none were caused by the scoping redesign. Each open gap is pinned in =Language.knownGaps= (=test/Ouro/LanguageTest.hs=) by its current, incorrect behaviour, in a test named "gap N: …"; the change that fixes a gap flips its test.
 
 1. *=@context= handling is incomplete (highest priority).* Only =vocab=, =base=, =language= and =remote-context= are accepted; term definitions and =clear= are not. A remote context combined with local directives serialises as a nested =@context= object, which is invalid JSON-LD (it should be an array).
 
-2. *Variadic operators under a type tag hit an internal error.* ~#uri (+ a b c)~, or ~#date (+ d (thru (days 1)))~, report =INT0001 … non-binary arguments after desugaring=: the desugarer does not rewrite the payload of a tag. Workaround: bind the value with =let=, or put the tag on the base value only.
+2. /Fixed:/ variadic operators under a type tag hit an internal error. A tag's payload is now desugared like any other expression.
 
-3. *Guards with more than one argument hit the same internal error*, e.g. ~((< 10 20) ...)~.
+3. /Fixed:/ guards with more than one operand hit the same internal error. A guard now chains with the target as its first operand, and an operator written with the wrong number of operands is an arity error rather than an internal one.
 
-4. *Month arithmetic rolls over:* 31 January + 1 month is 3 March. Linked Art timespans need clipping to the end of the month.
+4. /Fixed:/ month and year arithmetic rolled over into the next month (31 March − 1 month was 2 March). It now clips to the end of the shorter month.
 
 5. *Computed keys are dropped inside records:* ~((attr k 1))~ produces ={}=. They only work via =insert=.
 
-6. *Duplicate keys are emitted twice:* ~(:a 1 :a 2)~ produces ={"a":1,"a":2}=, while lookups see the first.
+6. /Fixed:/ duplicate keys were emitted twice. Each key now appears once (see [[*Records and arrays][Records and arrays]]).
 
-7. *~(:name name)~ is a self-reference* (a cycle), not a copy of the outer =name=. Design question: should a field's own expression see the enclosing scope instead?
+7. /Fixed:/ ~(:name name)~ was a self-reference (a cycle). A binding now never sees itself, so the name refers outward.
 
-8. *Source is not read as UTF-8 on Windows*, so accented names are garbled. (A =λ= alias for =fn= would follow once input is UTF-8.)
+8. *Source is not read as UTF-8 on Windows*, so accented names are garbled.
 
 9. *Suggestions miss local names:* "Perhaps you meant" ranks only the root scope.
 
-10. *Stale wording in messages:* the arity error reads "Got: 2number of argumnets instead."; the hint for a function used as a value suggests =(name! args)=; =get='s missing-key blurb mentions =define=.
+10. *Stale wording in messages:* the hint for a function used as a value suggests =(name! args)=; =get='s missing-key blurb mentions =define=; subtraction's type error names an internal type, "a Date minus a L.Duration"; a =$= binding named after a special form (=$get=) is rightly rejected, but the message calls it an attribute key ("primative" is also misspelt).
 
 11. *A parameter named after a special form* (e.g. =fn=) gives a confusing error about =fn= syntax.
 
 12. *Zero-argument functions re-evaluate* on every call; as pure constants they could be shared.
 
-13. *Code health:* the =[ ]= bracket syntax parses but has no meaning; =validate= without =-o= overwrites its input; no tests yet for contexts, dates, =nth=, =insert= or the CLI.
+13. *Code health:* the =[ ]= bracket syntax parses but has no meaning; =validate= without =-o= overwrites its input; there are no tests for the CLI.
+
+14. *A record made only of inlays is read as an array:* ~((inlay (a)) (inlay (b)))~ has no written field, so structural classification makes it an array, and each =inlay= then expects an array. Workaround: write at least one field.
+
+15. /Fixed:/ empty arrays could not be joined. Arrays are no longer required to be homogeneous, so =+= on two arrays is plain concatenation.
+
+16. /Fixed:/ =$name= written as a reference took the next expression as its value, giving misleading arity or parenthesis errors. =$name= is now read on its own and paired with its value only inside a =let=; elsewhere it is an error that says to drop the =$=.
+
+17. *A URI's empty root path is dropped:* ~#uri "https://a.org/"~ serialises as ="https://a.org"=, which changes the IRI's text. URIs with a path (Getty's, Linked Art's) are unaffected. It comes from how the URI library renders an empty path.
+
+18. *A field among array values has no hint:* ~(1 :a 2)~ is read as a record (one field makes the form a record), so =1= is reported as an unbound expression. The error is right, but it could suggest ~(1 (:a 2))~.
 
 #  LocalWords:  Ouro LD
