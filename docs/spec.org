@@ -98,7 +98,7 @@ The flow from source to JSON is strictly linear (~Data.Ouro.compile~):
 |    2 | ~Error.Linter~                | ~[Token]~ → warnings (does not stop compilation)    |
 |    3 | ~Lisp.Parser~                 | ~[Token]~ → ~Module~ of =defn= and =graph= ~S.Expr~ |
 |  3.0 | ~Error.Linter~                | ~Module~ → warnings (does not stop compilation)     |
-|  3.1 | ~Lisp.Canon~                  | ~S.Expr~ → desugared ~S.Expr~                       |
+|  3.1 | ~Lisp.Canon~                  | ~S.Expr~ → placeholders, then desugared ~S.Expr~    |
 |  3.2 | ~Data.Ouro~                   | select the target graph (with a "did you mean")     |
 |    4 | ~Lisp.Eval.Engine~            | ~S.Expr~ → ~(L.Expr, [OuroError])~                  |
 |    5 | ~Data.Ouro.validateAST~       | the verification gate                               |
@@ -169,7 +169,7 @@ Only graphs are serialised. Functions exist to build and reuse values. A module-
 | Binding        | =$name=                                  | any symbol; a private binding, only inside a =let=                  |
 | Reader tag     | =#uri=, =#date=, =#str=, =#num=, =#bool= | asserts the type of what follows; also =#rec=, =#arr=, =#fn=        |
 | Empty values   | =#rec-empty=, =#arr-empty=, =()=         | ={}=, =[]= and =[]=                                                 |
-| Hole           | =?=, =?name=, =?..name=                  | only inside a =case= pattern                                        |
+| Hole           | =?=, =?name=, =?..name=                  | a placeholder in a call, or part of a =case= pattern                |
 | Delimiters     | =( )=                                    | =[ ]= is reserved: it parses, but has no meaning yet                |
 | Keywords       | =defn=, =graph=, =import=, =export=      | a keyword that only begins a longer name (=defnode=) is a symbol    |
 
@@ -208,7 +208,8 @@ array        = "(" , [ non-symbol-expr , { expression } ] , ")"
              | "(" , "list" , { expression } , ")" ;
 
 (* A call: a form headed by an expression that evaluates to a function *)
-call         = "(" , symbol , { expression } , ")" ;
+call         = "(" , symbol , { expression | placeholder } , ")" ;
+placeholder  = [ tag ] , hole ;     (* a call with placeholders is a function of them *)
 
 (* ---------- Special forms ---------- *)
 special-form = let | fn | case | get | nth | insert | replace-at | attr ;
@@ -343,7 +344,7 @@ Semantics of a call:
 
 - *Functions are values:* they can be passed as arguments and returned, but cannot be compared (=eq= on functions is a type error) or serialised.
 
-- *A returned function is called through =let=.* A form headed by a call is an array, so ~((f x) y)~ does not call the result of ~(f x)~. Bind it first: ~(let ($g (f x)) (g y))~. Partial application is written this way, with a function that returns a =fn= waiting for the remaining arguments:
+- *A returned function is called through =let=.* A form headed by a call is an array, so ~((f x) y)~ does not call the result of ~(f x)~. Bind it first: ~(let ($g (f x)) (g y))~. A function can return a =fn= waiting for the remaining arguments (or a [[*Placeholders][placeholder]], ~(+ ? n)~):
 
   #+BEGIN_SRC clojure
   (defn adder (n) (fn (x) (+ n x)))
@@ -372,6 +373,32 @@ A =defn= body is checked when the file is parsed: it must be one expression and 
 - Nothing is inferred: an untyped parameter or result is not checked, and unannotated code behaves as before.
 
 *Signatures are contracts.* A signature is a promise between two parties: the caller promises arguments of the parameters' types, and the function promises a result of its return type. It is checked when values cross it, as a contract is (Findler and Felleisen's higher-order contracts, as in Racket), not before evaluation, as a static type is. A failed check blames the party that broke its promise: a bad argument is reported at the call, and a bad result at the function's body. Because Ouro evaluates everything at compile time, contracts cost nothing in the output: every check has run before the document is written.
+
+*** Placeholders
+
+A call with =?= holes among its arguments is not called: it is a function of its holes, and the arguments it is given fill them in.
+
+#+BEGIN_SRC clojure
+(defn node (id type) (:id id :type type))
+
+(graph g
+  (let ($inc      (+ ? 1)                  ; (fn (a) (+ a 1))
+        $painting (node ? "Painting")      ; (fn (a) (node a "Painting"))
+        $square   (* ?n ?n))               ; (fn (n) (* n n))
+    (:r (inc 41)
+     :s (painting "https://a.org/1")
+     :t (square 7))))                      ; {"r": 42, "s": {"id": "https://a.org/1", "type": "Painting"}, "t": 49}
+#+END_SRC
+
+- *Each =?= is a parameter*, in the order the holes are written: ~(- ? ?)~ takes two arguments, the first to subtract from.
+- *A named hole is one parameter*, however often it is written: ~(* ?n ?n)~ takes one. Parameters follow the order in which each hole is first written, so ~(+ ?a ?b ?a)~ takes =a= then =b=.
+- *A tagged hole is a typed parameter*: ~(node #uri ? "Painting")~ checks, and converts, its argument as a signature would, and a mismatch is reported at the argument where the placeholder is called. An untyped hole passed to a typed parameter of the function is checked by that function, and a mismatch is reported at the hole.
+- *A hole belongs to the call it is an argument of*, so ~(* 2 (+ ? 1))~ multiplies 2 by a function (an error), and ~(f (g ?))~ passes =f= a function.
+- *Any call takes holes*: a =defn=, a =fn=, a built-in, a variadic operator (~(< ? 10 20)~) and the special forms that evaluate their arguments (=get=, =nth=, =insert=, =replace-at=, =list=). The forms with their own structure (=let=, =fn=, =case=, =attr=, =context=, =inlay=, =thru=) do not.
+- *A placeholder is a value*: it is a =fn=, closed over the scope it is written in, so it can be bound, passed and returned like one. It is called with exactly as many arguments as it has holes.
+- *A hole anywhere else is an error*: in an array, in a record, or as a binding's value. A rest hole, =?..name=, only matches the rest of an array or record, so it can only be written in a =case= pattern.
+
+The holes in a =case= pattern are not placeholders: they match values (see [[*=case= and patterns][patterns]]). A placeholder can be written in a branch's body.
 
 ** Special forms
 
@@ -474,7 +501,7 @@ data Expr
     | DefunSymbol SourcePos Text            -- function identifiers (unused by the parser)
     | Literal     SourcePos LiteralValue    -- String, Number, Boolean, Null, empty Array/Record
     | Tagged      SourcePos ReaderTag Expr  -- #uri "...", #date "...", #rec (...)
-    | Hole        SourcePos Text            -- ?, ?name or ?..name in a case pattern
+    | Hole        SourcePos Text            -- ?, ?name or ?..name: a placeholder, or in a case pattern
     | Form        SourcePos [Expr]          -- (...)
     | Bracket     SourcePos [Expr]          -- [...], reserved
 
@@ -499,10 +526,11 @@ The parser also enforces the module-level rules: a function name cannot be a spe
 
 ** Desugaring (~Canon~)
 
-Before evaluation, ~Canon.construct~ rewrites sugar bottom-up into a smaller core:
+Before evaluation, ~Canon.placeholders~ turns each call with holes into a function, top-down, leaving =case= patterns as they are. ~Canon.construct~ then rewrites sugar bottom-up into a smaller core, so a placeholder's call is desugared like any other:
 
 | Sugar                                   | Core                                                          |
 |-----------------------------------------+---------------------------------------------------------------|
+| a placeholder ~(f ? x ?n #num ?)~       | ~(fn (%1 ?n #num %2) (f %1 x ?n %2))~                         |
 | =:context "url"=                        | ~(context (remote-context "url"))~                            |
 | ~(+ a b c)~ (also =- * /=)              | ~(+ (+ a b) c)~                                               |
 | ~(< a b c)~ (also ~eq > >= <=~)         | ~(%and (< a b) (< b c))~; =%and= cannot be written by users   |
@@ -512,7 +540,7 @@ Before evaluation, ~Canon.construct~ rewrites sugar bottom-up into a smaller cor
 | a =case= guard ~((< 10) e)~             | ~((%guard < 10) e)~, chained with the target as first operand |
 | =$name value= in a =let='s bindings     | ~(%bind "name" value)~                                        |
 
-Guards and =$= bindings are prepared (~Canon.prepare~) before a form's children are desugared, because desugaring is bottom-up. A =$name= with no value becomes ~(%bind "name")~ and is reported as having no value; a =$name= anywhere outside a =let='s bindings stays ~(%binder "name")~ and is reported where it is evaluated. Like =%and=, the =%= heads cannot be written by users.
+Guards and =$= bindings are prepared (~Canon.prepare~) before a form's children are desugared, because desugaring is bottom-up. A =$name= with no value becomes ~(%bind "name")~ and is reported as having no value; a =$name= anywhere outside a =let='s bindings stays ~(%binder "name")~ and is reported where it is evaluated. Like =%and=, the =%= heads cannot be written by users. Nor can a placeholder's parameter names: =%1= cannot be lexed, and =?n= is read as a hole, so a placeholder never captures a name its call refers to. A hole left after ~Canon.placeholders~, outside a call's arguments and =case= patterns, is reported where it is evaluated.
 
 ~Canon.constructRoot~ applies the same rewriting to an expression that stands on its own, such as a graph's body or the payload of a type tag.
 

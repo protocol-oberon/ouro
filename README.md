@@ -509,7 +509,7 @@ Semantics of a call:
 
 - *Functions are values:* they can be passed as arguments and returned, but cannot be compared (`eq` on functions is a type error) or serialised.
 
-- *A returned function is called through `let`.* An expression whose first element is a call is an Array, so `((f x) y)` does not call the result of `(f x)`. Bind it first: `(let ($g (f x)) (g y))`. Partial application is written this way, with a function that returns a `fn` waiting for the remaining arguments:
+- *A returned function is called through `let`.* An expression whose first element is a call is an Array, so `((f x) y)` does not call the result of `(f x)`. Bind it first: `(let ($g (f x)) (g y))`. A function can return a `fn` waiting for the remaining arguments (or a [placeholder](#placeholders), `(+ ? n)`):
 
   ``` clojure
   (defn adder (n) (fn (x) (+ n x)))
@@ -550,6 +550,47 @@ Ouro's signatures are *contracts*, in the sense of Racket's contracts, rather th
 Since Ouro evaluates everything at compile time, contracts cost nothing in the output: every check has already run before the JSON-LD is written.
 
 Where contracts are going next is described under [Planned](#planned).
+
+### Placeholders
+
+A call with `?` holes among its arguments is not called: it is a function of its holes. This fixes some arguments now and leaves the rest for later, without writing a `fn` that returns a `fn`:
+
+``` clojure
+(defn node (base type id label)
+  (:id #uri (+ base id) :type type :_label label))
+
+(graph placeholders
+  (let ($aat-type (node "http://vocab.getty.edu/aat/" "Type" ? ?)
+        $inc      (+ ? 1)
+        $square   (* ?n ?n))
+    (:classified_as (list (aat-type "300033618" "Painting"))
+     :count         (inc 41)
+     :area          (square 7))))
+```
+
+...compiles to:
+
+``` json
+{
+  "classified_as": [
+    {
+      "id": "http://vocab.getty.edu/aat/300033618",
+      "type": "Type",
+      "_label": "Painting"
+    }
+  ],
+  "count": 42,
+  "area": 49
+}
+```
+
+- Each `?` is a parameter, in the order the holes are written: `(- ? ?)` takes two arguments.
+- A named hole is one parameter, however often it is written: `(* ?n ?n)` takes one.
+- A tagged hole is a typed parameter: `(node #uri ? "Type")` checks and converts its argument, as a signature would.
+- A hole belongs to the call it is an argument of, so `(f (g ?))` passes `f` a function.
+- Any call takes holes: a `defn`, a `fn`, a builtin, and the special forms that evaluate their arguments (`get`, `nth`, `insert`, `replace-at`, `list`).
+- A placeholder is an ordinary `fn` value. It is called with exactly as many arguments as it has holes, and functions themselves stay uncurried.
+- A hole anywhere else (in an Array, in a Record, as a `let` value) is an error, and `?..rest` can only be written in a `case` pattern. The holes in a `case` pattern match values, as before; a placeholder can be written in a branch's body.
      
 ## Syntax Sugar
 
@@ -584,7 +625,7 @@ Ouro uses Scheme style lexical scoping, this means that scope is defined by the 
 
 *Purchase of Spring by Proust*
 ``` clojure
-(defn transfer! (id-type type-of-type name)
+(defn transfer (id-type type-of-type name)
   (let ($getty      "http://vocab.getty.edu/aat/"
         $linked-art "https://linked.art/example/"
         $uri_type   (case id-type
@@ -599,11 +640,11 @@ Ouro uses Scheme style lexical scoping, this means that scope is defined by the 
 
 (graph purchase-of-spring
  (:context "https://linked.art/ns/v1/linked-art.json"
-  (inlay (transfer! "manet_proust/1" "Activity" "Purchase of Spring by Proust"))
-  :classified_as ((transfer! "300055863" "Type" "Provenance Activity"))
+  (inlay (transfer "manet_proust/1" "Activity" "Purchase of Spring by Proust"))
+  :classified_as ((transfer "300055863" "Type" "Provenance Activity"))
 
   :identified_by ((:type          "Name"
-                   :classified_as ((transfer! "300404670" "Type" "Primary Name"))
+                   :classified_as ((transfer "300404670" "Type" "Primary Name"))
                    :content       "Purchase of Spring by Proust from Manet"))
 
   :timespan (:type               "TimeSpan"
@@ -613,17 +654,17 @@ Ouro uses Scheme style lexical scoping, this means that scope is defined by the 
   ;; A List of objects in Ouro is made from nested parens `(())`
   :part ((:type   "Acquisition"
           :_label "Ownership of Spring to Proust"
-          :transferred_title_of   ((transfer! "spring" "HumanMadeObject" "Spring"))
-          :transferred_title_from ((transfer! "manet"  "Person"          "Manet"))
-          :transferred_title_to   ((transfer! "proust" "Person"          "Proust")))
+          :transferred_title_of   ((transfer "spring" "HumanMadeObject" "Spring"))
+          :transferred_title_from ((transfer "manet"  "Person"          "Manet"))
+          :transferred_title_to   ((transfer "proust" "Person"          "Proust")))
 
          (:type        "Payment"
           :_label      "3000 Francs to Manet"
           :paid_amount (:type      "MonetaryAmount"
                         :value     3000
-                        :currency  (transfer! "300412016" "Currency" "French Francs"))
-         :paid_from    ((transfer! "proust" "Person" "Proust"))
-         :paid_to      ((transfer! "manet"  "Person" "Manet"))))))
+                        :currency  (transfer "300412016" "Currency" "French Francs"))
+         :paid_from    ((transfer "proust" "Person" "Proust"))
+         :paid_to      ((transfer "manet"  "Person" "Manet"))))))
 ```
 
 Which compiles into the following JSON-LD:
@@ -794,23 +835,9 @@ For compile, if the `-o` path has a file extension then that is the file the com
 
 These are agreed directions for Ouro, roughly in the order they will be built. None of them is implemented yet.
 
-## Placeholders for partial application
-
-A call with `?` holes will be a function of its holes, so arguments can be fixed now and the rest supplied later, without writing a `fn` that returns a `fn`:
-
-``` clojure
-(defn node (base type id label)
-  (:id #uri (+ base id) :type type :_label label))
-
-(let ($aat-type (node "http://vocab.getty.edu/aat/" "Type" ? ?))
-  (:classified_as (list (aat-type "300033618" "Painting"))))
-```
-
-Holes become parameters in order, a repeated named hole (`?id`) is one parameter, and a hole belongs to its innermost call. Functions themselves stay uncurried. Still to settle: `?` is shared with `case` patterns, and `?..rest` would be an error in a call.
-
 ## `map`
 
-`(map f xs)` will apply a function to each element of an Array. With placeholders, most uses need no `fn`: `(map (aat-type ? "Painting") ids)`.
+`(map f xs)` will apply a function to each element of an Array. With [placeholders](#placeholders), most uses need no `fn`: `(map (node "http://vocab.getty.edu/aat/" "Type" ? "Painting") ids)`.
 
 ## Contracts
 

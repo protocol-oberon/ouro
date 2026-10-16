@@ -40,7 +40,8 @@ import qualified Data.Ouro.Lisp.Eval.Types      as L
 import           Data.Ouro.Lisp.Function        (isFunctionKeyword,
                                                  misplacedBinding,
                                                  removedDefine,
-                                                 removedLocalDefn, typedResult)
+                                                 removedLocalDefn, strayHole,
+                                                 typedResult)
 import           Data.Ouro.Lisp.Module.Types    (Module)
 import qualified Data.Ouro.Lisp.Surface         as S
 import           Data.Text                      (Text)
@@ -106,6 +107,9 @@ evalExpr expr = do
 
         S.Tagged _   tag   payload -> assertTag tag payload
         S.Symbol pos name          -> lookupVar evalExpr pos name env
+
+        -- Holes left by 'Canon.placeholders': outside a call's arguments and case patterns
+        S.Hole   pos hole          -> pure (EvalError (strayHole hole pos))
 
         --- INTERCEPT SPECIAL FORMS ---
         S.Form _ [S.Symbol pos "context", S.Form _ directives]

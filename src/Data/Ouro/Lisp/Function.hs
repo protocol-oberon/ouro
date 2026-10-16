@@ -10,6 +10,7 @@ module Data.Ouro.Lisp.Function
 , removedDefine
 , removedLocalDefn
 , renamedDefun
+, strayHole
 , typedArgument
 , typedResult
 ) where
@@ -20,6 +21,7 @@ import           Data.Ouro.Error.Diagnostics (invalidFunctionName, lexicalError,
 import           Data.Ouro.Error.Types       (OuroError (..))
 import qualified Data.Ouro.Lisp.Surface      as S
 import           Data.Text                   (Text)
+import qualified Data.Text                   as T
 import           Text.Megaparsec             (SourcePos)
 
 
@@ -178,6 +180,20 @@ removedLocalDefn pos =
     lexicalError "A defn can only appear at the top level of a file."
     & withBlurb "Write a local function with fn, bound by let: (let ($name (fn (args) body)) expr)."
     & OuroError pos
+
+
+-- A '?' hole is a placeholder among a call's arguments, or a value in a case pattern.
+-- A rest hole only matches the rest of an Array or Record, so it belongs in a pattern.
+strayHole :: Text -> SourcePos -> OuroError
+strayHole hole pos
+    | T.isPrefixOf "?.." hole
+        = lexicalError ("'" <> hole <> "' matches the rest of an Array or Record, so it can only be written in a case pattern.")
+          & withBlurb "Perhaps write it in a case branch: (case value ((?head ?..rest) rest) (otherwise ()))."
+          & OuroError pos
+    | otherwise
+        = lexicalError ("'" <> hole <> "' is a hole, which can only be written as an argument of a call or in a case pattern.")
+          & withBlurb "A call with holes is a function of them: (+ ? 1) is (fn (n) (+ n 1))."
+          & OuroError pos
 
 
 -- 'defun' was renamed 'defn'

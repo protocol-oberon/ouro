@@ -106,8 +106,8 @@ compile filename trgt content = compilationResult . runWriter . runExceptT $ com
                -- Pass 3.0: Linting the parsed functions and graphs
                tell $ LN.lintModule ouroModule
 
-               -- Pass 3.1 Desugar all ASTs
-               let desugaredModule = mapModuleExpr Canon.construct ouroModule
+               -- Pass 3.1 Desugar all ASTs, after turning calls with '?' holes into functions
+               let desugaredModule = mapModuleExpr (Canon.construct . Canon.placeholders) ouroModule
 
                -- Pass 3.2: Find target graph
                graph <- case Map.lookup (T.pack trgt) (desugaredModule ^. graphRegistry) of

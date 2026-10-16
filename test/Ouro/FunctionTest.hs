@@ -1,5 +1,6 @@
 module Ouro.FunctionTest
 ( expressionBodies
+, placeholders
 , plainNames
 , signatures
 ) where
@@ -115,4 +116,58 @@ signatures = Group "Functions: signatures are tags in the header"
 
     -- A return type says what the result is, so a typed one-value array is not a mistake
     , ("#arr silences the one-value warning",     compilesWithoutWarnings "(defn f #arr () (\"x\")) (graph g (:r (f) :s (let ($h (fn #arr () (\"y\"))) (h))))")
+    ]
+
+
+-- A call with '?' holes among its arguments is a function of its holes. Each '?' is a new
+-- parameter, a named hole '?n' is one parameter however often it is written, and a hole
+-- belongs to the call it is an argument of.
+placeholders :: Group
+placeholders = Group "Functions: a call with holes is a function of them"
+    [ ("a call with a hole is a function",        compilesToJSON "(graph g (let ($inc (+ ? 1)) (:r (inc 41))))"
+                                                                 "{\"r\": 42}")
+    , ("a hole can stand for any argument",       compilesToJSON "(defn node (id type) (:id id :type type)) (graph g (let ($typed (node ? \"Type\")) (:r (typed \"x\"))))"
+                                                                 "{\"r\": {\"id\": \"x\", \"type\": \"Type\"}}")
+    , ("each ? is a parameter, in order",         compilesToJSON "(graph g (let ($sub (- ? ?)) (:r (sub 10 3))))"
+                                                                 "{\"r\": 7}")
+    , ("a named hole is one parameter",           compilesToJSON "(graph g (let ($sq (* ?n ?n)) (:r (sq 7))))"
+                                                                 "{\"r\": 49}")
+    , ("parameters follow first appearance",      compilesToJSON "(graph g (let ($f (+ ?a ?b ?a)) (:r (f 1 10))))"
+                                                                 "{\"r\": 12}")
+    , ("variadic operators take holes",           compilesToJSON "(graph g (let ($f (+ ? 1 2) $between (< ? 10 20)) (:r (f 10) :s (between 15))))"
+                                                                 "{\"r\": 13, \"s\": false}")
+    , ("special forms take holes",                compilesToJSON "(graph g (let ($second (nth 1 ?) $a (get ? a)) (:r (second (10 20)) :s (a (:a 5)))))"
+                                                                 "{\"r\": 20, \"s\": 5}")
+    , ("insert, replace-at and list take holes",  compilesToJSON "(graph g (let ($ins (insert 0 ? (1 2)) $rep (replace-at 0 ? (1 2)) $pair (list ? ?)) (:r (ins 0) :s (rep 9) :t (pair 1 2))))"
+                                                                 "{\"r\": [0, 1, 2], \"s\": [9, 2], \"t\": [1, 2]}")
+    , ("a placeholder is a value",                compilesToJSON "(defn apply (f x) (f x)) (graph g (:r (apply (+ ? 1) 1)))"
+                                                                 "{\"r\": 2}")
+    , ("a placeholder closes over its scope",     compilesToJSON "(defn adder (n) (+ ? n)) (graph g (let ($add10 (adder 10)) (:r (add10 5))))"
+                                                                 "{\"r\": 15}")
+    , ("a case body can be a placeholder",        compilesToJSON "(graph g (:r (case (1 2) ((?a ?b) (let ($add (+ ? b)) (add a))) (otherwise 0))))"
+                                                                 "{\"r\": 3}")
+
+    -- A tagged hole is a typed parameter: it converts, and a mismatch is reported at the call
+    , ("a tagged hole converts",                  compilesToJSON "(graph g (let ($y (+ #date ? (years 1))) (:r (y \"2020-01-01T00:00:00Z\"))))"
+                                                                 "{\"r\": \"2021-01-01T00:00:00Z\"}")
+    , ("a named hole is typed where it is tagged", compilesToJSON "(graph g (let ($f (+ #num ?x ?x)) (:r (f 2))))"
+                                                                 "{\"r\": 4}")
+    , ("a tagged hole is checked at the call",    failsWith "line 1, col 87"
+                                                            "(defn node (id type) (:id id :type type)) (graph g (let ($n (node #num ? \"T\")) (:r (n \"x\"))))")
+    , ("an untyped hole is checked at the hole",  failsWith "line 1, col 58"
+                                                            "(defn double (#num n) (* n 2)) (graph g (let ($d (double ?)) (:r (d \"x\"))))")
+
+    -- Errors
+    , ("a hole belongs to the innermost call",    failsWith "a Number * an unexecuted function"
+                                                            "(defn apply (f x) (f x)) (graph g (:r (apply (* 2 (+ ? 1)) 3)))")
+    , ("it takes one argument per parameter",     failsWith "IncorrectArity"
+                                                            "(graph g (let ($inc (+ ? 1)) (:r (inc 1 2))))")
+    , ("a hole outside a call is an error",       failsWith "can only be written as an argument of a call"
+                                                            "(graph g (:r (1 ?)))")
+    , ("a hole as a let's value is an error",     failsWith "can only be written as an argument of a call"
+                                                            "(graph g (let ($b ?) (:r b)))")
+    , ("a hole in a record argument is an error", failsWith "can only be written as an argument of a call"
+                                                            "(defn f (x) x) (graph g (:r (f (:a ?))))")
+    , ("a rest hole belongs in a pattern",        failsWith "can only be written in a case pattern"
+                                                            "(graph g (:r (+ ?..xs 1)))")
     ]
