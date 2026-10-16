@@ -212,7 +212,7 @@ call         = "(" , symbol , { expression | placeholder } , ")" ;
 placeholder  = [ tag ] , hole ;     (* a call with placeholders is a function of them *)
 
 (* ---------- Special forms ---------- *)
-special-form = let | fn | case | get | nth | insert | replace-at | attr ;
+special-form = let | fn | case | get | nth | map | insert | replace-at | attr ;
 let          = "(" , "let" , "(" , { binding } , ")" , expression , ")" ;
 binding      = "$" , symbol , expression ;
 fn           = "(" , "fn" , [ tag ] , params , expression , ")" ;
@@ -222,6 +222,7 @@ guard        = "(" , comparison , expression , ")" ;
 alternatives = "(" , literal , { literal } , ")" ;
 get          = "(" , "get" , expression , symbol , { symbol } , ")" ;
 nth          = "(" , "nth" , expression , expression , ")" ;
+map          = "(" , "map" , expression , expression , ")" ;     (* a function, then an array *)
 insert       = "(" , "insert" , expression , ( expression | field ) , expression , ")" ;
 replace-at   = "(" , "replace-at" , expression , ( expression | field ) , expression , ")" ;
 attr         = "(" , "attr" , expression , expression , ")" ;     (* a computed key *)
@@ -394,7 +395,7 @@ A call with =?= holes among its arguments is not called: it is a function of its
 - *A named hole is one parameter*, however often it is written: ~(* ?n ?n)~ takes one. Parameters follow the order in which each hole is first written, so ~(+ ?a ?b ?a)~ takes =a= then =b=.
 - *A tagged hole is a typed parameter*: ~(node #uri ? "Painting")~ checks, and converts, its argument as a signature would, and a mismatch is reported at the argument where the placeholder is called. An untyped hole passed to a typed parameter of the function is checked by that function, and a mismatch is reported at the hole.
 - *A hole belongs to the call it is an argument of*, so ~(* 2 (+ ? 1))~ multiplies 2 by a function (an error), and ~(f (g ?))~ passes =f= a function.
-- *Any call takes holes*: a =defn=, a =fn=, a built-in, a variadic operator (~(< ? 10 20)~) and the special forms that evaluate their arguments (=get=, =nth=, =insert=, =replace-at=, =list=). The forms with their own structure (=let=, =fn=, =case=, =attr=, =context=, =inlay=, =thru=) do not.
+- *Any call takes holes*: a =defn=, a =fn=, a built-in, a variadic operator (~(< ? 10 20)~) and the special forms that evaluate their arguments (=get=, =nth=, =insert=, =replace-at=, =list=, =map=). The forms with their own structure (=let=, =fn=, =case=, =attr=, =context=, =inlay=, =thru=) do not.
 - *A placeholder is a value*: it is a =fn=, closed over the scope it is written in, so it can be bound, passed and returned like one. It is called with exactly as many arguments as it has holes.
 - *A hole anywhere else is an error*: in an array, in a record, or as a binding's value. A rest hole, =?..name=, only matches the rest of an array or record, so it can only be written in a =case= pattern.
 
@@ -411,6 +412,7 @@ Special forms are recognised by their head symbol before any name lookup, so the
 | =(case target branch ... (otherwise e))= | pattern matching and guards; =otherwise= is required and last                |
 | =(get record key ...)=                   | the value at a path of keys through evaluated records                        |
 | =(nth i coll)=                           | the i-th element of an array, or the i-th field value of a record            |
+| =(map f array)=                          | an array of =f= called on each element                                       |
 | =(insert i x coll)=                      | insert =x= at index =i= (an array element, or a =:key value= field)          |
 | =(replace-at i x coll)=                  | replace the element or field at index =i=                                    |
 | =(inlay expr)=                           | splice a record's fields into a record, or an array's elements into an array |
@@ -422,6 +424,8 @@ Special forms are recognised by their head symbol before any name lookup, so the
 Negative indexes count from the end in =nth=, =insert= and =replace-at=. =insert= puts any value into an array, but not a =:key value= field. Neither =insert= nor =replace-at= can give a record a key it already has: that is an error, and =replace-at= may keep the replaced field's own key.
 
 *Value-based =get=.* =get= evaluates its target and walks the resulting records, so it works through function results, =inlay=, =case= and =let= alike. Only a record's fields can be reached, =let= bindings are private. Path components are bare symbols (=(get p q r)=, not =(get p :q)=) arrays are indexed with =nth=.
+
+*=map=.* ~(map f array)~ evaluates =f=, which must be a function (a =fn=, a =defn= name, a built-in or a placeholder), and =array=, which must be an array (=()= and =#arr-empty= are empty arrays). The result is an array of =f= called on each element, in order. Each element is passed as an ordinary call, made in a frame that binds the function and the element to names that cannot be written in Ouro, so arity, signatures and the recursion check apply as they do to any call: =f= must take one argument, a typed parameter checks every element, and a mismatch is reported at the array, since an element has no position of its own. With placeholders, ~(map (+ ? 1) xs)~ needs no =fn=, and ~(map f ?)~ is a function waiting for the array. =map= is a special form only at the head of a form: it cannot name a =defn=, but =:map= and =$map= are ordinary names.
 
 ** =case= and patterns
 

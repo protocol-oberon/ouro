@@ -128,6 +128,59 @@ evalExpr expr = do
 
         S.Form _ (S.Symbol _ "list" : items)             -> Array <$> mapM evalExpr items
 
+        -- (map f array): calls f on each element. Each call is an ordinary call, written
+        -- in a frame that binds the function and the element to names that cannot be
+        -- written in Ouro, so arity, signatures and the recursion check apply as usual.
+        S.Form pos [S.Symbol _ "map", fnExpr, arrExpr]
+            -> do
+               fnVal  <- evalExpr fnExpr
+               arrVal <- evalExpr arrExpr
+               case (fnVal, arrVal) of
+                   (EvalError err, _) -> pure (EvalError err)
+                   (_, EvalError err) -> pure (EvalError err)
+
+                   (f, _)
+                       | not (isFunction f)
+                       -> typeMismatch "a function to map with" (humanReadableType f)
+                          & withBlurb "map calls a function on each element of an Array: (map f array), e.g. (map (+ ? 1) (1 2 3))."
+                          & OuroError (S.exprPos fnExpr)
+                          & EvalError
+                          & pure
+
+                   (f, arr)
+                       | Just elems <- L.asArray arr
+                       -> Array <$> mapM (callOn f) elems
+
+                   (_, arr)
+                       -> typeMismatch "an Array to map over" (humanReadableType arr)
+                          & withBlurb "map calls a function on each element of an Array: (map f (1 2 3))."
+                          & OuroError (S.exprPos arrExpr)
+                          & EvalError
+                          & pure
+            where
+            isFunction = \case
+                FunctionClosure {} -> True
+                PrimitiveOp _      -> True
+                _notAFunction      -> False
+
+            -- An element has no position of its own, so it is reported at the Array
+            callOn f element = do
+                frame <- allocValues (\names -> env
+                                              & L.localScope       .~ names
+                                              & L.functionRegistry .~ Map.empty
+                                              & L.parentEnv        .~ Just env)
+                                     pos
+                                     [("%map-fn", f), ("%map-element", element)]
+                local (const frame) $
+                    applyFunction pos [S.Symbol (S.exprPos fnExpr) "%map-fn", S.Symbol (S.exprPos arrExpr) "%map-element"]
+
+        S.Form pos (S.Symbol _ "map" : _)
+            -> lexicalError "map is written (map f array): a function, then the Array to call it on."
+               & withBlurb "Perhaps write (map (+ ? 1) (1 2 3)), or (map f xs) with a function f."
+               & OuroError pos
+               & EvalError
+               & pure
+
         -- (let ($name expr ...) expr): private bindings, in any order, around one result
         S.Form pos (S.Symbol _ "let" : rest)
             -> case rest of

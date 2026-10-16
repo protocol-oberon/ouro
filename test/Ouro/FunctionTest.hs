@@ -1,5 +1,6 @@
 module Ouro.FunctionTest
 ( expressionBodies
+, mapping
 , placeholders
 , plainNames
 , signatures
@@ -170,4 +171,49 @@ placeholders = Group "Functions: a call with holes is a function of them"
                                                             "(defn f (x) x) (graph g (:r (f (:a ?))))")
     , ("a rest hole belongs in a pattern",        failsWith "can only be written in a case pattern"
                                                             "(graph g (:r (+ ?..xs 1)))")
+    ]
+
+
+-- (map f array) calls f on each element of an Array. Each call is an ordinary call, so
+-- arity, signatures and the recursion check apply as they do anywhere else.
+mapping :: Group
+mapping = Group "Functions: map calls a function on each element"
+    [ ("map with a placeholder",                  compilesToJSON "(graph g (:r (map (+ ? 1) (1 2 3))))"
+                                                                 "{\"r\": [2, 3, 4]}")
+    , ("map with a defn",                         compilesToJSON "(defn label (who) (:_label who)) (graph g (:r (map label (\"Manet\" \"Proust\"))))"
+                                                                 "{\"r\": [{\"_label\": \"Manet\"}, {\"_label\": \"Proust\"}]}")
+    , ("map with a fn over records",              compilesToJSON "(graph g (:r (map (fn (r) (get r id)) ((:id 1) (:id 2)))))"
+                                                                 "{\"r\": [1, 2]}")
+    , ("map with a built-in",                     compilesToJSON "(graph g (:r (map (+ #date \"2020-01-01T00:00:00Z\" ?) (map years (1 2)))))"
+                                                                 "{\"r\": [\"2021-01-01T00:00:00Z\", \"2022-01-01T00:00:00Z\"]}")
+    , ("map over an empty array",                 compilesToJSON "(graph g (:r (map (+ ? 1) ()) :s (map (+ ? 1) #arr-empty)))"
+                                                                 "{\"r\": [], \"s\": []}")
+    , ("map with a hole is a function",           compilesToJSON "(graph g (let ($inc-all (map (+ ? 1) ?)) (:r (inc-all (1 2)))))"
+                                                                 "{\"r\": [2, 3]}")
+    , ("map is only reserved as a function name", compilesToJSON "(graph g (let ($map 5) (:map map :r map)))"
+                                                                 "{\"map\": 5, \"r\": 5}")
+
+    -- Each element is checked by the function's signature, and reported at the Array
+    , ("a typed parameter checks each element",   failsWith "expectedType = \"a Number\", actualType = \"a String\""
+                                                            "(defn double (#num n) (* n 2)) (graph g (:r (map double (1 \"x\" 3))))")
+    , ("it is reported at the array",             failsWith "line 1, col 57"
+                                                            "(defn double (#num n) (* n 2)) (graph g (:r (map double (1 \"x\" 3))))")
+    , ("a result is checked by the return type",  failsWith "expectedType = \"a Number\""
+                                                            "(graph g (:r (map (fn #num (n) (+ n \"!\")) (\"a\"))))")
+
+    -- Errors
+    , ("the function takes one argument",         failsWith "IncorrectArity"
+                                                            "(graph g (:r (map (fn (a b) a) (1 2))))")
+    , ("map needs a function",                    failsWith "a function to map with"
+                                                            "(graph g (:r (map 1 (1 2))))")
+    , ("map needs an array",                      failsWith "an Array to map over"
+                                                            "(graph g (:r (map (+ ? 1) 5)))")
+    , ("a record is not an array",                failsWith "an Array to map over"
+                                                            "(graph g (:r (map (+ ? 1) (:a 1))))")
+    , ("map takes a function and an array",       failsWith "map is written (map f array)"
+                                                            "(graph g (:r (map (+ ? 1))))")
+    , ("map cannot be a function name",           failsWith "'map' is a special form"
+                                                            "(defn map (x) x) (graph g (:r 1))")
+    , ("a function cannot map itself",            failsWith "a recursive function call"
+                                                            "(defn f (x) (map f x)) (graph g (:r (f (1))))")
     ]

@@ -283,6 +283,41 @@ This form simply tells the compiler to evaluation every expression after a `list
 }
 ```
 
+### Map
+
+`(map f xs)` calls the function `f` on each element of the Array `xs`, and returns an Array of the results, in order. `f` can be a `defn`, a `fn`, a builtin or a [placeholder](#placeholders), so most uses need no `fn` at all:
+
+``` clojure
+(defn aat-type (id label)
+  (:id #uri (+ "http://vocab.getty.edu/aat/" id) :type "Type" :_label label))
+
+(graph mapped
+  (:classified_as (map (aat-type ? "Painting") ("300033618" "300177435"))
+   :counts        (map (+ ? 1) (1 2 3))))
+```
+
+...compiles to:
+
+``` json
+{
+  "classified_as": [
+    {
+      "id": "http://vocab.getty.edu/aat/300033618",
+      "type": "Type",
+      "_label": "Painting"
+    },
+    {
+      "id": "http://vocab.getty.edu/aat/300177435",
+      "type": "Type",
+      "_label": "Painting"
+    }
+  ],
+  "counts": [2, 3, 4]
+}
+```
+
+Each element is passed to `f` as an ordinary call, so `f` must take exactly one argument, and its signature checks every element: a mismatch is reported at the Array. Mapping over an empty Array gives an empty Array, and mapping over anything other than an Array is an error. `map` cannot be the name of a `defn`, but `:map` is an ordinary key and `$map` an ordinary binding.
+
 ### Nth
 
 `(nth)` is a special form that takes a number and either a record for a list and returns the value of the element at the index of the given number. It is 0 indexed.
@@ -588,7 +623,7 @@ A call with `?` holes among its arguments is not called: it is a function of its
 - A named hole is one parameter, however often it is written: `(* ?n ?n)` takes one.
 - A tagged hole is a typed parameter: `(node #uri ? "Type")` checks and converts its argument, as a signature would.
 - A hole belongs to the call it is an argument of, so `(f (g ?))` passes `f` a function.
-- Any call takes holes: a `defn`, a `fn`, a builtin, and the special forms that evaluate their arguments (`get`, `nth`, `insert`, `replace-at`, `list`).
+- Any call takes holes: a `defn`, a `fn`, a builtin, and the special forms that evaluate their arguments (`get`, `nth`, `insert`, `replace-at`, `list`, `map`).
 - A placeholder is an ordinary `fn` value. It is called with exactly as many arguments as it has holes, and functions themselves stay uncurried.
 - A hole anywhere else (in an Array, in a Record, as a `let` value) is an error, and `?..rest` can only be written in a `case` pattern. The holes in a `case` pattern match values, as before; a placeholder can be written in a branch's body.
      
@@ -834,10 +869,6 @@ For compile, if the `-o` path has a file extension then that is the file the com
 # Planned
 
 These are agreed directions for Ouro, roughly in the order they will be built. None of them is implemented yet.
-
-## `map`
-
-`(map f xs)` will apply a function to each element of an Array. With [placeholders](#placeholders), most uses need no `fn`: `(map (node "http://vocab.getty.edu/aat/" "Type" ? "Painting") ids)`.
 
 ## Contracts
 
