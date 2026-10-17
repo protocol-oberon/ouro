@@ -325,6 +325,8 @@ A =let= binds private values with =$name value= pairs. The =$= marks a binding t
 
 Both kinds of function take an optional signature: =(defn name #type (#type x y) expr)=, =(fn #type (#type x) expr)=.
 
+=λ= is another way to write =fn=: ~(λ (x) (+ x 1))~. The lexer reads =λ= on its own as =fn=, so it is =fn= everywhere, and messages name it =fn=; it cannot name a function or a binding, but a longer name that begins with it, such as =λx=, is an ordinary symbol.
+
 A local function is a =let=-bound =fn=:
 
 #+BEGIN_SRC clojure

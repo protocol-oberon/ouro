@@ -167,12 +167,16 @@ pBinding :: Parser Tkn.Token
 pBinding = lexeme . withPos $ Tkn.Binding <$> (char '$' *> symbolName)
 
 
--- The characters of a symbol
+-- The characters of a symbol. 'λ' on its own is read as 'fn', so it is fn everywhere: as
+-- the head of a function, and as a name that cannot be used for anything else. A longer
+-- name that begins with it, such as 'λx', is an ordinary symbol.
 symbolName :: Parser Text
 symbolName = do
              first <- letterChar <|> oneOf ("_+-*/<>=!&|~" :: String)
              rest  <- many (alphaNumChar <|> oneOf ("_-+*/<>=!?&|~'" :: String))
-             pure (T.pack (first : rest))
+             pure $ case first : rest of
+                        "λ"   -> "fn"
+                        name  -> T.pack name
 
 
 pSingleToken :: Parser Tkn.Token

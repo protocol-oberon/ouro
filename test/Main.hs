@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 
 module Main where
 
@@ -10,10 +11,14 @@ import qualified Ouro.LetTest        as Let
 import qualified Ouro.ScopingTest    as Scoping
 import qualified Ouro.StructuralTest as Structural
 import           System.Exit         (exitFailure, exitSuccess)
+#if defined(mingw32_HOST_OS)
+import           Control.Exception    (IOException, bracket_, catch)
+import           System.Win32.Console (getConsoleOutputCP, setConsoleOutputCP)
+#endif
 
 
 main :: IO ()
-main = do
+main = withUtf8Console $ do
     -- mapM runs checkParallel on each Group and returns a list of Bools [True, True, True]
     results <- mapM checkParallel
         [ Canonical.tests
@@ -54,3 +59,21 @@ main = do
     case and results of
         True  -> exitSuccess
         False -> exitFailure
+
+
+-- Hedgehog writes its report as UTF-8 (✓, ━, ┃), but a Windows console decodes what it is
+-- sent with its own code page, such as 850. As in ouro's own main, the console is switched
+-- to UTF-8 (65001) while the tests run and restored afterwards; without a console (output
+-- redirected) nothing is changed.
+withUtf8Console :: IO a -> IO a
+#if defined(mingw32_HOST_OS)
+withUtf8Console action = do
+    previous <- getConsoleOutputCP
+    case previous of
+        0           -> action
+        _hasConsole -> bracket_ (trySet 65001) (trySet previous) action
+    where
+    trySet codePage = setConsoleOutputCP codePage `catch` \(_ :: IOException) -> pure ()
+#else
+withUtf8Console = id
+#endif

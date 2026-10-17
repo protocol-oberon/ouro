@@ -281,6 +281,14 @@ encoding = Group "Encoding: source files are UTF-8"
                                                   fmap (T.isInfixOf "\201douard Manet") content === Right True)
     , ("names and keys can be any letters",  compilesToJSON "(defn caf\233 () \"x\") (graph g (:r (caf\233) :na\239ve 1))"
                                                                  "{\"r\": \"x\", \"na\239ve\": 1}")
+    , ("\955 is fn",                         compilesToJSON "(graph g (let ($inc (\955 (x) (+ x 1))) (:r (inc 1))))"
+                                                                 "{\"r\": 2}")
+    , ("with a signature and a pattern",     compilesToJSON "(graph g (:r (map (\955 #num ((?a ?b)) (+ a b)) ((1 2) (3 4)))))"
+                                                                 "{\"r\": [3, 7]}")
+    , ("\955 cannot name a function",        failsWith "'fn' is a special form"
+                                                            "(defn \955 (x) x) (graph g (:r 1))")
+    , ("\955x is an ordinary name",          compilesToJSON "(graph g (let ($\955x 1) (:r \955x)))"
+                                                                 "{\"r\": 1}")
     , ("UTF-8 is decoded",                   decodesTo [0xC3, 0x89, 0x64] "\201d")
     , ("a byte order mark is dropped",       decodesTo [0xEF, 0xBB, 0xBF, 0x61] "a")
     , ("CRLF becomes LF",                    decodesTo [0x61, 0x0D, 0x0A, 0x62] "a\nb")

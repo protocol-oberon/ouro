@@ -1,0 +1,29 @@
+(defn core #rec (#uri id #str type #str label)
+  (:id id :type type :_label label))
+
+(defn aat #rec (#str id #str label)
+  (core #uri (+ "http://vocab.getty.edu/aat/" id) "Type" label))
+
+(defn example #uri (#str path)
+  (+ "https://linked.art/example/" path))
+
+(defn place #rec (#str slug #str label)
+  (core (example (+ "place/" slug)) "Place" label))
+
+(defn name #rec (#str content)
+  (:type "Name" :content content))
+
+(defn brief-text #rec (#str content)
+  (:type          "LinguisticObject"
+   :classified_as (((inlay (aat "300435416" "Description"))
+                    :classified_as ((aat "300418049" "Brief Text"))))
+   :content       content))
+
+(graph amsterdam
+  (:context "https://linked.art/ns/v1/linked-art.json"
+   (inlay (place "amsterdam/1" "Amsterdam"))
+   :classified_as  ((aat "300008389" "City"))
+   :identified_by  ((name "Amsterdam"))
+   :referred_to_by ((brief-text "Amsterdam is a city in the Netherlands"))
+   :part_of        (((inlay (place "netherlands" "Netherlands"))
+                     :classified_as ((aat "300128207" "Nation"))))))

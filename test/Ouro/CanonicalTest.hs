@@ -8,7 +8,8 @@ import           Utils                  (fixture, shouldCompileTo)
 -- The test group that will be imported and run by Main.hs
 tests :: Group
 tests = Group "Ouro Canonical Example File Suite - Compiles to JSON"
-    [ ("Auction of Stowe House",          prop_auctionOfStoweHouse)
+    [ ("Amsterdam",                       prop_amsterdam)
+    , ("Auction of Stowe House",          prop_auctionOfStoweHouse)
     , ("Bust of a Man by Francis Hardwood", prop_bustOfAMan)
     , ("Idea for Manet and Modern Beauty", prop_ideaForManet)
     , ("Jeanne Spring by Manet",          prop_jeanneSpring)
@@ -17,6 +18,10 @@ tests = Group "Ouro Canonical Example File Suite - Compiles to JSON"
     ]
 
 -- withTests 1 ensures Hedgehog only runs this static file check once
+prop_amsterdam :: Property
+prop_amsterdam = withTests 1 . property $ do
+    shouldCompileTo (fixture "ouro/amsterdam.ouro") "amsterdam" (fixture "json/amsterdam.json")
+
 prop_auctionOfStoweHouse :: Property
 prop_auctionOfStoweHouse = withTests 1 . property $ do
     shouldCompileTo (fixture "ouro/auction-of-stowe-house.ouro") "auction-of-stowe-house" (fixture "json/auction-of-stowe-house.json")

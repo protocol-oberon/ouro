@@ -515,6 +515,7 @@ Like any good Lisp, Ouro supports powerful first class functions. A function's b
 |:-------------------------|:--------------------------------------------------------------------|
 | `(defn name (x y) expr)` | a named function; top level only; visible throughout the file       |
 | `(fn (x y) expr)`        | an anonymous function value, closed over the scope it is written in |
+| `(λ (x y) expr)`         | the same as `fn`                                                    |
 | `(f a b)`                | a call: `f` is any expression that evaluates to a function          |
 
 A local function is a `let`-bound `fn`:
@@ -929,4 +930,3 @@ These are agreed directions for Ouro, roughly in the order they will be built. N
   ```
 
 - **A threading form:** `(-> (base-node ...) (with :_label "Painting"))`, for building a record step by step, layered like `(inlay)`.
-- **`λ`:** an alias for `fn`, now that source files are read as UTF-8.

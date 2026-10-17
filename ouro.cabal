@@ -202,3 +202,7 @@ test-suite ouro-test
         text        >= 2.0,
         ouro
 
+    -- The console's code page is set to UTF-8 while the tests run on Windows
+    if os(windows)
+        build-depends:
+            Win32  ^>= 2.14
