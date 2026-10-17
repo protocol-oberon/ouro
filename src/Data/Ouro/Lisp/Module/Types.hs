@@ -6,7 +6,7 @@
 module Data.Ouro.Lisp.Module.Types where
 
 import qualified Data.Map.Strict        as Map
-import           Data.Ouro.Lisp.Surface (Expr, Param)
+import           Data.Ouro.Lisp.Surface (Expr, Param (..))
 import           Data.Text              (Text)
 import           Lens.Micro.TH          (makeLenses)
 import           Text.Megaparsec        (SourcePos)
@@ -57,6 +57,16 @@ mapModuleExpr transform m = m
     , _graphRegistry    = Map.map (mapExpr transform) (_graphRegistry m)
     -- _importRegistry is left untouched
     }
+
+
+-- Applies an expression transformation to the patterns of every defn's parameters.
+-- A fn's parameters are part of its form, so they are reached by 'mapModuleExpr'.
+mapParamPatterns :: (Expr -> Expr) -> Module -> Module
+mapParamPatterns transform m = m
+    { _functionRegistry = Map.map patterns (_functionRegistry m) }
+    where
+    patterns (Function pos name args expr) =
+        Function pos name [ arg { paramPattern = transform <$> paramPattern arg } | arg <- args ] expr
 
 makeLenses ''ExportMap
 makeLenses ''Module

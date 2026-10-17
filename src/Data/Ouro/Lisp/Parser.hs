@@ -13,9 +13,10 @@ import qualified Data.Map                    as Map
 import           Data.Ouro.Error.Diagnostics (lexicalError, unbalancedDelimiter)
 import           Data.Ouro.Error.Types       (ErrorContext (..), OuroError (..),
                                               SyntaxError (..))
-import           Data.Ouro.Lisp.Function     (checkFunctionName, duplicateFunction,
-                                              functionBody, graphBody,
-                                              isFunctionKeyword, removedLocalDefn,
+import           Data.Ouro.Lisp.Function     (checkFunctionName, checkParams,
+                                              duplicateFunction, functionBody,
+                                              graphBody, isFunctionKeyword,
+                                              patternParam, removedLocalDefn,
                                               renamedDefun, typedResult)
 import           Data.Ouro.Lisp.Module.Types (Declaration (..),
                                               HigherExpression (..),
@@ -113,6 +114,9 @@ pDefn pos = do
     args    <- pArgs
     body    <- collectUntil Tkn.CloseParen
 
+    -- A pattern parameter binds something, and each name is bound once
+    lift (checkParams pos args)
+
     -- A body is exactly one result expression, checked against the return type
     result <- lift (functionBody name pos body)
 
@@ -174,7 +178,8 @@ expectCloseParen = do
                           F.& lift
 
 
--- A parameter list: names, each optionally typed by the tag before it, (#uri id type)
+-- A parameter list: names or patterns, each optionally typed by the tag before it,
+-- (#uri id type) or ((?slug ?label))
 pArgs :: Parser [S.Param]
 pArgs = do
     t <- popToken "Expected '(' for argument list"
@@ -190,12 +195,24 @@ pArgs = do
         t <- popToken "Expected argument or ')'"
         case Tkn.tokenType t of
             Tkn.CloseParen      -> pure $ reverse acc
-            Tkn.Symbol     name -> collectArgs (S.Param name Nothing : acc)
+            Tkn.Symbol     name -> collectArgs (S.Param name Nothing Nothing : acc)
+            Tkn.OpenParen       -> do
+                                   pattern <- parseFormContainer (Tkn.pos t)
+                                   collectArgs (patternParam (length acc + 1) Nothing pattern : acc)
             tkn | Just tag <- typeTag tkn
                                 -> do
-                                   name <- expectSymbol "A parameter's type is written before its name, as in (#num n)"
-                                   collectArgs (S.Param name (Just (Tkn.pos t, tag)) : acc)
-            _notASymbol         -> lexicalError "Argument lists can only contain symbols"
+                                   stream <- get
+                                   case stream of
+                                       next : rest | Tkn.tokenType next == Tkn.OpenParen
+                                           -> do
+                                              put rest
+                                              pattern <- parseFormContainer (Tkn.pos next)
+                                              collectArgs (patternParam (length acc + 1) (Just (Tkn.pos t, tag)) pattern : acc)
+                                       _aName
+                                           -> do
+                                              name <- expectSymbol "A parameter's type is written before its name, as in (#num n)"
+                                              collectArgs (S.Param name (Just (Tkn.pos t, tag)) Nothing : acc)
+            _notAParameter      -> lexicalError "A parameter is a name, or a pattern in parentheses, each optionally typed: (#num n) or ((?a ?b))"
                                    F.& OuroError (Tkn.pos t)
                                    F.& Left
                                    F.& lift

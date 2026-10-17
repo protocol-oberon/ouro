@@ -1,5 +1,6 @@
 module Ouro.FunctionTest
-( expressionBodies
+( destructuring
+, expressionBodies
 , mapping
 , placeholders
 , plainNames
@@ -169,7 +170,7 @@ placeholders = Group "Functions: a call with holes is a function of them"
                                                             "(graph g (let ($b ?) (:r b)))")
     , ("a hole in a record argument is an error", failsWith "can only be written as an argument of a call"
                                                             "(defn f (x) x) (graph g (:r (f (:a ?))))")
-    , ("a rest hole belongs in a pattern",        failsWith "can only be written in a case pattern"
+    , ("a rest hole belongs in a pattern",        failsWith "can only be written in a pattern"
                                                             "(graph g (:r (+ ?..xs 1)))")
     ]
 
@@ -216,4 +217,65 @@ mapping = Group "Functions: map calls a function on each element"
                                                             "(defn map (x) x) (graph g (:r 1))")
     , ("a function cannot map itself",            failsWith "a recursive function call"
                                                             "(defn f (x) (map f x)) (graph g (:r (f (1))))")
+    ]
+
+
+-- A parameter can be a pattern, written as a case pattern is. It takes one argument, which
+-- is matched when the function is called, and its holes are bound around the body.
+destructuring :: Group
+destructuring = Group "Functions: a parameter can be a pattern"
+    [ ("an array pattern parameter",              compilesToJSON "(graph g (let ($swap (fn ((?a ?b)) (list b a))) (:r (swap (1 2)))))"
+                                                                 "{\"r\": [2, 1]}")
+    , ("a record pattern parameter",              compilesToJSON "(defn label-of ((:_label ?l)) l) (graph g (:r (label-of (:type \"Type\" :_label \"Beauty\"))))"
+                                                                 "{\"r\": \"Beauty\"}")
+    , ("a rest hole in a parameter",              compilesToJSON "(graph g (let ($tail (fn ((?h ?..t)) t)) (:r (tail (1 2 3)))))"
+                                                                 "{\"r\": [2, 3]}")
+    , ("a literal in a pattern is compared",      compilesToJSON "(graph g (let ($f (fn ((\"Person\" ?l)) l)) (:r (f (\"Person\" \"Manet\")))))"
+                                                                 "{\"r\": \"Manet\"}")
+    , ("a pattern beside a named parameter",      compilesToJSON "(defn sum (base (?a ?b)) (+ base a b)) (graph g (:r (sum 1 (2 3))))"
+                                                                 "{\"r\": 6}")
+    , ("a tag before a pattern",                  compilesToJSON "(graph g (let ($f (fn (#arr (?a ?b)) (+ a b))) (:r (f (1 2)))))"
+                                                                 "{\"r\": 3}")
+    , ("map with a pattern parameter",            compilesToJSON "(graph g (:r (map (fn ((?slug ?label)) (:id slug :_label label)) ((\"allan\" \"Scott Allan\") (\"beeny\" \"Emily Beeny\")))))"
+                                                                 "{\"r\": [{\"id\": \"allan\", \"_label\": \"Scott Allan\"}, {\"id\": \"beeny\", \"_label\": \"Emily Beeny\"}]}")
+    , ("a defn's pattern is desugared",           compilesToJSON "(defn f (((+ 1 2 3) ?x)) x) (graph g (:r (f (6 1))))"
+                                                                 "{\"r\": 1}")
+    , ("as a fn's pattern is",                    compilesToJSON "(graph g (let ($f (fn (((+ 1 2 3) ?x)) x)) (:r (f (6 1)))))"
+                                                                 "{\"r\": 1}")
+
+    -- A pattern's values are evaluated where the function is defined, not among its parameters
+    , ("a defn's pattern sees the module",        compilesToJSON "(defn kind () \"Type\") (defn label-of ((:type (kind) :_label ?l)) l) (graph g (:r (label-of (:type \"Type\" :_label \"Beauty\"))))"
+                                                                 "{\"r\": \"Beauty\"}")
+    , ("a fn's pattern sees its scope",           compilesToJSON "(graph g (let ($k \"Type\" $f (fn ((:type k :_label ?l)) l)) (:r (f (:type \"Type\" :_label \"Beauty\")))))"
+                                                                 "{\"r\": \"Beauty\"}")
+    , ("but not the other parameters",            failsWith "variableName = \"kind\""
+                                                            "(defn label-if (kind (:type kind :_label ?l)) l) (graph g (:r (label-if \"Type\" (:type \"Type\" :_label \"Beauty\"))))")
+    , ("a pattern cannot call its own function",  failsWith "a recursive function call"
+                                                            "(defn f (((f 1) ?x)) x) (graph g (:r (f (1 2))))")
+
+    -- A pattern is one parameter, matched at the call, and a mismatch is reported at the argument
+    , ("a pattern takes one argument",            failsWith "IncorrectArity"
+                                                            "(graph g (let ($f (fn ((?a ?b)) a)) (:r (f 1 2))))")
+    , ("an unused pattern is still matched",      failsWith "the shape of the parameter's pattern"
+                                                            "(graph g (let ($f (fn ((?a ?b)) 1)) (:r (f 5))))")
+    , ("it is reported at the argument",          failsWith "line 1, col 44"
+                                                            "(graph g (let ($f (fn ((?a ?b)) 1)) (:r (f 5))))")
+    , ("in map it is reported at the array",      failsWith "line 1, col 36"
+                                                            "(graph g (:r (map (fn ((?a ?b)) a) ((1 2) (3)))))")
+    , ("the tag is checked before the pattern",   failsWith "expectedType = \"a Record\""
+                                                            "(graph g (let ($f (fn (#rec (?a ?b)) a)) (:r (f (1 2)))))")
+
+    -- Errors, reported where the function is defined
+    , ("a pattern must bind something",           failsWith "binds nothing"
+                                                            "(defn f ((1 2)) 1) (graph g (:r 1))")
+    , ("a name is bound once",                    failsWith "bound more than once"
+                                                            "(defn f (a a) a) (graph g (:r (f 1 2)))")
+    , ("a hole cannot reuse a parameter's name",  failsWith "bound more than once"
+                                                            "(graph g (let ($f (fn (a (?a)) a)) (:r 1)))")
+    , ("a hole in a call is a malformed pattern", failsWith "MalformedPattern"
+                                                            "(defn f ((?a (g ?b))) a) (graph g (:r (f (1 2))))")
+    , ("placeholders leave parameters alone",     failsWith "MalformedPattern"
+                                                            "(graph g (let ($f (fn ((g ?b)) b)) (:r (f 1))))")
+    , ("a $name is not a parameter",              failsWith "A fn is written"
+                                                            "(graph g (let ($f (fn ($x) x)) (:r (f 1))))")
     ]

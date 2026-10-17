@@ -10,6 +10,7 @@ tests :: Group
 tests = Group "Ouro Canonical Example File Suite - Compiles to JSON"
     [ ("Auction of Stowe House",          prop_auctionOfStoweHouse)
     , ("Bust of a Man by Francis Hardwood", prop_bustOfAMan)
+    , ("Idea for Manet and Modern Beauty", prop_ideaForManet)
     , ("Jeanne Spring by Manet",          prop_jeanneSpring)
     , ("Purchase of Spring by Proust",    prop_purchaseOfSpring)
     , ("The Night Watch by Rembrandt",    prop_theNightWatch)
@@ -23,6 +24,10 @@ prop_auctionOfStoweHouse = withTests 1 . property $ do
 prop_bustOfAMan :: Property
 prop_bustOfAMan = withTests 1 . property $ do
     shouldCompileTo (fixture "ouro/bust-of-a-man.ouro") "bust-of-a-man" (fixture "json/bust-of-a-man.json")
+
+prop_ideaForManet :: Property
+prop_ideaForManet = withTests 1 . property $ do
+    shouldCompileTo (fixture "ouro/idea-for-manet-and-modern-beauty.ouro") "idea-for-manet-and-modern-beauty" (fixture "json/idea-for-manet-and-modern-beauty.json")
 
 prop_jeanneSpring :: Property
 prop_jeanneSpring = withTests 1 . property $ do

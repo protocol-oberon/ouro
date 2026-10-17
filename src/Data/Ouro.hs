@@ -66,7 +66,8 @@ import           Data.Ouro.Lisp.Eval.Types   (Expr (..), freeze)
 import qualified Data.Ouro.Lisp.Eval.Types   as L
 import qualified Data.Ouro.Lisp.Lexer        as LX
 import           Data.Ouro.Lisp.Module.Types (HigherExpression (..),
-                                              graphRegistry, mapModuleExpr)
+                                              graphRegistry, mapModuleExpr,
+                                              mapParamPatterns)
 import qualified Data.Ouro.Lisp.Parser       as LP
 import           Data.Text                   (Text)
 import qualified Data.Text                   as T
@@ -106,8 +107,11 @@ compile filename trgt content = compilationResult . runWriter . runExceptT $ com
                -- Pass 3.0: Linting the parsed functions and graphs
                tell $ LN.lintModule ouroModule
 
-               -- Pass 3.1 Desugar all ASTs, after turning calls with '?' holes into functions
-               let desugaredModule = mapModuleExpr (Canon.construct . Canon.placeholders) ouroModule
+               -- Pass 3.1 Desugar all ASTs, after turning calls with '?' holes into functions.
+               -- A defn's parameter patterns are desugared as case patterns are: their holes
+               -- match values, so they are not placeholders.
+               let desugaredModule = mapModuleExpr (Canon.construct . Canon.placeholders)
+                                         (mapParamPatterns Canon.constructRoot ouroModule)
 
                -- Pass 3.2: Find target graph
                graph <- case Map.lookup (T.pack trgt) (desugaredModule ^. graphRegistry) of

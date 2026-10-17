@@ -21,13 +21,18 @@ import           Text.Megaparsec        (SourcePos)
 -- parameters are the holes in the order they are first written. Their names cannot be
 -- written in Ouro ('%1', and '?n', which lexes as a hole), so they never capture a name
 -- the call refers to. A case pattern's holes match values instead, so patterns are left
--- as they are; a rest hole ('?..name') belongs only in a pattern, and is reported by the
--- evaluator wherever else it is written. Runs before 'construct', so the function's body
--- is desugared like any other call.
+-- as they are, and so are a fn's parameters, which can be patterns too. A rest hole
+-- ('?..name') belongs only in a pattern, and is reported by the evaluator wherever else
+-- it is written. Runs before 'construct', so the function's body is desugared like any
+-- other call.
 placeholders :: S.Expr -> S.Expr
 placeholders = \case
     S.Form pos (cSym@(S.Symbol _ "case") : target : branches)
         -> S.Form pos (cSym : placeholders target : map branch branches)
+
+    -- A fn's parameters are names and patterns, not arguments, so only its body is read
+    S.Form pos [fnSym@(S.Symbol _ "fn"), params, body]
+        -> S.Form pos [fnSym, params, placeholders body]
 
     S.Form pos (headExpr@(S.Symbol _ name) : args)
         | name `notElem` holeFreeForms

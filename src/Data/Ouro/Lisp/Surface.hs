@@ -80,11 +80,18 @@ data ReaderTag
     deriving (Show, Eq)
 
 
--- A function's parameter: its name, and the type tag written before it, if any, as in
--- (defn node (#uri id type) ...)
+-- A function's parameter: its name, the type tag written before it, if any, and the
+-- pattern it destructures its argument with, if any, as in
+--
+--   (defn node (#uri id type) ...)
+--   (fn ((?slug ?label)) ...)
+--
+-- A pattern parameter's name cannot be written in Ouro ('%arg1', ...), so its argument
+-- is only reached through the holes of its pattern.
 data Param = Param
-    { paramName :: Text
-    , paramType :: Maybe (SourcePos, ReaderTag)
+    { paramName    :: Text
+    , paramType    :: Maybe (SourcePos, ReaderTag)
+    , paramPattern :: Maybe Expr
     } deriving (Show, Eq)
 
 

@@ -140,6 +140,12 @@ data SyntaxError
 
     | InvalidFunctionName
       { invalidName :: Text }
+
+    -- SYNTAX VIOLATION: MALFORMED PATTERN
+    -- Occurs when a pattern, in a case branch or a function's parameter list, is not
+    -- written as Ouro's patterns are: a hole inside a function call, a '?..rest' hole
+    -- that is not last, or a Record pattern holding something other than ':key pattern'.
+    | MalformedPattern
     deriving (Show, Eq, Ord, Generic)
 
 

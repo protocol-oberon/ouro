@@ -1,9 +1,14 @@
+;; A Getty AAT term, as a record
+(defn aat #rec (#str type #str id #str label)
+  (:id     #uri (+ "http://vocab.getty.edu/aat/" id)
+   :type   type
+   :_label label))
+
 ;; A JSON-LD graph must be named
 (graph auction-of-stowe-house
  ;; Private values, bound around the record that uses them
  (let ($auction-start   #date "1848-08-01T00:00:00Z"
-       $auction-restart #date "1848-09-09T00:00:00Z"
-       $getty           "http://vocab.getty.edu/aat/")
+       $auction-restart #date "1848-09-09T00:00:00Z")
 
   (:context       #uri "https://linked.art/ns/v1/linked-art.json"
 
@@ -11,22 +16,18 @@
    :type          "Activity"
    :_label        "Auction of Stowe House"
 
-   :classified_as ((:id     #uri (+ getty "300054751")
-                    :type   "Type"
-                    :_label "Auction Event"))
+   :classified_as ((aat "Type" "300054751" "Auction Event"))
 
    :timespan      (:type               "TimeSpan"
                    :identified_by      ((:type    "Name"
                                          :content "40 days in August and September, 1848"))
 
-                   ;; Variadic temporal addition to start date of auction
+                   ;; Date arithmetic: a duration added to a date, extended to the end of its unit
                    :begin_of_the_begin auction-start
                    :end_of_the_begin   (+ begin_of_the_begin (thru (days 19)))
                    :begin_of_the_end   auction-restart
                    :end_of_the_end     (+ begin_of_the_end (thru (days 21)))
 
-                   :duration           (:type "Dimension"
+                   :duration           (:type  "Dimension"
                                         :value 3
-                                        :unit  (:id     #uri (+ getty "300379242")
-                                                :type   "MeasurementUnit"
-                                                :_label "days"))))))
+                                        :unit  (aat "MeasurementUnit" "300379242" "days"))))))

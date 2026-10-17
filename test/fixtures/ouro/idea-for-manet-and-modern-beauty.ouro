@@ -1,0 +1,28 @@
+(defn core #rec (#uri id #str type #str label)
+  (:id id :type type :_label label))
+
+(defn aat #rec (#str id #str label)
+  (core #uri (+ "http://vocab.getty.edu/aat/" id) "Type" label))
+
+(defn ulan #rec (#str id #str label)
+  (core #uri (+ "http://vocab.getty.edu/ulan/" id) "Person" label))
+
+(defn example #uri (#str path)
+  (+ "https://linked.art/example/" path))
+
+(graph idea-for-manet-and-modern-beauty
+  (let ($person (fn #rec (#str slug #str label)
+                  (core (example (+ "person/" slug)) "Person" label)))
+    (:context "https://linked.art/ns/v1/linked-art.json"
+     (inlay (core (example "concept/exhidea/1") "PropositionalObject" "Idea for Manet and Modern Beauty"))
+     :classified_as ((aat "300417531" "Exhibition"))
+     :identified_by ((:type          "Name"
+                      :classified_as ((aat "300404670" "Primary Name"))
+                      :content       "Manet and Modern Beauty"))
+     :about         ((aat "300055821" "Beauty")
+                     (ulan "500010363" "Manet"))
+     :created_by    (:type           "Creation"
+                     :carried_out_by (map (fn ((?slug ?label)) (person slug label))
+                                          (("allan" "Scott Allan")
+                                           ("beeny" "Emily Beeny")
+                                           ("groom" "Gloria Groom")))))))

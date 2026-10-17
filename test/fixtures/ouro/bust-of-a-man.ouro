@@ -1,28 +1,32 @@
-(defn getty-att! ()
-   "http://vocab.getty.edu/aat/")
+;; Module wide constants are functions with no arguments
+(defn getty-aat #str ()
+  "http://vocab.getty.edu/aat/")
 
-(defn id-node! (id-of-id type-of-type lable)
-   (let ($getty-ulan "http://vocab.getty.edu/ulan/"
-         $uri        (case type-of-type
-                           ("Person"  getty-ulan)
-                           (otherwise (getty-att!))))
+;; A signature: the return type goes before the parameters, each parameter's type before its name
+(defn core #rec (#str id #str type #str label)
+  (let ($getty-ulan "http://vocab.getty.edu/ulan/"
+        $base       (case type
+                          ("Person"  getty-ulan)
+                          (otherwise (getty-aat))))
 
-     (:id     #uri (+ uri id-of-id)
-      :type   type-of-type
-      :_label lable)))
+    (:id     #uri (+ base id)
+     :type   type
+     :_label label)))
 
 (graph bust-of-a-man
- (:context "https://linked.art/ns/v1/linked-art.json"
+ ;; A call with ? holes is a function of its holes
+ (let ($aat-type (core ? "Type" ?))
 
-  :id     #uri "https://linked.art/example/object/bust/1"
-  :type   "HumanMadeObject"
-  :_label "Bust of a Man"
+  (:context "https://linked.art/ns/v1/linked-art.json"
 
-  :classified_as ((:id            #uri (+ (getty-att!) "300047090")
-                   :type          "Type"
-                   :_label        "Sculpture"
-                   :classified_as ((id-node! "300435443" "Type" "Type of Work"))))
+   :id     #uri "https://linked.art/example/object/bust/1"
+   :type   "HumanMadeObject"
+   :_label "Bust of a Man"
 
-  :produced_by   (:type           "Production"
-                  :technique      ((id-node! "300264383" "Type"   "Sculpting"))
-                  :carried_out_by ((id-node! "500015886" "Person" "Francis Harwood")))))
+   ;; inlay splices a record's attribute pairs into this one
+   :classified_as (((inlay (aat-type "300047090" "Sculpture"))
+                    :classified_as ((aat-type "300435443" "Type of Work"))))
+
+   :produced_by   (:type           "Production"
+                   :technique      ((aat-type "300264383" "Sculpting"))
+                   :carried_out_by ((core "500015886" "Person" "Francis Harwood"))))))

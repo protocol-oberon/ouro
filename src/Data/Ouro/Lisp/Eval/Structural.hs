@@ -13,10 +13,11 @@ import           Data.Ouro.Error.Diagnostics (incorrectArity, internalValueLeak,
 import           Data.Ouro.Error.Types       (OuroError (..))
 import qualified Data.Ouro.Internal.Expr     as I
 import qualified Data.Ouro.Internal.Kinds    as JLD
+import           Data.Ouro.Lisp.Eval.Pattern (matchPattern)
 import           Data.Ouro.Lisp.Eval.Schema  (parseContextDirectives)
 import           Data.Ouro.Lisp.Eval.Scope   (FrameEntry (..), allocFrame,
-                                              bindableAttr, collectBindings,
-                                              force)
+                                              allocValues, bindableAttr,
+                                              collectBindings, force)
 import           Data.Ouro.Lisp.Eval.Types   (Binding (..), Env (..), EvalM, Expr (..),
                                               humanReadableType)
 import qualified Data.Ouro.Lisp.Eval.Types   as L
@@ -453,4 +454,59 @@ evalFunction evaluator closureEnv pos fnId@(name, _) params bodyExprs actualArgs
                -- The body is one expression: the function's result
                case functionBody name pos bodyExprs of
                    Left  err    -> pure (EvalError err)
-                   Right result -> evaluator' functionEnv result
+                   Right result -> destructure evaluator' closureEnv functionEnv pos name (zip params actualArgs) >>= \case
+                                       Left  err     -> pure (EvalError err)
+                                       Right bodyEnv -> evaluator' bodyEnv result
+
+
+-- destructure
+--
+-- Matches each pattern parameter's argument against its pattern when the function is
+-- called, whether or not the body uses its holes, as a typed argument is checked. The
+-- holes are bound, as already-evaluated values, in one frame around the body. A value
+-- the pattern does not match is the caller's mistake, so it is reported at the argument.
+--
+-- The values written in a pattern are evaluated where the function is defined, so they
+-- cannot see the function's parameters: a pattern describes its own argument, and a
+-- check against another parameter is written in the body.
+destructure
+    :: (Env -> S.Expr -> EvalM L.Expr)  -- Evaluates an expression in an explicit environment
+    -> Env                              -- The function's closure: the frame it is defined in
+    -> Env                              -- The frame of the function's parameters
+    -> SourcePos                        -- Callsite position
+    -> Text                             -- The function's name
+    -> [(S.Param, S.Expr)]              -- Each parameter with its argument
+    -> EvalM (Either OuroError Env)
+destructure evaluator' closureEnv functionEnv pos name = go []
+    where
+    -- The closure, with the call stack that includes this call, so the recursion check holds
+    patternEnv = closureEnv & L.callStack .~ (functionEnv ^. L.callStack)
+
+    go bound = \case
+        []
+            | null bound -> pure (Right functionEnv)
+            | otherwise  -> Right <$> allocValues (\names -> functionEnv
+                                                             & L.localScope       .~ names
+                                                             & L.functionRegistry .~ Map.empty
+                                                             & L.parentEnv        .~ Just functionEnv)
+                                                  pos
+                                                  bound
+
+        (param, arg) : rest
+            | Just pattern <- S.paramPattern param
+            -> evaluator' functionEnv (S.Symbol (S.exprPos arg) (S.paramName param)) >>= \case
+                   EvalError err -> pure (Left err)
+                   value         -> matchPattern (evaluator' patternEnv) pattern value >>= \case
+                                        Left  err             -> pure (Left err)
+                                        Right (Just bindings) -> go (bound <> bindings) rest
+                                        Right Nothing         -> typeMismatch "an argument with the shape of the parameter's pattern"
+                                                                              (humanReadableType value)
+                                                                 & withBlurb ( "The function '" <> name <> "' takes this argument apart with a pattern, "
+                                                                            <> "as in (fn ((?a ?b)) ...), so the argument must have the pattern's shape."
+                                                                             )
+                                                                 & OuroError (S.exprPos arg)
+                                                                 & Left
+                                                                 & pure
+
+            | otherwise
+            -> go bound rest

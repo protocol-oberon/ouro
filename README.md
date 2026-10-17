@@ -318,6 +318,8 @@ This form simply tells the compiler to evaluation every expression after a `list
 
 Each element is passed to `f` as an ordinary call, so `f` must take exactly one argument, and its signature checks every element: a mismatch is reported at the Array. Mapping over an empty Array gives an empty Array, and mapping over anything other than an Array is an error. `map` cannot be the name of a `defn`, but `:map` is an ordinary key and `$map` an ordinary binding.
 
+When the elements are themselves Arrays or Records, a [pattern parameter](#destructuring-parameters) takes each one apart: `(map (fn ((?slug ?label)) (person slug label)) pairs)`.
+
 ### Nth
 
 `(nth)` is a special form that takes a number and either a record for a list and returns the value of the element at the index of the given number. It is 0 indexed.
@@ -625,8 +627,50 @@ A call with `?` holes among its arguments is not called: it is a function of its
 - A hole belongs to the call it is an argument of, so `(f (g ?))` passes `f` a function.
 - Any call takes holes: a `defn`, a `fn`, a builtin, and the special forms that evaluate their arguments (`get`, `nth`, `insert`, `replace-at`, `list`, `map`).
 - A placeholder is an ordinary `fn` value. It is called with exactly as many arguments as it has holes, and functions themselves stay uncurried.
-- A hole anywhere else (in an Array, in a Record, as a `let` value) is an error, and `?..rest` can only be written in a `case` pattern. The holes in a `case` pattern match values, as before; a placeholder can be written in a branch's body.
-     
+- A hole anywhere else (in an Array, in a Record, as a `let` value) is an error, and `?..rest` can only be written in a pattern. The holes in a `case` pattern or a [pattern parameter](#destructuring-parameters) match values; a placeholder can be written in a branch's body.
+
+### Destructuring parameters
+
+A parameter can be a pattern, written as a `case` pattern is. It takes one argument and names its parts, so a lambda can take a pair or a Record apart where it is written:
+
+``` clojure
+(defn person (slug label)
+  (:id #uri (+ "https://linked.art/example/person/" slug) :type "Person" :_label label))
+
+(defn label-of ((:_label ?l)) l)
+
+(graph destructured
+  (:carried_out_by (map (fn ((?slug ?label)) (person slug label))
+                        (("allan" "Scott Allan") ("beeny" "Emily Beeny")))
+   :label          (label-of (:type "Type" :_label "Beauty"))))
+```
+
+...compiles to:
+
+``` json
+{
+  "carried_out_by": [
+    {
+      "id": "https://linked.art/example/person/allan",
+      "type": "Person",
+      "_label": "Scott Allan"
+    },
+    {
+      "id": "https://linked.art/example/person/beeny",
+      "type": "Person",
+      "_label": "Emily Beeny"
+    }
+  ],
+  "label": "Beauty"
+}
+```
+
+- A pattern is one parameter: `(fn ((?a ?b)) ...)` takes one argument. Names and patterns can be mixed, as in `(defn sum (base (?a ?b)) ...)`.
+- Any `case` pattern can be written: Array and Record patterns, `?..rest` holes, and values compared by value, as in `(fn (("Person" ?l)) l)`. A pattern must bind something.
+- The argument is matched when the function is called, even if the body uses none of its holes. An argument that does not match is reported at the argument, or at the Array in `map`.
+- A tag before a pattern checks the argument first: `(fn (#arr (?a ?b)) ...)`.
+- Each name is bound once: two parameters, two holes, or a hole and a parameter with the same name are an error.
+
 ## Syntax Sugar
 
 Ouro offers some syntax sugar to make common Linked Art JSON-LD patterns a bit more ergonomic. An example of this is `thru`. `thru` handles the common pattern of setting a date/time occurrence to the last possible second i.e "1883-12-31T23:59:59Z". Instead of manually checking the correct months/days/minutes of a desired time in Ouro we can simply write `(thru (years 2))`. This allows us to make very human readable statements such as:
@@ -660,46 +704,49 @@ Ouro uses Scheme style lexical scoping, this means that scope is defined by the 
 
 *Purchase of Spring by Proust*
 ``` clojure
-(defn transfer (id-type type-of-type name)
+(defn core #rec (#str id #str type #str label)
   (let ($getty      "http://vocab.getty.edu/aat/"
         $linked-art "https://linked.art/example/"
-        $uri_type   (case id-type
+        $base       (case id
                           (("manet" "proust") (+ linked-art "person/"))
                           ("spring"           (+ linked-art "object/"))
                           ("manet_proust/1"   (+ linked-art "provenance/"))
                           (otherwise          getty)))
 
-    (:id     #uri (+ uri_type id-type)
-     :type   type-of-type
-     :_label name)))
+    (:id     #uri (+ base id)
+     :type   type
+     :_label label)))
 
 (graph purchase-of-spring
- (:context "https://linked.art/ns/v1/linked-art.json"
-  (inlay (transfer "manet_proust/1" "Activity" "Purchase of Spring by Proust"))
-  :classified_as ((transfer "300055863" "Type" "Provenance Activity"))
+ (let ($aat-type (core ? "Type" ?)
+       $person   (core ? "Person" ?))
 
-  :identified_by ((:type          "Name"
-                   :classified_as ((transfer "300404670" "Type" "Primary Name"))
-                   :content       "Purchase of Spring by Proust from Manet"))
+  (:context "https://linked.art/ns/v1/linked-art.json"
+   (inlay (core "manet_proust/1" "Activity" "Purchase of Spring by Proust"))
+   :classified_as ((aat-type "300055863" "Provenance Activity"))
 
-  :timespan (:type               "TimeSpan"
-             :begin_of_the_begin #date "1881-01-01T00:00:00Z"
-             :end_of_the_end     #date (+ begin_of_the_begin (thru (years 2))))
+   :identified_by ((:type          "Name"
+                    :classified_as ((aat-type "300404670" "Primary Name"))
+                    :content       "Purchase of Spring by Proust from Manet"))
 
-  ;; A List of records in Ouro is made from nested parens `(())`
-  :part ((:type   "Acquisition"
-          :_label "Ownership of Spring to Proust"
-          :transferred_title_of   ((transfer "spring" "HumanMadeObject" "Spring"))
-          :transferred_title_from ((transfer "manet"  "Person"          "Manet"))
-          :transferred_title_to   ((transfer "proust" "Person"          "Proust")))
+   :timespan (:type               "TimeSpan"
+              :begin_of_the_begin #date "1881-01-01T00:00:00Z"
+              :end_of_the_end     (+ begin_of_the_begin (thru (years 2))))
 
-         (:type        "Payment"
-          :_label      "3000 Francs to Manet"
-          :paid_amount (:type      "MonetaryAmount"
-                        :value     3000
-                        :currency  (transfer "300412016" "Currency" "French Francs"))
-         :paid_from    ((transfer "proust" "Person" "Proust"))
-         :paid_to      ((transfer "manet"  "Person" "Manet"))))))
+   ;; A list of records in Ouro is made from nested parens `(())`
+   :part ((:type                   "Acquisition"
+           :_label                 "Ownership of Spring to Proust"
+           :transferred_title_of   ((core "spring" "HumanMadeObject" "Spring"))
+           :transferred_title_from ((person "manet"  "Manet"))
+           :transferred_title_to   ((person "proust" "Proust")))
+
+          (:type        "Payment"
+           :_label      "3000 Francs to Manet"
+           :paid_amount (:type     "MonetaryAmount"
+                         :value    3000
+                         :currency (core "300412016" "Currency" "French Francs"))
+           :paid_from   ((person "proust" "Proust"))
+           :paid_to     ((person "manet"  "Manet")))))))
 ```
 
 Which compiles into the following JSON-LD:

@@ -37,9 +37,9 @@ import           Data.Ouro.Lisp.Eval.Structural (BlockTarget (..), alreadyAField
 import           Data.Ouro.Lisp.Eval.Types      (Env (..), EvalM, Expr (..),
                                                  humanReadableType)
 import qualified Data.Ouro.Lisp.Eval.Types      as L
-import           Data.Ouro.Lisp.Function        (isFunctionKeyword,
+import           Data.Ouro.Lisp.Function        (checkParams, isFunctionKeyword,
                                                  misplacedBinding,
-                                                 removedDefine,
+                                                 patternParam, removedDefine,
                                                  removedLocalDefn, strayHole,
                                                  typedResult)
 import           Data.Ouro.Lisp.Module.Types    (Module)
@@ -216,15 +216,15 @@ evalExpr expr = do
         -- (fn (args) expr): an anonymous function, closed over the scope it is written in.
         -- A return type is read as a tag on the parameter list: (fn #num (n) expr).
         S.Form pos [S.Symbol _ "fn", S.Form _ params, body]
-            | Just typed <- traverse param params
-            -> pure (FunctionClosure env ("fn", pos) typed [body])
+            | Just typed <- traverse param (zip [1 ..] params)
+            -> pure (either EvalError (const (FunctionClosure env ("fn", pos) typed [body])) (checkParams pos typed))
 
         S.Form pos [S.Symbol _ "fn", S.Tagged tPos tag (S.Form _ params), body]
-            | Just typed <- traverse param params
-            -> pure (FunctionClosure env ("fn", pos) typed [typedResult (Just (tPos, tag)) body])
+            | Just typed <- traverse param (zip [1 ..] params)
+            -> pure (either EvalError (const (FunctionClosure env ("fn", pos) typed [typedResult (Just (tPos, tag)) body])) (checkParams pos typed))
 
         S.Form pos (S.Symbol _ "fn" : _)
-            -> lexicalError "A fn is written (fn (args) expr): argument names, each with an optional type, then exactly one result expression."
+            -> lexicalError "A fn is written (fn (args) expr): argument names or patterns, each with an optional type, then exactly one result expression."
                & withBlurb "A signature's types are tags: (fn #num (#num n) (* n 2))."
                & OuroError pos
                & EvalError
@@ -732,9 +732,14 @@ notAField = \case
     _notAField   -> True
 
 
--- A function argument is a name, optionally typed by the tag before it: n or #num n
-param :: S.Expr -> Maybe S.Param
-param = \case
-    S.Symbol _ name                    -> Just (S.Param name Nothing)
-    S.Tagged pos tag (S.Symbol _ name) -> Just (S.Param name (Just (pos, tag)))
-    _notAName                          -> Nothing
+-- A function parameter is a name or a pattern, optionally typed by the tag before it:
+-- n, #num n, (?a ?b) or #arr (?a ?b). A pattern is named by its position among the parameters.
+-- A '$name' is read as (%binder "name"), which is a binding, not a pattern.
+param :: (Int, S.Expr) -> Maybe S.Param
+param (index, expr) = case expr of
+    S.Symbol _ name                       -> Just (S.Param name Nothing Nothing)
+    S.Tagged pos tag (S.Symbol _ name)    -> Just (S.Param name (Just (pos, tag)) Nothing)
+    S.Form _ (S.Symbol _ "%binder" : _)   -> Nothing
+    pattern@(S.Form _ _)                  -> Just (patternParam index Nothing pattern)
+    S.Tagged pos tag pattern@(S.Form _ _) -> Just (patternParam index (Just (pos, tag)) pattern)
+    _notAParameter                        -> Nothing

@@ -70,6 +70,10 @@ malformedCaseBranch :: ErrorContext
 malformedCaseBranch = Syntax $ MalformedCaseBranch
 
 
+malformedPattern :: ErrorContext
+malformedPattern = Syntax $ MalformedPattern
+
+
 missingOtherwise :: ErrorContext
 missingOtherwise = Syntax $ MissingOtherwiseFallback
 

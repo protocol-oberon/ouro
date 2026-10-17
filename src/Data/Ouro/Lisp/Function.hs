@@ -1,12 +1,14 @@
 module Data.Ouro.Lisp.Function
 ( bindingWithoutValue
 , checkFunctionName
+, checkParams
 , duplicateFunction
 , functionBody
 , graphBody
 , isFunctionKeyword
 , keyInLet
 , misplacedBinding
+, patternParam
 , removedDefine
 , removedLocalDefn
 , renamedDefun
@@ -15,6 +17,7 @@ module Data.Ouro.Lisp.Function
 , typedResult
 ) where
 
+import           Data.Foldable               (traverse_)
 import           Data.Function               ((&))
 import           Data.Ouro.Error.Diagnostics (invalidFunctionName, lexicalError,
                                               withBlurb)
@@ -43,6 +46,63 @@ typedResult = maybe id (uncurry S.Tagged)
 
 typedArgument :: S.Param -> S.Expr -> S.Expr
 typedArgument param arg = maybe arg (\(pos, tag) -> S.Tagged pos tag arg) (S.paramType param)
+
+
+-- Destructuring parameters.
+--
+-- A parameter can be a pattern, written as a case pattern is. It takes one argument, which
+-- is matched against the pattern when the function is called, and the pattern's holes are
+-- bound around the body:
+--
+--   (fn ((?slug ?label)) (person slug label))
+--   (defn label-of ((:_label ?l)) l)
+--
+-- The parameter itself is named by its position, '%arg1', '%arg2', ..., which cannot be
+-- written in Ouro, so its argument is only reached through the holes.
+patternParam :: Int -> Maybe (SourcePos, S.ReaderTag) -> S.Expr -> S.Param
+patternParam index tag pattern = S.Param ("%arg" <> T.pack (show index)) tag (Just pattern)
+
+
+-- checkParams.
+--
+-- A pattern parameter must bind something, so it is a Record pattern or holds a '?' hole.
+-- Each name a function binds, as a parameter or as a hole in a parameter's pattern, is
+-- bound once. Checked when a function is defined.
+checkParams :: SourcePos -> [S.Param] -> Either OuroError ()
+checkParams pos params = do
+    traverse_ checkPattern [ pattern | Just pattern <- map S.paramPattern params ]
+    case repeated (concatMap bound params) of
+        Just name -> lexicalError ("The parameter '" <> name <> "' is bound more than once.")
+                     & withBlurb "Each parameter, and each hole in a parameter's pattern, names a different value. Perhaps rename one of them."
+                     & OuroError pos
+                     & Left
+        Nothing   -> Right ()
+
+    where
+    checkPattern pattern
+        | S.isPatternForm pattern
+            = Right ()
+        | otherwise
+            = lexicalError "A parameter in parentheses is a pattern, but this one binds nothing."
+              & withBlurb "A pattern names the parts of its argument with holes: (fn ((?a ?b)) ...) for an Array, (fn ((:key ?k)) ...) for a Record."
+              & OuroError (S.exprPos pattern)
+              & Left
+
+    bound param = maybe [S.paramName param] holeNames (S.paramPattern param)
+
+    -- The names a pattern's holes bind: '?' binds nothing, '?name' and '?..name' bind 'name'
+    holeNames = \case
+        S.Hole _ hole      -> [ name | let name = T.dropWhile (`elem` ['?', '.']) hole, not (T.null name) ]
+        S.Form _ elems     -> concatMap holeNames elems
+        S.Tagged _ _ inner -> holeNames inner
+        _leaf              -> []
+
+    repeated = go []
+        where
+        go seen = \case
+            name : rest | name `elem` seen -> Just name
+                        | otherwise        -> go (name : seen) rest
+            []                             -> Nothing
 
 
 -- functionBody.
@@ -182,16 +242,17 @@ removedLocalDefn pos =
     & OuroError pos
 
 
--- A '?' hole is a placeholder among a call's arguments, or a value in a case pattern.
--- A rest hole only matches the rest of an Array or Record, so it belongs in a pattern.
+-- A '?' hole is a placeholder among a call's arguments, or a value in a pattern (of a case
+-- branch or a parameter). A rest hole only matches the rest of an Array or Record, so it
+-- belongs in a pattern.
 strayHole :: Text -> SourcePos -> OuroError
 strayHole hole pos
     | T.isPrefixOf "?.." hole
-        = lexicalError ("'" <> hole <> "' matches the rest of an Array or Record, so it can only be written in a case pattern.")
-          & withBlurb "Perhaps write it in a case branch: (case value ((?head ?..rest) rest) (otherwise ()))."
+        = lexicalError ("'" <> hole <> "' matches the rest of an Array or Record, so it can only be written in a pattern.")
+          & withBlurb "Perhaps write it in a case branch, (case value ((?head ?..rest) rest) (otherwise ())), or a parameter, (fn ((?head ?..rest)) rest)."
           & OuroError pos
     | otherwise
-        = lexicalError ("'" <> hole <> "' is a hole, which can only be written as an argument of a call or in a case pattern.")
+        = lexicalError ("'" <> hole <> "' is a hole, which can only be written as an argument of a call or in a pattern.")
           & withBlurb "A call with holes is a function of them: (+ ? 1) is (fn (n) (+ n 1))."
           & OuroError pos
 

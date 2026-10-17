@@ -187,7 +187,8 @@ module       = { declaration } ;
 declaration  = defn | graph ;
 defn         = "(" , "defn" , symbol , [ tag ] , params , expression , ")" ;
 graph        = "(" , "graph" , symbol , expression , ")" ;
-params       = "(" , { [ tag ] , symbol } , ")" ;     (* a tag types the parameter after it *)
+params       = "(" , { [ tag ] , ( symbol | param-pattern ) } , ")" ;     (* a tag types the parameter after it *)
+param-pattern = record-pattern | array-pattern ;     (* binds the parts of one argument *)
 
 (* ---------- Expressions ---------- *)
 expression   = literal | tagged | symbol | record | array | call | special-form ;
@@ -231,7 +232,7 @@ context      = ":context" , expression
              | "(" , "context" , "(" , { directive-key , expression } , ")" , ")" ;
 directive-key = "vocab" | "base" | "language" | "remote-context" ;
 
-(* ---------- Patterns (inside case) ---------- *)
+(* ---------- Patterns (inside case, and as parameters) ---------- *)
 pattern      = hole | record-pattern | array-pattern ;
 hole         = "?" | "?" , name ;
 rest-hole    = "?.." , name ;
@@ -397,9 +398,33 @@ A call with =?= holes among its arguments is not called: it is a function of its
 - *A hole belongs to the call it is an argument of*, so ~(* 2 (+ ? 1))~ multiplies 2 by a function (an error), and ~(f (g ?))~ passes =f= a function.
 - *Any call takes holes*: a =defn=, a =fn=, a built-in, a variadic operator (~(< ? 10 20)~) and the special forms that evaluate their arguments (=get=, =nth=, =insert=, =replace-at=, =list=, =map=). The forms with their own structure (=let=, =fn=, =case=, =attr=, =context=, =inlay=, =thru=) do not.
 - *A placeholder is a value*: it is a =fn=, closed over the scope it is written in, so it can be bound, passed and returned like one. It is called with exactly as many arguments as it has holes.
-- *A hole anywhere else is an error*: in an array, in a record, or as a binding's value. A rest hole, =?..name=, only matches the rest of an array or record, so it can only be written in a =case= pattern.
+- *A hole anywhere else is an error*: in an array, in a record, or as a binding's value. A rest hole, =?..name=, only matches the rest of an array or record, so it can only be written in a pattern: a =case= pattern or a [[*Destructuring parameters][parameter]].
 
 The holes in a =case= pattern are not placeholders: they match values (see [[*=case= and patterns][patterns]]). A placeholder can be written in a branch's body.
+
+*** Destructuring parameters
+
+A parameter can be a pattern, written as a =case= pattern is. It takes one argument and names its parts:
+
+#+BEGIN_SRC clojure
+(defn label-of ((:_label ?l)) l)
+
+(graph g
+  (:people (map (fn ((?slug ?label)) (:id slug :_label label))
+                (("allan" "Scott Allan") ("beeny" "Emily Beeny")))
+   :label  (label-of (:type "Type" :_label "Beauty"))))
+; {"people": [{"id": "allan", "_label": "Scott Allan"}, {"id": "beeny", "_label": "Emily Beeny"}],
+;  "label": "Beauty"}
+#+END_SRC
+
+- *A pattern is one parameter*: ~(fn ((?a ?b)) ...)~ takes one argument. Names and patterns can be mixed: ~(defn sum (base (?a ?b)) ...)~.
+- *Any pattern* can be written: array patterns, record patterns (open, as in =case=), =?..rest= holes, and values compared by value, as in ~(fn (("Person" ?l)) l)~. A pattern must bind something, so it is a record pattern or holds a hole.
+- *It is matched when the function is called*, even if the body uses none of its holes, as a typed argument is checked. The holes are bound in a frame around the body.
+- *A mismatch is the caller's*: it is reported at the argument in the call, or at the array in =map=.
+- *A tag before a pattern* checks the argument first: ~(fn (#arr (?a ?b)) ...)~.
+- *Each name is bound once*: two parameters, two holes, or a hole and a parameter with the same name are an error, reported where the function is defined.
+- *A pattern's values are evaluated where the function is defined*: a =defn='s pattern sees the module's functions, and a =fn='s sees the scope it is written in, but neither sees the function's other parameters. A check against another parameter is written in the body, with =case=.
+- *Placeholders leave parameters alone*: a =fn='s parameter list is not read as calls, so a hole in it is always a pattern's.
 
 ** Special forms
 
@@ -425,7 +450,7 @@ Negative indexes count from the end in =nth=, =insert= and =replace-at=. =insert
 
 *Value-based =get=.* =get= evaluates its target and walks the resulting records, so it works through function results, =inlay=, =case= and =let= alike. Only a record's attribute pairs can be reached, =let= bindings are private. Path components are bare symbols (=(get p q r)=, not =(get p :q)=) arrays are indexed with =nth=.
 
-*=map=.* ~(map f array)~ evaluates =f=, which must be a function (a =fn=, a =defn= name, a built-in or a placeholder), and =array=, which must be an array (=()= and =#arr-empty= are empty arrays). The result is an array of =f= called on each element, in order. Each element is passed as an ordinary call, made in a frame that binds the function and the element to names that cannot be written in Ouro, so arity, signatures and the recursion check apply as they do to any call: =f= must take one argument, a typed parameter checks every element, and a mismatch is reported at the array, since an element has no position of its own. With placeholders, ~(map (+ ? 1) xs)~ needs no =fn=, and ~(map f ?)~ is a function waiting for the array. =map= is a special form only at the head of a form: it cannot name a =defn=, but =:map= and =$map= are ordinary names.
+*=map=.* ~(map f array)~ evaluates =f=, which must be a function (a =fn=, a =defn= name, a built-in or a placeholder), and =array=, which must be an array (=()= and =#arr-empty= are empty arrays). The result is an array of =f= called on each element, in order. Each element is passed as an ordinary call, made in a frame that binds the function and the element to names that cannot be written in Ouro, so arity, signatures and the recursion check apply as they do to any call: =f= must take one argument, a typed parameter checks every element, and a mismatch is reported at the array, since an element has no position of its own. With placeholders, ~(map (+ ? 1) xs)~ needs no =fn=, and ~(map f ?)~ is a function waiting for the array. Elements that are themselves arrays or records are taken apart by a [[*Destructuring parameters][pattern parameter]]: ~(map (fn ((?k ?v)) ...) pairs)~. =map= is a special form only at the head of a form: it cannot name a =defn=, but =:map= and =$map= are ordinary names.
 
 ** =case= and patterns
 
@@ -509,12 +534,16 @@ data Expr
     | Form        SourcePos [Expr]          -- (...)
     | Bracket     SourcePos [Expr]          -- [...], reserved
 
--- A function's parameter, and the type tag written before it, if any
+-- A function's parameter, the type tag written before it, if any, and the pattern it
+-- destructures its argument with, if any
 data Param = Param
-    { paramName :: Text
-    , paramType :: Maybe (SourcePos, ReaderTag)
+    { paramName    :: Text
+    , paramType    :: Maybe (SourcePos, ReaderTag)
+    , paramPattern :: Maybe Expr
     }
 #+END_SRC
+
+A pattern parameter is named by its position, =%arg1=, =%arg2=, ..., which cannot be written in Ouro, so its argument is only reached through the pattern's holes. ~Function.checkParams~ checks the parameters when a function is defined, by the parser for a =defn= and by the evaluator for a =fn=: each pattern must bind something, and each name is bound once.
 
 There is no separate constructor for attribute pairs: the parser reads =:key value= as the form ~(attr "key" value)~, so a record is a ~Form~ of ~attr~ forms. A =$name= is read on its own as ~(%binder "name")~ and paired with its value only inside a =let= (see [[*Desugaring (~Canon~)][desugaring]]). A module is the parser's other output: a registry of =defn= declarations and a registry of =graph= declarations, each a ~HigherExpression~ indexed by its kind:
 
@@ -749,6 +778,8 @@ let functionEnv = closureEnv
                 & parentEnv        .~ Just closureEnv
                 & callStack        .~ Set.insert fnId callerStack
 #+END_SRC
+
+Then ~destructure~ forces each pattern parameter's promise and matches it with ~matchPattern~, the matcher =case= uses. The pattern's values are evaluated in the closure, carrying this call's stack so the recursion check holds, rather than in the parameter frame. The holes of every pattern are bound, as already-evaluated values, in one frame between the parameter frame and the body; a value that does not match is reported at its argument.
 
 *** Finishing
 

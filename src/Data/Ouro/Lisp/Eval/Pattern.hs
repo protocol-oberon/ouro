@@ -7,7 +7,7 @@ module Data.Ouro.Lisp.Eval.Pattern
 ) where
 
 import           Data.Function               ((&))
-import           Data.Ouro.Error.Diagnostics (malformedCaseBranch, withBlurb)
+import           Data.Ouro.Error.Diagnostics (malformedPattern, withBlurb)
 import           Data.Ouro.Error.Types       (OuroError (..))
 import qualified Data.Ouro.Internal.Expr     as I
 import           Data.Ouro.Lisp.Eval.Types   (EvalM, Expr (..))
@@ -144,7 +144,7 @@ noMatch = pure (Right Nothing)
 
 malformed :: SourcePos -> Text -> EvalM MatchResult
 malformed pos explanation =
-    malformedCaseBranch
+    malformedPattern
     & withBlurb explanation
     & OuroError pos
     & Left

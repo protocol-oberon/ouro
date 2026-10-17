@@ -239,6 +239,13 @@ splitErrorContext = \case
            , Nothing
            )
 
+    Syntax MalformedPattern
+        -> ( "Malformed Pattern"
+           , [ labeled "Pattern Rule: " "Patterns are written as values are: (pattern ...) for an Array, (:key pattern ...) for a Record, and ? or ?name for a hole."
+             ]
+           , Nothing
+           )
+
     Path (MissingPathKey key keys)
         -> ( "Missing Path Key"
            , [ labeled "Missing:   " (pretty key)
