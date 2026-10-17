@@ -1,0 +1,5 @@
+;; Source files are read as UTF-8 on every platform
+(graph encoding
+  (:type    "Person"
+   :_label  "Édouard Manet"
+   :content "Le Printemps — Jeanne Demarsy, une œuvre de 1881"))

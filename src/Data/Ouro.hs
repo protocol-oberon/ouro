@@ -10,6 +10,10 @@ module Data.Ouro
 , defaultOptions
 , validate
 
+-- * Reading source files
+, decodeSource
+, readSource
+
 -- * Core Execution Error Types
 , ErrorContext(..)
 , InternalError(..)
@@ -33,12 +37,14 @@ module Data.Ouro
 
 import           Control.Monad.Except        (ExceptT, runExceptT, throwError)
 import           Control.Monad.Writer        (Writer, runWriter, tell)
+import qualified Data.ByteString             as BS
 import           Data.Containers.ListUtils   (nubOrd)
 import           Data.Function               ((&))
 import           Data.List                   (sortOn)
 import           Data.List.NonEmpty          (NonEmpty (..))
 import qualified Data.List.NonEmpty          as NE
 import qualified Data.Map                    as Map
+import           Data.Maybe                  (fromMaybe)
 import           Data.Ouro.Error.Diagnostics (nonExistentGraph, smartErrorCode,
                                               smartWarningCode, typeMismatch,
                                               warningBlurb, warningSummary,
@@ -71,6 +77,7 @@ import           Data.Ouro.Lisp.Module.Types (HigherExpression (..),
 import qualified Data.Ouro.Lisp.Parser       as LP
 import           Data.Text                   (Text)
 import qualified Data.Text                   as T
+import qualified Data.Text.Encoding          as TE
 import qualified Data.Text.Lazy              as TL
 import           Lens.Micro.Platform         ((^.))
 import qualified Text.Megaparsec             as M
@@ -202,3 +209,22 @@ validate :: String -> Text -> PrinterOptions -> Either String TL.Text
 validate filename input opts = case JP.go filename input of
                                    Left  err  -> Left (errorBundlePretty err)
                                    Right expr -> Right (Ser.toJSON opts expr)
+
+
+-- Reading source files.
+--
+-- Ouro source is always UTF-8. GHC's text IO decodes with the locale's encoding, which on
+-- Windows is a code page such as 850, so 'É' would be read as two characters. The bytes
+-- are read as they are and decoded as UTF-8 instead. A leading byte order mark, which some
+-- Windows editors write, is dropped, and CRLF line endings become LF, so a file reads the
+-- same on every platform. A file that is not valid UTF-8 is an error, not garbled text.
+readSource :: FilePath -> IO (Either Text Text)
+readSource path = decodeSource path <$> BS.readFile path
+
+decodeSource :: FilePath -> BS.ByteString -> Either Text Text
+decodeSource path bytes =
+    case TE.decodeUtf8' (fromMaybe bytes (BS.stripPrefix byteOrderMark bytes)) of
+        Left  _    -> Left ("'" <> T.pack path <> "' is not valid UTF-8. Ouro source files are read as UTF-8: perhaps save it with that encoding.")
+        Right text -> Right (T.replace "\r\n" "\n" text)
+    where
+    byteOrderMark = BS.pack [0xEF, 0xBB, 0xBF]

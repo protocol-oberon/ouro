@@ -6,7 +6,8 @@ import           Control.Monad.IO.Class       (MonadIO, liftIO)
 import           Data.Char                    (isSpace)
 import           Data.Maybe                   (fromJust)
 import           Data.Ouro                    (CompilationResult (..), compile,
-                                               defaultOptions, toJSON)
+                                               defaultOptions, readSource,
+                                               toJSON)
 import           Data.Ouro.Error.Diagnostics  (warningBlurb, warningSummary)
 import           Data.Ouro.Error.Types        (OuroWarning (..))
 import qualified Data.Ouro.Internal.Expr      as I
@@ -14,9 +15,7 @@ import qualified Data.Ouro.Internal.Kinds     as JLD
 import           Data.Ouro.Lisp.Eval.Builtins (parseISO8601)
 import           Data.Text                    (Text)
 import qualified Data.Text                    as T
-import qualified Data.Text.IO                 as TIO
 import qualified Data.Text.Lazy               as TL
-import qualified Data.Text.Lazy.IO            as TLIO
 import           Hedgehog
 import           Text.Megaparsec              (SourcePos, initialPos)
 
@@ -27,9 +26,9 @@ import           Text.Megaparsec              (SourcePos, initialPos)
 
 shouldCompileTo :: (MonadTest m, MonadIO m) => FilePath -> String -> FilePath -> m ()
 shouldCompileTo test graph trgt = do
-    -- We must lift the file reading into the test monad
-    testContent <- liftIO $ TIO.readFile test
-    trgtContent <- liftIO $ TLIO.readFile trgt
+    -- Both files are read as UTF-8, as the compiler reads its source, whatever the code page
+    testContent <- readUtf8 test
+    trgtContent <- TL.fromStrict <$> readUtf8 trgt
 
     let res = compile test graph testContent
 
@@ -44,6 +43,11 @@ shouldCompileTo test graph trgt = do
             annotate (show err)
             -- 'failure' explicitly fails the property
             failure
+
+    where
+    readUtf8 path = liftIO (readSource path) >>= \case
+        Right content -> pure content
+        Left  err     -> annotate (T.unpack err) >> failure
 
 fixture :: FilePath -> FilePath
 fixture path = "./test/fixtures/" <> path

@@ -45,6 +45,7 @@ main = do
         , Language.operators
         , Language.dates
         , Language.classification
+        , Language.encoding
         -- Known gaps: pinned as they are today; a fix flips its test
         , Language.knownGaps
         ]

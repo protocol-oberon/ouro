@@ -169,11 +169,13 @@ Only graphs are serialised. Functions exist to build and reuse values. A module-
 | Binding        | =$name=                                  | any symbol; a private binding, only inside a =let=                  |
 | Reader tag     | =#uri=, =#date=, =#str=, =#num=, =#bool= | asserts the type of what follows; also =#rec=, =#arr=, =#fn=        |
 | Empty values   | =#rec-empty=, =#arr-empty=, =()=         | ={}=, =[]= and =[]=                                                 |
-| Hole           | =?=, =?name=, =?..name=                  | a placeholder in a call, or part of a =case= pattern                |
+| Hole           | =?=, =?name=, =?..name=                  | a placeholder in a call, or part of a pattern                       |
 | Delimiters     | =( )=                                    | =[ ]= is reserved: it parses, but has no meaning yet                |
 | Keywords       | =defn=, =graph=, =import=, =export=      | a keyword that only begins a longer name (=defnode=) is a symbol    |
 
 Block comments are written ~#| … |#~. A symbol starts with a letter or one of the operator characters ~_ + - * / < > = ! & | ~~, and may also contain digits, ~?~ and ~'~.
+
+A source file is UTF-8, on every platform. A letter is any Unicode letter, so =café= is a name and =:naïve= a key, and strings hold any text. A leading byte order mark is dropped and CRLF line endings become LF, so a file reads the same wherever it was saved; a file that is not valid UTF-8 is an error, not garbled text (~Data.Ouro.readSource~). The compiler's messages are UTF-8 too: on Windows the console's code page is switched to UTF-8 (65001) while =ouro= runs, and restored when it exits.
 
 A trailing =!= on a function name is allowed but has no meaning. Names live in one namespace, values and functions share it, and an inner value shadows an outer function of the same name.
 
@@ -997,7 +999,7 @@ Recorded 2026-10-12 and kept up to date since; none were caused by the scoping r
 
 7. /Fixed:/ ~(:name name)~ was a self-reference (a cycle). A binding now never sees itself, so the name refers outward.
 
-8. *Source is not read as UTF-8 on Windows*, so accented names are garbled.
+8. /Fixed:/ source was read in the Windows code page, so accented names were garbled, and so were the compiler's diagnostics. Source is now read as UTF-8 on every platform, and messages are written as UTF-8 (see [[*Lexical elements][Lexical elements]]).
 
 9. *Suggestions miss local names:* "Perhaps you meant" ranks only the root scope.
 

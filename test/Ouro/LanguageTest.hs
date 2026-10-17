@@ -7,11 +7,16 @@ module Ouro.LanguageTest
 , operators
 , dates
 , classification
+, encoding
 , knownGaps
 ) where
 
+import qualified Data.ByteString as BS
+import           Data.Ouro       (decodeSource, readSource)
+import qualified Data.Text       as T
 import           Hedgehog
-import           Utils    (compilesToJSON, failsWith, failsWithout)
+import           Utils           (compilesToJSON, failsWith, failsWithout,
+                                  fixture, shouldCompileTo)
 
 
 -- Only attribute pairs and elements reach the output. Functions, built-ins and other
@@ -263,6 +268,30 @@ dates = Group "Dates: calendar arithmetic"
 
     where
     date day = "#date \"" <> day <> "T00:00:00Z\""
+
+
+-- Source files are UTF-8 on every platform: a byte order mark is dropped, CRLF line endings
+-- become LF, and bytes that are not UTF-8 are an error rather than garbled text.
+encoding :: Group
+encoding = Group "Encoding: source files are UTF-8"
+    [ ("a UTF-8 file compiles",              withTests 1 . property $
+                                                  shouldCompileTo (fixture "ouro/encoding.ouro") "encoding" (fixture "json/encoding.json"))
+    , ("whatever the code page",             withTests 1 . property $ do
+                                                  content <- evalIO (readSource (fixture "ouro/encoding.ouro"))
+                                                  fmap (T.isInfixOf "\201douard Manet") content === Right True)
+    , ("names and keys can be any letters",  compilesToJSON "(defn caf\233 () \"x\") (graph g (:r (caf\233) :na\239ve 1))"
+                                                                 "{\"r\": \"x\", \"na\239ve\": 1}")
+    , ("UTF-8 is decoded",                   decodesTo [0xC3, 0x89, 0x64] "\201d")
+    , ("a byte order mark is dropped",       decodesTo [0xEF, 0xBB, 0xBF, 0x61] "a")
+    , ("CRLF becomes LF",                    decodesTo [0x61, 0x0D, 0x0A, 0x62] "a\nb")
+    , ("a lone CR is kept",                  decodesTo [0x61, 0x0D, 0x62] "a\rb")
+    , ("other bytes are an error",           withTests 1 . property $
+                                                  assert (either (T.isInfixOf "is not valid UTF-8") (const False)
+                                                                 (decodeSource "t.ouro" (BS.pack [0x61, 0xE9]))))
+    ]
+    where
+    decodesTo bytes expected = withTests 1 . property $
+        decodeSource "t.ouro" (BS.pack bytes) === Right expected
 
 
 -- Known gaps, numbered as in the specification's Appendix B. Each test pins the current,

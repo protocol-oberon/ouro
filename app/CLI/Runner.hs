@@ -15,7 +15,8 @@ import qualified Data.Text.Lazy.IO as TLIO
 import           System.Exit       (exitFailure)
 import           System.FilePath   (hasExtension, (</>))
 import           System.IO         (IOMode (..), hSetEncoding, hSetNewlineMode,
-                                    noNewlineTranslation, utf8, withFile)
+                                    noNewlineTranslation, stderr, utf8,
+                                    withFile)
 
 
 runCommand :: Command -> IO ()
@@ -35,7 +36,7 @@ runCompile ifp trgt mOutDir = do
 
     putStrLn $ "Compiling:           "<> ifp <> " [" <> trgt <> "] ..."
     -- Read and process the input file
-    content <- TIO.readFile ifp
+    content <- readSourceOrExit ifp
 
     case O.compile ifp trgt content of
         O.CompilationSuccess warnings code
@@ -63,7 +64,7 @@ runCompile ifp trgt mOutDir = do
 runValidate :: ValidateCommand -> IO ()
 runValidate (ValidateCommand fp op sp sc) =
     do
-    content <- TIO.readFile fp
+    content <- readSourceOrExit fp
     let targetOutPath = case op of
                             Just o  -> o
                             Nothing -> fp
@@ -99,6 +100,13 @@ runValidate (ValidateCommand fp op sp sc) =
                                                  False -> pure ()
 
                                              writeJSON targetOutPath json
+
+
+-- Reads a source file as UTF-8, whatever the platform's code page, or reports why it cannot
+readSourceOrExit :: FilePath -> IO T.Text
+readSourceOrExit fp = O.readSource fp >>= \case
+    Right content -> pure content
+    Left  err     -> TIO.hPutStrLn stderr err >> exitFailure
 
 
 -- Writes JSON as UTF-8 with LF line endings, regardless of platform defaults

@@ -25,6 +25,8 @@ Ouro is 100% declarative, and lazily evaluated. This allows for the values of re
 
 Each key can appear once in a record: writing a key twice is an error. An attribute pair never sees itself, so in `(:label label)` the `label` being looked up is the one from the enclosing scope. This is what lets a template simply write `(defn node (id type) (:id id :type type))`.
 
+Source files are UTF-8 on every platform, so strings, names and keys can hold any text: `(:_label "Édouard Manet")` compiles to `"_label": "Édouard Manet"` on Windows as well as Linux. A file saved in another encoding is reported, not garbled.
+
 ## Type assertions
 
 In JSON-LD, there are many datatypes which can look similar to a compiler. To ensure that the compiled JSON from Ouro code is always well formed, we can use type assertions to tell the compiler how to treat the next expression it encounters. Type assertions are denoted by `#type (expr)`.
@@ -927,4 +929,4 @@ These are agreed directions for Ouro, roughly in the order they will be built. N
   ```
 
 - **A threading form:** `(-> (base-node ...) (with :_label "Painting"))`, for building a record step by step, layered like `(inlay)`.
-- **UTF-8 input:** reading source files as UTF-8 on Windows, so accented names such as "Édouard Manet" are no longer garbled, followed by `λ` as an alias for `fn`.
+- **`λ`:** an alias for `fn`, now that source files are read as UTF-8.
