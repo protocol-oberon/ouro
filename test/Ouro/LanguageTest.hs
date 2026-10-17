@@ -14,15 +14,15 @@ import           Hedgehog
 import           Utils    (compilesToJSON, failsWith, failsWithout)
 
 
--- Only fields and elements reach the output. Functions, built-ins and other
+-- Only attribute pairs and elements reach the output. Functions, built-ins and other
 -- compile-time values must be used up before then, or the graph does not compile.
 serialisation :: Group
 serialisation = Group "Serialisation: only values reach the output"
     [ ("a let-bound fn is not output",              compilesToJSON "(graph g (let ($f (fn (x) x)) (:r (f 1))))"
                                                                    "{\"r\": 1}")
-    , ("a fn as a field is an error",               failsWith "an unexecuted function"
+    , ("a fn as an attribute value is an error",    failsWith "an unexecuted function"
                                                               "(graph g (:f (fn (x) x)))")
-    , ("a fn bound as a field is still output",     failsWith "an unexecuted function"
+    , ("a fn bound by an attribute pair is still output", failsWith "an unexecuted function"
                                                               "(graph g (:f (fn (x) x) :r (f 1)))")
     , ("a returned fn is an error",                 failsWith "an unexecuted function"
                                                               "(defn mk () (fn (x) x)) (graph g (:r (mk)))")
@@ -44,7 +44,7 @@ serialisation = Group "Serialisation: only values reach the output"
 -- The behaviour of the special forms and built-ins, as documented in the specification
 formsAndBuiltins :: Group
 formsAndBuiltins = Group "Special forms and built-ins"
-    [ ("insert a field into a record",              compilesToJSON "(graph g (:r (insert 0 :k 1 (:a 2))))"
+    [ ("insert an attribute pair into a record",    compilesToJSON "(graph g (:r (insert 0 :k 1 (:a 2))))"
                                                                    "{\"r\": {\"k\": 1, \"a\": 2}}")
     , ("insert counts negative indexes from the end", compilesToJSON "(graph g (:r (insert -1 4 (1 2 3))))"
                                                                    "{\"r\": [1, 2, 4, 3]}")
@@ -97,7 +97,7 @@ returnedFunctions = Group "Functions: arity and returned functions"
 
 
 -- A key appears once in a record. Inlays are layers: a later inlay overrides an earlier
--- one, and a field written in the record overrides both, whatever the order. insert and
+-- one, and an attribute pair written in the record overrides both, whatever the order. insert and
 -- replace-at cannot duplicate a key.
 recordKeys :: Group
 recordKeys = Group "Records: each key once"
@@ -107,21 +107,21 @@ recordKeys = Group "Records: each key once"
                                                               "(graph g (:x (:a 1 :a 2)))")
     , ("two contexts are an error",                 failsWith "The key 'context' is written twice"
                                                               "(graph g (:context \"https://x.org/c.json\" :context \"https://y.org/c.json\" :a 1))")
-    , ("a written field wins over an inlaid one",   compilesToJSON (base <> "(graph g (:type \"Mine\" (inlay (base))))")
+    , ("a written attribute pair wins over an inlaid one", compilesToJSON (base <> "(graph g (:type \"Mine\" (inlay (base))))")
                                                                    "{\"type\": \"Mine\", \"id\": \"1\"}")
     , ("whatever the order",                        compilesToJSON (base <> "(graph g ((inlay (base)) :type \"Mine\"))")
                                                                    "{\"id\": \"1\", \"type\": \"Mine\"}")
-    , ("a lookup sees the written field",           compilesToJSON (base <> "(graph g (:type \"Mine\" :r type (inlay (base))))")
+    , ("a lookup sees the written attribute pair",  compilesToJSON (base <> "(graph g (:type \"Mine\" :r type (inlay (base))))")
                                                                    "{\"type\": \"Mine\", \"r\": \"Mine\", \"id\": \"1\"}")
     , ("a later inlay overrides an earlier one",    compilesToJSON "(defn a () (:k 1 :j 1)) (defn b () (:k 2)) (graph g (:x 0 (inlay (a)) (inlay (b))))"
                                                                    "{\"x\": 0, \"j\": 1, \"k\": 2}")
-    , ("a written field settles two inlays",        compilesToJSON "(defn a () (:k 1)) (defn b () (:k 2)) (graph g (:k 3 (inlay (a)) (inlay (b))))"
+    , ("a written attribute pair settles two inlays", compilesToJSON "(defn a () (:k 1)) (defn b () (:k 2)) (graph g (:k 3 (inlay (a)) (inlay (b))))"
                                                                    "{\"k\": 3}")
-    , ("insert cannot add an existing key",         failsWith "already has a field"
+    , ("insert cannot add an existing key",         failsWith "already has an attribute"
                                                               "(graph g (:r (insert 0 :a 9 (:a 1))))")
-    , ("replace-at can keep the field's own key",   compilesToJSON "(graph g (:r (replace-at 0 :a 9 (:a 1 :b 2))))"
+    , ("replace-at can keep the attribute pair's own key", compilesToJSON "(graph g (:r (replace-at 0 :a 9 (:a 1 :b 2))))"
                                                                    "{\"r\": {\"a\": 9, \"b\": 2}}")
-    , ("replace-at cannot duplicate another key",   failsWith "already has a field"
+    , ("replace-at cannot duplicate another key",   failsWith "already has an attribute"
                                                               "(graph g (:r (replace-at 0 :b 9 (:a 1 :b 2))))")
     ]
 
@@ -144,7 +144,7 @@ types = Group "Types: the rules as they are"
                                                                    "{\"r\": [1], \"s\": [], \"t\": [1]}")
     , ("insert takes any value into an array",      compilesToJSON "(graph g (:r (insert 0 \"x\" (1 2)) :s (insert 0 1 #arr-empty)))"
                                                                    "{\"r\": [\"x\", 1, 2], \"s\": [1]}")
-    , ("a field cannot be inserted into an array",  failsWith "a datatype for insertion matching"
+    , ("an attribute pair cannot be inserted into an array", failsWith "a datatype for insertion matching"
                                                               "(graph g (:r (insert 0 :k 1 (1 2))))")
     , ("a mixed array is described as mixed",       failsWith "an Array of mixed values"
                                                               "(graph g (:r (+ 1 (1 \"a\"))))")
@@ -156,7 +156,7 @@ types = Group "Types: the rules as they are"
                                                                    "{\"r\": false}")
     , ("a case literal of another type never matches", compilesToJSON "(graph g (:r (case 5 (\"5\" \"string\") (otherwise \"number\"))))"
                                                                    "{\"r\": \"number\"}")
-    , ("records are equal whatever their field order", compilesToJSON "(graph g (:r (eq (:a 1 :b 2) (:b 2 :a 1))))"
+    , ("records are equal whatever the order of their attribute pairs", compilesToJSON "(graph g (:r (eq (:a 1 :b 2) (:b 2 :a 1))))"
                                                                    "{\"r\": true}")
 
       -- Ordering and arithmetic
@@ -220,7 +220,7 @@ operators = Group "Operators: operands and desugaring"
 
 
 -- How a form is read, from its direct elements only, never their types: a call if it
--- starts with a symbol, a record if any element is a ':key value' field (or a context),
+-- starts with a symbol, a record if any element is a ':key value' attribute pair (or a context),
 -- and an array otherwise. A record inside an array has its own parentheses.
 classification :: Group
 classification = Group "Classification: records, arrays and calls"
@@ -230,11 +230,11 @@ classification = Group "Classification: records, arrays and calls"
                                                                    "{\"r\": [{\"k\": 1}, \"x\", 3]}")
     , ("an array of one record",                    compilesToJSON "(graph g (:r ((:a 1))))"
                                                                    "{\"r\": [{\"a\": 1}]}")
-    , ("a field makes a record",                    compilesToJSON "(graph g (:r (:a 1)))"
+    , ("an attribute pair makes a record",          compilesToJSON "(graph g (:r (:a 1)))"
                                                                    "{\"r\": {\"a\": 1}}")
     , ("a loose value in a record is an error",     failsWith "an unbound expression"
                                                               "(graph g (:r (:a 1 2)))")
-    , ("one field among values makes a record",     failsWith "an unbound expression"
+    , ("one attribute pair among values makes a record", failsWith "an unbound expression"
                                                               "(graph g (:r (1 :a 2)))")
     ]
 
@@ -289,6 +289,6 @@ knownGaps = Group "Known gaps: current, incorrect behaviour"
                                                               "(defn a () (:k 1)) (defn b () (:j 2)) (graph g ((inlay (a)) (inlay (b))))")
     , ("gap 17: a URI's empty root path is dropped", compilesToJSON "(graph g (:u #uri \"https://a.org/\"))"
                                                                    "{\"u\": \"https://a.org\"}")
-    , ("gap 18: a field among values has no hint",  failsWithout "(1 (:a 2))"
+    , ("gap 18: an attribute pair among values has no hint", failsWithout "(1 (:a 2))"
                                                                  "(graph g (:r (1 :a 2)))")
     ]

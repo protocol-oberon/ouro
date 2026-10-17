@@ -17,7 +17,7 @@ tests = Group "Structural Lookaheads"
     , ("routes leading symbols to FunctionApp",   prop_symbol_targetFunctionApp)
     , ("routes 'context' bindings to TargetRecord", prop_context_targetRecord)
     , ("routes 'define' macros to TargetList",    prop_define_targetList)
-    , ("routes nested objects to TargetList",     prop_nestedObject_targetList)
+    , ("routes nested records to TargetList",     prop_nestedRecord_targetList)
     , ("routes nested matrices to TargetList",    prop_nestedMatrix_targetList)
     , ("routes nested functions to TargetList",   prop_nestedFunction_targetList)
     , ("defaults empty streams to TargetList",    prop_empty_targetList)
@@ -47,8 +47,8 @@ prop_define_targetList :: Property
 prop_define_targetList = property $ do
     determineBlockTarget [S.Form nullPos [S.Symbol nullPos "define", S.Symbol nullPos "x"]] === TargetList
 
-prop_nestedObject_targetList :: Property
-prop_nestedObject_targetList = property $ do
+prop_nestedRecord_targetList :: Property
+prop_nestedRecord_targetList = property $ do
     determineBlockTarget [S.Form nullPos [S.Form nullPos [S.Symbol nullPos "attr", S.Literal nullPos (S.Str "Test")]]] === TargetList
 
 prop_nestedMatrix_targetList :: Property

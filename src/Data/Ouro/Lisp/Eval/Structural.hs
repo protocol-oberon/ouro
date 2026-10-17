@@ -39,10 +39,10 @@ import           Text.Megaparsec             (SourcePos)
 -- type-safe graph layers. Rather than applying standard top-down sequential evaluation, it operates in three distinct,
 -- highly deliberate stages to enforce declarative order-independence within the local block:
 --
---   1. Sweeping & Binding: It passes over the fields using 'collectBindings' to harvest their
+--   1. Sweeping & Binding: It passes over the attribute pairs using 'collectBindings' to harvest their
 --      un-evaluated expressions.
---   2. Environment Isolation: Every field becomes a promise in a fresh lexical 'Env' frame, whose parent
---      is the ambient env. The promises close over the frame itself, so fields can reference their
+--   2. Environment Isolation: Every attribute pair becomes a promise in a fresh lexical 'Env' frame, whose parent
+--      is the ambient env. The promises close over the frame itself, so attribute pairs can reference their
 --      siblings in any order.
 --   3. Semantic Extraction & Context Lowering: It evaluates the properties into a core GADT structural list.
 compileRecord
@@ -50,8 +50,8 @@ compileRecord
     -> Env
     -> [S.Expr]
     -> EvalM L.Expr
-compileRecord evaluator env fields =
-    case collectBindings fields of
+compileRecord evaluator env items =
+    case collectBindings items of
         -- Dynamic environment allocation failures represent a catastrophic scope break
         Left err
             -> pure (EvalError err)
@@ -64,9 +64,9 @@ compileRecord evaluator env fields =
                                                        & L.functionRegistry .~ Map.empty
                                                        & L.parentEnv        .~ Just env)
                                             entries
-               -- Each output field is evaluated through its own promise, found by its position
-               let fieldAddrs = Map.fromList [ (entryPos entry, addr) | (entry, addr) <- zip entries addrs, entryIsField entry ]
-               emitProps evaluator frame fieldAddrs fields
+               -- Each output attribute pair is evaluated through its own promise, found by its position
+               let attrAddrs = Map.fromList [ (entryPos entry, addr) | (entry, addr) <- zip entries addrs, entryIsAttr entry ]
+               emitProps evaluator frame attrAddrs items
 
 
 -- Iterates through a stream of tokens to filter and evaluate physical properties into a L.Expr superset tree.
@@ -74,22 +74,22 @@ compileRecord evaluator env fields =
 emitProps
     :: (Env -> S.Expr -> EvalM L.Expr)
     -> Env
-    -> Map.Map SourcePos L.Addr     -- The promise of each output field, by the position of its ':key'
+    -> Map.Map SourcePos L.Addr     -- The promise of each output attribute pair, by the position of its ':key'
     -> [S.Expr]
     -> EvalM L.Expr
-emitProps evaluator env fieldAddrs expressions = go I.EmptyMeta expressions
+emitProps evaluator env attrAddrs expressions = go I.EmptyMeta expressions
     where
-    -- The keys written in this record. A key can be written once: a later field with the
+    -- The keys written in this record. A key can be written once: a later attribute pair with the
     -- same key is an error, and so is a second context. Inlays are layers: a later inlay
-    -- overrides an earlier one, and written fields override both.
-    writtenFields = [ (key, fieldPos) | Just (key, fieldPos, _) <- map bindableAttr expressions ]
-    writtenKeys   = Set.fromList (map fst writtenFields)
+    -- overrides an earlier one, and written attribute pairs override both.
+    writtenAttrs  = [ (key, attrPos) | Just (key, attrPos, _) <- map bindableAttr expressions ]
+    writtenKeys   = Set.fromList (map fst writtenAttrs)
 
     writtenAgain :: Map.Map SourcePos OuroError
     writtenAgain  = Map.fromList
-        [ (fieldPos, writtenTwice key fieldPos)
-        | (i, (key, fieldPos)) <- zip [0 :: Int ..] writtenFields
-        , key `elem` map fst (take i writtenFields)
+        [ (attrPos, writtenTwice key attrPos)
+        | (i, (key, attrPos)) <- zip [0 :: Int ..] writtenAttrs
+        , key `elem` map fst (take i writtenAttrs)
         ]
 
     laterContexts = drop 1 [ pos | S.Form _ (S.Symbol pos "context" : _) <- expressions ]
@@ -147,7 +147,7 @@ emitProps evaluator env fieldAddrs expressions = go I.EmptyMeta expressions
 
                                                     -- 2. The successful path: Merge the evaluated pairs (p) into the current scope.
                                                     --    A key written in this record, or supplied by a later inlay
-                                                    --    (already in nextPairs), overrides this inlay's field.
+                                                    --    (already in nextPairs), overrides this inlay's attribute pair.
                                                     Record _ p    -> let laterKeys = Set.fromList [ k | (k, _) <- nextPairs, k `notElem` ["*err*", "@context"] ]
                                                                          overridden k = Set.member k writtenKeys || Set.member k laterKeys
                                                                          spliced   = [ (k, v) | (k, v) <- p, not (overridden k) ]
@@ -163,26 +163,26 @@ emitProps evaluator env fieldAddrs expressions = go I.EmptyMeta expressions
                                         otherVal -> pure otherVal
 
                   -- Case C: Extract valid body pairs using the new structured attribute form.
-                  -- The value comes from the field's promise, which lookups of the same field share.
+                  -- The value comes from the attribute pair's promise, which lookups of the same attribute share.
                   attrExpr : rest
-                      | Just (key, fieldPos, _) <- bindableAttr attrExpr
-                      , Just err <- Map.lookup fieldPos writtenAgain
+                      | Just (key, attrPos, _) <- bindableAttr attrExpr
+                      , Just err <- Map.lookup attrPos writtenAgain
                       -> go metaAcc rest <&> \case
                              Record finalMeta nextPairs -> Record finalMeta ((key, EvalError err) : nextPairs)
                              otherVal                   -> otherVal
 
                   attrExpr : rest
-                      | Just (key, fieldPos, valExpr) <- bindableAttr attrExpr
+                      | Just (key, attrPos, valExpr) <- bindableAttr attrExpr
                       -> go metaAcc rest >>= \case
                              Record finalMeta nextPairs
-                                 -> fieldValue fieldPos valExpr <&> \case
+                                 -> attrValue attrPos valExpr <&> \case
                                         -- 1. Catch error leaves completely independently
                                         EvalError err -> Record finalMeta ((key, EvalError err) : nextPairs)
 
                                         -- 2. Clean primitive values (frozen GADTs)
                                         Primitive prim -> Record finalMeta ((key, Primitive prim) : nextPairs)
 
-                                        -- 3. Accept nested object configurations
+                                        -- 3. Accept nested record configurations
                                         Record m p -> Record finalMeta ((key, Record m p) : nextPairs)
 
                                         -- 4. Accept array configurations
@@ -220,12 +220,12 @@ emitProps evaluator env fieldAddrs expressions = go I.EmptyMeta expressions
                                 otherVal   -> otherVal
 
 
-    -- Forces the field's promise. Every bindable field is given one by compileRecord,
+    -- Forces the attribute pair's promise. Every bindable attribute pair is given one by compileRecord,
     -- so evaluating the expression directly is only a fallback.
-    fieldValue :: SourcePos -> S.Expr -> EvalM L.Expr
-    fieldValue fieldPos valExpr =
-        case Map.lookup fieldPos fieldAddrs of
-            Just addr -> force inCurrentEnv fieldPos addr
+    attrValue :: SourcePos -> S.Expr -> EvalM L.Expr
+    attrValue attrPos valExpr =
+        case Map.lookup attrPos attrAddrs of
+            Just addr -> force inCurrentEnv attrPos addr
             Nothing   -> evaluator env valExpr
 
     -- 'force' switches to the promise's env; evaluate in whatever env is current
@@ -237,15 +237,15 @@ emitProps evaluator env fieldAddrs expressions = go I.EmptyMeta expressions
 writtenTwice :: Text -> SourcePos -> OuroError
 writtenTwice key pos =
     lexicalError ("The key '" <> key <> "' is written twice in the same record.")
-    & withBlurb "Each key can appear once in a record. Perhaps remove one of the fields, or rename it."
+    & withBlurb "Each key can appear once in a record. Perhaps remove one of the attribute pairs, or rename it."
     & OuroError pos
 
 
 -- 'insert' (or 'replace-at') would give a record the same key twice
 alreadyAField :: Text -> SourcePos -> OuroError
 alreadyAField key pos =
-    lexicalError ("The record already has a field '" <> key <> "'.")
-    & withBlurb "Each key can appear once in a record. Perhaps use replace-at to change the existing field."
+    lexicalError ("The record already has an attribute '" <> key <> "'.")
+    & withBlurb "Each key can appear once in a record. Perhaps use replace-at to change the existing attribute pair."
     & OuroError pos
 
 
@@ -311,21 +311,21 @@ compileArray evaluator env pos elements = Array <$> compileElements env elements
                                                   in (EvalError err :) <$> compileElements env' xs
 
             -- Case C: Process structured nested forms (Records or trailing list matrices)
-            ((S.Form _ fields) : xs)
+            ((S.Form _ items) : xs)
                 -- 1. Intercept Nested Arrays: recursively compile as a matrix
-                | TargetList <- determineBlockTarget fields
-                -> (:) <$> compileArray evaluator env' pos fields <*> compileElements env' xs
+                | TargetList <- determineBlockTarget items
+                -> (:) <$> compileArray evaluator env' pos items <*> compileElements env' xs
 
-                -- 2. Intercept Nested Records: compile using the object scope builder
-                | TargetRecord <- determineBlockTarget fields
+                -- 2. Intercept Nested Records: compile using the record scope builder
+                | TargetRecord <- determineBlockTarget items
                 -> do
-                   evaledItem <- compileRecord evaluator env' fields
+                   evaledItem <- compileRecord evaluator env' items
                    restL      <- compileElements env' xs
                    pure $ case evaledItem of
                           -- Retain independent error leaves found inside nested scopes safely
                           EvalError err -> EvalError err : restL
 
-                          -- Seamlessly capture the open object superset node
+                          -- Seamlessly capture the open record superset node
                           Record    m p -> Record    m p : restL
                           Primitive p   -> Primitive p   : restL
                           otherVal      -> typeMismatch
@@ -335,7 +335,7 @@ compileArray evaluator env pos elements = Array <$> compileElements env elements
                                            & OuroError pos
                                            & (\e -> EvalError e : restL)
 
-            -- Case D: Process flat scalar fields or variables evaluated within the element stream
+            -- Case D: Process flat scalar values or variables evaluated within the element stream
             (otherExpr : xs)
                 -> do
                    evaledVal <- evaluator env' otherExpr
@@ -369,12 +369,12 @@ data BlockTarget
 
 -- Inspects incoming form tokens to determine if they compose an Record or a List.
 determineBlockTarget :: [S.Expr] -> BlockTarget
-determineBlockTarget fields =
-    case fields of
+determineBlockTarget items =
+    case items of
         []       -> TargetList
         (x : xs) -> case isFunctionApplication (x : xs) of
                         True -> TargetFunctionApp
-                        False -> case any isStructuralField fields of
+                        False -> case any isStructuralAttr items of
                                          True  -> TargetRecord
                                          False -> TargetList
 
@@ -385,8 +385,8 @@ determineBlockTarget fields =
          (S.Symbol _ name : _) -> not (isFunctionKeyword name || name `elem` ["define", "context"])
          _NotaFunc             -> False
 
-    isStructuralField :: S.Expr -> Bool
-    isStructuralField =
+    isStructuralAttr :: S.Expr -> Bool
+    isStructuralAttr =
         \case
          S.Form _ (S.Symbol _ "attr"    : _) -> True
          S.Form _ (S.Symbol _ "context" : _) -> True

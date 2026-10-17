@@ -28,7 +28,7 @@ type MatchResult = Either OuroError (Maybe Bindings)
 --
 -- Matches an evaluated value against a pattern written in Ouro's own construction syntax:
 --
---   * Record patterns  (:key pattern ... ?..rest)  match by key, in any order. Fields the
+--   * Record patterns  (:key pattern ... ?..rest)  match by key, in any order. Attribute pairs the
 --     pattern does not mention are allowed, and '?..rest' binds them as a Record.
 --   * Array patterns   (pattern ... ?..rest)       match by position; '?..rest' must come last
 --     and binds the remaining elements as an Array.
@@ -86,8 +86,8 @@ matchPattern evaluator pattern value =
 
     matchRecord :: SourcePos -> [S.Expr] -> L.Expr -> EvalM MatchResult
     matchRecord pos elems = \case
-        Record meta pairs    -> fields meta pairs
-        Primitive I.EmptyRec -> fields I.EmptyMeta []
+        Record meta pairs    -> attrs meta pairs
+        Primitive I.EmptyRec -> attrs I.EmptyMeta []
         _notARecord          -> noMatch
         where
         keyed = [ (key, p) | S.Form _ [S.Symbol _ "attr", S.Literal _ (S.Str key), p] <- elems ]
@@ -101,7 +101,7 @@ matchPattern evaluator pattern value =
                   S.Hole _ name -> isRestHole name
                   _other        -> False
 
-        fields meta pairs =
+        attrs meta pairs =
             case (strays, rests) of
                 (stray : _, _)
                     -> malformed (S.exprPos stray)
@@ -112,10 +112,10 @@ matchPattern evaluator pattern value =
                 _valid
                     -> let unmentioned = [ (k, v) | (k, v) <- pairs, k `notElem` map fst keyed ]
                            restBinding = concat [ bindHole name (Record meta unmentioned) | name <- rests ]
-                           field (key, p) = case lookup key pairs of
+                           attr (key, p) = case lookup key pairs of
                                                 Just v  -> matchPattern evaluator p v
                                                 Nothing -> noMatch
-                       in foldr (andThen . field) (matched restBinding) keyed
+                       in foldr (andThen . attr) (matched restBinding) keyed
 
 
 -- Runs the second match only when the first one succeeded, collecting both sets of bindings

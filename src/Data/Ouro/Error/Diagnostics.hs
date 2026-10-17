@@ -195,7 +195,7 @@ typeMismatchBlurb =
                                 I.URI       _ -> suggestion   <> "#uri"
                                 -- Structural Primitives
                                 I.Array  _    -> cannotAssert <> "an array"
-                                I.Record _ _  -> cannotAssert <> "a object"
+                                I.Record _ _  -> cannotAssert <> "a record"
 
         _ -> blurb
           <> "You can only make type assertions on primitive values. Supported types include:"
@@ -303,7 +303,7 @@ formatSmartLiteral t
 warningBlurb :: WarningContext -> Text
 warningBlurb = \case
     Lint (UnanchoredLiteral tag val)
-        -> "Ouro evaluates floating values inside array and object layers as unanchored literals. "
+        -> "Ouro evaluates floating values inside array and record layers as unanchored literals. "
         <> "Because this value is positioned directly next to " <> tag <> ", it has no semantic binding key "
         <> "and will be completely erased from properties at compile time.\n\n"
         <> "Perhaps assign it to a property attribute key (e.g., :label " <> formatSmartLiteral val <> "), if it is intendented to be saved."
@@ -320,12 +320,12 @@ warningBlurb = \case
     Semantic (ElidedPropertyAssign key construct)
         -> "The expression assigned to the property attribute '" <> key <> "' evaluates exclusively to a compile-time '"
         <> construct <> "' block. Because elided control structures leave zero footprint in final binary payloads, "
-        <> "this entire key-value pair will vanish from the compiled JSON-LD document context entirely."
+        <> "this entire attribute pair will vanish from the compiled JSON-LD document context entirely."
 
     Vocab (UnboundTypeReference typeId ctx)
         -> "The active validation profile cannot resolve the declaration type reference '" <> typeId <> "' "
         <> "within " <> ctx <> ". The compiler will allow compilation to complete as a flexible schema extension, "
-        <> "but the output field might fail automated Linked-Art semantic shape checks down the pipeline."
+        <> "but the output attribute pair might fail automated Linked-Art semantic shape checks down the pipeline."
 
 
 --- Warning Context Diagnostic Summaries ---

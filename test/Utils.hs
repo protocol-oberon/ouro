@@ -49,7 +49,7 @@ fixture :: FilePath -> FilePath
 fixture path = "./test/fixtures/" <> path
 
 
--- Generates a complete, schema-less 'JLD.Primitive Record from a list of key-value pairs.
+-- Generates a complete, schema-less 'JLD.Primitive Record from a list of attribute pairs.
 -- Maps perfectly to: ={ "k1" = v1, "k2" = v2 }=
 mkObj :: [(String, I.Expr 'JLD.Primitive)] -> I.Expr 'JLD.Primitive
 mkObj pairs = I.Record I.EmptyMeta (mkSpine pairs)

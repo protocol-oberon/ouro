@@ -17,13 +17,13 @@ The target structure of Ouro code is determined by a few simple rules, which onl
 2. Otherwise, an expression that contains an attribute pair `(:key value)` will compile to a JSON-LD **Object**.
 3. Anything else, such as `(1 2 3)` or `()`, will compile to a JSON-LD **Array**.
 
-Through composition of these rules it is possible to ergonomically express any JSON-LD structure in Ouro with just parentheses. For example to make an nested list of objects the following syntax would be used `((:key val) (:key val))`.
+Through composition of these rules it is possible to ergonomically express any JSON-LD structure in Ouro with just parentheses. For example to make an nested list of records the following syntax would be used `((:key val) (:key val))`.
 
-- Arrays in Ouro, like JSON arrays, may contain values of mixed types, `(1 "a" (:k 1))`. `(insert)` can put any value into an Array, but not a `:key value` field.
+- Arrays in Ouro, like JSON arrays, may contain values of mixed types, `(1 "a" (:k 1))`. `(insert)` can put any value into an Array, but not a `:key value` attribute pair.
 
-Ouro is 100% declarative, and lazily evaluated. This allows for the values of records to not only be referenced within the local scope of the expression, but also out of declaration order. To reference the value of a field, simply call the key without the colon, so `:lookup value` becomes `lookup`, which returns the `value`.
+Ouro is 100% declarative, and lazily evaluated. This allows for the values of records to not only be referenced within the local scope of the expression, but also out of declaration order. To reference the value of an attribute pair, simply call the key without the colon, so `:lookup value` becomes `lookup`, which returns the `value`.
 
-Each key can appear once in a record: writing a key twice is an error. A field never sees itself, so in `(:label label)` the `label` being looked up is the one from the enclosing scope. This is what lets a template simply write `(defn node (id type) (:id id :type type))`.
+Each key can appear once in a record: writing a key twice is an error. An attribute pair never sees itself, so in `(:label label)` the `label` being looked up is the one from the enclosing scope. This is what lets a template simply write `(defn node (id type) (:id id :type type))`.
 
 ## Type assertions
 
@@ -59,10 +59,10 @@ Ouro contains special forms designed for increased ergonomics for creating JSON-
 
 In Ouro there are two ways to bind a name, with difference in serialisation.
 
-| Form                           | Binds          | Output?                | Scope                         |
-|:-------------------------------|:---------------|:-----------------------|:------------------------------|
-| `(:name expr ...)` (a record)  | its fields     | yes, every field       | the record's own expressions  |
-| `(let ($name expr ...) body)`  | its bindings   | no, only `body`        | the bindings and `body`       |
+| Form                           | Binds               | Output?                   | Scope                         |
+|:-------------------------------|:--------------------|:--------------------------|:------------------------------|
+| `(:name expr ...)` (a record)  | its attribute pairs | yes, every attribute pair | the record's own expressions  |
+| `(let ($name expr ...) body)`  | its bindings        | no, only `body`           | the bindings and `body`       |
 
 Both are recursive (`letrec`), the bindings can refer to each other in any order, and a cycle is an error. An inner binding shadows an outer one, but a binding is always evaluated in the scope where it was written:
 
@@ -132,7 +132,7 @@ Which is then serialised to:
 ### Get
 
 
-The `(get)` special form evaluates its target and walks the resulting records, so it works through function results, such as `(inlay)`, `(case)` and `(let)`. Only a record's fields can be reached, `(let)` bindings are private. Path components are bare symbols (`(get p q r)`, not `(get p :q)`). 
+The `(get)` special form evaluates its target and walks the resulting records, so it works through function results, such as `(inlay)`, `(case)` and `(let)`. Only a record's attribute pairs can be reached, `(let)` bindings are private. Path components are bare symbols (`(get p q r)`, not `(get p :q)`). 
 
 ``` clojure
 (:nested_manifest (:id       #uri (+ api-root "dataset")
@@ -164,7 +164,7 @@ The `(case)` special form serves as the Ouro's main mode of control flow, it exp
 `case` can also destructure Arrays and Records. A branch whose pattern is a Record, or contains a hole (`?`), matches the *value* of the target against that shape:
 
 - `?` matches anything, and `?name` binds the matched value to `name` inside the branch.
-- `?..name` binds everything that is left: the remaining elements of an Array, or the fields of a Record that the pattern doesn't mention.
+- `?..name` binds everything that is left: the remaining elements of an Array, or the attribute pairs of a Record that the pattern doesn't mention.
 - Anything else in a pattern (a literal, a variable, an expression) is evaluated and compared by value.
 
 Because Ouro has no side effects, an expression and its value are interchangeable, so patterns only ever see values. `((+ 2 4) 3)` and `(6 3)` match exactly the same patterns:
@@ -230,7 +230,7 @@ Array patterns match by position. The following:
 }
 ```
 
-Record patterns match by key, in any order, and fields the pattern doesn't mention are allowed, so `((:type "Person") ...)` matches any Person record. The following Ouro graph matches the `name` field without binding it, and returns the other fields:
+Record patterns match by key, in any order, and attribute pairs the pattern doesn't mention are allowed, so `((:type "Person") ...)` matches any Person record. The following Ouro graph matches the `name` attribute pair without binding it, and returns the other attribute pairs:
 
 ``` clojure
  (graph case-statements
@@ -387,7 +387,7 @@ current record. For example the following Ouro code:
 }
 ```
 
-Inlays are layers. Since each key can appear once in a record, when an inlaid record has a key that is already written in the record, the written field wins, wherever the inlay is placed. When two inlays share a key, the later inlay wins. This makes inlaying a template and overriding some of its fields straightforward:
+Inlays are layers. Since each key can appear once in a record, when an inlaid record has a key that is already written in the record, the written attribute pair wins, wherever the inlay is placed. When two inlays share a key, the later inlay wins. This makes inlaying a template and overriding some of its attribute pairs straightforward:
 
 ``` clojure
 (defn base () (:type "Type" :_label "Painting"))
@@ -464,7 +464,7 @@ The following Ouro code:
 }
 ```
 
-A record can't end up with a key twice, so inserting a field whose key already exists is an error. To change an existing field or element, use `(replace-at)`, which takes the same arguments and replaces whatever is at the index. Negative indexes count from the end in `(insert)` and `(replace-at)`, as they do in `(nth)`.
+A record can't end up with a key twice, so inserting an attribute pair whose key already exists is an error. To change an existing attribute pair or element, use `(replace-at)`, which takes the same arguments and replaces whatever is at the index. Negative indexes count from the end in `(insert)` and `(replace-at)`, as they do in `(nth)`.
 
 ## Builtin Functions
 
@@ -686,7 +686,7 @@ Ouro uses Scheme style lexical scoping, this means that scope is defined by the 
              :begin_of_the_begin #date "1881-01-01T00:00:00Z"
              :end_of_the_end     #date (+ begin_of_the_begin (thru (years 2))))
 
-  ;; A List of objects in Ouro is made from nested parens `(())`
+  ;; A List of records in Ouro is made from nested parens `(())`
   :part ((:type   "Acquisition"
           :_label "Ownership of Spring to Proust"
           :transferred_title_of   ((transfer "spring" "HumanMadeObject" "Spring"))
@@ -870,22 +870,14 @@ For compile, if the `-o` path has a file extension then that is the file the com
 
 These are agreed directions for Ouro, roughly in the order they will be built. None of them is implemented yet.
 
-## Contracts
+- **Imports and exports:** modules will import and export functions only, never graphs or data, so modules stay stateless and there can be no data cycles between files. Builds will be described in `build.ouro`, itself written in Ouro.
+- **Contracts:** user-defined types that refine JSON's types. A contract is a function tagged `#contract` whose body is a `(case)`: its patterns describe a shape, and its branches can add checks of their own. A contract checks a value and passes it through unchanged, so `#person` can be used in a signature just like `#str`:
 
-- **Function contracts:** a `#fn` parameter that also says what the function takes and returns, checked each time it is called.
-- **Collection contracts:** "an Array of Records", the most common Linked Art shape, e.g. `(#arr #rec)`.
-- **Shapes from patterns:** using a `case` pattern such as `(:type "Person" :_label ?)` as a contract, so a shape is written the same way whether it is matched or checked.
-- **Module-level contracts:** once modules can import and export functions, the exported functions' contracts will be checked at the module boundary, blaming the importing module for a bad argument and the exporting module for a bad result.
-- **Blame in messages:** error wording that names who broke the contract, e.g. "the call to `node` passed a Number where `#uri` was expected".
+  ``` clojure
+  (defn person #contract (#rec r)
+    (case r
+      ((:type "Person" :_label #str ?))))
+  ```
 
-## Imports and exports
-
-Modules will import and export functions only, never graphs or data, so modules stay stateless and there can be no data cycles between files. Two imports exporting the same name will be a compile error. Builds will be described in `build.ouro`, itself written in Ouro.
-
-## A threading form
-
-`->` is kept free for a possible Clojure-style threading form for record composition, `(-> (base-node ...) (with :_label "Painting"))`.
-
-## UTF-8 encoding
-
-Source files are not yet read as UTF-8 on Windows, so accented names such as "Édouard Manet" are garbled. Once input is read as UTF-8, `λ` will follow as an alias for `fn`: `(λ (x) (+ x 1))`.
+- **A threading form:** `(-> (base-node ...) (with :_label "Painting"))`, for building a record step by step, layered like `(inlay)`.
+- **UTF-8 input:** reading source files as UTF-8 on Windows, so accented names such as "Édouard Manet" are no longer garbled, followed by `λ` as an alias for `fn`.

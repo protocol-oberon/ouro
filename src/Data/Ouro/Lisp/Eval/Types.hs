@@ -37,7 +37,7 @@ import           Unsafe.Coerce               (unsafeCoerce)
 -- the 'parentEnv' pointer frame until it either hits a binding or touches the root layer fallback.
 --
 -- Crucially, this structural composition enables both knot-tied lazy evaluation and first-class closures.
--- When an object block is evaluated, its properties are bound into a fresh Env frame whose parent pointer closes over
+-- When a record block is evaluated, its properties are bound into a fresh Env frame whose parent pointer closes over
 -- the surrounding context. Because these frames are captured by value inside closures, sub-graphs can pass functions
 -- and variables down-stream without leaking local data or accidentally mutating outer execution registers.
 --
@@ -154,7 +154,7 @@ data PromiseState
     | Forcing                       -- Being evaluated: reaching it again is a cycle
     | Forced Expr
 
--- What a name in a frame is bound to: a promise for a record field, let
+-- What a name in a frame is bound to: a promise for a record attribute pair, let
 -- binding, function argument or pattern variable
 newtype Binding = Promised Addr
 

@@ -145,7 +145,7 @@ flattenArray = \case
                 other    -> [SomeExpr other]
 
 
--- Recursively traverses an internal list structure to collect and flatten all nested key-value attribute pairs.
+-- Recursively traverses an internal list structure to collect and flatten all nested attribute pairs.
 flattenProps :: Expr t -> [(Text, SomeExpr)]
 flattenProps = \case
                 Cons h t -> flattenProps h ++ flattenProps t

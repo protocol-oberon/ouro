@@ -44,7 +44,7 @@ letAndFn = Group "Bindings: let, fn and defn"
                                                                   "{\"p\": {\"_label\": \"Manet (painter)\"}}")
     , ("a fn body can use let",                    compilesToJSON "(graph g (:r (let ($twice (fn (n) (let ($m (* n 2)) m))) (twice 21))))"
                                                                   "{\"r\": 42}")
-    , ("a let can be a field of a function's record", compilesToJSON "(defn node (id) (:id id :part (let ($sub (+ id \"/1\")) (:id sub)))) (graph g (:r (node \"x\")))"
+    , ("a let can be an attribute value in a function's record", compilesToJSON "(defn node (id) (:id id :part (let ($sub (+ id \"/1\")) (:id sub)))) (graph g (:r (node \"x\")))"
                                                                   "{\"r\": {\"id\": \"x\", \"part\": {\"id\": \"x/1\"}}}")
     , ("a returned fn keeps its function's let",   compilesToJSON "(defn adder (base) (let ($add (fn (n) (+ base n))) add)) (graph g (:r (let ($add10 (adder 10)) (add10 5))))"
                                                                   "{\"r\": 15}")
@@ -62,7 +62,7 @@ letAndFn = Group "Bindings: let, fn and defn"
     , ("a bare result does not warn",              compilesWithoutWarnings "(defn f () \"hello\") (graph g (:r (let ($h (fn () true)) (h)) :s (f)))")
     , ("a record or call result does not warn",    compilesWithoutWarnings "(defn one () 1) (defn f () (:a (one))) (graph g (:r (f) :s ((one))))")
     , ("an array of several values does not warn", compilesWithoutWarnings "(defn f () (1 2)) (graph g (:r (f)))")
-    , ("a parenthesised field value does not warn", compilesWithoutWarnings "(graph g (:r (\"hello\")))")
+    , ("a parenthesised attribute value does not warn", compilesWithoutWarnings "(graph g (:r (\"hello\")))")
 
     -- Errors, checked by message
     , ("a cycle in let is an error",               failsWith "references itself"
@@ -108,7 +108,7 @@ letAndFn = Group "Bindings: let, fn and defn"
                                                              "(graph g (let ($base \"https://a.org/\") (:r (+ $base \"x\"))))")
     , ("$name before a closing parenthesis",       failsWith "write its name without '$': base"
                                                              "(defn f (x) x) (graph g (let ($base 1) (:r (f $base))))")
-    , ("$name as a field's value",                 failsWith "write its name without '$': base"
+    , ("$name as an attribute value",              failsWith "write its name without '$': base"
                                                              "(graph g (let ($base 1) (:r $base)))")
     , ("a $ name needs a value",                   failsWith "has no value"
                                                              "(graph g (let ($a 1 $b) a))")
@@ -118,11 +118,11 @@ letAndFn = Group "Bindings: let, fn and defn"
                                                                   "{\"r\": \"https://a.org/b\"}")
 
     -- A binding never sees itself: inside its own expression, its name refers outward
-    , ("a field outputs the binding of its name",  compilesToJSON "(graph g (let ($label \"Spring\") (:label label)))"
+    , ("an attribute pair outputs the binding of its name", compilesToJSON "(graph g (let ($label \"Spring\") (:label label)))"
                                                                   "{\"label\": \"Spring\"}")
     , ("a template outputs its parameters by name", compilesToJSON "(defn node (id type) (:id id :type type)) (graph g (:r (node \"1\" \"Type\")))"
                                                                   "{\"r\": {\"id\": \"1\", \"type\": \"Type\"}}")
-    , ("a nested field sees the outer field",      compilesToJSON "(graph g (:label \"outer\" :inner (:label label)))"
+    , ("a nested attribute pair sees the outer one", compilesToJSON "(graph g (:label \"outer\" :inner (:label label)))"
                                                                   "{\"label\": \"outer\", \"inner\": {\"label\": \"outer\"}}")
     , ("a let binding sees the outer one",         compilesToJSON "(graph g (let ($x 1) (:r (let ($x (+ x 1)) x))))"
                                                                   "{\"r\": 2}")

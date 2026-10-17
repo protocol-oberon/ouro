@@ -139,7 +139,7 @@ desugar = \case
                       canonicalForm = S.Form pos [S.Symbol pos "context", dirWrapper]
                   in canonicalForm : desugar rest
 
-            -- Match a Lisp sub-object block starting with an explicit context form
+            -- Match a Lisp sub-record block starting with an explicit context form
            (S.Form pos (S.Form cPos (S.Symbol sPos "context" : directives) : innerItems) : xs)
                -> let desugaredInner = S.Form cPos (S.Symbol sPos "context" : desugar directives) : desugar innerItems
                       canonicalBlock = S.Form pos desugaredInner

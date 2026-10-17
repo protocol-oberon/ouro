@@ -163,10 +163,10 @@ data TypeError
 data PathError
     -- PATH VIOLATION: STRUCTURAL FIELD MISSING
     -- Occurs during multi-layered property traversal via the @get@ operator: the value reached
-    -- so far is a Record, but it has no field for the current path segment key.
+    -- so far is a Record, but it has no attribute for the current path segment key.
     --
     -- * Remediation: Abort traversal. The reporting layer should compute the string distance
-    --   (Levenshtein metric) between the missing key and available fields to suggest adjacent typos.
+    --   (Levenshtein metric) between the missing key and available attributes to suggest adjacent typos.
     = MissingPathKey
       { missingKey    :: Text    -- The string token handle that failed to map to a valid structural slot
       , availableKeys :: [Text]  -- The list of legitimate sibling attribute keys present in the target block
@@ -258,7 +258,7 @@ data WarningContext
 --- LINTER WARNINGS ---
 data LinterWarning
     -- LINT WARNING: UNANCHORED LITERAL EXPRESSION
-    -- Occurs when a primitive literal value sits directly inside an object or array block
+    -- Occurs when a primitive literal value sits directly inside a record or array block
     -- container without an associated property key binder or macro anchor sequence.
     -- The value will be evaluated but silently discarded during final serialization passes.
     --

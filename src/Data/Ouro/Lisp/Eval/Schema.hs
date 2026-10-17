@@ -50,9 +50,9 @@ parseContextDirectives =
         (badExpr : _) ->
             pure $ EvalError $ OuroError (S.exprPos badExpr) $ malformedTag "context" "Expected a Symbol-L.Expr property pair layout structure."
                 & withBlurb ( "The structural schema parser found a malformed layout sequence inside the '#context' tag declaration.\n\n"
-                           <> "A context block expects either an unquoted structural sub-form, or sequential key-value property pairs "
+                           <> "A context block expects either an unquoted structural sub-form, or sequential attribute pairs "
                            <> "written as pairs of bare symbols and values (e.g., :base \"https://schema.org/\").\n\n"
-                           <> "Perhaps you have an uneven count of property attributes, or a loose literal object is sitting free within the payload structure?"
+                           <> "Perhaps you have an uneven count of property attributes, or a loose literal value is sitting free within the payload structure?"
                             )
 
 

@@ -103,7 +103,7 @@ valuePatterns = Group "Scoping: value patterns, no quoting"
                                                                (personWith "\"Manet\""))
     , ("record patterns are open",                compilesLike (person "(case p ((:type \"Person\") \"person\") (otherwise \"none\"))")
                                                                (personWith "\"person\""))
-    , ("record rest binds unmentioned fields",    compilesLike (person "(case p ((:type ? ?..rest) rest) (otherwise p))")
+    , ("record rest binds unmentioned attribute pairs", compilesLike (person "(case p ((:type ? ?..rest) rest) (otherwise p))")
                                                                (personWith "(:_label \"Manet\" :id \"https://linked.art/example/person/manet\")"))
     , ("symbols in patterns compare by value",    compilesLike "(graph g (:pt \"Person\" :p (:type \"Person\") :r (case p ((:type pt) \"yes\") (otherwise \"no\"))))"
                                                                "(graph g (:pt \"Person\" :p (:type \"Person\") :r \"yes\"))")

@@ -116,7 +116,7 @@ containsHole = \case
                 _leaf            -> False
 
 
--- Matches the parsed form of a ':key value' pair
+-- Matches the parsed form of a ':key value' attribute pair
 isAttrForm :: Expr -> Bool
 isAttrForm = \case
               Form _ (Symbol _ "attr" : _) -> True

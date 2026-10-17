@@ -43,9 +43,9 @@ Ouro is a domain-specific language engineered for the ergonomic construction, va
 
 ** Structural topology
 
-Ouro code mirrors its output. A record ~(:key value ...)~ becomes a JSON object, a form of values ~(a b c)~ becomes a JSON array, and nesting carries through unchanged. Nothing appears in the output unless it is written as a field or an element; everything else either produces a value in place (calls, =case=, =get=, =let=) or disappears (=let= bindings, =defn=).
+Ouro code mirrors its output. A record ~(:key value ...)~ becomes a JSON object, a form of values ~(a b c)~ becomes a JSON array, and nesting carries through unchanged. Nothing appears in the output unless it is written as an attribute pair or an element; everything else either produces a value in place (calls, =case=, =get=, =let=) or disappears (=let= bindings, =defn=).
 
-The rule of thumb is /structure is written, values are computed/: parentheses give the shape, and anything that is not a field or an element evaluates to a value in the position where it is written. The one construct that changes shape is =inlay=, which splices a record's fields (or an array's elements) into the surrounding one.
+The rule of thumb is /structure is written, values are computed/: parentheses give the shape, and anything that is not an attribute pair or an element evaluates to a value in the position where it is written. The one construct that changes shape is =inlay=, which splices a record's attribute pairs (or an array's elements) into the surrounding one.
 
 Ouro is still written as s-expressions, but it is no longer homoiconic in practice: quoting and =eval= were removed, so programs never manipulate code as data. The s-expression is kept for its other property, a uniform notation whose nesting is the nesting of the data.
 
@@ -58,9 +58,9 @@ Ouro has no side effects, no mutable state, no quoting and no recursion. Every e
 Every name means what it meant where it was written. To find what a name refers to, read
 outward through the enclosing parentheses, never through the call stack.
 
-- *Order independence:* the fields of a record and the bindings of a =let= can refer to each other in any order, like Scheme's =letrec=. Curators can write a graph in the order that reads best.
+- *Order independence:* the attribute pairs of a record and the bindings of a =let= can refer to each other in any order, like Scheme's =letrec=. Curators can write a graph in the order that reads best.
 
-- *Call-by-need:* every binding (record field, =let= binding, function argument) is a promise, evaluated at most once and only when needed, in the scope it was written in. A chain of 40 bindings that each use the previous one twice compiles instantly (~prop_sharedChain~ in =ScopingTest.hs=).
+- *Call-by-need:* every binding (record attribute pair, =let= binding, function argument) is a promise, evaluated at most once and only when needed, in the scope it was written in. A chain of 40 bindings that each use the previous one twice compiles instantly (~prop_sharedChain~ in =ScopingTest.hs=).
 
 - *Cycles are errors:* a binding that depends on itself is reported ("…references itself…"), never evaluated forever.
 
@@ -86,7 +86,7 @@ Errors are part of the design, not an afterthought. Every surface node carries i
 
 ** Deterministic serialisation
 
-Records keep their fields in source order (association lists, not maps), and the serialiser is a single fold over the frozen GADT. The same input always produces byte-identical output.
+Records keep their attribute pairs in source order (association lists, not maps), and the serialiser is a single fold over the frozen GADT. The same input always produces byte-identical output.
 
 ** The Ouro compilation pipeline
 
@@ -165,7 +165,7 @@ Only graphs are serialised. Functions exist to build and reuse values. A module-
 | Number         | =42=, =-3.5=, =1e3=                      | a Double: integers are exact up to 2^53                             |
 | Boolean / null | =true=, =false=, =null=                  |                                                                     |
 | Symbol         | =artist=, =type-node=, =+=, =legacy!=    | starts with a letter or an operator character (see below the table) |
-| Attribute      | =:key=                                   | letters, digits, =-= and =_=; the key of a field                    |
+| Attribute      | =:key=                                   | letters, digits, =-= and =_=; the key of an attribute pair          |
 | Binding        | =$name=                                  | any symbol; a private binding, only inside a =let=                  |
 | Reader tag     | =#uri=, =#date=, =#str=, =#num=, =#bool= | asserts the type of what follows; also =#rec=, =#arr=, =#fn=        |
 | Empty values   | =#rec-empty=, =#arr-empty=, =()=         | ={}=, =[]= and =[]=                                                 |
@@ -197,10 +197,10 @@ literal      = string | number | "true" | "false" | "null"
 tagged       = tag , expression ;
 tag          = "#uri" | "#date" | "#str" | "#num" | "#bool" | "#rec" | "#arr" | "#fn" ;
 
-(* A record: at least one field or context directive *)
+(* A record: at least one attribute pair or context directive *)
 record       = "(" , { record-item } , ")" ;
-record-item  = field | context | inlay ;
-field        = attribute , expression ;
+record-item  = attribute-pair | context | inlay ;
+attribute-pair = attribute , expression ;
 attribute    = ":" , key ;
 
 (* An array: a form whose first element is not a symbol, or an explicit list *)
@@ -223,8 +223,8 @@ alternatives = "(" , literal , { literal } , ")" ;
 get          = "(" , "get" , expression , symbol , { symbol } , ")" ;
 nth          = "(" , "nth" , expression , expression , ")" ;
 map          = "(" , "map" , expression , expression , ")" ;     (* a function, then an array *)
-insert       = "(" , "insert" , expression , ( expression | field ) , expression , ")" ;
-replace-at   = "(" , "replace-at" , expression , ( expression | field ) , expression , ")" ;
+insert       = "(" , "insert" , expression , ( expression | attribute-pair ) , expression , ")" ;
+replace-at   = "(" , "replace-at" , expression , ( expression | attribute-pair ) , expression , ")" ;
 attr         = "(" , "attr" , expression , expression , ")" ;     (* a computed key *)
 inlay        = "(" , "inlay" , expression , ")" ;
 context      = ":context" , expression
@@ -261,7 +261,7 @@ Durations and functions are values during compilation, but have no JSON form: th
 
 ** Records and arrays
 
-A record is a form containing =:key value= fields (or a context directive). Its fields are output in source order, and they are also bindings: inside the record, a field's name refers to its value, in any order. Each key appears once: writing a key twice in the same record (or two contexts) is an error.
+A record is a form containing =:key value= attribute pairs (or a context directive). Its attribute pairs are output in source order, and they are also bindings: inside the record, an attribute pair's name refers to its value, in any order. Each key appears once: writing a key twice in the same record (or two contexts) is an error.
 
 #+BEGIN_SRC clojure
 (:begin_of_the_begin #date "1848-08-01T00:00:00Z"
@@ -281,7 +281,7 @@ An array of one record is written with nested parentheses, ~((:type "Name" ...))
 
 Arrays, like JSON arrays, can hold values of any type: ~(1 "a" (:k 1) (2 3))~.
 
-*Inlays are layers.* =inlay= splices a record's fields into the surrounding record, but a key still appears once. A field written in the record wins over an inlaid field with the same key, wherever the =inlay= is placed, and a later =inlay= wins over an earlier one:
+*Inlays are layers.* =inlay= splices a record's attribute pairs into the surrounding record, but a key still appears once. An attribute pair written in the record wins over an inlaid one with the same key, wherever the =inlay= is placed, and a later =inlay= wins over an earlier one:
 
 #+BEGIN_SRC clojure
 (defn base () (:type "Type" :_label "Painting"))
@@ -308,7 +308,7 @@ Both are recursive (=letrec=): the bindings can refer to each other in any order
                 :painted-by painted-by))) ; still "Manet"
 #+END_SRC
 
-*A binding never sees itself.* Inside its own expression, a binding's name refers to the enclosing scope, so in ~(:name name)~ the field outputs the =name= from outside the record, and in ~(let ($x (+ x 1)) x)~ the =x= being added to is the outer one. This is what makes templates such as ~(defn node (id type) (:id id :type type))~ work. A name with nothing outside is unbound, and siblings that refer to each other in a cycle are still an error.
+*A binding never sees itself.* Inside its own expression, a binding's name refers to the enclosing scope, so in ~(:name name)~ the attribute pair outputs the =name= from outside the record, and in ~(let ($x (+ x 1)) x)~ the =x= being added to is the outer one. This is what makes templates such as ~(defn node (id type) (:id id :type type))~ work. A name with nothing outside is unbound, and siblings that refer to each other in a cycle are still an error.
 
 A =let= binds private values with =$name value= pairs. The =$= marks a binding that is never output, as =:= marks a key that is. A =:key= in a =let='s bindings is an error, and so is a =$name= anywhere outside them: a binding is referred to by its bare name.
 
@@ -405,25 +405,25 @@ The holes in a =case= pattern are not placeholders: they match values (see [[*=c
 
 Special forms are recognised by their head symbol before any name lookup, so they cannot be shadowed or used as function names.
 
-| Form                                     | Meaning                                                                      |
-|------------------------------------------+------------------------------------------------------------------------------|
-| =(let ($n e ...) body)=                  | private recursive bindings around one expression                             |
-| =(fn (args) body)=                       | an anonymous function, optionally with a signature                           |
-| =(case target branch ... (otherwise e))= | pattern matching and guards; =otherwise= is required and last                |
-| =(get record key ...)=                   | the value at a path of keys through evaluated records                        |
-| =(nth i coll)=                           | the i-th element of an array, or the i-th field value of a record            |
-| =(map f array)=                          | an array of =f= called on each element                                       |
-| =(insert i x coll)=                      | insert =x= at index =i= (an array element, or a =:key value= field)          |
-| =(replace-at i x coll)=                  | replace the element or field at index =i=                                    |
-| =(inlay expr)=                           | splice a record's fields into a record, or an array's elements into an array |
-| =(list e ...)=                           | an array, whatever its first element is                                      |
-| =(thru duration)=                        | extend a duration to the end of its unit (see Built-ins)                     |
-| =(attr key-expr value)=                  | a field with a computed key (used with =insert=)                             |
-| =:context e=, =(context (...))=          | the record's JSON-LD =@context=                                              |
+| Form                                     | Meaning                                                                               |
+|------------------------------------------+---------------------------------------------------------------------------------------|
+| =(let ($n e ...) body)=                  | private recursive bindings around one expression                                      |
+| =(fn (args) body)=                       | an anonymous function, optionally with a signature                                    |
+| =(case target branch ... (otherwise e))= | pattern matching and guards; =otherwise= is required and last                         |
+| =(get record key ...)=                   | the value at a path of keys through evaluated records                                 |
+| =(nth i coll)=                           | the i-th element of an array, or the value of a record's i-th attribute pair          |
+| =(map f array)=                          | an array of =f= called on each element                                                |
+| =(insert i x coll)=                      | insert =x= at index =i= (an array element, or a =:key value= attribute pair)          |
+| =(replace-at i x coll)=                  | replace the element or attribute pair at index =i=                                    |
+| =(inlay expr)=                           | splice a record's attribute pairs into a record, or an array's elements into an array |
+| =(list e ...)=                           | an array, whatever its first element is                                               |
+| =(thru duration)=                        | extend a duration to the end of its unit (see Built-ins)                              |
+| =(attr key-expr value)=                  | an attribute pair with a computed key (used with =insert=)                            |
+| =:context e=, =(context (...))=          | the record's JSON-LD =@context=                                                       |
 
-Negative indexes count from the end in =nth=, =insert= and =replace-at=. =insert= puts any value into an array, but not a =:key value= field. Neither =insert= nor =replace-at= can give a record a key it already has: that is an error, and =replace-at= may keep the replaced field's own key.
+Negative indexes count from the end in =nth=, =insert= and =replace-at=. =insert= puts any value into an array, but not a =:key value= attribute pair. Neither =insert= nor =replace-at= can give a record a key it already has: that is an error, and =replace-at= may keep the replaced attribute pair's own key.
 
-*Value-based =get=.* =get= evaluates its target and walks the resulting records, so it works through function results, =inlay=, =case= and =let= alike. Only a record's fields can be reached, =let= bindings are private. Path components are bare symbols (=(get p q r)=, not =(get p :q)=) arrays are indexed with =nth=.
+*Value-based =get=.* =get= evaluates its target and walks the resulting records, so it works through function results, =inlay=, =case= and =let= alike. Only a record's attribute pairs can be reached, =let= bindings are private. Path components are bare symbols (=(get p q r)=, not =(get p :q)=) arrays are indexed with =nth=.
 
 *=map=.* ~(map f array)~ evaluates =f=, which must be a function (a =fn=, a =defn= name, a built-in or a placeholder), and =array=, which must be an array (=()= and =#arr-empty= are empty arrays). The result is an array of =f= called on each element, in order. Each element is passed as an ordinary call, made in a frame that binds the function and the element to names that cannot be written in Ouro, so arity, signatures and the recursion check apply as they do to any call: =f= must take one argument, a typed parameter checks every element, and a mismatch is reported at the array, since an element has no position of its own. With placeholders, ~(map (+ ? 1) xs)~ needs no =fn=, and ~(map f ?)~ is a function waiting for the array. =map= is a special form only at the head of a form: it cannot name a =defn=, but =:map= and =$map= are ordinary names.
 
@@ -453,7 +453,7 @@ A branch head is:
 
 Patterns match /values/, written in Ouro's own construction syntax:
 
-- *Record patterns*, =(:key pattern ... ?..rest)=, match by key in any order. They are open, extra fields are allowed, and =?..rest= binds them as a record.
+- *Record patterns*, =(:key pattern ... ?..rest)=, match by key in any order. They are open, extra attribute pairs are allowed, and =?..rest= binds them as a record.
 
 - *Array patterns*, =(pattern ... ?..rest)=, match by position; =?..rest= must come last and binds the remaining elements as an array.
 
@@ -462,7 +462,7 @@ Patterns match /values/, written in Ouro's own construction syntax:
 - *Anything else* (literals, symbols, calls) is evaluated and compared by value, so   ~((+ 2 4) ?x)~ and ~(6 ?x)~ are the same pattern.
 
 Pattern variables are bound in a frame around the branch body. A record written in the body
-shadows them with its own fields.
+shadows them with its own attribute pairs.
 
 ** Built-ins
 
@@ -516,7 +516,7 @@ data Param = Param
     }
 #+END_SRC
 
-There is no separate constructor for fields: the parser reads =:key value= as the form ~(attr "key" value)~, so a record is a ~Form~ of ~attr~ forms. A =$name= is read on its own as ~(%binder "name")~ and paired with its value only inside a =let= (see [[*Desugaring (~Canon~)][desugaring]]). A module is the parser's other output: a registry of =defn= declarations and a registry of =graph= declarations, each a ~HigherExpression~ indexed by its kind:
+There is no separate constructor for attribute pairs: the parser reads =:key value= as the form ~(attr "key" value)~, so a record is a ~Form~ of ~attr~ forms. A =$name= is read on its own as ~(%binder "name")~ and paired with its value only inside a =let= (see [[*Desugaring (~Canon~)][desugaring]]). A module is the parser's other output: a registry of =defn= declarations and a registry of =graph= declarations, each a ~HigherExpression~ indexed by its kind:
 
 #+BEGIN_SRC haskell
 data HigherExpression (t :: Declaration) where
@@ -555,12 +555,12 @@ form's contents alone, before anything is evaluated:
 
 #+BEGIN_SRC haskell
 determineBlockTarget :: [S.Expr] -> BlockTarget
-determineBlockTarget fields =
-    case fields of
+determineBlockTarget items =
+    case items of
         []       -> TargetList
         (x : xs) -> case isFunctionApplication (x : xs) of
                         True  -> TargetFunctionApp
-                        False -> case any isStructuralField fields of
+                        False -> case any isStructuralAttr items of
                                      True  -> TargetRecord
                                      False -> TargetList
     where
@@ -568,17 +568,17 @@ determineBlockTarget fields =
         (S.Symbol _ name : _) -> not (isFunctionKeyword name || name `elem` ["define", "context"])
         _notAFunction         -> False
 
-    isStructuralField = \case
+    isStructuralAttr = \case
         S.Form _ (S.Symbol _ "attr"    : _) -> True
         S.Form _ (S.Symbol _ "context" : _) -> True
         _other                              -> False
 #+END_SRC
 
 - *Call*: the first element is a symbol.
-- *Record*: otherwise, if any element is a field or a context directive.
+- *Record*: otherwise, if any element is an attribute pair or a context directive.
 - *Array*: everything else, including the empty form ~()~.
 
-Only the direct elements of a form matter, never their types: ~(1 "a" (:k 1))~ is an array, because its record has its own parentheses, while ~(1 :a 2)~ is a record with a loose value, which is an error. A record made only of inlays has no written field, so it is read as an array (see [[*Appendix B: Known gaps][known gaps]]).
+Only the direct elements of a form matter, never their types: ~(1 "a" (:k 1))~ is an array, because its record has its own parentheses, while ~(1 :a 2)~ is a record with a loose value, which is an error. A record made only of inlays has no written attribute pair, so it is read as an array (see [[*Appendix B: Known gaps][known gaps]]).
 
 Special forms are matched by =evalExpr= before classification, so =let=, =case= and the others never reach it. These rules are why an array beginning with a variable needs =list=.
 
@@ -594,7 +594,7 @@ Special forms are matched by =evalExpr= before classification, so =let=, =case= 
 
 - =:timespan (...)= opens a nested record: its parentheses are the JSON object's braces.
 
-- =:identified_by ((...))= is an array holding one record: the outer parentheses are the array, the inner ones the object.
+- =:identified_by ((...))= is an array holding one record: the outer parentheses are the array, the inner ones the record.
 
 - =#date= asserts that the string is a timestamp. The value stays a Date inside Ouro, so it can be shifted with =+=, and is written back as an ISO-8601 string.
 
@@ -619,7 +619,7 @@ data Expr where
 
     -- Open structure: may contain errors at any depth
     Record          :: I.Expr 'JLD.Meta -> [(Text, Expr)] -> Expr
-    Attr            :: Text -> Expr -> Expr          -- a computed field, from (attr k v)
+    Attr            :: Text -> Expr -> Expr          -- a computed attribute pair, from (attr k v)
     Array           :: [Expr] -> Expr
 
     -- Compile-time-only values: no JSON form
@@ -638,7 +638,7 @@ type NativeFunction = SourcePos -> [Expr] -> Reader Env Expr
 Records are association lists, ~[(Text, Expr)]~, rather than maps:
 
 1. *Source order is output order*, which keeps serialisation deterministic and the output recognisably shaped like the source.
-2. *Errors stay local:* a failed field is an ~EvalError~ under its own key; its siblings are unaffected.
+2. *Errors stay local:* a failed attribute pair is an ~EvalError~ under its own key; its siblings are unaffected.
 3. *One linear pass* collects every error in a record.
 
 (Laziness no longer comes from the list: it comes from the promise store, below.)
@@ -686,7 +686,7 @@ This is the environment model of Scheme (SICP §3.2) with call-by-need bindings,
 
 A record or a =let= is evaluated in two steps:
 
-1. ~collectBindings~ (records) or ~letBindings~ (=let=) sweeps the forms for =:key value= fields (records) or =$name value= bindings (=let=) and returns their un-evaluated expressions as ~FrameEntry~ values. Removed forms (=define=, a local =defn=) are reported here.
+1. ~collectBindings~ (records) or ~letBindings~ (=let=) sweeps the forms for =:key value= attribute pairs (records) or =$name value= bindings (=let=) and returns their un-evaluated expressions as ~FrameEntry~ values. Removed forms (=define=, a local =defn=) are reported here.
 
 2. ~allocFrame~ allocates one ~Unforced~ promise per entry and builds the frame that binds their names. Every promise's environment is that same frame, minus the promise's own name. This is what makes the bindings recursive, each binding sees all of its siblings in any order, while a binding never sees itself: its own name resolves in the enclosing scope.
 
@@ -725,15 +725,15 @@ A promise is evaluated in /its own/ environment, not the one where it is referen
 
 - A =context= directive becomes the record's metadata (~I.Context~).
 
-- A field is forced through /its own promise/ (found by the position of its =:key=), so a field that is both output and referenced is evaluated once.
+- An attribute pair is forced through /its own promise/ (found by the position of its =:key=), so an attribute pair that is both output and referenced is evaluated once.
 
-- =inlay= evaluates its expression and splices the resulting record's fields in place, as a layer: an inlaid field is dropped when the record writes the same key, or when a later =inlay= has it.
+- =inlay= evaluates its expression and splices the resulting record's attribute pairs in place, as a layer: an inlaid attribute pair is dropped when the record writes the same key, or when a later =inlay= has it.
 
 - A key written twice, or a second context, is an error at the second occurrence.
 
-- A field's value must be serialisable (a primitive, record or array; see the ([[*3. The Verification Gate][verification gate]]), otherwise the field becomes an error.
+- An attribute pair's value must be serialisable (a primitive, record or array; see the ([[*3. The Verification Gate][verification gate]]), otherwise the attribute pair becomes an error.
 
-- A loose expression that is not a field is an error ("Unbound expressions are not allowed inside =Record= blocks").
+- A loose expression that is not an attribute pair is an error ("Unbound expressions are not allowed inside =Record= blocks").
 
 Arrays (~compileArray~) evaluate their elements in order, with =inlay= splicing arrays.
 
@@ -778,7 +778,7 @@ Before anything is serialised, ~validateAST~ walks the evaluated tree and collec
 
 Errors are de-duplicated (an error in a binding that is also in the output is reported once) and sorted by position. *A graph compiles if and only if this list is empty.*
 
-There are two guards against compile-time-only values. ~emitProps~ checks each record field as it is emitted, which catches most mistakes with a precise position. ~validateAST~ then checks the whole tree, which also covers the graph root and array elements.
+There are two guards against compile-time-only values. ~emitProps~ checks each record attribute pair as it is emitted, which catches most mistakes with a precise position. ~validateAST~ then checks the whole tree, which also covers the graph root and array elements.
 
 ** Type collapse (~freeze~)
 
@@ -831,20 +831,20 @@ data Expr (t :: JLD.Type) where
     Array     :: Expr 'JLD.List                   -> Expr 'JLD.Primitive
 #+END_SRC
 
-| JSON-LD         | Ouro                 | ~I.Expr~ constructor     | Haskell type       | Kind      |
-|-----------------+----------------------+--------------------------+--------------------+-----------|
-| string          | ="text"=             | ~String~                 | ~Text~             | Primitive |
-| number          | =42=                 | ~Number~                 | ~Double~           | Primitive |
-| boolean         | =true=               | ~Boolean~                | ~Bool~             | Primitive |
-| null            | =null=               | ~Null~                   | none               | Primitive |
-| IRI             | =#uri "..."=         | ~URI~                    | ~Text.URI.URI~     | Primitive |
-| xsd:dateTime    | =#date "..."=        | ~Date~                   | ~UTCTime~          | Primitive |
-| blank node      | not yet written      | ~BlankNode~              | ~Text~             | Primitive |
-| ={}= / =[]=     | =#rec-empty= / =()=  | ~EmptyRec~ / ~EmptyArr~  | none               | Primitive |
-| node object     | =(:k v ...)=         | ~Record~                 | meta + list        | Primitive |
-| array           | =(a b ...)=          | ~Array~                  | list               | Primitive |
-| =@context=      | =:context ...=       | ~Context~ / ~EmptyMeta~  | ~Schema~           | Meta      |
-| member / field  | none                 | ~Cons~, ~Attr~, ~Nil~    | none               | List      |
+| JSON-LD                 | Ouro                | ~I.Expr~ constructor    | Haskell type   | Kind      |
+|-------------------------+---------------------+-------------------------+----------------+-----------|
+| string                  | ="text"=            | ~String~                | ~Text~         | Primitive |
+| number                  | =42=                | ~Number~                | ~Double~       | Primitive |
+| boolean                 | =true=              | ~Boolean~               | ~Bool~         | Primitive |
+| null                    | =null=              | ~Null~                  | none           | Primitive |
+| IRI                     | =#uri "..."=        | ~URI~                   | ~Text.URI.URI~ | Primitive |
+| xsd:dateTime            | =#date "..."=       | ~Date~                  | ~UTCTime~      | Primitive |
+| blank node              | not yet written     | ~BlankNode~             | ~Text~         | Primitive |
+| ={}= / =[]=             | =#rec-empty= / =()= | ~EmptyRec~ / ~EmptyArr~ | none           | Primitive |
+| node object             | =(:k v ...)=        | ~Record~                | meta + list    | Primitive |
+| array                   | =(a b ...)=         | ~Array~                 | list           | Primitive |
+| =@context=              | =:context ...=      | ~Context~ / ~EmptyMeta~ | ~Schema~       | Meta      |
+| member / attribute pair | none                | ~Cons~, ~Attr~, ~Nil~   | none           | List      |
 
 The indices enforce three boundaries:
 
@@ -939,7 +939,7 @@ Ouro's compiler guarantees structural validity: a compiled graph is well-formed 
 | =(let (:name value ...) expr)=                     | =(let ($name value ...) expr)=                     | =':name' marks a key in the output, but a let's bindings are never output.=     |
 | a local =defun= / =defn=                           | a =let=-bound =fn=                                 | =A defn can only appear at the top level of a file.=                            |
 | spliced graph bodies                               | =(graph name (:key value ...))=                    | =The graph 'g' must be one expression.=                                         |
-| spliced function bodies, =return=                  | one result expression                              | "has a ':key value' field directly in its body", "'return' is no longer needed" |
+| spliced function bodies, =return=                  | one result expression                              | "has a ':key value' attribute pair directly in its body", "'return' is no longer needed" |
 | required =!= on function names                     | plain names (=!= still allowed)                    | none                                                                            |
 | =quote=, ='=, =eval=, =get'=                       | values: Ouro has no metaprogramming                | none                                                                            |
 | code-shape =get= (=resolvePath=)                   | value-based =get= (~getPath~)                      | none                                                                            |
@@ -978,7 +978,7 @@ Recorded 2026-10-12 and kept up to date since; none were caused by the scoping r
 
 13. *Code health:* the =[ ]= bracket syntax parses but has no meaning; =validate= without =-o= overwrites its input; there are no tests for the CLI.
 
-14. *A record made only of inlays is read as an array:* ~((inlay (a)) (inlay (b)))~ has no written field, so structural classification makes it an array, and each =inlay= then expects an array. Workaround: write at least one field.
+14. *A record made only of inlays is read as an array:* ~((inlay (a)) (inlay (b)))~ has no written attribute pair, so structural classification makes it an array, and each =inlay= then expects an array. Workaround: write at least one attribute pair.
 
 15. /Fixed:/ empty arrays could not be joined. Arrays are no longer required to be homogeneous, so =+= on two arrays is plain concatenation.
 
@@ -986,6 +986,6 @@ Recorded 2026-10-12 and kept up to date since; none were caused by the scoping r
 
 17. *A URI's empty root path is dropped:* ~#uri "https://a.org/"~ serialises as ="https://a.org"=, which changes the IRI's text. URIs with a path (Getty's, Linked Art's) are unaffected. It comes from how the URI library renders an empty path.
 
-18. *A field among array values has no hint:* ~(1 :a 2)~ is read as a record (one field makes the form a record), so =1= is reported as an unbound expression. The error is right, but it could suggest ~(1 (:a 2))~.
+18. *An attribute pair among array values has no hint:* ~(1 :a 2)~ is read as a record (one attribute pair makes the form a record), so =1= is reported as an unbound expression. The error is right, but it could suggest ~(1 (:a 2))~.
 
 #  LocalWords:  Ouro LD

@@ -154,7 +154,7 @@ validateAST gPos bindingErrors root = NE.nonEmpty (sortOn errPos . nubOrd $ vali
 validateAST' :: M.SourcePos -> Text -> L.Expr -> [OuroError]
 validateAST' gPos path valueGraph = case valueGraph of
                               EvalError err            -> [err]
-                              -- Deeply traverse structural object field value branches
+                              -- Deeply traverse structural record attribute value branches
                               Record    _        pairs -> concat [ validateAST' gPos (keyPath k) v | (k, v) <- pairs ]
                               Array     elements       -> concat [ validateAST' gPos (indexPath i) v | (i, v) <- zip [0 :: Int ..] elements ]
                               -- JSON has no representation for Infinity or NaN

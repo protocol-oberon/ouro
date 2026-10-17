@@ -310,7 +310,7 @@ evalExpr expr = do
                    (_, _, EvalError e) -> pure $ EvalError e
 
                    -- Array manipulation: any value can be an element, but a ':key value'
-                   -- field belongs in a record
+                   -- attribute pair belongs in a record
                    (Primitive (I.Number i), pVal, target)
                         | Just elems <- L.asArray target
                         , notAField pVal
@@ -353,7 +353,7 @@ evalExpr expr = do
                                               actualAfter = case opName == "replace-at" of
                                                                 True  -> drop 1 after
                                                                 False -> after
-                                              -- The fields the new one is placed among: a key can appear once
+                                              -- The attribute pairs the new one is placed among: a key can appear once
                                               others      = before <> actualAfter
                                           in case lookup key others of
                                                  Just _  -> pure $ EvalError (alreadyAField key (S.exprPos payloadExpr))
@@ -376,12 +376,12 @@ evalExpr expr = do
                           & EvalError
                           & pure
 
-        S.Form pos allFields
+        S.Form pos allItems
             -> let wrappedEvaluator currentEnv expr' = local (const currentEnv) (evalExpr expr')
-               in case determineBlockTarget allFields of
-                      TargetRecord      -> compileRecord wrappedEvaluator env allFields
-                      TargetList        -> compileArray  wrappedEvaluator env pos allFields
-                      TargetFunctionApp -> applyFunction pos allFields
+               in case determineBlockTarget allItems of
+                      TargetRecord      -> compileRecord wrappedEvaluator env allItems
+                      TargetList        -> compileArray  wrappedEvaluator env pos allItems
+                      TargetFunctionApp -> applyFunction pos allItems
 
         otherNode
             -> let pos     = S.exprPos otherNode
@@ -412,7 +412,7 @@ assertTag tag payload = do
                                  S.RecTag  -> isRecord   pos evaluatedVal
                                  S.ArrTag  -> isArray    pos evaluatedVal
                                  S.FnTag   -> isFn       pos evaluatedVal
-                                 _badTag   -> malformedTag (T.pack (show tag)) "You cannot type assert an empty object or array"
+                                 _badTag   -> malformedTag (T.pack (show tag)) "You cannot type assert an empty record or array"
                                               & OuroError pos
                                               & EvalError
                                               & pure
@@ -510,8 +510,8 @@ assertTag tag payload = do
 -- Unpacks evaluated argument vectors and triggers platform-native executors.
 -- Operates entirely within the evaluator monad (EvalM).
 applyFunction :: SourcePos -> [S.Expr] -> EvalM L.Expr
-applyFunction pos fields =
-    case fields of
+applyFunction pos exprs =
+    case exprs of
         (operatorExpr : argumentExprs)
             -> do
                resolvedOp   <- evalExpr operatorExpr
@@ -689,7 +689,7 @@ validatePathKeys = traverse $ \case
         -> targetMismatch "a lookup Symbol property identifier" "a structural node form"
            & withBlurb ( "Path navigation parameters following the target node must evaluate "
                       <> "strictly to atomic path components. Compound S-Expression trees, macro tags, "
-                      <> "and loose primitive objects cannot be read as horizontal layout lookup slots."
+                      <> "and loose primitive values cannot be read as horizontal layout lookup slots."
                        )
            & OuroError (S.exprPos badNode)
            & Left
@@ -698,7 +698,7 @@ validatePathKeys = traverse $ \case
 -- getPath.
 --
 -- Walks a path of keys through an evaluated value, one Record at a time. Only a
--- Record's fields can be reached: a 'define' is private to the block it is written in.
+-- Record's attribute pairs can be reached: a 'define' is private to the block it is written in.
 getPath :: L.Expr -> [(Text, SourcePos)] -> L.Expr
 getPath value = \case
     [] -> value
@@ -709,23 +709,23 @@ getPath value = \case
                Record _ pairs       -> lookupKey key keyPos (map fst pairs) (lookup key pairs) rest
                Primitive I.EmptyRec -> lookupKey key keyPos [] Nothing rest
                notARecord           -> typeMismatch ("a Record to look up '" <> key <> "' in") (humanReadableType notARecord)
-                                       & withBlurb "Only the fields of a Record can be reached with 'get'. To index an Array, use (nth index array)."
+                                       & withBlurb "Only the attribute pairs of a Record can be reached with 'get'. To index an Array, use (nth index array)."
                                        & OuroError keyPos
                                        & EvalError
 
     where
     lookupKey key keyPos available found rest =
         case found of
-            Just fieldValue -> getPath fieldValue rest
+            Just attrValue -> getPath attrValue rest
             Nothing         -> missingPathKey key available
-                               & withBlurb ( "The Record has no field '" <> key <> "'."
+                               & withBlurb ( "The Record has no attribute '" <> key <> "'."
                                           <> "\n\nValues written in a 'define' are private to their block and cannot be reached with 'get'."
                                            )
                                & OuroError keyPos
                                & EvalError
 
 
--- A ':key value' field, as a value, belongs in a record, not an array
+-- A ':key value' attribute pair, as a value, belongs in a record, not an array
 notAField :: L.Expr -> Bool
 notAField = \case
     Attr _ _     -> False

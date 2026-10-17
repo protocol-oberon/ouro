@@ -59,12 +59,12 @@ typedArgument param arg = maybe arg (\(pos, tag) -> S.Tagged pos tag arg) (S.par
 functionBody :: Text -> SourcePos -> [S.Expr] -> Either OuroError S.Expr
 functionBody name pos body
     -- A ':key value' (or ':context') at the root of the body is a spliced record
-    | splicedField : _ <- filter isSplicedField body
-        = lexicalError ("The function '" <> name <> "' has a ':key value' field directly in its body.")
+    | splicedAttr : _ <- filter isSplicedAttr body
+        = lexicalError ("The function '" <> name <> "' has a ':key value' attribute pair directly in its body.")
           & withBlurb ( "A function's body is one result expression, written as it would be anywhere else. "
                      <> "Perhaps wrap the record in parentheses: (defn " <> name <> " (args) (:key value ...))."
                       )
-          & OuroError (S.exprPos splicedField)
+          & OuroError (S.exprPos splicedAttr)
           & Left
 
     | returnForm : _ <- filter isReturn body
@@ -97,7 +97,7 @@ functionBody name pos body
                      & Left
 
     where
-    isSplicedField = \case
+    isSplicedAttr = \case
                       S.Form _ (S.Symbol _ "attr"    : _) -> True
                       S.Form _ (S.Symbol _ "context" : _) -> True
                       _notAField                          -> False
@@ -127,7 +127,7 @@ graphBody name pos = \case
         -> spliced
     where
     spliced = lexicalError ("The graph '" <> name <> "' must be one expression.")
-              & withBlurb ( "Perhaps wrap its fields in parentheses: (graph " <> name <> " (:key value ...)). "
+              & withBlurb ( "Perhaps wrap its attribute pairs in parentheses: (graph " <> name <> " (:key value ...)). "
                          <> "Private values are bound around it with let: (graph " <> name <> " (let ($name value) (:key value ...)))."
                           )
               & OuroError pos

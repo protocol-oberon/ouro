@@ -32,20 +32,20 @@ import           Text.Megaparsec              (SourcePos)
 
 -- FrameEntry.
 --
--- One binding: a Record's ':key value' field, a let binding, or a function argument.
+-- One binding: a Record's ':key value' attribute pair, a let binding, or a function argument.
 -- Each entry becomes its own promise, so a Record with duplicate keys still outputs
--- every field, while lookups of the name see the first entry.
+-- every attribute pair, while lookups of the name see the first entry.
 data FrameEntry = FrameEntry
     { entryKey     :: Text
     , entryPos     :: SourcePos
     , entryExpr    :: S.Expr
-    , entryIsField :: Bool       -- A Record field (part of its output), not a let binding or argument
+    , entryIsAttr  :: Bool       -- A Record attribute pair (part of its output), not a let binding or argument
     }
 
 
 -- collectBindings.
 --
--- Sweeps a Record's expressions for the fields it binds, in source order. Context
+-- Sweeps a Record's expressions for the attribute pairs it binds, in source order. Context
 -- forms, malformed attributes and loose expressions bind nothing. 'define' and a local
 -- 'defn' were replaced by 'let' and 'fn', and a private '$name value' binding belongs
 -- in a let; all are reported where they appear.
@@ -110,7 +110,7 @@ reservedNames :: [Text]
 reservedNames = ["nth", "list", "case", "get", "context", "define", "inlay", "insert", "attr", "defn", "defun", "let", "fn"]
 
 
--- A ':key value' pair that binds a name. Pairs whose value is itself a structural
+-- A ':key value' attribute pair that binds a name. Pairs whose value is itself a structural
 -- form (a nested attribute or context) bind nothing.
 bindableAttr :: S.Expr -> Maybe (Text, SourcePos, S.Expr)
 bindableAttr = \case
@@ -239,7 +239,7 @@ lookupFunction evaluator pos name env =
                        Nothing   -> lookupBuiltin pos name env
 
 
--- Field lookup else throw the final unbound error
+-- Attribute lookup else throw the final unbound error
 lookupBuiltin
     :: SourcePos
     -> Text
