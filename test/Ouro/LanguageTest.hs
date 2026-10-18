@@ -108,6 +108,17 @@ formsAndBuiltins = Group "Special forms and built-ins"
                                                               "(defn f (n) (f n)) (graph g (:r (f 1)))")
     , ("brackets are reserved",                     failsWith "an unrecognized compiler macro token shape"
                                                               "(graph g (:a [1 2]))")
+
+    -- (attr key value) was removed: an attribute pair is written ':key value', and a key is
+    -- never computed. This also removed gap 5, a computed key dropped inside a record.
+    , ("attr is removed",                           failsWith "The (attr key value) form has been removed"
+                                                              "(graph g (:r (attr \"k\" 1)))")
+    , ("so is attr inside a record",                failsWith "The (attr key value) form has been removed"
+                                                              "(graph g (let ($k \"key\") (:a 1 (attr k 2))))")
+    , ("and inside an array",                       failsWith "The (attr key value) form has been removed"
+                                                              "(graph g (:r ((attr \"k\" 1))))")
+    , ("insert takes a written attribute pair",     compilesToJSON "(graph g (:r (insert 2 :_label \"Proust\" (:id \"1\" :type \"Person\"))))"
+                                                                   "{\"r\": {\"id\": \"1\", \"type\": \"Person\", \"_label\": \"Proust\"}}")
     ]
 
 
@@ -484,9 +495,7 @@ contextAlgebra = Group "Contexts: combining them is a monoid"
 -- incorrect behaviour; the change that fixes a gap flips its test to the correct one.
 knownGaps :: Group
 knownGaps = Group "Known gaps: current, incorrect behaviour"
-    [ ("gap 5: computed keys are dropped",          compilesToJSON "(graph g (let ($k \"key\") (:a 1 (attr k 2))))"
-                                                                   "{\"a\": 1}")
-    , ("gap 9: no suggestion for a local name",     failsWithout "Perhaps you meant"
+    [ ("gap 9: no suggestion for a local name",     failsWithout "Perhaps you meant"
                                                                  "(graph g (let ($artist 1) (:r artst)))")
     , ("gap 10: the function hint uses old syntax", failsWith "(name! args)"
                                                               "(defn inc (x) (+ x 1)) (graph g (:r (list inc)))")
@@ -512,8 +521,6 @@ knownGaps = Group "Known gaps: current, incorrect behaviour"
                                                                  "\"newline\": \"a\nb\"")
     , ("gap 19: nor is a tab",                      emitsExactly "(graph g (:tab \"a\\tb\"))"
                                                                  "\"tab\": \"a\tb\"")
-    , ("gap 19: nor is a quote in a computed key",  emitsExactly "(graph g (:r (insert 0 (attr \"a\\\"b\" 1) (:x 2))))"
-                                                                 "\"a\"b\": 1")
     , ("gap 19: validate unescapes a valid document", withTests 1 . property $
                                                        fmap (T.isInfixOf "\"k\": \"a\"b\"" . TL.toStrict)
                                                             (validate "t.json" "{\"k\": \"a\\\"b\"}" defaultOptions)

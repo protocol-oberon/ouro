@@ -22,7 +22,8 @@ import           Data.Ouro.Lisp.Eval.Types   (Binding (..), Env (..), EvalM, Exp
                                               humanReadableType)
 import qualified Data.Ouro.Lisp.Eval.Types   as L
 import           Data.Ouro.Lisp.Function     (functionBody, isFunctionKeyword,
-                                              misplacedBinding, removedContextForm,
+                                              misplacedBinding, removedAttrForm,
+                                              removedContextForm,
                                               removedDefine, removedLocalDefn,
                                               typedArgument)
 import qualified Data.Ouro.Lisp.Surface      as S
@@ -122,6 +123,12 @@ emitProps evaluator env attrAddrs expressions = go I.EmptyMeta expressions
                   S.Form _ (S.Symbol pos "context" : _) : remaining
                       -> contextError (removedContextForm pos) (go metaAcc remaining)
 
+                  -- The removed (attr key value) form, replaced by ':key value'
+                  S.Form _ (S.Symbol pos "attr" : _) : rest
+                      -> go metaAcc rest <&> \case
+                             Record m p -> Record m (("*err*", EvalError (removedAttrForm pos)) : p)
+                             otherVal   -> otherVal
+
                   -- Case B: Inlay evaluated record pairs directly into the current record scope
                   S.Form _ [S.Symbol pos "inlay", iExpr] : rest
                       -> let blockTarget = case iExpr of
@@ -205,12 +212,12 @@ emitProps evaluator env attrAddrs expressions = go I.EmptyMeta expressions
 
                   -- Case D (Replaces Old B.25 and Old D): Safely drop malformed/loose attribute blocks
                   -- or attributes wrapping blocked structural layouts, and keep moving
-                  S.Form _ (S.Symbol _ "attr" : _) : rest -> go metaAcc rest
+                  S.Form _ (S.Symbol _ "%attr" : _) : rest -> go metaAcc rest
 
                   -- Case E: Catch dangling expressions instead of silently erasing them
                   expr : rest
                       -> let err = typeMismatch
-                                       "a structural record property (attr, inlay, context)"
+                                       "a structural record property (an attribute pair, inlay, context)"
                                        "an unbound expression"
                                    & withBlurb "Unbound expressions are not allowed inside Record blocks. They must be bound to an attribute."
                                    & OuroError (S.exprPos expr)
@@ -278,8 +285,12 @@ compileArray evaluator env pos elements = Array <$> compileElements env elements
             S.Form dPos (S.Symbol _ "context" : _) : xs
                 -> (EvalError (removedContextForm dPos) :) <$> compileElements env' xs
 
+            -- The removed (attr key value) form
+            S.Form dPos (S.Symbol _ "attr" : _) : xs
+                -> (EvalError (removedAttrForm dPos) :) <$> compileElements env' xs
+
             -- Case B.25 TRUE ERASURE: Skip ubound attrs from attr from
-            S.Form _ [S.Symbol _ "attr", _, _] : xs
+            S.Form _ [S.Symbol _ "%attr", _, _] : xs
                 -> compileElements env' xs
 
             -- Case B.5: Inlay evaluated array elements directly into the current array scope
@@ -385,7 +396,7 @@ determineBlockTarget items =
     isStructuralAttr :: S.Expr -> Bool
     isStructuralAttr =
         \case
-         S.Form _ (S.Symbol _ "attr"     : _) -> True
+         S.Form _ (S.Symbol _ "%attr"    : _) -> True
          S.Form _ (S.Symbol _ "%context" : _) -> True
          _other                               -> False
 

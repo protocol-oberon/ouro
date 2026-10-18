@@ -497,7 +497,7 @@ The following Ouro code:
 (:inserted_into (:id   "https://linked.art/example/person/proust"
              :type "Person")
 
- :record    (insert 2 (attr "_label" "Proust") inserted_into))
+ :record    (insert 2 :_label "Proust" inserted_into))
 ```
 
 ...compiles to the following JSON:

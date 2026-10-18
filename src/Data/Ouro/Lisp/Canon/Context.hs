@@ -17,7 +17,7 @@ import qualified Data.Ouro.Lisp.Surface        as S
 -- Ouro, so the head cannot be confused with a user's function.
 contexts :: S.Expr -> S.Expr
 contexts = bottomUp $ \case
-    S.Form pos [S.Symbol _ "attr", S.Literal _ (S.Str key), valExpr]
+    S.Form pos [S.Symbol _ "%attr", S.Literal _ (S.Str key), valExpr]
         | key `elem` ["context", "@context"]
         -> S.Form pos [S.Symbol pos "%context", valExpr]
     other

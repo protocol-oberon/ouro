@@ -215,7 +215,7 @@ call         = "(" , symbol , { expression | placeholder } , ")" ;
 placeholder  = [ tag ] , hole ;     (* a call with placeholders is a function of them *)
 
 (* ---------- Special forms ---------- *)
-special-form = let | fn | case | get | nth | map | insert | replace-at | attr | with | thread ;
+special-form = let | fn | case | get | nth | map | insert | replace-at | with | thread ;
 let          = "(" , "let" , "(" , { binding } , ")" , expression , ")" ;
 binding      = "$" , symbol , expression ;
 fn           = "(" , "fn" , [ tag ] , params , expression , ")" ;
@@ -230,7 +230,6 @@ with         = "(" , "with" , expression , { record-item | expression } , ")" ;
 thread       = "(" , "->" , ( expression | placeholder ) , { expression } , ")" ;     (* a value, then its steps *)
 insert       = "(" , "insert" , expression , ( expression | attribute-pair ) , expression , ")" ;
 replace-at   = "(" , "replace-at" , expression , ( expression | attribute-pair ) , expression , ")" ;
-attr         = "(" , "attr" , expression , expression , ")" ;     (* a computed key *)
 inlay        = "(" , "inlay" , expression , ")" ;
 context      = ( ":context" | ":@context" ) , expression ;     (* a JSON-LD context value *)
 
@@ -409,7 +408,7 @@ A call with =?= holes among its arguments is not called: it is a function of its
 - *A named hole is one parameter*, however often it is written: ~(* ?n ?n)~ takes one. Parameters follow the order in which each hole is first written, so ~(+ ?a ?b ?a)~ takes =a= then =b=.
 - *A tagged hole is a typed parameter*: ~(node #uri ? "Painting")~ checks, and converts, its argument as a signature would, and a mismatch is reported at the argument where the placeholder is called. An untyped hole passed to a typed parameter of the function is checked by that function, and a mismatch is reported at the hole.
 - *A hole belongs to the call it is an argument of*, so ~(* 2 (+ ? 1))~ multiplies 2 by a function (an error), and ~(f (g ?))~ passes =f= a function.
-- *Any call takes holes*: a =defn=, a =fn=, a built-in, a variadic operator (~(< ? 10 20)~) and the special forms that evaluate their arguments (=get=, =nth=, =insert=, =replace-at=, =list=, =map=, =->=). The forms with their own structure (=let=, =fn=, =case=, =attr=, =context=, =inlay=, =thru=) do not.
+- *Any call takes holes*: a =defn=, a =fn=, a built-in, a variadic operator (~(< ? 10 20)~) and the special forms that evaluate their arguments (=get=, =nth=, =insert=, =replace-at=, =list=, =map=, =->=). The forms with their own structure (=let=, =fn=, =case=, =context=, =inlay=, =thru=) do not.
 - *A placeholder is a value*: it is a =fn=, closed over the scope it is written in, so it can be bound, passed and returned like one. It is called with exactly as many arguments as it has holes.
 - *A hole anywhere else is an error*: in an array, in a record, or as a binding's value. A rest hole, =?..name=, only matches the rest of an array or record, so it can only be written in a pattern: a =case= pattern or a [[*Destructuring parameters][parameter]].
 
@@ -458,7 +457,6 @@ Special forms are recognised by their head symbol before any name lookup, so the
 | =(-> x step ...)=                        | =x= threaded through the steps, each receiving the value before it                    |
 | =(list e ...)=                           | an array, whatever its first element is                                               |
 | =(thru duration)=                        | extend a duration to the end of its unit (see Built-ins)                              |
-| =(attr key-expr value)=                  | an attribute pair with a computed key (used with =insert=)                            |
 | =:context e=                             | the record's JSON-LD =@context=, a context value (see [[*=@context=][=@context=]])                |
 
 Negative indexes count from the end in =nth=, =insert= and =replace-at=. =insert= puts any value into an array, but not a =:key value= attribute pair. Neither =insert= nor =replace-at= can give a record a key it already has: that is an error, and =replace-at= may keep the replaced attribute pair's own key.
@@ -587,7 +585,7 @@ data Param = Param
 
 A pattern parameter is named by its position, =%arg1=, =%arg2=, ..., which cannot be written in Ouro, so its argument is only reached through the pattern's holes. ~Function.checkParams~ checks the parameters when a function is defined, by the parser for a =defn= and by the evaluator for a =fn=: each pattern must bind something, and each name is bound once.
 
-There is no separate constructor for attribute pairs: the parser reads =:key value= as the form ~(attr "key" value)~, so a record is a ~Form~ of ~attr~ forms. A =$name= is read on its own as ~(%binder "name")~ and paired with its value only inside a =let= (see [[*Desugaring (~Canon~)][desugaring]]). A module is the parser's other output: a registry of =defn= declarations and a registry of =graph= declarations, each a ~HigherExpression~ indexed by its kind:
+There is no separate constructor for attribute pairs: the parser reads =:key value= as the form ~(%attr "key" value)~, so a record is a ~Form~ of ~%attr~ forms. =%= cannot be lexed, so the form cannot be written: a key is always written, never computed. A =$name= is read on its own as ~(%binder "name")~ and paired with its value only inside a =let= (see [[*Desugaring (~Canon~)][desugaring]]). A module is the parser's other output: a registry of =defn= declarations and a registry of =graph= declarations, each a ~HigherExpression~ indexed by its kind:
 
 #+BEGIN_SRC haskell
 data HigherExpression (t :: Declaration) where
@@ -660,7 +658,7 @@ determineBlockTarget items =
         _notAFunction         -> False
 
     isStructuralAttr = \case
-        S.Form _ (S.Symbol _ "attr"     : _) -> True
+        S.Form _ (S.Symbol _ "%attr"    : _) -> True
         S.Form _ (S.Symbol _ "%context" : _) -> True
         _other                               -> False
 #+END_SRC
@@ -709,7 +707,7 @@ data Expr where
 
     -- Open structure: may contain errors at any depth
     Record          :: I.Expr 'JLD.Meta -> [(Text, Expr)] -> Expr
-    Attr            :: Text -> Expr -> Expr          -- a computed attribute pair, from (attr k v)
+    Attr            :: Text -> Expr -> Expr          -- an attribute pair, from :k v
     Array           :: [Expr] -> Expr
 
     -- Compile-time-only values: no JSON form
@@ -1023,7 +1021,7 @@ Ouro's compiler guarantees structural validity: a compiled graph is well-formed 
 
 - *Justification:* limiting the compiler to structure keeps it deterministic, offline and immune to failures in external Linked Data services.
 
-- *Boundary rule:* URIs and keys are accepted as literal (or computed) strings. Semantic expansion (context resolution, RDF conversion, shape validation) is left to specialised tools after compilation, in keeping with the Unix philosophy.
+- *Boundary rule:* URIs are accepted as literal or computed strings, and keys as written literals. Semantic expansion (context resolution, RDF conversion, shape validation) is left to specialised tools after compilation, in keeping with the Unix philosophy.
 
 * Appendix A: Removed features
 
@@ -1038,6 +1036,7 @@ Ouro's compiler guarantees structural validity: a compiled graph is well-formed 
 | required =!= on function names                     | plain names (=!= still allowed)                    | none                                                                            |
 | =quote=, ='=, =eval=, =get'=                       | values: Ouro has no metaprogramming                | none                                                                            |
 | =(context (vocab "..." remote-context "..."))=     | =:context value=, a JSON-LD context value          | =The (context (...)) form has been replaced by ':context value'.=               |
+| =(attr key value)=, a computed key                | =:key value=; keys are never computed              | =The (attr key value) form has been removed.=                                    |
 | code-shape =get= (=resolvePath=)                   | value-based =get= (~getPath~)                      | none                                                                            |
 | dynamic scope                                      | lexical scope                                      | none                                                                            |
 | ~Reader Env~ evaluation, ~buildLazyEnv~ knot-tying | ~ReaderT Env (State Store)~ with memoised promises | none                                                                            |
@@ -1056,7 +1055,7 @@ Recorded 2026-10-12 and kept up to date since; none were caused by the scoping r
 
 4. /Fixed:/ month and year arithmetic rolled over into the next month (31 March − 1 month was 2 March). It now clips to the end of the shorter month.
 
-5. *Computed keys are dropped inside records:* ~((attr k 1))~ produces ={}=. They only work via =insert=.
+5. /Fixed, by removal:/ computed keys were dropped inside records, ~((attr k 1))~ producing ={}=. =(attr key value)= was removed (see Appendix A): a key is always written, =:key value=.
 
 6. /Fixed:/ duplicate keys were emitted twice. Each key now appears once (see [[*Records and arrays][Records and arrays]]).
 
@@ -1084,7 +1083,7 @@ Recorded 2026-10-12 and kept up to date since; none were caused by the scoping r
 
 18. *An attribute pair among array values has no hint:* ~(1 :a 2)~ is read as a record (one attribute pair makes the form a record), so =1= is reported as an unbound expression. The error is right, but it could suggest ~(1 (:a 2))~.
 
-19. *Strings are not escaped in the output:* the serialiser writes a string's characters between quotes as they are, so ~"say \"hi\""~ becomes ="say "hi""=, and a backslash, newline or tab is written raw, all of which is invalid JSON. A computed key, such as ~(attr "a\"b" 1)~, is written the same way. =ouro validate= has the same fault, so a valid document with ="a\"b"= comes back as ="a"b"=.
+19. *Strings are not escaped in the output:* the serialiser writes a string's characters between quotes as they are, so ~"say \"hi\""~ becomes ="say "hi""=, and a backslash, newline or tab is written raw, all of which is invalid JSON. =ouro validate= has the same fault, so a valid document with ="a\"b"= comes back as ="a"b"=.
 
 20. *=compile -o= needs an existing directory:* compiling into an output directory that does not exist reports "Compilation Success" and then crashes with ~withFile: does not exist~, writing nothing. Not pinned by a test, since the CLI has none (gap 13).
 

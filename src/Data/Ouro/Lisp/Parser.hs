@@ -259,7 +259,7 @@ pExpr = do
                              -- Parameterized Identifiers
                              Tkn.Symbol         txt -> capture (S.Symbol (Tkn.pos t) txt)
 
-                             -- Attributes (Reader Macro -> `(attr "key" expr)`)
+                             -- Attributes (Reader Macro -> `(%attr "key" expr)`)
                              Tkn.Attr           txt -> put ts >> parseAttrNode (Tkn.pos t) txt
                              Tkn.Binding        txt -> capture (binderNode (Tkn.pos t) txt)
 
@@ -325,12 +325,13 @@ parseTaggedNode tagPos tagType = do
                                  pure $ S.Tagged tagPos tagType nextExpr
 
 
--- Reader Macro Helper: Desugars attributes into `(attr "name" expr)`
+-- Reader Macro Helper: Desugars attributes into `(%attr "name" expr)`. '%' cannot be
+-- lexed, so the form cannot be written: an attribute pair is always written :key value
 parseAttrNode :: SourcePos -> Text -> Parser S.Expr
 parseAttrNode pos attrName = do
                              -- Eagerly consume the next expression to bind to the attribute
                              nextExpr <- pExpr
-                             pure $ S.Form pos [ S.Symbol pos "attr"
+                             pure $ S.Form pos [ S.Symbol pos "%attr"
                                                , S.Literal pos (S.Str attrName)
                                                , nextExpr
                                                ]

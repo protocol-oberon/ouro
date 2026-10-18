@@ -90,13 +90,13 @@ matchPattern evaluator pattern value =
         Primitive I.EmptyRec -> attrs I.EmptyMeta []
         _notARecord          -> noMatch
         where
-        keyed = [ (key, p) | S.Form _ [S.Symbol _ "attr", S.Literal _ (S.Str key), p] <- elems ]
+        keyed = [ (key, p) | S.Form _ [S.Symbol _ "%attr", S.Literal _ (S.Str key), p] <- elems ]
         rests = [ name     | S.Hole _ name <- elems, isRestHole name ]
 
         strays = [ e | e <- elems, not (isKeyed e), not (isRest e) ]
         isKeyed = \case
-                   S.Form _ [S.Symbol _ "attr", S.Literal _ (S.Str _), _] -> True
-                   _other                                                  -> False
+                   S.Form _ [S.Symbol _ "%attr", S.Literal _ (S.Str _), _] -> True
+                   _other                                                   -> False
         isRest = \case
                   S.Hole _ name -> isRestHole name
                   _other        -> False

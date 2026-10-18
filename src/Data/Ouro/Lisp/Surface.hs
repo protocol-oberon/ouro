@@ -126,5 +126,5 @@ containsHole = \case
 -- Matches the parsed form of a ':key value' attribute pair
 isAttrForm :: Expr -> Bool
 isAttrForm = \case
-              Form _ (Symbol _ "attr" : _) -> True
-              _notAnAttr                   -> False
+              Form _ (Symbol _ "%attr" : _) -> True
+              _notAnAttr                    -> False

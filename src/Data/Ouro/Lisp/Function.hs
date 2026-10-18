@@ -9,6 +9,7 @@ module Data.Ouro.Lisp.Function
 , keyInLet
 , misplacedBinding
 , patternParam
+, removedAttrForm
 , removedContextForm
 , removedDefine
 , removedLocalDefn
@@ -159,7 +160,7 @@ functionBody name pos body
 
     where
     isSplicedAttr = \case
-                      S.Form _ (S.Symbol _ "attr"    : _) -> True
+                      S.Form _ (S.Symbol _ "%attr"   : _) -> True
                       S.Form _ (S.Symbol _ "context" : _) -> True
                       _notAField                          -> False
 
@@ -175,7 +176,7 @@ functionBody name pos body
 -- A graph is one expression, usually a Record: (graph name (:key value ...)).
 graphBody :: Text -> SourcePos -> [S.Expr] -> Either OuroError S.Expr
 graphBody name pos = \case
-    [S.Form _ (S.Symbol _ "attr" : _)]
+    [S.Form _ (S.Symbol _ "%attr" : _)]
         -> spliced
     [result]
         -> Right result
@@ -193,6 +194,17 @@ graphBody name pos = \case
                           )
               & OuroError pos
               & Left
+
+
+-- '(attr key value)' was removed: an attribute pair is written ':key value', and a key is
+-- never computed, since JSON-LD's keys are vocabulary terms
+removedAttrForm :: SourcePos -> OuroError
+removedAttrForm pos =
+    lexicalError "The (attr key value) form has been removed."
+    & withBlurb ( "An attribute pair is written :key value, as in (:_label \"Proust\"), and insert takes one the same way: "
+               <> "(insert 0 :_label \"Proust\" record). A key can no longer be computed from a value."
+                )
+    & OuroError pos
 
 
 -- '(context (...))' was replaced by ':context value': a record's context is an ordinary

@@ -32,7 +32,7 @@ tests = Group "Evaluation Tests (Surface to Higher IR)"
     , ("lowers Empty collections correctly",           prop_lower_empty)
 
     , ("evaluates (list ...) forms",                   prop_list_form)
-    , ("evaluates (attr \"key\" val) forms",           prop_attr_form)
+    , ("evaluates (%attr \"key\" val) forms",          prop_attr_form)
 
     , ("evaluates (+ 2 2) via env mapping",            prop_add_primitive)
     , ("evaluates (> 10 5) via env mapping",           prop_gt_primitive)
@@ -45,7 +45,7 @@ tests = Group "Evaluation Tests (Surface to Higher IR)"
     , ("runs all but two passes on a pattern",         prop_pattern_passes)
     , ("runs a single pass on its own",                prop_single_pass)
 
-    , ("returns L.EvalError for invalid attr name",    prop_error_invalid_attr)
+    , ("returns L.EvalError for the removed attr form", prop_error_removed_attr)
     , ("returns L.EvalError for out-of-bounds nth",    prop_error_nth_bounds)
 
 
@@ -98,7 +98,7 @@ prop_attr_form :: Property
 prop_attr_form = withTests 1 . property $ do
     let nameExpr = S.Literal dummyPos (S.Str "host")
     let valExpr  = S.Literal dummyPos (S.Str "localhost")
-    let expr = S.Form dummyPos [S.Symbol dummyPos "attr", nameExpr, valExpr]
+    let expr = S.Form dummyPos [S.Symbol dummyPos "%attr", nameExpr, valExpr]
     runEval expr === L.Attr "host" (L.Primitive (I.String "localhost"))
 
 
@@ -181,9 +181,10 @@ prop_single_pass = withTests 1 . property $ do
 -- We annotate the result so if it fails, you see exactly what was returned,
 -- and then we simply assert that it is an EvalError.
 
-prop_error_invalid_attr :: Property
-prop_error_invalid_attr = withTests 1 . property $ do
-    let nameExpr = S.Literal dummyPos (S.Num 404)
+-- (attr key value) was removed: an attribute pair is written ':key value'
+prop_error_removed_attr :: Property
+prop_error_removed_attr = withTests 1 . property $ do
+    let nameExpr = S.Literal dummyPos (S.Str "host")
     let valExpr  = S.Literal dummyPos (S.Str "localhost")
     let expr = S.Form dummyPos [S.Symbol dummyPos "attr", nameExpr, valExpr]
 

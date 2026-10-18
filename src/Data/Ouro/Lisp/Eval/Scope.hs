@@ -87,7 +87,7 @@ letBindings = traverse $ \case
     S.Form pos [S.Symbol _ "%bind", S.Literal _ (S.Str name)]
         -> Left (bindingWithoutValue name pos)
 
-    S.Form pos (S.Symbol _ "attr" : S.Literal _ (S.Str key) : _)
+    S.Form pos (S.Symbol _ "%attr" : S.Literal _ (S.Str key) : _)
         -> Left (keyInLet key pos)
 
     binding
@@ -114,14 +114,14 @@ reservedNames = ["nth", "list", "case", "get", "context", "define", "inlay", "in
 -- form (a nested attribute or context) bind nothing.
 bindableAttr :: S.Expr -> Maybe (Text, SourcePos, S.Expr)
 bindableAttr = \case
-    S.Form pos [S.Symbol _ "attr", S.Literal _ (S.Str key), valExpr]
+    S.Form pos [S.Symbol _ "%attr", S.Literal _ (S.Str key), valExpr]
         | not (isStructuralExpr valExpr) -> Just (key, pos, valExpr)
     _notBindable                         -> Nothing
 
     where
     isStructuralExpr :: S.Expr -> Bool
     isStructuralExpr = \case
-                        S.Form _ (S.Symbol _ "attr"     : _) -> True
+                        S.Form _ (S.Symbol _ "%attr"    : _) -> True
                         S.Form _ (S.Symbol _ "context"  : _) -> True
                         _otherForm                           -> False
 

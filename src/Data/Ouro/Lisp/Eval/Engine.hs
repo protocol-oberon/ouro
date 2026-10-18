@@ -38,9 +38,9 @@ import           Data.Ouro.Lisp.Eval.Types      (Env (..), EvalM, Expr (..),
 import qualified Data.Ouro.Lisp.Eval.Types      as L
 import           Data.Ouro.Lisp.Function        (checkParams, isFunctionKeyword,
                                                  misplacedBinding, patternParam,
-                                                 removedContextForm, removedDefine,
-                                                 removedLocalDefn, strayHole,
-                                                 typedResult)
+                                                 removedAttrForm, removedContextForm,
+                                                 removedDefine, removedLocalDefn,
+                                                 strayHole, typedResult)
 import           Data.Ouro.Lisp.Module.Types    (Module)
 import qualified Data.Ouro.Lisp.Surface         as S
 import           Data.Text                      (Text)
@@ -114,6 +114,10 @@ evalExpr expr = do
         -- The old (context (...)) form: a record's context is now ':context value'
         S.Form pos (S.Symbol _ "context" : _)
             -> pure (EvalError (removedContextForm pos))
+
+        -- The removed (attr key value) form: an attribute pair is written ':key value'
+        S.Form pos (S.Symbol _ "attr" : _)
+            -> pure (EvalError (removedAttrForm pos))
 
         -- 'get' walks the evaluated value, so it works through functions, inlays and case
         S.Form _ (S.Symbol _ "get" : rootTarget : pathExpressions)
@@ -257,17 +261,10 @@ evalExpr expr = do
                & EvalError
                & pure
 
-        S.Form _ [S.Symbol _ "attr", nameExpr, aExpr]
-            -> do
-               nameVal <- evalExpr nameExpr
-               case nameVal of
-                   Primitive (I.String name) -> Attr name <$> evalExpr aExpr
-                   notAStr                   -> typeMismatch
-                                                    "an expression that evaluates to String"
-                                                    (humanReadableType notAStr)
-                                                & OuroError (S.exprPos nameExpr)
-                                                & EvalError
-                                                & pure
+        -- An attribute pair, ':key value', read by the parser as (%attr "key" value): its key
+        -- is always written, never computed
+        S.Form _ [S.Symbol _ "%attr", S.Literal _ (S.Str name), aExpr]
+            -> Attr name <$> evalExpr aExpr
 
 
 
@@ -702,7 +699,7 @@ validatePathKeys = traverse $ \case
     S.Symbol keyPos k
         -> Right (k, keyPos)
 
-    S.Form aPos (S.Symbol _ "attr" : S.Literal _ (S.Str rawAttr) : _)
+    S.Form aPos (S.Symbol _ "%attr" : S.Literal _ (S.Str rawAttr) : _)
         -> targetMismatch "a lookup Symbol path component" (":" <> rawAttr)
            & withBlurb ( "The 'get' path operator expects bare lookup symbols (e.g., properties) "
                       <> "to traverse target graph layers. You provided a colon-prefixed attribute identifier.\n\n"

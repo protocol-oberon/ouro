@@ -59,7 +59,7 @@ placeholders = \case
 
 -- Forms with their own structure, whose arguments are not values a hole could stand for
 holeFreeForms :: [Text]
-holeFreeForms = [ "attr", "case", "context", "define", "defn", "defun", "fn", "graph"
+holeFreeForms = [ "%attr", "case", "context", "define", "defn", "defun", "fn", "graph"
                 , "inlay", "let", "thru", "%binder" ]
 
 
