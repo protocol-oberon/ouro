@@ -88,6 +88,18 @@ formsAndBuiltins = Group "Special forms and built-ins"
                                                                    "{\"end\": \"2020-01-02T23:59:59Z\"}")
     , ("thru (years 0) ends the current year",      compilesToJSON "(graph g (let ($start #date \"2020-03-01T00:00:00Z\") (:end (+ start (thru (years 0))))))"
                                                                    "{\"end\": \"2020-12-31T23:59:59Z\"}")
+    , ("len counts an array's elements",            compilesToJSON "(graph g (:a (len (1 (2 3) (:k 4))) :b (len ()) :c (len #arr-empty)))"
+                                                                   "{\"a\": 3, \"b\": 0, \"c\": 0}")
+    , ("and a string's characters",                 compilesToJSON "(graph g (:a (len \"Amsterdam\") :b (len \"Málaga\") :c (len \"\")))"
+                                                                   "{\"a\": 9, \"b\": 6, \"c\": 0}")
+    , ("len of a record is a type error",           failsWith "An Array or a String"
+                                                              "(graph g (:r (len (:a 1))))")
+    , ("so is len of a URI",                        failsWith "An Array or a String"
+                                                              "(graph g (:r (len #uri \"https://a.org/x\")))")
+    , ("len takes one argument",                    failsWith "IncorrectArity"
+                                                              "(graph g (:r (len (1) (2))))")
+    , ("len is an ordinary function value",         compilesToJSON "(graph g (:r (map len (\"ab\" (1 2 3)))))"
+                                                                   "{\"r\": [2, 3]}")
     , ("comparisons chain, and null is a value",    compilesToJSON "(graph g (:a (eq 1 1 1) :b (neq 1 2) :c null))"
                                                                    "{\"a\": true, \"b\": true, \"c\": null}")
     , ("#str asserts a String",                     failsWith "a String"

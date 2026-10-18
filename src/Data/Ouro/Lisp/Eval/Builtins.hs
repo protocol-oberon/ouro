@@ -22,6 +22,7 @@ import           Data.Ouro.Lisp.Eval.Types   (Env, PeriodUnit (..),
                                               humanReadableType)
 import qualified Data.Ouro.Lisp.Eval.Types   as L
 import           Data.Text                   (Text)
+import qualified Data.Text                   as T
 import           Data.Time                   (UTCTime (..), addUTCTime,
                                               fromGregorian,
                                               gregorianMonthLength, toGregorian)
@@ -45,6 +46,7 @@ builtinRegistry = Map.fromList
                       , ("<",           handleLess)
                       , ("eq",          handleEquality)
                       , ("neq",         handleNeq)
+                      , ("len",         handleLength)
                       -- Internal: emitted only by the desugarer for chained comparisons
                       , ("%and",        handleAnd)
                       , ("years",       handleYearsModifier)
@@ -443,6 +445,38 @@ applyDuration utc unit amt = case unit of
                                                 in utc { utctDay = fromGregorian y m lastDay, utctDayTime = 86399 }
 
 
+
+
+-- handleLength.
+--
+-- The number of elements in an array, or of characters in a string. Characters are Unicode
+-- code points, not bytes, so "Málaga" has 6. Recursion is banned, so a length cannot be
+-- written in Ouro itself.
+handleLength :: SourcePos -> [L.Expr] -> Reader Env L.Expr
+handleLength pos =
+    \case
+     [L.Primitive (I.String s)]
+         -> pure $ L.Primitive (I.Number (fromIntegral (T.length s)))
+
+     [arr]
+         | Just elements <- L.asArray arr
+         -> pure $ L.Primitive (I.Number (fromIntegral (length elements)))
+
+     -- Error propagation
+     [err@(L.EvalError _)]
+         -> pure err
+
+     [other]
+         -> Data.Ouro.Error.Diagnostics.typeMismatch "An Array or a String" (humanReadableType other)
+            & OuroError pos
+            & L.EvalError
+            & pure
+
+     args
+         -> Data.Ouro.Error.Diagnostics.incorrectArity "len" 1 (length args)
+            & OuroError pos
+            & L.EvalError
+            & pure
 
 
 -- Shared helper for duration modifiers to ensure consistent error handling.

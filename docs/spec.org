@@ -524,10 +524,13 @@ shadows them with its own attribute pairs.
 |-------------+-------------------------------------------+-----------------------------------------------------------------------------------------|
 | Arithmetic  | ~+~ ~-~ ~*~ ~/~                           | variadic, left-associative; =+= also joins strings and arrays, adds durations to dates  |
 | Comparison  | ~eq~ ~neq~ ~>~ ~>=~ ~<~ ~<=~              | variadic comparisons are chained: ~(< a b c)~ = a<b and b<c                             |
+| Length      | ~len~                                     | ~(len x)~ is the number of an array's elements, or of a string's characters             |
 | Durations   | =years months days hours minutes seconds= | ~(days 19)~ is a Duration                                                               |
 | End-of-unit | =(thru d)=                                | ~(thru (days 1))~ = 1 day 23:59:59; ~(thru (years 0))~ = to the end of the current year |
 
 An operator written with the wrong number of operands is an arity error. Ordering (~>~ ~>=~ ~<~ ~<=~) compares numbers only.
+
+=len= takes exactly one argument. An array's elements are counted whatever their types, so ~(len (1 (2 3) (:k 4)))~ is 3, and =()= and =#arr-empty= have length 0. A string is counted in characters (Unicode code points), not bytes, so ~(len "Málaga")~ is 6. Any other value, a record or a URI included, is a type error. Recursion is banned, so a length cannot be written in Ouro itself; =len= is an ordinary built-in otherwise, so ~(map len xs)~ works.
 
 Dates are shifted with =+= and =-=: ~(+ start (days 19))~. Shifting by months or years clips to the end of a shorter month instead of rolling over, so 31 March minus one month is the last day of February. =thru= exists for Linked Art timespans, whose
 =end_of_the_end= is the last moment of a period:

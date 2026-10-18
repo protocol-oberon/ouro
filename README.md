@@ -550,6 +550,15 @@ Time windows are made with `(years n)`, `(months n)`, `(days n)`, `(hours n)`, `
 
 Using an operator with the wrong number of operands is an arity error.
 
+**Length:** `len` counts an Array's elements, whatever their types, or a String's characters.
+
+| Function  | Syntax Example           | Behaviour / Domain Rules              |
+|:----------|:-------------------------|:--------------------------------------|
+| **`len`** | `(len (1 (2 3)))` -> `2` | Counts elements; `()` has length `0`. |
+|           | `(len "Málaga")` -> `6`  | Counts characters, not bytes.         |
+
+Any other value, such as a record or a `#uri`, is a type error.
+
 ## Functions
 
 Like any good Lisp, Ouro supports powerful first class functions. A function's body is one expression, written exactly as it would be anywhere else, and its value is the result: a Record, an Array or a Primitive.
