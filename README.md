@@ -762,51 +762,50 @@ Ouro uses Scheme style lexical scoping, this means that scope is defined by the 
 
 # Canonical Example
 
-*Purchase of Spring by Proust*
+*Idea for Manet and Modern Beauty*
 ``` clojure
-(defn core #rec (#str id #str type #str label)
-  (let ($getty      "http://vocab.getty.edu/aat/"
-        $linked-art "https://linked.art/example/"
-        $base       (case id
-                          (("manet" "proust") (+ linked-art "person/"))
-                          ("spring"           (+ linked-art "object/"))
-                          ("manet_proust/1"   (+ linked-art "provenance/"))
-                          (otherwise          getty)))
+;; Will be in std: Linked Art's own patterns. Named std/... here until modules exist
+(defn std/core #rec (#uri id #str type #str label)
+  (:id id :type type :_label label))
 
-    (:id     #uri (+ base id)
-     :type   type
-     :_label label)))
+(defn std/aat #rec (#str id #str label)
+  (std/core #uri (+ "http://vocab.getty.edu/aat/" id) "Type" label))
 
-(graph purchase-of-spring
- (let ($aat-type (core ? "Type" ?)
-       $person   (core ? "Person" ?))
+(defn std/ulan #rec (#str id #str label)
+  (std/core #uri (+ "http://vocab.getty.edu/ulan/" id) "Person" label))
 
-  (:context "https://linked.art/ns/v1/linked-art.json"
-   (inlay (core "manet_proust/1" "Activity" "Purchase of Spring by Proust"))
-   :classified_as ((aat-type "300055863" "Provenance Activity"))
+(defn std/classified #rec (#rec r #rec t)
+  (with r :classified_as (list t)))
 
-   :identified_by ((:type          "Name"
-                    :classified_as ((aat-type "300404670" "Primary Name"))
-                    :content       "Purchase of Spring by Proust from Manet"))
+(defn example #uri (#str path)
+  (+ "https://linked.art/example/" path))
 
-   :timespan (:type               "TimeSpan"
-              :begin_of_the_begin #date "1881-01-01T00:00:00Z"
-              :end_of_the_end     (+ begin_of_the_begin (thru (years 2))))
+(defn person #rec (#str slug #str label)
+  (std/core (example (+ "person/" slug)) "Person" label))
 
-   ;; A list of records in Ouro is made from nested parens `(())`
-   :part ((:type                   "Acquisition"
-           :_label                 "Ownership of Spring to Proust"
-           :transferred_title_of   ((core "spring" "HumanMadeObject" "Spring"))
-           :transferred_title_from ((person "manet"  "Manet"))
-           :transferred_title_to   ((person "proust" "Proust")))
+;; Steps: each takes a record first and returns it extended, so they thread with ->
+(defn named #rec (#rec r #str n)
+  (with r :identified_by ((:type          "Name"
+                           :classified_as ((std/aat "300404670" "Primary Name"))
+                           :content       n))))
+                           
+(defn about #rec (#rec r xs)     
+  (with r :about xs))
 
-          (:type        "Payment"
-           :_label      "3000 Francs to Manet"
-           :paid_amount (:type     "MonetaryAmount"
-                         :value    3000
-                         :currency (core "300412016" "Currency" "French Francs"))
-           :paid_from   ((person "proust" "Proust"))
-           :paid_to     ((person "manet"  "Manet")))))))
+(defn created-by #rec (#rec r people)
+  (with r :created_by (:type           "Creation"
+                       :carried_out_by (map (λ ((?slug ?label)) (person slug label)) people))))
+
+(graph idea-for-manet-and-modern-beauty
+  (-> (std/core (example "concept/exhidea/1") "PropositionalObject" "Idea for Manet and Modern Beauty")
+      (with :context "https://linked.art/ns/v1/linked-art.json")
+      (std/classified (std/aat "300417531" "Exhibition"))
+      (named "Manet and Modern Beauty")
+      (about ((std/aat "300055821" "Beauty")
+              (std/ulan "500010363" "Manet")))
+      (created-by (("allan" "Scott Allan")
+                   ("beeny" "Emily Beeny")
+                   ("groom" "Gloria Groom")))))
 ```
 
 Which compiles into the following JSON-LD:
@@ -814,14 +813,14 @@ Which compiles into the following JSON-LD:
 ``` json
 {
   "@context": "https://linked.art/ns/v1/linked-art.json",
-  "id": "https://linked.art/example/provenance/manet_proust/1",
-  "type": "Activity",
-  "_label": "Purchase of Spring by Proust",
+  "id": "https://linked.art/example/concept/exhidea/1",
+  "type": "PropositionalObject",
+  "_label": "Idea for Manet and Modern Beauty",
   "classified_as": [
     {
-      "id": "http://vocab.getty.edu/aat/300055863",
+      "id": "http://vocab.getty.edu/aat/300417531",
       "type": "Type",
-      "_label": "Provenance Activity"
+      "_label": "Exhibition"
     }
   ],
   "identified_by": [
@@ -834,68 +833,41 @@ Which compiles into the following JSON-LD:
           "_label": "Primary Name"
         }
       ],
-      "content": "Purchase of Spring by Proust from Manet"
+      "content": "Manet and Modern Beauty"
     }
   ],
-  "timespan": {
-    "type": "TimeSpan",
-    "begin_of_the_begin": "1881-01-01T00:00:00Z",
-    "end_of_the_end": "1883-12-31T23:59:59Z"
-  },
-  "part": [
+  "about": [
     {
-      "type": "Acquisition",
-      "_label": "Ownership of Spring to Proust",
-      "transferred_title_of": [
-        {
-          "id": "https://linked.art/example/object/spring",
-          "type": "HumanMadeObject",
-          "_label": "Spring"
-        }
-      ],
-      "transferred_title_from": [
-        {
-          "id": "https://linked.art/example/person/manet",
-          "type": "Person",
-          "_label": "Manet"
-        }
-      ],
-      "transferred_title_to": [
-        {
-          "id": "https://linked.art/example/person/proust",
-          "type": "Person",
-          "_label": "Proust"
-        }
-      ]
+      "id": "http://vocab.getty.edu/aat/300055821",
+      "type": "Type",
+      "_label": "Beauty"
     },
     {
-      "type": "Payment",
-      "_label": "3000 Francs to Manet",
-      "paid_amount": {
-        "type": "MonetaryAmount",
-        "value": 3000,
-        "currency": {
-          "id": "http://vocab.getty.edu/aat/300412016",
-          "type": "Currency",
-          "_label": "French Francs"
-        }
-      },
-      "paid_from": [
-        {
-          "id": "https://linked.art/example/person/proust",
-          "type": "Person",
-          "_label": "Proust"
-        }
-      ],
-      "paid_to": [
-        {
-          "id": "https://linked.art/example/person/manet",
-          "type": "Person",
-          "_label": "Manet"
-        }
-      ]
+      "id": "http://vocab.getty.edu/ulan/500010363",
+      "type": "Person",
+      "_label": "Manet"
     }
-  ]
+  ],
+  "created_by": {
+    "type": "Creation",
+    "carried_out_by": [
+      {
+        "id": "https://linked.art/example/person/allan",
+        "type": "Person",
+        "_label": "Scott Allan"
+      },
+      {
+        "id": "https://linked.art/example/person/beeny",
+        "type": "Person",
+        "_label": "Emily Beeny"
+      },
+      {
+        "id": "https://linked.art/example/person/groom",
+        "type": "Person",
+        "_label": "Gloria Groom"
+      }
+    ]
+  }
 }
 ```
 
