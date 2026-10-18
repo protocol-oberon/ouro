@@ -1033,4 +1033,6 @@ Recorded 2026-10-12 and kept up to date since; none were caused by the scoping r
 
 18. *An attribute pair among array values has no hint:* ~(1 :a 2)~ is read as a record (one attribute pair makes the form a record), so =1= is reported as an unbound expression. The error is right, but it could suggest ~(1 (:a 2))~.
 
+19. *Strings are not escaped in the output:* the serialiser writes a string's characters between quotes as they are, so ~"say \"hi\""~ becomes ="say "hi""=, and a backslash, newline or tab is written raw, all of which is invalid JSON. A computed key, such as ~(attr "a\"b" 1)~, is written the same way. =ouro validate= has the same fault, so a valid document with ="a\"b"= comes back as ="a"b"=.
+
 #  LocalWords:  Ouro LD

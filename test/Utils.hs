@@ -156,6 +156,19 @@ compilesToJSON src expected = withTests 1 . property $
     where
     squash = T.filter (not . isSpace)
 
+-- The program compiles, and its output contains the given text exactly, whitespace included,
+-- for checks that 'compilesToJSON' would squash away, such as the characters inside a string
+emitsExactly :: Text -> Text -> Property
+emitsExactly src expected = withTests 1 . property $
+    case compileG src of
+        CompilationSuccess _ ast
+            | expected `T.isInfixOf` TL.toStrict (toJSON defaultOptions ast) -> success
+        result
+            -> do
+               annotate ("expected the output to contain: " <> T.unpack expected)
+               annotate (describe result)
+               failure
+
 -- The program compiles, and one of its warnings mentions the given text
 warnsWith :: Text -> Text -> Property
 warnsWith message src = withTests 1 . property $

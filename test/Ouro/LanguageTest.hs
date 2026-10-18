@@ -25,8 +25,8 @@ import           Hedgehog
 import qualified Hedgehog.Gen              as Gen
 import qualified Hedgehog.Range            as Range
 import qualified Text.URI                  as URI
-import           Utils                     (compilesToJSON, failsWith,
-                                            failsWithout, fixture,
+import           Utils                     (compilesToJSON, emitsExactly,
+                                            failsWith, failsWithout, fixture,
                                             shouldCompileTo)
 
 
@@ -439,4 +439,18 @@ knownGaps = Group "Known gaps: current, incorrect behaviour"
                                                                    "{\"u\": \"https://a.org\"}")
     , ("gap 18: an attribute pair among values has no hint", failsWithout "(1 (:a 2))"
                                                                  "(graph g (:r (1 :a 2)))")
+    , ("gap 19: a quote in a string is not escaped", emitsExactly "(graph g (:quote \"say \\\"hi\\\"\"))"
+                                                                 "\"quote\": \"say \"hi\"\"")
+    , ("gap 19: nor is a backslash",                emitsExactly "(graph g (:slash \"a\\\\b\"))"
+                                                                 "\"slash\": \"a\\b\"")
+    , ("gap 19: nor is a newline",                  emitsExactly "(graph g (:newline \"a\\nb\"))"
+                                                                 "\"newline\": \"a\nb\"")
+    , ("gap 19: nor is a tab",                      emitsExactly "(graph g (:tab \"a\\tb\"))"
+                                                                 "\"tab\": \"a\tb\"")
+    , ("gap 19: nor is a quote in a computed key",  emitsExactly "(graph g (:r (insert 0 (attr \"a\\\"b\" 1) (:x 2))))"
+                                                                 "\"a\"b\": 1")
+    , ("gap 19: validate unescapes a valid document", withTests 1 . property $
+                                                       fmap (T.isInfixOf "\"k\": \"a\"b\"" . TL.toStrict)
+                                                            (validate "t.json" "{\"k\": \"a\\\"b\"}" defaultOptions)
+                                                       === Right True)
     ]
