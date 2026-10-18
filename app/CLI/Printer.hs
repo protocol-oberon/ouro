@@ -246,6 +246,12 @@ splitErrorContext = \case
            , Nothing
            )
 
+    Syntax (MalformedContext problem)
+        -> ( "Malformed Context"
+           , [ labeled "Context Rule: " (pretty problem) ]
+           , Nothing
+           )
+
     Path (MissingPathKey key keys)
         -> ( "Missing Path Key"
            , [ labeled "Missing:   " (pretty key)

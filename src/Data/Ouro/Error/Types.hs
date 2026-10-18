@@ -146,6 +146,13 @@ data SyntaxError
     -- written as Ouro's patterns are: a hole inside a function call, a '?..rest' hole
     -- that is not last, or a Record pattern holding something other than ':key pattern'.
     | MalformedPattern
+
+    -- SYNTAX VIOLATION: MALFORMED CONTEXT
+    -- Occurs when a record's :context is not a JSON-LD context: a remote context that is not
+    -- an absolute URL, an unknown '@' keyword, or a term mapped to something other than an
+    -- IRI, null or an expanded definition.
+    | MalformedContext
+      { contextProblem :: Text }
     deriving (Show, Eq, Ord, Generic)
 
 

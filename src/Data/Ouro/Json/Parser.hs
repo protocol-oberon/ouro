@@ -9,7 +9,7 @@ import           Data.Maybe                 (listToMaybe)
 import           Data.Ouro.Internal.Expr    (Expr)
 import qualified Data.Ouro.Internal.Expr    as Expr
 import qualified Data.Ouro.Internal.Kinds   as JLD
-import           Data.Ouro.Internal.Schema  (Schema (..), SchemaDirective)
+import           Data.Ouro.Internal.Schema  (Schema (..))
 import qualified Data.Ouro.Internal.Schema  as Schema
 import           Data.Scientific            (toRealFloat)
 import           Data.Text                  (Text, pack)
@@ -96,55 +96,42 @@ pQuotedURI :: Parser URI.URI
 pQuotedURI = between (char '"') (char '"') URI.parser
 
 
+-- A JSON-LD context: null, a remote context's URL, a local context, or an array of them,
+-- which are combined in order, so the array's structure is kept
 pSchema :: Parser Schema
 pSchema = choice
-    [ -- Case A: Null context (Clear Context)
-      Schema [Schema.ClearContext] <$ symbol "null"
-
-      -- Case B: A single remote context strict URI
-    , do uri <- lexeme pQuotedURI
-         return $ Schema [Schema.RemoteContext uri]
-
-      -- Case C: An inline object mapping block e.g. {"crm": "..."}
-    , between (symbol "{") (symbol "}") $ do
-        directives <- pDirective `sepBy` symbol ","
-        return $ Schema directives
-
-      -- Case D: A list/array of multiple contexts e.g. ["url1", {"map": "url2"}]
-    , between (symbol "[") (symbol "]") $ do
-        schemas <- pSchema `sepBy` symbol ","
-        let flattenedDirectives = concatMap (\(Schema directives) -> directives) schemas
-        return $ Schema flattenedDirectives
+    [ Schema [Schema.ClearContext] <$ symbol "null"
+    , (\uri -> Schema [Schema.RemoteContext uri]) <$> try (lexeme pQuotedURI)
+    , (\ds -> Schema [Schema.LocalContext ds]) <$> pLocalContext
+    , mconcat <$> between (symbol "[") (symbol "]") (pSchema `sepBy` symbol ",")
     ]
 
 
-pDirective :: Parser SchemaDirective
-pDirective = do
-    key <- pKey
-    _   <- symbol ":"
-    case key of
-        "@vocab" -> do
-            txt <- pKeyString
-            -- Try to parse as an absolute URI first, otherwise fallback to Text
-            case URI.mkURI txt of
-                Just validUri -> return $ Schema.SetVocab (Left validUri)
-                Nothing       -> return $ Schema.SetVocab (Right txt)
+-- A local context's keywords and term definitions, each key kept once
+pLocalContext :: Parser Schema.Directives
+pLocalContext = between (symbol "{") (symbol "}") $
+    mconcat . map (uncurry Schema.directive) <$> (pContextPair `sepBy` symbol ",")
 
-        "@base" -> do
-            txt <- pKeyString
-            return $ Schema.SetBase txt
 
-        -- Fallback case handles standard user-defined terms
-        _ -> do
-            iri <- pKeyString
-            return $ Schema.DefineTerm key (Schema.TermDefinition iri Nothing Nothing)
+pContextPair :: Parser (Text, Schema.ContextValue)
+pContextPair = do
+    key   <- pKey
+    _     <- symbol ":"
+    value <- pContextValue
+    pure (key, value)
 
-  where
-    pKeyString :: Parser Text
-    pKeyString = lexeme $ do
-        _   <- char '"'
-        str <- manyTill L.charLiteral (char '"')
-        return $ pack str
+
+-- A value in a local context, in JSON's own terms
+pContextValue :: Parser Schema.ContextValue
+pContextValue = choice
+    [ Schema.CObject <$> between (symbol "{") (symbol "}") (pContextPair `sepBy` symbol ",")
+    , Schema.CArray  <$> between (symbol "[") (symbol "]") (pContextValue `sepBy` symbol ",")
+    , Schema.CString . pack <$> lexeme (char '"' *> manyTill L.charLiteral (char '"'))
+    , Schema.CNumber . toRealFloat <$> lexeme L.scientific
+    , Schema.CBool True  <$ symbol "true"
+    , Schema.CBool False <$ symbol "false"
+    , Schema.CNull       <$ symbol "null"
+    ]
 
 
 -- Parse Array using the structural primitive wrapper

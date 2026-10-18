@@ -9,6 +9,7 @@ module Data.Ouro.Lisp.Function
 , keyInLet
 , misplacedBinding
 , patternParam
+, removedContextForm
 , removedDefine
 , removedLocalDefn
 , renamedDefun
@@ -192,6 +193,18 @@ graphBody name pos = \case
                           )
               & OuroError pos
               & Left
+
+
+-- '(context (...))' was replaced by ':context value': a record's context is an ordinary
+-- value, written as JSON-LD writes it
+removedContextForm :: SourcePos -> OuroError
+removedContextForm pos =
+    lexicalError "The (context (...)) form has been replaced by ':context value'."
+    & withBlurb ( "A record's context is written as JSON-LD writes it: a remote context, (:context \"https://...\" ...); "
+               <> "a local context, (:context (:@vocab \"https://...\") ...); "
+               <> "or several, in order, (:context (\"https://...\" (:term \"https://...\")) ...)."
+                )
+    & OuroError pos
 
 
 -- 'define' was replaced by 'let', which binds private values around the one

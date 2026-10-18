@@ -8,15 +8,26 @@ module Ouro.LanguageTest
 , dates
 , classification
 , encoding
+, contexts
+, contextAlgebra
 , knownGaps
 ) where
 
-import qualified Data.ByteString as BS
-import           Data.Ouro       (decodeSource, readSource)
-import qualified Data.Text       as T
+import qualified Data.ByteString           as BS
+import           Data.Maybe                (fromJust)
+import           Data.Ouro                 (decodeSource, defaultOptions,
+                                            readSource, validate)
+import           Data.Ouro.Internal.Schema (ContextEntry (..), ContextValue (..),
+                                            Directives, Schema (..), directive)
+import qualified Data.Text                 as T
+import qualified Data.Text.Lazy            as TL
 import           Hedgehog
-import           Utils           (compilesToJSON, failsWith, failsWithout,
-                                  fixture, shouldCompileTo)
+import qualified Hedgehog.Gen              as Gen
+import qualified Hedgehog.Range            as Range
+import qualified Text.URI                  as URI
+import           Utils                     (compilesToJSON, failsWith,
+                                            failsWithout, fixture,
+                                            shouldCompileTo)
 
 
 -- Only attribute pairs and elements reach the output. Functions, built-ins and other
@@ -67,7 +78,7 @@ formsAndBuiltins = Group "Special forms and built-ins"
                                                               "(graph g (let ($x 1) (:r (x x))))")
     , ("a remote context",                          compilesToJSON "(graph g (:context \"https://linked.art/ns/v1/linked-art.json\" :a 1))"
                                                                    "{\"@context\": \"https://linked.art/ns/v1/linked-art.json\", \"a\": 1}")
-    , ("a local vocab directive",                   compilesToJSON "(graph g ((context (vocab \"https://example.org/\")) :a 1))"
+    , ("a local vocab directive",                   compilesToJSON "(graph g (:context (:@vocab \"https://example.org/\") :a 1))"
                                                                    "{\"@context\": {\"@vocab\": \"https://example.org/\"}, \"a\": 1}")
     , ("thru extends days to their last second",    compilesToJSON "(graph g (let ($start #date \"2020-01-01T00:00:00Z\") (:end (+ start (thru (days 1))))))"
                                                                    "{\"end\": \"2020-01-02T23:59:59Z\"}")
@@ -302,13 +313,113 @@ encoding = Group "Encoding: source files are UTF-8"
         decodeSource "t.ouro" (BS.pack bytes) === Right expected
 
 
+-- A record's context is an ordinary value, written as JSON-LD writes it: a remote context's
+-- URL, a local context record, null, or an array of them, applied in order. It is checked
+-- where it is written.
+contexts :: Group
+contexts = Group "Contexts: a context is a value"
+    [ ("a remote context with local terms is an array", compilesToJSON "(graph g (:context (\"https://linked.art/ns/v1/linked-art.json\" (:ex \"https://example.org/ns/\")) :a 1))"
+                                                                    "{\"@context\": [\"https://linked.art/ns/v1/linked-art.json\", {\"ex\": \"https://example.org/ns/\"}], \"a\": 1}")
+    , ("local keywords",                            compilesToJSON "(graph g (:context (:@vocab \"https://example.org/\" :@language \"en\") :a 1))"
+                                                                   "{\"@context\": {\"@vocab\": \"https://example.org/\", \"@language\": \"en\"}, \"a\": 1}")
+    , ("an expanded term definition",               compilesToJSON "(graph g (:context (:condition (:@id \"ex:condition\" :@type \"@id\" :@container (\"@set\"))) :a 1))"
+                                                                   "{\"@context\": {\"condition\": {\"@id\": \"ex:condition\", \"@type\": \"@id\", \"@container\": [\"@set\"]}}, \"a\": 1}")
+    , ("null clears the context",                   compilesToJSON "(graph g (:context null :a 1))"
+                                                                   "{\"@context\": null, \"a\": 1}")
+    , ("a record can be only a context",            compilesToJSON "(graph g (:r (:context \"https://a.org/c.json\")))"
+                                                                   "{\"r\": {\"@context\": \"https://a.org/c.json\"}}")
+    , ("a context can be computed",                 compilesToJSON "(defn linked-art () \"https://linked.art/ns/v1/linked-art.json\") (graph g (:context ((linked-art) (:ex \"https://e.org/\")) :a 1))"
+                                                                   "{\"@context\": [\"https://linked.art/ns/v1/linked-art.json\", {\"ex\": \"https://e.org/\"}], \"a\": 1}")
+    , ("a #uri is a remote context",                compilesToJSON "(graph g (:context #uri \"https://a.org/c.json\" :a 1))"
+                                                                   "{\"@context\": \"https://a.org/c.json\", \"a\": 1}")
+    , (":@context is :context",                     compilesToJSON "(graph g (:@context \"https://a.org/c.json\" :a 1))"
+                                                                   "{\"@context\": \"https://a.org/c.json\", \"a\": 1}")
+    , ("any key can be a keyword",                  compilesToJSON "(graph g (:@id \"https://a.org/1\" :a 1))"
+                                                                   "{\"@id\": \"https://a.org/1\", \"a\": 1}")
+
+    -- A context is the record's metadata, which is serialised first wherever it is written
+    , ("a context written last is serialised first", compilesToJSON "(graph g (:a 1 :b 2 :context \"https://a.org/c.json\"))"
+                                                                   "{\"@context\": \"https://a.org/c.json\", \"a\": 1, \"b\": 2}")
+    , ("so is one written in the middle",           compilesToJSON "(graph g (:a 1 :context (\"https://a.org/c.json\" (:ex \"https://e.org/\")) :b 2))"
+                                                                   "{\"@context\": [\"https://a.org/c.json\", {\"ex\": \"https://e.org/\"}], \"a\": 1, \"b\": 2}")
+    , ("and one written after an inlay",            compilesToJSON "(defn base () (:id \"1\" :type \"T\")) (graph g ((inlay (base)) :a 1 :context \"https://a.org/c.json\"))"
+                                                                   "{\"@context\": \"https://a.org/c.json\", \"id\": \"1\", \"type\": \"T\", \"a\": 1}")
+
+    , ("validate keeps a context array",            withTests 1 . property $
+                                                       fmap (T.filter (/= ' ') . T.filter (/= '\n') . TL.toStrict)
+                                                            (validate "t.json" "{\"@context\": [\"https://a.org/c.json\", {\"ex\": \"https://e.org/\"}], \"a\": 1}" defaultOptions)
+                                                       === Right "{\"@context\":[\"https://a.org/c.json\",{\"ex\":\"https://e.org/\"}],\"a\":1}")
+
+    -- A malformed context is reported where it is written
+    , ("an unknown keyword",                        failsWith "'@vocabb' is not a JSON-LD context keyword"
+                                                              "(graph g (:context (:@vocabb \"https://e.org/\") :a 1))")
+    , ("a term maps to an IRI",                     failsWith "The term 'ex' cannot be a Number"
+                                                              "(graph g (:context (:ex 5) :a 1))")
+    , ("a remote context is an absolute URL",       failsWith "is not an absolute URL"
+                                                              "(graph g (:context \"not a url\" :a 1))")
+    , ("a context array holds no arrays",           failsWith "cannot hold another array"
+                                                              "(graph g (:context ((\"https://a.org/c.json\")) :a 1))")
+    , ("an expanded definition's keys are keywords", failsWith "cannot be part of the definition of the term 't'"
+                                                              "(graph g (:context (:t (:@id \"x\" :foo 1)) :a 1))")
+    , ("a date has no place in a context",          failsWith "cannot hold a Date"
+                                                              "(graph g (:context (:@vocab #date \"2020-01-01T00:00:00Z\") :a 1))")
+    , ("it is reported at the context",             failsWith "line 1, col 20"
+                                                              "(graph g (:context (:ex 5) :a 1))")
+    , ("the (context (...)) form is replaced",      failsWith "has been replaced by ':context value'"
+                                                              "(graph g ((context (vocab \"https://e.org/\")) :a 1))")
+    ]
+
+
+-- Contexts compose: a context is a Monoid under concatenation, its entries applied in order,
+-- and a local context is a Monoid under a right-biased union, where a key's later value wins
+-- and its first position is kept.
+contextAlgebra :: Group
+contextAlgebra = Group "Contexts: combining them is a monoid"
+    [ ("contexts combine associatively",        property $ do
+                                                    (a, b, c) <- forAll ((,,) <$> genSchema <*> genSchema <*> genSchema)
+                                                    (a <> b) <> c === a <> (b <> c))
+    , ("the empty context changes nothing",     property $ do
+                                                    a <- forAll genSchema
+                                                    (mempty <> a, a <> mempty) === (a, a))
+    , ("local contexts combine associatively",  property $ do
+                                                    (a, b, c) <- forAll ((,,) <$> genDirectives <*> genDirectives <*> genDirectives)
+                                                    (a <> b) <> c === a <> (b <> c))
+    , ("the empty local context changes nothing", property $ do
+                                                    a <- forAll genDirectives
+                                                    (mempty <> a, a <> mempty) === (a, a))
+    , ("a later definition wins",               withTests 1 . property $
+                                                    (directive "ex" (CString "https://a.org/") <> directive "ex" (CString "https://b.org/"))
+                                                    === directive "ex" (CString "https://b.org/"))
+    , ("and keeps its first position",          withTests 1 . property $
+                                                    (directive "a" CNull <> directive "b" CNull <> directive "a" (CBool True))
+                                                    === (directive "a" (CBool True) <> directive "b" CNull))
+    , ("adjacent local contexts are not merged", withTests 1 . property $
+                                                    (Schema [LocalContext (directive "a" CNull)] <> Schema [LocalContext (directive "b" CNull)])
+                                                    === Schema [LocalContext (directive "a" CNull), LocalContext (directive "b" CNull)])
+    ]
+    where
+    -- A few keys, so that unions overlap
+    genDirectives :: Gen Directives
+    genDirectives = mconcat <$> Gen.list (Range.linear 0 5)
+                        (directive <$> Gen.element ["@vocab", "@base", "ex", "label", "id"] <*> genValue)
+
+    genValue :: Gen ContextValue
+    genValue = Gen.choice [ CString <$> Gen.element ["https://a.org/", "ex:x", "@id"]
+                          , CBool <$> Gen.bool
+                          , pure CNull ]
+
+    genSchema :: Gen Schema
+    genSchema = Schema <$> Gen.list (Range.linear 0 4)
+                    (Gen.choice [ pure ClearContext
+                                , LocalContext <$> genDirectives
+                                , RemoteContext . fromJust . URI.mkURI <$> Gen.element ["https://a.org/c.json", "https://b.org/c.json"] ])
+
+
 -- Known gaps, numbered as in the specification's Appendix B. Each test pins the current,
 -- incorrect behaviour; the change that fixes a gap flips its test to the correct one.
 knownGaps :: Group
 knownGaps = Group "Known gaps: current, incorrect behaviour"
-    [ ("gap 1: a remote context with local terms nests", compilesToJSON "(graph g ((context (remote-context \"https://x.org/c.json\" vocab \"https://e.org/\")) :a 1))"
-                                                                   "{\"@context\": {\"@context\": \"https://x.org/c.json\", \"@vocab\": \"https://e.org/\"}, \"a\": 1}")
-    , ("gap 5: computed keys are dropped",          compilesToJSON "(graph g (let ($k \"key\") (:a 1 (attr k 2))))"
+    [ ("gap 5: computed keys are dropped",          compilesToJSON "(graph g (let ($k \"key\") (:a 1 (attr k 2))))"
                                                                    "{\"a\": 1}")
     , ("gap 9: no suggestion for a local name",     failsWithout "Perhaps you meant"
                                                                  "(graph g (let ($artist 1) (:r artst)))")

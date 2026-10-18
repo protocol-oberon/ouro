@@ -198,6 +198,7 @@ test-suite ouro-test
         containers ^>= 0.7,
         hedgehog    >= 1.4,
         megaparsec  >= 9.2 && < 10.0,
+        modern-uri ^>= 0.3.6.1,
         mtl        ^>= 2.3.1,
         text        >= 2.0,
         ouro

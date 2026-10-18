@@ -165,7 +165,7 @@ Only graphs are serialised. Functions exist to build and reuse values. A module-
 | Number         | =42=, =-3.5=, =1e3=                      | a Double: integers are exact up to 2^53                             |
 | Boolean / null | =true=, =false=, =null=                  |                                                                     |
 | Symbol         | =artist=, =type-node=, =+=, =legacy!=    | starts with a letter or an operator character (see below the table) |
-| Attribute      | =:key=                                   | letters, digits, =-= and =_=; the key of an attribute pair          |
+| Attribute      | =:key=, =:@vocab=                        | letters, digits, =-= and =_=, after an optional =@=; a pair's key   |
 | Binding        | =$name=                                  | any symbol; a private binding, only inside a =let=                  |
 | Reader tag     | =#uri=, =#date=, =#str=, =#num=, =#bool= | asserts the type of what follows; also =#rec=, =#arr=, =#fn=        |
 | Empty values   | =#rec-empty=, =#arr-empty=, =()=         | ={}=, =[]= and =[]=                                                 |
@@ -200,11 +200,11 @@ literal      = string | number | "true" | "false" | "null"
 tagged       = tag , expression ;
 tag          = "#uri" | "#date" | "#str" | "#num" | "#bool" | "#rec" | "#arr" | "#fn" ;
 
-(* A record: at least one attribute pair or context directive *)
+(* A record: at least one attribute pair or context *)
 record       = "(" , { record-item } , ")" ;
 record-item  = attribute-pair | context | inlay ;
 attribute-pair = attribute , expression ;
-attribute    = ":" , key ;
+attribute    = ":" , [ "@" ] , key ;     (* "@" makes a JSON-LD keyword, :@id *)
 
 (* An array: a form whose first element is not a symbol, or an explicit list *)
 array        = "(" , [ non-symbol-expr , { expression } ] , ")"
@@ -230,9 +230,7 @@ insert       = "(" , "insert" , expression , ( expression | attribute-pair ) , e
 replace-at   = "(" , "replace-at" , expression , ( expression | attribute-pair ) , expression , ")" ;
 attr         = "(" , "attr" , expression , expression , ")" ;     (* a computed key *)
 inlay        = "(" , "inlay" , expression , ")" ;
-context      = ":context" , expression
-             | "(" , "context" , "(" , { directive-key , expression } , ")" , ")" ;
-directive-key = "vocab" | "base" | "language" | "remote-context" ;
+context      = ( ":context" | ":@context" ) , expression ;     (* a JSON-LD context value *)
 
 (* ---------- Patterns (inside case, and as parameters) ---------- *)
 pattern      = hole | record-pattern | array-pattern ;
@@ -264,7 +262,7 @@ Durations and functions are values during compilation, but have no JSON form: th
 
 ** Records and arrays
 
-A record is a form containing =:key value= attribute pairs (or a context directive). Its attribute pairs are output in source order, and they are also bindings: inside the record, an attribute pair's name refers to its value, in any order. Each key appears once: writing a key twice in the same record (or two contexts) is an error.
+A record is a form containing =:key value= attribute pairs (or a context). Its attribute pairs are output in source order, and they are also bindings: inside the record, an attribute pair's name refers to its value, in any order. Each key appears once: writing a key twice in the same record (or two contexts) is an error.
 
 #+BEGIN_SRC clojure
 (:begin_of_the_begin #date "1848-08-01T00:00:00Z"
@@ -448,7 +446,7 @@ Special forms are recognised by their head symbol before any name lookup, so the
 | =(list e ...)=                           | an array, whatever its first element is                                               |
 | =(thru duration)=                        | extend a duration to the end of its unit (see Built-ins)                              |
 | =(attr key-expr value)=                  | an attribute pair with a computed key (used with =insert=)                            |
-| =:context e=, =(context (...))=          | the record's JSON-LD =@context=                                                       |
+| =:context e=                             | the record's JSON-LD =@context=, a context value (see [[*=@context=][=@context=]])                |
 
 Negative indexes count from the end in =nth=, =insert= and =replace-at=. =insert= puts any value into an array, but not a =:key value= attribute pair. Neither =insert= nor =replace-at= can give a record a key it already has: that is an error, and =replace-at= may keep the replaced attribute pair's own key.
 
@@ -514,14 +512,24 @@ Dates are shifted with =+= and =-=: ~(+ start (days 19))~. Shifting by months or
 
 ** =@context=
 
-A record's JSON-LD context is written as its first item:
+A record's JSON-LD context is written =:context value=. The value is an ordinary expression, and it is written as JSON-LD writes a context:
 
 #+BEGIN_SRC clojure
-(:context "https://linked.art/ns/v1/linked-art.json" ...)     ; a remote context
-((context (vocab "https://example.org/" language "en")) ...)  ; local directives
+(:context "https://linked.art/ns/v1/linked-art.json" ...)           ; a remote context
+(:context (:@vocab "https://example.org/" :@language "en") ...)     ; a local context
+(:context ("https://linked.art/ns/v1/linked-art.json"               ; several, applied in order
+           (:ex        "https://example.org/ns/"
+            :condition (:@id "ex:condition" :@type "@id")))
+ ...)
+(:context null ...)                                                 ; clears the context
 #+END_SRC
 
-=:context "url"= is sugar for ~(context (remote-context "url"))~. The supported directives are =vocab=, =base=, =language= and =remote-context=. Context handling is the least finished part of Ouro (see [[*Appendix B: Known gaps][known gaps]]).
+- *A context is a value:* a remote context's URL (a String or a =#uri=), a local context record, =null=, or an array of them. Because it is evaluated like any other value, a function can build one: ~(defn linked-art () "https://linked.art/ns/v1/linked-art.json")~ and ~(:context ((linked-art) (:ex "https://example.org/ns/")) ...)~.
+- *A local context* holds keywords and term definitions. A key starting with =@= is a JSON-LD keyword, written =:@vocab=. The context keywords are =@vocab=, =@base=, =@language=, =@direction=, =@version=, =@protected=, =@propagate= and =@import=. Any other key defines a term, which maps to an IRI (a String: an IRI, a compact IRI such as ="ex:condition"=, or another term), to =null=, or to an expanded definition, a record whose keys are =@id=, =@type=, =@container=, =@language=, =@direction=, =@reverse=, =@index=, =@nest=, =@prefix=, =@protected= or =@context=.
+- *Several contexts* are written as an array and serialised as one, applied in order, as JSON-LD processes them. A context with one entry is serialised as that entry.
+- *A malformed context is an error where it is written:* a remote context that is not an absolute URL, an unknown =@= keyword, a term mapped to something other than an IRI, =null= or a definition, a key in a definition that is not one of its keywords, an array inside the context's array, or a value with no place in JSON, such as a Date. Each is a "Malformed Context" error at the context's expression.
+- *=:@context=* is JSON-LD's own name for the key, and means the same as =:context=. Any other key may also start with =@=, so =:@id= and =:@type= can be written in a record.
+- A record has one context: writing it twice is an error. A record can hold only a context, ~(:context "https://...")~.
 
 ** Surface representation (~S.Expr~)
 
@@ -568,7 +576,7 @@ Before evaluation, ~Canon.placeholders~ turns each call with holes into a functi
 | Sugar                                   | Core                                                          |
 |-----------------------------------------+---------------------------------------------------------------|
 | a placeholder ~(f ? x ?n #num ?)~       | ~(fn (%1 ?n #num %2) (f %1 x ?n %2))~                         |
-| =:context "url"=                        | ~(context (remote-context "url"))~                            |
+| =:context e=, =:@context e=             | ~(%context e)~: the record's metadata, not an attribute pair  |
 | ~(+ a b c)~ (also =- * /=)              | ~(+ (+ a b) c)~                                               |
 | ~(< a b c)~ (also ~eq > >= <=~)         | ~(%and (< a b) (< b c))~; =%and= cannot be written by users   |
 | ~(thru (days n))~                       | ~(days n) (hours 23) (minutes 59) (seconds 59)~               |
@@ -598,17 +606,17 @@ determineBlockTarget items =
                                      False -> TargetList
     where
     isFunctionApplication = \case
-        (S.Symbol _ name : _) -> not (isFunctionKeyword name || name `elem` ["define", "context"])
+        (S.Symbol _ name : _) -> not (isFunctionKeyword name || name == "define")
         _notAFunction         -> False
 
     isStructuralAttr = \case
-        S.Form _ (S.Symbol _ "attr"    : _) -> True
-        S.Form _ (S.Symbol _ "context" : _) -> True
-        _other                              -> False
+        S.Form _ (S.Symbol _ "attr"     : _) -> True
+        S.Form _ (S.Symbol _ "%context" : _) -> True
+        _other                               -> False
 #+END_SRC
 
 - *Call*: the first element is a symbol.
-- *Record*: otherwise, if any element is an attribute pair or a context directive.
+- *Record*: otherwise, if any element is an attribute pair or a context.
 - *Array*: everything else, including the empty form ~()~.
 
 Only the direct elements of a form matter, never their types: ~(1 "a" (:k 1))~ is an array, because its record has its own parentheses, while ~(1 :a 2)~ is a record with a loose value, which is an error. A record made only of inlays has no written attribute pair, so it is read as an array (see [[*Appendix B: Known gaps][known gaps]]).
@@ -648,7 +656,6 @@ Evaluation turns the surface tree of the selected graph into ~L.Expr~, a value t
 data Expr where
     -- Frozen targets: already valid JSON-LD
     Primitive       :: I.Expr 'JLD.Primitive -> Expr
-    Metadata        :: I.Expr 'JLD.Meta      -> Expr
 
     -- Open structure: may contain errors at any depth
     Record          :: I.Expr 'JLD.Meta -> [(Text, Expr)] -> Expr
@@ -657,8 +664,6 @@ data Expr where
 
     -- Compile-time-only values: no JSON form
     Duration        :: PeriodUnit -> Int -> Expr
-    SchemaVal       :: Schema -> Expr
-    Directive       :: SchemaDirective -> Expr
     PrimitiveOp     :: NativeFunction -> Expr       -- a built-in
     FunctionClosure :: Env -> FunctionId -> [S.Param] -> [S.Expr] -> Expr
 
@@ -756,7 +761,7 @@ A promise is evaluated in /its own/ environment, not the one where it is referen
 
 ~emitProps~ walks the record's forms again, in source order:
 
-- A =context= directive becomes the record's metadata (~I.Context~).
+- The record's context, ~(%context e)~, is evaluated like any value, read as a JSON-LD context by ~contextFromValue~, and becomes the record's metadata (~I.Context~).
 
 - An attribute pair is forced through /its own promise/ (found by the position of its =:key=), so an attribute pair that is both output and referenced is evaluated once.
 
@@ -891,21 +896,25 @@ The indices enforce three boundaries:
 
 ~Record~ and ~Array~ are the gates that lift a spine back to a ~'Primitive~ value. (The ~Context~ kind is currently unused.)
 
-The schema model (~Internal.Schema~) is a list of directives:
+The context model (~Internal.Schema~) is a context's entries, in order:
 
 #+BEGIN_SRC haskell
-newtype Schema = Schema [SchemaDirective]      -- a Monoid: directives accumulate
+newtype Schema = Schema [ContextEntry]        -- Monoid: concatenation, mempty = []
 
-data SchemaDirective
-    = ClearContext
-    | DefineTerm    Text TermDefinition
-    | RemoteContext URI
-    | SetBase       Text
-    | SetLanguage   Text
-    | SetVocab      (Either URI Text)
+data ContextEntry
+    = RemoteContext URI                        -- "https://..."
+    | LocalContext  Directives                 -- {...}
+    | ClearContext                             -- null
+
+newtype Directives = Directives [(Text, ContextValue)]   -- Monoid: right-biased union
+
+data ContextValue = CString Text | CNumber Double | CBool Bool | CNull
+                  | CArray [ContextValue] | CObject [(Text, ContextValue)]
 #+END_SRC
 
-Only =RemoteContext=, =SetVocab=, =SetBase= and =SetLanguage= can currently be written in Ouro.
+- *Contexts are a Monoid under concatenation.* JSON-LD processes a context array in order, each entry against the context the earlier ones built, so concatenation is how contexts compose; it is associative, and the empty context, which changes nothing, is the identity. Adjacent local contexts are kept apart, not merged, so each keeps its meaning.
+- *Local contexts are a Monoid under a right-biased union.* A key in both keeps the position of its first occurrence and the value of its later one, as defining a term again replaces it; the empty local context is the identity. A local context is built with ~directive key value~ and ~<>~, so each key appears once.
+- ~Eval.Schema.contextFromValue~ reads an evaluated value as a ~Schema~ and checks it; ~Json.Parser~ reads a JSON =@context= the same way for =ouro validate=, keeping a context array's structure. The serialiser writes a ~Schema~ with one entry as that entry, and one with several as an array.
 
 * The Emission Engine
 
@@ -916,7 +925,7 @@ newtype Printer a = Printer
     { runPrinterP :: ReaderT PrinterEnv (StateT PrinterState Identity) a }
 
 data PrinterEnv   = PrinterEnv   { options :: !PrinterOptions, nestingLevel :: !Int }
-data PrinterState = PrinterState { activeDirectives :: ![SchemaDirective]
+data PrinterState = PrinterState { activeDirectives :: ![ContextEntry]
                                  , outputBuffer     :: !Builder }
 #+END_SRC
 
@@ -977,6 +986,7 @@ Ouro's compiler guarantees structural validity: a compiled graph is well-formed 
 | spliced function bodies, =return=                  | one result expression                              | "has a ':key value' attribute pair directly in its body", "'return' is no longer needed" |
 | required =!= on function names                     | plain names (=!= still allowed)                    | none                                                                            |
 | =quote=, ='=, =eval=, =get'=                       | values: Ouro has no metaprogramming                | none                                                                            |
+| =(context (vocab "..." remote-context "..."))=     | =:context value=, a JSON-LD context value          | =The (context (...)) form has been replaced by ':context value'.=               |
 | code-shape =get= (=resolvePath=)                   | value-based =get= (~getPath~)                      | none                                                                            |
 | dynamic scope                                      | lexical scope                                      | none                                                                            |
 | ~Reader Env~ evaluation, ~buildLazyEnv~ knot-tying | ~ReaderT Env (State Store)~ with memoised promises | none                                                                            |
@@ -987,7 +997,7 @@ Why quoting went: curators compose and restructure records; they do not manipula
 
 Recorded 2026-10-12 and kept up to date since; none were caused by the scoping redesign. Each open gap is pinned in =Language.knownGaps= (=test/Ouro/LanguageTest.hs=) by its current, incorrect behaviour, in a test named "gap N: …"; the change that fixes a gap flips its test.
 
-1. *=@context= handling is incomplete (highest priority).* Only =vocab=, =base=, =language= and =remote-context= are accepted; term definitions and =clear= are not. A remote context combined with local directives serialises as a nested =@context= object, which is invalid JSON-LD (it should be an array).
+1. /Fixed:/ =@context= handling was incomplete: only four directives could be written, with no term definitions or =null=, and a remote context with local directives serialised as a nested =@context= object, which is invalid JSON-LD. A context is now a value written as JSON-LD writes it, and several contexts are an array (see [[*=@context=][=@context=]]).
 
 2. /Fixed:/ variadic operators under a type tag hit an internal error. A tag's payload is now desugared like any other expression.
 

@@ -14,7 +14,7 @@ import           Data.Ouro.Error.Types       (OuroError (..))
 import qualified Data.Ouro.Internal.Expr     as I
 import qualified Data.Ouro.Internal.Kinds    as JLD
 import           Data.Ouro.Lisp.Eval.Pattern (matchPattern)
-import           Data.Ouro.Lisp.Eval.Schema  (parseContextDirectives)
+import           Data.Ouro.Lisp.Eval.Schema  (contextFromValue)
 import           Data.Ouro.Lisp.Eval.Scope   (FrameEntry (..), allocFrame,
                                               allocValues, bindableAttr,
                                               collectBindings, force)
@@ -22,8 +22,9 @@ import           Data.Ouro.Lisp.Eval.Types   (Binding (..), Env (..), EvalM, Exp
                                               humanReadableType)
 import qualified Data.Ouro.Lisp.Eval.Types   as L
 import           Data.Ouro.Lisp.Function     (functionBody, isFunctionKeyword,
-                                              misplacedBinding, removedDefine,
-                                              removedLocalDefn, typedArgument)
+                                              misplacedBinding, removedContextForm,
+                                              removedDefine, removedLocalDefn,
+                                              typedArgument)
 import qualified Data.Ouro.Lisp.Surface      as S
 import qualified Data.Set                    as Set
 import           Data.Text                   (Text)
@@ -93,37 +94,33 @@ emitProps evaluator env attrAddrs expressions = go I.EmptyMeta expressions
         , key `elem` map fst (take i writtenAttrs)
         ]
 
-    laterContexts = drop 1 [ pos | S.Form _ (S.Symbol pos "context" : _) <- expressions ]
+    laterContexts = drop 1 [ pos | S.Form _ (S.Symbol pos "%context" : _) <- expressions ]
+
+    -- An error in the record's context is kept under its key
+    contextError err = (<&> \case
+                            Record finalMeta nextPairs -> Record finalMeta (("@context", EvalError err) : nextPairs)
+                            otherVal                   -> otherVal)
 
     go :: I.Expr 'JLD.Meta -> [S.Expr] -> EvalM L.Expr
     go metaAcc = \case
                   [] -> pure (Record metaAcc [])
 
-                  -- Case A: Intercept ANY context form variant at the top-level and route to the schema engine
-                  -- (Schema parsing only reads the environment, so it runs outside EvalM)
-                  S.Form _ (S.Symbol pos "context" : _) : remaining
+                  -- Case A: The record's context, ':context value'. Its value is evaluated like any
+                  -- other, then read as a JSON-LD context and kept as the record's metadata.
+                  S.Form _ [S.Symbol pos "%context", _] : remaining
                       | pos `elem` laterContexts
-                      -> go metaAcc remaining <&> \case
-                             Record finalMeta nextPairs -> Record finalMeta (("@context", EvalError (writtenTwice "context" pos)) : nextPairs)
-                             otherVal                   -> otherVal
+                      -> contextError (writtenTwice "context" pos) (go metaAcc remaining)
 
-                  S.Form _ (S.Symbol pos "context" : directives) : remaining
-                      -> case runReader (parseContextDirectives directives) env of
-                             EvalError err
-                                 -> go metaAcc remaining <&> \case
-                                        Record finalMeta nextPairs -> Record finalMeta (("@context", EvalError err) : nextPairs)
-                                        otherVal                   -> otherVal
+                  S.Form _ [S.Symbol _ "%context", contextExpr] : remaining
+                      -> do
+                         value <- evaluator env contextExpr
+                         case contextFromValue (S.exprPos contextExpr) value of
+                             Left  err    -> contextError err (go metaAcc remaining)
+                             Right schema -> go (I.Context schema) remaining
 
-                             SchemaVal localSchema
-                                 -> go (I.Context localSchema) remaining
-
-                             otherVal
-                                 -> let leakErr = internalValueLeak "emitProps context block resolution"
-                                                  & withBlurb ("Expected a SchemaVal, but leaked: " <> humanReadableType otherVal)
-                                                  & OuroError pos
-                                    in go metaAcc remaining <&> \case
-                                          Record finalMeta nextPairs -> Record finalMeta (("@context", EvalError leakErr) : nextPairs)
-                                          ov                         -> ov
+                  -- The old (context (...)) form, replaced by ':context value'
+                  S.Form _ (S.Symbol pos "context" : _) : remaining
+                      -> contextError (removedContextForm pos) (go metaAcc remaining)
 
                   -- Case B: Inlay evaluated record pairs directly into the current record scope
                   S.Form _ [S.Symbol pos "inlay", iExpr] : rest
@@ -189,13 +186,11 @@ emitProps evaluator env attrAddrs expressions = go I.EmptyMeta expressions
                                         -- 4. Accept array configurations
                                         Array elements -> Record finalMeta ((key, Array elements) : nextPairs)
 
-                                        -- 5. Pass-through for valid domain primitives (Durations, Schemas, builtins)
+                                        -- 5. Pass-through for valid domain primitives (Durations, builtins)
                                         Duration    u v   -> Record finalMeta ((key, Duration    u v)   : nextPairs)
-                                        SchemaVal   s     -> Record finalMeta ((key, SchemaVal   s)     : nextPairs)
-                                        Directive   d     -> Record finalMeta ((key, Directive   d)     : nextPairs)
                                         PrimitiveOp o     -> Record finalMeta ((key, PrimitiveOp o)     : nextPairs)
 
-                                        -- Real type violations fall here (Metadata context blocks cannot be property values)
+                                        -- Real type violations fall here
                                         otherVal -> let err = typeMismatch
                                                                   "a valid property value (like a Primitive or nested Record)"
                                                                   (humanReadableType otherVal)
@@ -276,9 +271,9 @@ compileArray evaluator env pos elements = Array <$> compileElements env elements
             S.Form dPos [S.Symbol _ "%binder", S.Literal _ (S.Str name)] : xs
                 -> (EvalError (misplacedBinding name dPos) :) <$> compileElements env' xs
 
-            -- Case B: TRUE ERASURE: Skip context blocks completely inside arrays
-            S.Form _ [S.Symbol _ "context", S.Form _ _] : xs
-                -> compileElements env' xs
+            -- The old (context (...)) form, replaced by ':context value' in a record
+            S.Form dPos (S.Symbol _ "context" : _) : xs
+                -> (EvalError (removedContextForm dPos) :) <$> compileElements env' xs
 
             -- Case B.25 TRUE ERASURE: Skip ubound attrs from attr from
             S.Form _ [S.Symbol _ "attr", _, _] : xs
@@ -349,8 +344,6 @@ compileArray evaluator env pos elements = Array <$> compileElements env elements
                         Record      m  p   -> Record      m  p   : restL
                         Array       ls     -> Array       ls     : restL
                         Duration    u  v   -> Duration    u  v   : restL
-                        SchemaVal   s      -> SchemaVal   s      : restL
-                        Directive   d      -> Directive   d      : restL
                         PrimitiveOp o      -> PrimitiveOp o      : restL
 
                         otherVal -> let err = typeMismatch
@@ -383,15 +376,15 @@ determineBlockTarget items =
     isFunctionApplication :: [S.Expr] -> Bool
     isFunctionApplication =
         \case
-         (S.Symbol _ name : _) -> not (isFunctionKeyword name || name `elem` ["define", "context"])
+         (S.Symbol _ name : _) -> not (isFunctionKeyword name || name == "define")
          _NotaFunc             -> False
 
     isStructuralAttr :: S.Expr -> Bool
     isStructuralAttr =
         \case
-         S.Form _ (S.Symbol _ "attr"    : _) -> True
-         S.Form _ (S.Symbol _ "context" : _) -> True
-         _other                              -> False
+         S.Form _ (S.Symbol _ "attr"     : _) -> True
+         S.Form _ (S.Symbol _ "%context" : _) -> True
+         _other                               -> False
 
 
 -- evalFunction

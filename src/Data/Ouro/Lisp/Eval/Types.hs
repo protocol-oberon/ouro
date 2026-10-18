@@ -13,7 +13,6 @@ import qualified Data.Map.Strict             as Map
 import           Data.Ouro.Error.Types       (OuroError)
 import qualified Data.Ouro.Internal.Expr     as I
 import qualified Data.Ouro.Internal.Kinds    as JLD
-import           Data.Ouro.Internal.Schema   (Schema, SchemaDirective)
 import qualified Data.Ouro.Lisp.Module.Types as M
 import qualified Data.Ouro.Lisp.Surface      as S
 import           Data.Set                    (Set)
@@ -90,18 +89,17 @@ emptyEnv = Env
 --     node that allows the harvester to sweep through a partially-failed tree and
 --     aggregate all diagnostic issues in a single pass.
 --   * Domain Modeling: Retains explicit handles for functional abstractions (Closure,
---     PrimitiveOp) and intermediate domain logic (Duration, SchemaVal) that have
+--     PrimitiveOp) and intermediate domain logic (Duration) that have
 --     not yet been collapsed into the final, frozen JSON-LD GADT ('I.Expr').
 --
 -- Terminal Resolution:
---   The 'Primitive' and 'Metadata' constructors serve as the final transition
---   anchors. Once the evaluation loop completes and all errors are harvested,
---   these nodes verify that the evaluated 'Expr' tree satisfies the strict
---   Internal GADT constraints required for final serialization.
+--   The 'Primitive' constructor serves as the final transition anchor. Once
+--   the evaluation loop completes and all errors are harvested, these nodes
+--   verify that the evaluated 'Expr' tree satisfies the strict Internal GADT
+--   constraints required for final serialization.
 data Expr where
     -- Pristine Frozen Targets (The pure GADTs)
     Primitive   :: I.Expr 'JLD.Primitive -> Expr
-    Metadata    :: I.Expr 'JLD.Meta      -> Expr
 
     -- Resilient Compilation Scaffolding (The Superset Nodes)
     -- These maintain the open tree structure during evaluation, allowing
@@ -112,9 +110,6 @@ data Expr where
 
     -- Dedicated Evaluation Leaves
     Duration    :: PeriodUnit -> Int -> Expr
-
-    SchemaVal   :: Schema          -> Expr
-    Directive   :: SchemaDirective -> Expr
 
     PrimitiveOp :: NativeFunction -> Expr
 
@@ -185,7 +180,6 @@ errorsIn = \case
 instance Eq Expr where
     -- Frozen Targets
     Primitive a == Primitive b = a == b
-    Metadata  a == Metadata  b = a == b
 
     -- Compilation Scaffolding
     Record a1 b1 == Record a2 b2 = a1 == a2 && sortOn fst b1 == sortOn fst b2
@@ -194,8 +188,6 @@ instance Eq Expr where
 
     -- Eval only leaves
     Duration    p1 i1   == Duration    p2 i2   = (p1 == p2) && (i1 == i2)
-    SchemaVal   a       == SchemaVal   b       = a == b
-    Directive   a       == Directive   b       = a == b
     PrimitiveOp _       == PrimitiveOp _       = False
     EvalError   a       == EvalError   b       = a  == b
 
@@ -208,13 +200,10 @@ instance Eq Expr where
 instance Show Expr where
   showsPrec d expr = showParen (d > 10) $ case expr of
     Primitive   p          -> showString "Primitive " . showsPrec 11 p
-    Metadata    m          -> showString "Metadata "  . showsPrec 11 m
     Record      meta kvs   -> showString "Record "    . showsPrec 11 meta . showChar ' ' . showsPrec 11 kvs
     Attr        k    v     -> showString "Attr "      . showsPrec 11 k    . showChar ' ' . showsPrec 11 v
     Array       arr        -> showString "Array "     . showsPrec 11 arr
     Duration    pu   i     -> showString "Duration "  . showsPrec 11 pu . showChar ' ' . showsPrec 11 i
-    SchemaVal   sv         -> showString "SchemaVal " . showsPrec 11 sv
-    Directive   dir        -> showString "Directive " . showsPrec 11 dir
     PrimitiveOp _          -> showString "PrimitiveOp <native_function>"
 
     FunctionClosure _ (name, _) args bodies -> showString "FunctionClosure <env> " . showsPrec 11 name . showChar ' ' . showsPrec 11 args . showChar ' ' . showsPrec 11 bodies
@@ -280,9 +269,6 @@ humanReadableType :: Expr -> Text
 humanReadableType =
     \case
      Primitive   p      -> "a " <> describePrimitive p
-     SchemaVal   _      -> "a Schema definition directive"
-     Directive   _      -> "a Schema configuration directive"
-     Metadata    _      -> "a Metadata block"
      Duration    _ _    -> "a Duration time period"
      Array       elems  -> describeArray elems
      PrimitiveOp _      -> "a Built-in function"

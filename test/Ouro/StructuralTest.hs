@@ -41,7 +41,7 @@ prop_symbol_targetFunctionApp = property $ do
 
 prop_context_targetRecord :: Property
 prop_context_targetRecord = property $ do
-    determineBlockTarget [S.Form nullPos [S.Symbol nullPos "context", S.Form nullPos []]] === TargetRecord
+    determineBlockTarget [S.Form nullPos [S.Symbol nullPos "%context", S.Literal nullPos (S.Str "https://a.org/c.json")]] === TargetRecord
 
 prop_define_targetList :: Property
 prop_define_targetList = property $ do

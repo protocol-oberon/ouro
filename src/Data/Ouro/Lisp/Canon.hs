@@ -130,25 +130,13 @@ desugar :: [S.Expr] -> [S.Expr]
 desugar = \case
            [] -> []
 
-           -- Catch an explicit wrapper block whose only child is an inline context sugar token
-           (S.Form _pos [S.Form aPos [S.Symbol _ "attr", S.Literal _ (S.Str "context"), valExpr]] : rest)
-               -> let directive     = S.Form aPos [S.Symbol aPos "remote-context", valExpr]
-                      dirWrapper    = S.Form aPos [directive]
-                      canonicalForm = S.Form aPos [S.Symbol aPos "context", dirWrapper]
-                  in canonicalForm : desugar rest
-
-            -- Catch a raw standalone attribute context sugar sequence at this layout level
-           (S.Form pos [S.Symbol _ "attr", S.Literal _ (S.Str "context"), valExpr] : rest)
-               -> let directive     = S.Form pos [S.Symbol pos "remote-context", valExpr]
-                      dirWrapper    = S.Form pos [directive]
-                      canonicalForm = S.Form pos [S.Symbol pos "context", dirWrapper]
-                  in canonicalForm : desugar rest
-
-            -- Match a Lisp sub-record block starting with an explicit context form
-           (S.Form pos (S.Form cPos (S.Symbol sPos "context" : directives) : innerItems) : xs)
-               -> let desugaredInner = S.Form cPos (S.Symbol sPos "context" : desugar directives) : desugar innerItems
-                      canonicalBlock = S.Form pos desugaredInner
-                  in canonicalBlock : desugar xs
+           -- A record's context, ':context value', is its metadata rather than an attribute
+           -- pair: (%context value), whose value is read as a JSON-LD context when the record
+           -- is built. ':@context', JSON-LD's own name for it, is the same. '%' cannot be
+           -- written in Ouro, so the head cannot be confused with a user's function.
+           (S.Form pos [S.Symbol _ "attr", S.Literal _ (S.Str key), valExpr] : rest)
+               | key `elem` ["context", "@context"]
+               -> S.Form pos [S.Symbol pos "%context", valExpr] : desugar rest
 
            -- Desugar end-of to max temporal duration for given duration type
            (S.Form tPos [S.Symbol _ "thru", durationExpr] : rest)

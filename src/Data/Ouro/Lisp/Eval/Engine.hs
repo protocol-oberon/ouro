@@ -26,7 +26,6 @@ import           Data.Ouro.Error.Types          (ErrorContext (..),
                                                  OuroError (..), TypeError (..))
 import qualified Data.Ouro.Internal.Expr        as I
 import           Data.Ouro.Lisp.Eval.Builtins   (builtinRegistry, parseISO8601)
-import           Data.Ouro.Lisp.Eval.Schema     (parseContextDirectives)
 import           Data.Ouro.Lisp.Eval.Pattern    (matchPattern)
 import           Data.Ouro.Lisp.Eval.Scope      (allocFrame, allocValues, force,
                                                  letBindings, lookupVar)
@@ -38,8 +37,8 @@ import           Data.Ouro.Lisp.Eval.Types      (Env (..), EvalM, Expr (..),
                                                  humanReadableType)
 import qualified Data.Ouro.Lisp.Eval.Types      as L
 import           Data.Ouro.Lisp.Function        (checkParams, isFunctionKeyword,
-                                                 misplacedBinding,
-                                                 patternParam, removedDefine,
+                                                 misplacedBinding, patternParam,
+                                                 removedContextForm, removedDefine,
                                                  removedLocalDefn, strayHole,
                                                  typedResult)
 import           Data.Ouro.Lisp.Module.Types    (Module)
@@ -112,13 +111,9 @@ evalExpr expr = do
         S.Hole   pos hole          -> pure (EvalError (strayHole hole pos))
 
         --- INTERCEPT SPECIAL FORMS ---
-        S.Form _ [S.Symbol pos "context", S.Form _ directives]
-            -- Schema parsing only reads the environment, so it runs outside EvalM
-            -> case runReader (parseContextDirectives directives) env of
-                   SchemaVal s -> pure $ Metadata (I.Context s)
-                   EvalError e -> pure $ EvalError e
-                   actual      -> pure $ EvalError $ OuroError pos
-                                        $ typeMismatch "Schema" (humanReadableType actual)
+        -- The old (context (...)) form: a record's context is now ':context value'
+        S.Form pos (S.Symbol _ "context" : _)
+            -> pure (EvalError (removedContextForm pos))
 
         -- 'get' walks the evaluated value, so it works through functions, inlays and case
         S.Form _ (S.Symbol _ "get" : rootTarget : pathExpressions)

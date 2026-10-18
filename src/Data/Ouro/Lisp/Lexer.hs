@@ -12,8 +12,8 @@ import qualified Text.Megaparsec            as M
 import           Text.Megaparsec            (MonadParsec (eof, lookAhead),
                                              ParseError (..), Parsec, choice,
                                              getSourcePos, many, manyTill,
-                                             oneOf, optional, runParser, some,
-                                             try, (<|>))
+                                             oneOf, option, optional, runParser,
+                                             some, try, (<|>))
 import           Text.Megaparsec.Char       (alphaNumChar, char, letterChar,
                                              space1, string)
 import qualified Text.Megaparsec.Char.Lexer as L
@@ -69,20 +69,14 @@ pCoreKeywords = lexeme . withPos . try $ choice
     endOfWord = choice [space1, () <$ lookAhead (oneOf ("()[]" :: String)), eof]
 
 
--- Attributed Keys and Context Flags starting with ':'
+-- Attribute keys, ':key'. A key may start with '@', so JSON-LD's keywords can be written as
+-- keys, as a local context's are: (:@vocab "https://example.org/").
 pAttributes :: Parser Tkn.Token
 pAttributes = lexeme . withPos $ do
                                  _       <- char ':'
+                                 keyword <- option "" (string "@")
                                  rawName <- T.pack <$> some (alphaNumChar <|> oneOf ("-_" :: String))
-                                 pure $ case rawName of
-                                            "vocab"    -> Tkn.FlagVocab
-                                            "language" -> Tkn.FlagLanguage
-                                            "base"     -> Tkn.FlagBase
-                                            "terms"    -> Tkn.FlagTerms
-                                            "clear"    -> Tkn.FlagClear
-                                            "id"       -> Tkn.TypeMappingID
-                                            "iri"      -> Tkn.TypeMappingIRI
-                                            other      -> Tkn.Attr other
+                                 pure (Tkn.Attr (keyword <> rawName))
 
 
 -- Reader Macros starting with '#'

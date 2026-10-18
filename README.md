@@ -87,49 +87,46 @@ Here `res` will evaluate to 2.
 
 ### Context
 
-To add context to a JSON-LD record, the `(context)` special form is written as the record's first item. It holds Schema Directives, written as pairs of a directive name and its value:
-
-1. `remote-context uri`: Imports an external JSON-LD context from the specified URI.
-2. `base uri`: Defines the `@base` IRI against which relative document URIs are resolved.
-3. `vocab uri`: Defines the default `@vocab` IRI used to resolve property and class names.
-4. `language lang`: Sets the default `@language` tag (e.g., "en", "fr") for all string values in the scope.
-
-...and creates a `@context` sub-record in the current scope. For example:
+A record's JSON-LD context is written `:context value`. The value is an ordinary expression, written as JSON-LD writes a context: the URL of a remote context, a local context record, `null`, or an array of them, applied in order. Most Linked Art documents need only the remote context:
 
 ```clojure
-((context (vocab "https://example.org/" language "en"))
- :a 1)
+(:context "https://linked.art/ns/v1/linked-art.json" ...)
+```
+
+A project that extends Linked Art adds its own terms after it, as an array:
+
+```clojure
+(graph extended
+  (:context ("https://linked.art/ns/v1/linked-art.json"
+             (:ex        "https://example.org/ns/"
+              :condition (:@id "ex:condition" :@type "@id")))
+   :type      "HumanMadeObject"
+   :condition "https://example.org/condition/good"))
 ```
 
 ...compiles to:
 
 ``` json
 {
-  "@context": {
-    "@vocab": "https://example.org/",
-    "@language": "en"
-  },
-  "a": 1
+  "@context": [
+    "https://linked.art/ns/v1/linked-art.json",
+    {
+      "ex": "https://example.org/ns/",
+      "condition": {
+        "@id": "ex:condition",
+        "@type": "@id"
+      }
+    }
+  ],
+  "type": "HumanMadeObject",
+  "condition": "https://example.org/condition/good"
 }
 ```
 
-Term definitions and clearing the context are not supported yet, and a remote context combined with local directives does not yet produce valid JSON-LD.
-
-The `(context)` special form also has syntax sugar for the common case of having a single remote context. Using `:context value` will automatically desugar into an isolated schema directive frame.
-
-```clojure
-;; Surface Syntax Written by User
-:context #uri "https://linked.art/ns/v1/linked-art.json"
-
-;; Canonical Desugared Result Form
-(context ((remote-context #uri "https://linked.art/ns/v1/linked-art.json")))
-```
-
-Which is then serialised to:
-
-``` json
-"@context": "https://linked.art/ns/v1/linked-art.json",
-```
+- A key starting with `@` is a JSON-LD keyword: `(:@vocab "https://example.org/" :@language "en")` is a local context. Any other key defines a term, which maps to an IRI, to `null`, or to an expanded definition record (`:@id`, `:@type`, `:@container`, ...).
+- A context is a value like any other, so a function can build one: `(defn linked-art () "https://linked.art/ns/v1/linked-art.json")`, then `:context ((linked-art) (:ex "https://example.org/ns/"))`.
+- A malformed context is reported where it is written: a remote context that is not an absolute URL, an unknown `@` keyword, or a term mapped to a Number, for example.
+- `:context null` clears the context, and `:@context` means the same as `:context`.
 
 ### Get
 

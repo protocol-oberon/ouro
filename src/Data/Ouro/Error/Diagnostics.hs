@@ -74,6 +74,10 @@ malformedPattern :: ErrorContext
 malformedPattern = Syntax $ MalformedPattern
 
 
+malformedContext :: Text -> ErrorContext
+malformedContext = Syntax . MalformedContext
+
+
 missingOtherwise :: ErrorContext
 missingOtherwise = Syntax $ MissingOtherwiseFallback
 

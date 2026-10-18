@@ -12,7 +12,7 @@ import           Data.List                 (isSuffixOf)
 import           Data.Ouro.Internal.Expr   (Expr)
 import qualified Data.Ouro.Internal.Expr   as Expr
 import qualified Data.Ouro.Internal.Kinds  as JLD
-import           Data.Ouro.Internal.Schema (Schema (..), SchemaDirective)
+import           Data.Ouro.Internal.Schema (ContextEntry, Schema (..))
 import qualified Data.Ouro.Internal.Schema as Sch
 import           Data.Text                 (Text, replicate)
 import qualified Data.Text                 as T
@@ -48,7 +48,7 @@ data PrinterEnv = PrinterEnv
 -- A linear, append-only ledger for the accumulation of side effects during serialization.
 -- Uses a lazy text builder to accrue JSON as the AST is descended upon.
 --
--- We use a strict bang pattern ('!') on [SchemaDirective] to avoid potential space leaks
+-- We use a strict bang pattern ('!') on [ContextEntry] to avoid potential space leaks
 -- during deep AST traversals. Since we modify this list linearly within a state layer
 -- upon entry to an Expr.Context closure, we want this metadata to evaluate immediately.
 --
@@ -56,7 +56,7 @@ data PrinterEnv = PrinterEnv
 -- concatenation; it works by generating an internal execution graph of append actions,
 -- deferring chunk allocation until the entire output JSON is produced in a single pass.
 data PrinterState = PrinterState
-    { activeDirectives :: ![SchemaDirective]
+    { activeDirectives :: ![ContextEntry]
     , outputBuffer     :: !B.Builder
     }
 
@@ -175,7 +175,7 @@ nestingLevelL :: Lens' PrinterEnv Int
 nestingLevelL f e = (\l -> e { nestingLevel = l }) <$> f (nestingLevel e)
 
 
-activeDirectivesL :: Lens' PrinterState [SchemaDirective]
+activeDirectivesL :: Lens' PrinterState [ContextEntry]
 activeDirectivesL f s = (\d -> s { activeDirectives = d }) <$> f (activeDirectives s)
 
 
@@ -221,14 +221,14 @@ renderFlatRecord metadata body =
 
     case metadata of
         -- Case A: Record has an atomic Context leaf
-        Expr.Context (Schema directives)
+        Expr.Context schema@(Schema directives)
             -> do
                modify (activeDirectivesL %~ (++ directives))
                tell "{\n"
                nested $ do
                        emitIndent
                        tell "\"@context\": "
-                       renderSchemaInline directives
+                       buildJSON (contextJSON schema)
 
                        -- Interleave data properties if they exist alongside the context keys
                        case bodyPairs of
@@ -260,32 +260,28 @@ renderProperty (k, Expr.SomeExpr v) = do
                                       buildJSON v
 
 
--- Unrolls schema directives inline, prioritizing a raw string for standalone remote context references.
-renderSchemaInline :: [SchemaDirective] -> Printer ()
-renderSchemaInline directives = case directives of
-                                    -- Single remote string shouldn't be wrapped in braces
-                                    [Sch.RemoteContext uri] -> tell (escapeString (URI.render uri))
-                                    _ | null directives     -> tell "{}"
-                                      | otherwise           -> do
-                                                               tell "{\n"
-                                                               nested $ do
-                                                                        -- Map each directive to a Printer action and join them with ",\n"
-                                                                        intercalateM ",\n" (map renderDirective directives)
-                                                               tell "\n"
-                                                               emitIndent -- Automatically aligns with the parent indentation
-                                                               tell "}"
+-- A context is written in JSON's own terms: a context with one entry as that entry, and one
+-- with several as an array of them, in order. A local context is an object, so it is printed
+-- as a record is.
+contextJSON :: Schema -> Expr 'JLD.Primitive
+contextJSON = \case
+    Schema [entry] -> entryJSON entry
+    Schema entries -> Expr.Array (foldr (Expr.Cons . entryJSON) Expr.Nil entries)
     where
-    renderDirective :: Sch.SchemaDirective -> Printer ()
-    renderDirective d = do
-                        emitIndent
-                        case d of
-                            Sch.ClearContext       -> tell "\"@context\": null"
-                            Sch.DefineTerm k def   -> tell (escapeString k <> ": " <> escapeString (Sch.targetIRI def))
-                            Sch.RemoteContext uri  -> tell ("\"@context\": "       <> escapeString (URI.render uri))
-                            Sch.SetBase txt        -> tell ("\"@base\": "          <> escapeString txt)
-                            Sch.SetLanguage txt    -> tell ("\"@language\": "      <> escapeString txt)
-                            Sch.SetVocab (Left u)  -> tell ("\"@vocab\": "         <> escapeString (URI.render u))
-                            Sch.SetVocab (Right t) -> tell ("\"@vocab\": "         <> escapeString t)
+    entryJSON = \case
+        Sch.RemoteContext uri -> Expr.URI uri
+        Sch.ClearContext      -> Expr.Null
+        Sch.LocalContext  ds  -> object (Sch.directiveList ds)
+
+    value = \case
+        Sch.CString t   -> Expr.String t
+        Sch.CNumber n   -> Expr.Number n
+        Sch.CBool   b   -> Expr.Boolean b
+        Sch.CNull       -> Expr.Null
+        Sch.CArray  vs  -> Expr.Array (foldr (Expr.Cons . value) Expr.Nil vs)
+        Sch.CObject kvs -> object kvs
+
+    object kvs = Expr.Record Expr.EmptyMeta (foldr (\(k, v) rest -> Expr.Cons (Expr.Attr k (value v)) rest) Expr.Nil kvs)
 
 
 -- Recursively unrolls sequential list elements onto individual indented lines separated by commas.

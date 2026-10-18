@@ -259,14 +259,7 @@ pExpr = do
                              -- Parameterized Identifiers
                              Tkn.Symbol         txt -> capture (S.Symbol (Tkn.pos t) txt)
 
-                             -- Flags & Attributes (Reader Macro -> `(attr "key" expr)`)
-                             Tkn.FlagVocab      -> put ts >> parseAttrNode (Tkn.pos t) "vocab"
-                             Tkn.FlagLanguage   -> put ts >> parseAttrNode (Tkn.pos t) "language"
-                             Tkn.FlagBase       -> put ts >> parseAttrNode (Tkn.pos t) "base"
-                             Tkn.FlagTerms      -> put ts >> parseAttrNode (Tkn.pos t) "terms"
-                             Tkn.FlagClear      -> put ts >> parseAttrNode (Tkn.pos t) "clear"
-                             Tkn.TypeMappingID  -> put ts >> parseAttrNode (Tkn.pos t) "id"
-                             Tkn.TypeMappingIRI -> put ts >> parseAttrNode (Tkn.pos t) "iri"
+                             -- Attributes (Reader Macro -> `(attr "key" expr)`)
                              Tkn.Attr           txt -> put ts >> parseAttrNode (Tkn.pos t) txt
                              Tkn.Binding        txt -> capture (binderNode (Tkn.pos t) txt)
 

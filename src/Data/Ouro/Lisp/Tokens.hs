@@ -27,15 +27,6 @@ data TokenType
     | Defn             -- Named top-level functions
     | Defun            -- The old name for defn, kept so it can be reported
     | Graph            -- JSON-LD graph to compile
-    -- Schema Context Specific Flags
-    | FlagVocab        -- ':vocab'
-    | FlagLanguage     -- ':language'
-    | FlagBase         -- ':base'
-    | FlagTerms        -- ':terms'
-    | FlagClear        -- ':clear'
-    -- Term Type Mapping Flags
-    | TypeMappingID    -- ':id'
-    | TypeMappingIRI   -- ':iri'
     -- Identifiers
     | Attr   !Text     -- ':id', ':type' (stores the string without the leading ':')
     | Binding !Text    -- '$name' in a let (stores the name without the leading '$')
