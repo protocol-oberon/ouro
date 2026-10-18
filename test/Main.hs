@@ -39,6 +39,7 @@ main = withUtf8Console $ do
         , Function.placeholders
         , Function.mapping
         , Function.destructuring
+        , Function.threading
         -- Bindings: let, fn and defn replace define and defun
         , Let.letAndFn
         -- The language as specified: what reaches the output, special forms and built-ins

@@ -103,6 +103,19 @@ instance Eq (Expr (t :: JLD.Type)) where
     -- (e.g., comparing an Attr to a Nil, both being 'JLD.List)
     _ == _ = False
 
+
+-- A record's metadata is a Monoid, built on its context's: two contexts combine as their
+-- 'Schema's do, in order, and a record with no context is the identity. Layering a record
+-- with an inlay is then 'inlaid <> own': the inlaid record's context is applied first, so
+-- the record's own context, applied after it, overrides any term they both define.
+instance Semigroup (Expr 'JLD.Meta) where
+    Context a <> Context b = Context (a <> b)
+    Context a <> EmptyMeta = Context a
+    EmptyMeta <> meta      = meta
+
+instance Monoid (Expr 'JLD.Meta) where
+    mempty = EmptyMeta
+
 -- An existential wrapper to securely erase GADT type indices solely for tree rendering.
 data SomeExpr where
     SomeExpr :: Expr t -> SomeExpr

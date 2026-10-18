@@ -72,8 +72,7 @@ import           Data.Ouro.Lisp.Eval.Types   (Expr (..), freeze)
 import qualified Data.Ouro.Lisp.Eval.Types   as L
 import qualified Data.Ouro.Lisp.Lexer        as LX
 import           Data.Ouro.Lisp.Module.Types (HigherExpression (..),
-                                              graphRegistry, mapModuleExpr,
-                                              mapParamPatterns)
+                                              graphRegistry)
 import qualified Data.Ouro.Lisp.Parser       as LP
 import           Data.Text                   (Text)
 import qualified Data.Text                   as T
@@ -114,11 +113,8 @@ compile filename trgt content = compilationResult . runWriter . runExceptT $ com
                -- Pass 3.0: Linting the parsed functions and graphs
                tell $ LN.lintModule ouroModule
 
-               -- Pass 3.1 Desugar all ASTs, after turning calls with '?' holes into functions.
-               -- A defn's parameter patterns are desugared as case patterns are: their holes
-               -- match values, so they are not placeholders.
-               let desugaredModule = mapModuleExpr (Canon.construct . Canon.placeholders)
-                                         (mapParamPatterns Canon.constructRoot ouroModule)
+               -- Pass 3.1 Desugar all ASTs, running Canon's passes in order (see 'Canon.passes')
+               let desugaredModule = Canon.canonicalModule ouroModule
 
                -- Pass 3.2: Find target graph
                graph <- case Map.lookup (T.pack trgt) (desugaredModule ^. graphRegistry) of
@@ -140,7 +136,7 @@ compile filename trgt content = compilationResult . runWriter . runExceptT $ com
                                               & throwError
                -- Pass 4: Evaluation
                let (Graph gPos _ gAst)          = graph
-                   (evalTree, bindingErrors) = EN.evaluate desugaredModule (Canon.constructRoot gAst)
+                   (evalTree, bindingErrors) = EN.evaluate desugaredModule gAst
 
                case validateAST gPos bindingErrors evalTree of
                    Just    errs -> throwError errs

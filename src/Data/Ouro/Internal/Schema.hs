@@ -17,23 +17,35 @@ import qualified Text.URI   as URI
 -- serialises as ["https://linked.art/ns/v1/linked-art.json", {...}].
 --
 -- Contexts compose by concatenation, which is how JSON-LD processes a context array: each
--- entry is applied after the ones before it. So '<>' is associative, and the empty context
--- (an empty array, which changes nothing) is its identity. Adjacent local contexts are not
--- merged: a later one is processed against the context the earlier one built, so keeping
--- them apart keeps their meaning.
+-- entry is applied after the ones before it. Adjacent local contexts are not merged: a later
+-- one is processed against the context the earlier one built, so keeping them apart keeps
+-- their meaning.
+--
+-- Applying the same entry twice in a row is the same as applying it once, so where two
+-- contexts meet, an entry equal to the one before it is dropped: [X] <> [X] is [X]. Only
+-- neighbours collapse. In [X, Y, X] the second X is applied against what Y built, and moving
+-- or dropping it would change the meaning. '<>' stays associative, and the empty context
+-- (an empty array, which changes nothing) is its identity, for contexts built with '<>',
+-- which never hold two equal neighbours.
 newtype Schema = Schema [ContextEntry]
     deriving Eq
 
 instance Semigroup Schema where
-    Schema a <> Schema b = Schema (a <> b)
+    Schema a <> Schema b = Schema (a <> dropRepeat b)
+        where
+        dropRepeat = case reverse a of
+            lastEntry : _ -> \case
+                first : rest | first == lastEntry -> rest
+                entries'                           -> entries'
+            []            -> id
 
 instance Monoid Schema where
     mempty = Schema []
 
 instance Show Schema where
     show = \case
-            Schema []      -> "Schema []"
-            Schema entries -> "Schema [\n" ++ intercalate ",\n" (map (("  " ++) . show) entries) ++ "\n]"
+            Schema [] -> "Schema []"
+            Schema es -> "Schema [\n" ++ intercalate ",\n" (map (("  " ++) . show) es) ++ "\n]"
 
 
 entries :: Schema -> [ContextEntry]

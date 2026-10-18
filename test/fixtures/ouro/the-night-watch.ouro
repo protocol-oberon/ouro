@@ -8,8 +8,8 @@
                          :type   type
                          :_label label)))
 
-  (:context     "https://linked.art/ns/v1/linked-art.json"
-   (inlay (node "object/nightwatch/5" "HumanMadeObject" "Night Watch by Rembrandt"))
+  (with (node "object/nightwatch/5" "HumanMadeObject" "Night Watch by Rembrandt")
+   :context     "https://linked.art/ns/v1/linked-art.json"
 
    :produced_by (:type           "Production"
                  :timespan       (:type               "TimeSpan"

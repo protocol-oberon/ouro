@@ -5,6 +5,7 @@ module Ouro.FunctionTest
 , placeholders
 , plainNames
 , signatures
+, threading
 ) where
 
 import qualified Data.Text as T
@@ -64,6 +65,8 @@ plainNames = Group "Functions: names are plain symbols, in one namespace"
     -- Compiles today, and must keep compiling
     , ("a trailing ! is still allowed",            compilesLike "(defn legacy! () 1) (graph g (:r (legacy!)))"
                                                                 "(graph g (:r 1))")
+    , ("a name can contain /, as std/... does",    compilesLike "(defn std/inc (n) (+ n 1)) (graph g (:r (std/inc 1)))"
+                                                                "(graph g (:r 2))")
 
     -- Checked by message: today every program here already fails, but for another reason
     , ("a let value shadows a top-level function", compilesLike "(defn label () \"function\") (graph g (let ($label \"value\") (:r label)))"
@@ -279,3 +282,67 @@ destructuring = Group "Functions: a parameter can be a pattern"
     , ("a $name is not a parameter",              failsWith "A fn is written"
                                                             "(graph g (let ($f (fn ($x) x)) (:r (f 1))))")
     ]
+
+
+-- (with base item ...) is base with items written over it, layered as an inlay is, and
+-- (-> x step ...) threads a value through steps, each receiving the value before it. Both are
+-- rewritten by Canon before evaluation.
+threading :: Group
+threading = Group "Functions: with and -> build a value step by step"
+    [ ("with adds attribute pairs",               compilesToJSON (base <> "(graph g (:r (with (base) :_label \"L\")))")
+                                                                 "{\"r\": {\"id\": \"1\", \"type\": \"T\", \"_label\": \"L\"}}")
+    , ("a written attribute pair wins",           compilesToJSON (base <> "(graph g (:r (with (base) :type \"Mine\")))")
+                                                                 "{\"r\": {\"id\": \"1\", \"type\": \"Mine\"}}")
+    , ("with extends an array",                   compilesToJSON "(graph g (:r (with (1 2) 3 4)))"
+                                                                 "{\"r\": [1, 2, 3, 4]}")
+    , ("with nothing to add is the value",        compilesToJSON (base <> "(graph g (:r (with (base))))")
+                                                                 "{\"r\": {\"id\": \"1\", \"type\": \"T\"}}")
+    , ("with can add a context",                  compilesToJSON (base <> "(graph g (:r (with (base) :context \"https://a.org/c.json\")))")
+                                                                 "{\"r\": {\"@context\": \"https://a.org/c.json\", \"id\": \"1\", \"type\": \"T\"}}")
+
+    -- Each step receives the value as its first argument, or where a hole marks it
+    , ("-> threads with",                         compilesToJSON (base <> "(graph g (:r (-> (base) (with :type \"Mine\") (with :_label \"L\"))))")
+                                                                 "{\"r\": {\"id\": \"1\", \"type\": \"Mine\", \"_label\": \"L\"}}")
+    , ("a bare name is called with the value",    compilesToJSON "(defn wrap (r) (list r)) (graph g (:r (-> 1 wrap)))"
+                                                                 "{\"r\": [1]}")
+    , ("the value goes first, or at the hole",    compilesToJSON "(graph g (:r (-> 1 (- 10 ?)) :s (-> 1 (- 10))))"
+                                                                 "{\"r\": 9, \"s\": -9}")
+    , ("a fn step is called with the value",      compilesToJSON "(graph g (:r (-> 1 (fn (x) (+ x 1)))))"
+                                                                 "{\"r\": 2}")
+    , ("(-> ? ...) is a function",                compilesToJSON "(graph g (let ($f (-> ? (+ 1) (* 2))) (:r (f 3))))"
+                                                                 "{\"r\": 8}")
+    , ("which can be mapped",                     compilesToJSON "(graph g (:r (map (-> ? (with :seen true)) ((:a 1) (:a 2)))))"
+                                                                 "{\"r\": [{\"a\": 1, \"seen\": true}, {\"a\": 2, \"seen\": true}]}")
+    , ("pipelines nest",                          compilesToJSON "(graph g (:r (-> (-> 1 (+ 1)) (* 10))))"
+                                                                 "{\"r\": 20}")
+    , ("special forms are steps too",             compilesToJSON "(graph g (:r (-> (:a 1) (get a)) :s (-> 5 (case ((> 3) \"big\") (otherwise \"small\")))))"
+                                                                 "{\"r\": 1, \"s\": \"big\"}")
+    , ("a pipeline of no steps is its value",     compilesToJSON "(graph g (:r (-> 1)))"
+                                                                 "{\"r\": 1}")
+    , ("a pipeline builds a Linked Art record",   compilesToJSON ( "(defn core (id type label) (:id #uri id :type type :_label label)) "
+                                                                <> "(defn aat (id label) (core (+ \"http://vocab.getty.edu/aat/\" id) \"Type\" label)) "
+                                                                <> "(defn classified (r t) (with r :classified_as (list t))) "
+                                                                <> "(defn named (r n) (with r :identified_by (list (:type \"Name\" :content n)))) "
+                                                                <> "(graph g (-> (core \"https://linked.art/example/place/amsterdam/1\" \"Place\" \"Amsterdam\") "
+                                                                <> "(with :context \"https://linked.art/ns/v1/linked-art.json\") "
+                                                                <> "(classified (aat \"300008389\" \"City\")) (named \"Amsterdam\")))" )
+                                                                 ( "{\"@context\": \"https://linked.art/ns/v1/linked-art.json\", \"id\": \"https://linked.art/example/place/amsterdam/1\", \"type\": \"Place\", \"_label\": \"Amsterdam\", "
+                                                                <> "\"classified_as\": [{\"id\": \"http://vocab.getty.edu/aat/300008389\", \"type\": \"Type\", \"_label\": \"City\"}], "
+                                                                <> "\"identified_by\": [{\"type\": \"Name\", \"content\": \"Amsterdam\"}]}" ))
+
+    -- Errors
+    , ("a step receives one value",               failsWith "IncorrectArity"
+                                                            "(graph g (:r (-> 1 (+ ? ?))))")
+    , ("a step that is not a function",           failsWith "a function to call"
+                                                            "(graph g (:r (-> 1 (:a 2))))")
+    , ("-> needs a value",                        failsWith "-> is written (-> value step ...)"
+                                                            "(graph g (:r (->)))")
+    , ("with needs a value",                      failsWith "with is written (with value :key value ...)"
+                                                            "(graph g (:r (with)))")
+    , ("with cannot be a function name",          failsWith "'with' is a special form"
+                                                            "(defn with (x) x) (graph g (:r 1))")
+    , ("-> cannot be a function name",            failsWith "'->' is a special form"
+                                                            "(defn -> (x) x) (graph g (:r 1))")
+    ]
+    where
+    base = "(defn base () (:id \"1\" :type \"T\")) "

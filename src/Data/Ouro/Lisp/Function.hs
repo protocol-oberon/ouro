@@ -308,8 +308,8 @@ duplicateFunction name pos =
 
 -- Forms the evaluator recognises by their head symbol, before any name lookup
 specialForms :: [Text]
-specialForms = [ "attr", "case", "context", "define", "defn", "defun", "fn", "get", "graph"
-               , "inlay", "insert", "let", "list", "map", "nth", "replace-at", "thru" ]
+specialForms = [ "->", "attr", "case", "context", "define", "defn", "defun", "fn", "get", "graph"
+               , "inlay", "insert", "let", "list", "map", "nth", "replace-at", "thru", "with" ]
 
 
 isHeadedBy :: Text -> S.Expr -> Bool

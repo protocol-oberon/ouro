@@ -215,7 +215,7 @@ call         = "(" , symbol , { expression | placeholder } , ")" ;
 placeholder  = [ tag ] , hole ;     (* a call with placeholders is a function of them *)
 
 (* ---------- Special forms ---------- *)
-special-form = let | fn | case | get | nth | map | insert | replace-at | attr ;
+special-form = let | fn | case | get | nth | map | insert | replace-at | attr | with | thread ;
 let          = "(" , "let" , "(" , { binding } , ")" , expression , ")" ;
 binding      = "$" , symbol , expression ;
 fn           = "(" , "fn" , [ tag ] , params , expression , ")" ;
@@ -226,6 +226,8 @@ alternatives = "(" , literal , { literal } , ")" ;
 get          = "(" , "get" , expression , symbol , { symbol } , ")" ;
 nth          = "(" , "nth" , expression , expression , ")" ;
 map          = "(" , "map" , expression , expression , ")" ;     (* a function, then an array *)
+with         = "(" , "with" , expression , { record-item | expression } , ")" ;
+thread       = "(" , "->" , ( expression | placeholder ) , { expression } , ")" ;     (* a value, then its steps *)
 insert       = "(" , "insert" , expression , ( expression | attribute-pair ) , expression , ")" ;
 replace-at   = "(" , "replace-at" , expression , ( expression | attribute-pair ) , expression , ")" ;
 attr         = "(" , "attr" , expression , expression , ")" ;     (* a computed key *)
@@ -288,6 +290,15 @@ Arrays, like JSON arrays, can hold values of any type: ~(1 "a" (:k 1) (2 3))~.
 (defn base () (:type "Type" :_label "Painting"))
 
 (:_label "Spring" (inlay (base)))   ; {"_label": "Spring", "type": "Type"}
+#+END_SRC
+
+An inlaid record's context is layered the same way, by the context's =Monoid=: the record's =@context= is the inlays' contexts, in order, then its own written context, as one context array. Because JSON-LD applies a context array in order, the written context, applied last, overrides a term an inlay's context also defines, and a later inlay's overrides an earlier one's; terms only an inlay defines stay in scope. The same context reaching a record twice in a row, as when an inlaid node and the record both name Linked Art's context, is written once.
+
+#+BEGIN_SRC clojure
+(defn c () (:context "https://a.org/c.json" :a 1))
+
+((inlay (c)) :context "https://w.org/c.json" :b 2)
+; {"@context": ["https://a.org/c.json", "https://w.org/c.json"], "a": 1, "b": 2}
 #+END_SRC
 
 ** Bindings: records and =let=
@@ -398,7 +409,7 @@ A call with =?= holes among its arguments is not called: it is a function of its
 - *A named hole is one parameter*, however often it is written: ~(* ?n ?n)~ takes one. Parameters follow the order in which each hole is first written, so ~(+ ?a ?b ?a)~ takes =a= then =b=.
 - *A tagged hole is a typed parameter*: ~(node #uri ? "Painting")~ checks, and converts, its argument as a signature would, and a mismatch is reported at the argument where the placeholder is called. An untyped hole passed to a typed parameter of the function is checked by that function, and a mismatch is reported at the hole.
 - *A hole belongs to the call it is an argument of*, so ~(* 2 (+ ? 1))~ multiplies 2 by a function (an error), and ~(f (g ?))~ passes =f= a function.
-- *Any call takes holes*: a =defn=, a =fn=, a built-in, a variadic operator (~(< ? 10 20)~) and the special forms that evaluate their arguments (=get=, =nth=, =insert=, =replace-at=, =list=, =map=). The forms with their own structure (=let=, =fn=, =case=, =attr=, =context=, =inlay=, =thru=) do not.
+- *Any call takes holes*: a =defn=, a =fn=, a built-in, a variadic operator (~(< ? 10 20)~) and the special forms that evaluate their arguments (=get=, =nth=, =insert=, =replace-at=, =list=, =map=, =->=). The forms with their own structure (=let=, =fn=, =case=, =attr=, =context=, =inlay=, =thru=) do not.
 - *A placeholder is a value*: it is a =fn=, closed over the scope it is written in, so it can be bound, passed and returned like one. It is called with exactly as many arguments as it has holes.
 - *A hole anywhere else is an error*: in an array, in a record, or as a binding's value. A rest hole, =?..name=, only matches the rest of an array or record, so it can only be written in a pattern: a =case= pattern or a [[*Destructuring parameters][parameter]].
 
@@ -443,6 +454,8 @@ Special forms are recognised by their head symbol before any name lookup, so the
 | =(insert i x coll)=                      | insert =x= at index =i= (an array element, or a =:key value= attribute pair)          |
 | =(replace-at i x coll)=                  | replace the element or attribute pair at index =i=                                    |
 | =(inlay expr)=                           | splice a record's attribute pairs into a record, or an array's elements into an array |
+| =(with base item ...)=                   | =base= with =item=s written over it, as ~((inlay base) item ...)~                     |
+| =(-> x step ...)=                        | =x= threaded through the steps, each receiving the value before it                    |
 | =(list e ...)=                           | an array, whatever its first element is                                               |
 | =(thru duration)=                        | extend a duration to the end of its unit (see Built-ins)                              |
 | =(attr key-expr value)=                  | an attribute pair with a computed key (used with =insert=)                            |
@@ -453,6 +466,20 @@ Negative indexes count from the end in =nth=, =insert= and =replace-at=. =insert
 *Value-based =get=.* =get= evaluates its target and walks the resulting records, so it works through function results, =inlay=, =case= and =let= alike. Only a record's attribute pairs can be reached, =let= bindings are private. Path components are bare symbols (=(get p q r)=, not =(get p :q)=) arrays are indexed with =nth=.
 
 *=map=.* ~(map f array)~ evaluates =f=, which must be a function (a =fn=, a =defn= name, a built-in or a placeholder), and =array=, which must be an array (=()= and =#arr-empty= are empty arrays). The result is an array of =f= called on each element, in order. Each element is passed as an ordinary call, made in a frame that binds the function and the element to names that cannot be written in Ouro, so arity, signatures and the recursion check apply as they do to any call: =f= must take one argument, a typed parameter checks every element, and a mismatch is reported at the array, since an element has no position of its own. With placeholders, ~(map (+ ? 1) xs)~ needs no =fn=, and ~(map f ?)~ is a function waiting for the array. Elements that are themselves arrays or records are taken apart by a [[*Destructuring parameters][pattern parameter]]: ~(map (fn ((?k ?v)) ...) pairs)~. =map= is a special form only at the head of a form: it cannot name a =defn=, but =:map= and =$map= are ordinary names.
+
+*=with= and =->=.* ~(with base item ...)~ is =base= with =item=s written over it, layered as an =inlay= is: a written attribute pair wins over the base's own, and an array base has its elements spliced, so ~(with (1 2) 3 4)~ is ~(1 2 3 4)~. With nothing to add, ~(with base)~ is =base=. ~(-> x step ...)~ threads =x= through its steps, each receiving the value before it:
+
+#+BEGIN_SRC clojure
+(-> (base) (with :type "Mine") (with :_label "L"))   ; (with (with (base) :type "Mine") :_label "L")
+(-> 1 (- 10))                                       ; (- 1 10): the value goes first
+(-> 1 (- 10 ?))                                     ; (- 10 1): or where a hole marks it
+(-> 1 wrap)                                         ; (wrap 1): a bare name is called with it
+(-> 5 (case ((> 3) "big") (otherwise "small")))    ; special forms are steps too
+#+END_SRC
+
+- *A step* is called with the value as its first argument; a bare name is called with the value; a step that is a function, such as a placeholder ~(- 10 ?)~ or a =fn=, is called with the value. A step receives exactly one value, so ~(+ ? ?)~ is an arity error, and a step that is not a function is a type error.
+- *=(-> ? step ...)=* is a function of the value, by the placeholder rule: ~(map (-> ? (with :seen true)) records)~.
+- ~(-> x)~ is =x=. =with= and =->= are rewritten before evaluation (see [[*Desugaring (~Canon~)][desugaring]]), so they cannot name a =defn=.
 
 ** =case= and patterns
 
@@ -571,11 +598,33 @@ The parser also enforces the module-level rules: a function name cannot be a spe
 
 ** Desugaring (~Canon~)
 
-Before evaluation, ~Canon.placeholders~ turns each call with holes into a function, top-down, leaving =case= patterns as they are. ~Canon.construct~ then rewrites sugar bottom-up into a smaller core, so a placeholder's call is desugared like any other:
+Before evaluation, ~Canon.canonicalModule~ rewrites every function body and graph into a smaller core by running ~Canon.passes~ in order, one rule per pass. Each pass relies on the ones before it:
+
+| Pass             | Walk      | Rewrites                                                                                   |
+|------------------+-----------+--------------------------------------------------------------------------------------------|
+| 1. placeholders  | top-down  | a call with =?= holes into a function of them, leaving =case= and =fn= patterns as they are |
+| 2. threading     | top-down  | ~(-> x step ...)~ into nested calls; a step with a hole is already a function (1)           |
+| 3. bindings      | top-down  | =$name value= in a =let='s bindings into ~(%bind "name" value)~                             |
+| 4. guards        | top-down  | a =case= guard ~((< 10) e)~ into ~((%guard < 10) e)~                                        |
+| 5. contexts      | bottom-up | =:context e= into ~(%context e)~                                                            |
+| 6. with          | bottom-up | ~(with base item ...)~ into ~((inlay base) item ...)~                                       |
+| 7. thru          | siblings  | ~(thru (days n))~ into the durations it stands for                                          |
+| 8. comparisons   | bottom-up | ~(< a b c)~ into ~(%and (< a b) (< b c))~                                                   |
+| 9. operators     | bottom-up | ~(+ a b c)~ into ~(+ (+ a b) c)~                                                            |
+| 10. alternatives | bottom-up | a =case= branch ~(("a" "b") e)~ into one branch per literal                                 |
+
+A pass walks the tree in one of three ways (~Canon.Traverse~): top-down, rewriting a form before its parts, when the rule depends on the form's own shape; bottom-up, rewriting a form's parts first; or over lists of siblings, for a rule that turns one element into several. An expression that stands on its own, such as a graph's body or the payload of a type tag, is a list of one: a =thru= there has no meaning and is left for the evaluator to report.
+
+The order matters in four places. Threading runs before =with=, so in ~(-> x (with :k v))~ =with= receives =x= as its base. Bindings run before =thru=, so a value that expands into several elements stays inside its binding. Guards run before comparisons and alternatives, which leave a marked guard alone, so a guard's operands are not unrolled as a comparison of their own. Only =thru= walks siblings.
+
+Each pass is a module of its own under =Lisp/Canon/= (=Placeholders.hs=, =Threading.hs=, =Bindings.hs=, =Guards.hs=, =Context.hs=, =With.hs=, =Thru.hs=, =Comparisons.hs=, =Operators.hs=, =Alternatives.hs=, with the walks in =Traverse.hs=), and =Lisp/Canon.hs= is the single entry point: it lists the passes, in order, and runs them (~Canon.runPasses~ runs any selection of them). A =defn='s parameter patterns go through ~Canon.patternPasses~, every pass but placeholders and threading, since their holes match values.
 
 | Sugar                                   | Core                                                          |
 |-----------------------------------------+---------------------------------------------------------------|
 | a placeholder ~(f ? x ?n #num ?)~       | ~(fn (%1 ?n #num %2) (f %1 x ?n %2))~                         |
+| ~(-> x (f a) g)~                        | ~(g (f x a))~                                                 |
+| a function step ~(-> x (h b ?))~        | ~(%apply (fn (%1) (h b %1)) x)~                               |
+| ~(with base item ...)~                  | ~((inlay base) item ...)~; ~(with base)~ is ~base~            |
 | =:context e=, =:@context e=             | ~(%context e)~: the record's metadata, not an attribute pair  |
 | ~(+ a b c)~ (also =- * /=)              | ~(+ (+ a b) c)~                                               |
 | ~(< a b c)~ (also ~eq > >= <=~)         | ~(%and (< a b) (< b c))~; =%and= cannot be written by users   |
@@ -585,9 +634,7 @@ Before evaluation, ~Canon.placeholders~ turns each call with holes into a functi
 | a =case= guard ~((< 10) e)~             | ~((%guard < 10) e)~, chained with the target as first operand |
 | =$name value= in a =let='s bindings     | ~(%bind "name" value)~                                        |
 
-Guards and =$= bindings are prepared (~Canon.prepare~) before a form's children are desugared, because desugaring is bottom-up. A =$name= with no value becomes ~(%bind "name")~ and is reported as having no value; a =$name= anywhere outside a =let='s bindings stays ~(%binder "name")~ and is reported where it is evaluated. Like =%and=, the =%= heads cannot be written by users. Nor can a placeholder's parameter names: =%1= cannot be lexed, and =?n= is read as a hole, so a placeholder never captures a name its call refers to. A hole left after ~Canon.placeholders~, outside a call's arguments and =case= patterns, is reported where it is evaluated.
-
-~Canon.constructRoot~ applies the same rewriting to an expression that stands on its own, such as a graph's body or the payload of a type tag.
+A =$name= with no value becomes ~(%bind "name")~ and is reported as having no value; a =$name= anywhere outside a =let='s bindings stays ~(%binder "name")~ and is reported where it is evaluated. Like =%and=, the =%= heads cannot be written by users. =%apply= exists because a form headed by a =fn= is an array, not a call: the evaluator binds the function to a name that cannot be written and calls it with the threaded value, as =map= does for each element. Nor can a placeholder's parameter names: =%1= cannot be lexed, and =?n= is read as a hole, so a placeholder never captures a name its call refers to. A hole left after ~Canon.Placeholders.placeholders~, outside a call's arguments and =case= patterns, is reported where it is evaluated.
 
 ** Structural classification
 
@@ -765,7 +812,7 @@ A promise is evaluated in /its own/ environment, not the one where it is referen
 
 - An attribute pair is forced through /its own promise/ (found by the position of its =:key=), so an attribute pair that is both output and referenced is evaluated once.
 
-- =inlay= evaluates its expression and splices the resulting record's attribute pairs in place, as a layer: an inlaid attribute pair is dropped when the record writes the same key, or when a later =inlay= has it.
+- =inlay= evaluates its expression and splices the resulting record's attribute pairs in place, as a layer: an inlaid attribute pair is dropped when the record writes the same key, or when a later =inlay= has it. Its context is combined under the record's with the metadata =Monoid=, ~inlaid <> rest~, where =rest= already holds the later inlays' contexts and the written one.
 
 - A key written twice, or a second context, is an error at the second occurrence.
 
@@ -912,8 +959,9 @@ data ContextValue = CString Text | CNumber Double | CBool Bool | CNull
                   | CArray [ContextValue] | CObject [(Text, ContextValue)]
 #+END_SRC
 
-- *Contexts are a Monoid under concatenation.* JSON-LD processes a context array in order, each entry against the context the earlier ones built, so concatenation is how contexts compose; it is associative, and the empty context, which changes nothing, is the identity. Adjacent local contexts are kept apart, not merged, so each keeps its meaning.
+- *Contexts are a Monoid under concatenation.* JSON-LD processes a context array in order, each entry against the context the earlier ones built, so concatenation is how contexts compose; it is associative, and the empty context, which changes nothing, is the identity. Adjacent local contexts are kept apart, not merged, so each keeps its meaning. Applying the same entry twice in a row is applying it once, so where two contexts meet an entry equal to the one before it is dropped: ~[X] <> [X]~ is ~[X]~. Only neighbours collapse: in ~[X, Y, X]~ the second =X= is applied against what =Y= built, so it is kept. The laws hold for contexts built with =<>=, which never hold two equal neighbours.
 - *Local contexts are a Monoid under a right-biased union.* A key in both keeps the position of its first occurrence and the value of its later one, as defining a term again replaces it; the empty local context is the identity. A local context is built with ~directive key value~ and ~<>~, so each key appears once.
+- *A record's metadata is a Monoid too*, over ~I.Expr 'Meta~: two =Context=s combine as their =Schema=s do, and =EmptyMeta= is the identity. =inlay= uses it to layer an inlaid record's context under the record's own.
 - ~Eval.Schema.contextFromValue~ reads an evaluated value as a ~Schema~ and checks it; ~Json.Parser~ reads a JSON =@context= the same way for =ouro validate=, keeping a context array's structure. The serialiser writes a ~Schema~ with one entry as that entry, and one with several as an array.
 
 * The Emission Engine
@@ -951,7 +999,7 @@ Dependencies flow in one direction, from the pure JSON-LD core upwards:
 | JSON-LD core | ~Internal.Kinds~, ~Internal.Schema~, ~Internal.Expr~, ~Internal.Utils~                                           | each other only                                              |
 | JSON I/O     | ~Json.Parser~, ~Json.Serializer~                                                                                 | the core                                                     |
 | Errors       | ~Error.Types~ ← ~Error.Diagnostics~, ~Error.Linter~                                                              | the core, ~Lisp.Tokens~, ~Lisp.Surface~, ~Lisp.Module.Types~ |
-| Front end    | ~Lisp.Tokens~, ~Lisp.Lexer~, ~Lisp.Surface~, ~Lisp.Function~, ~Lisp.Parser~, ~Lisp.Canon~, ~Lisp.Module.Types~   | errors, each other                                           |
+| Front end    | ~Lisp.Tokens~, ~Lisp.Lexer~, ~Lisp.Surface~, ~Lisp.Function~, ~Lisp.Parser~, ~Lisp.Canon~ (and its passes), ~Lisp.Module.Types~ | errors, each other                                           |
 | Evaluator    | ~Eval.Types~ ← ~Eval.Builtins~, ~Eval.Schema~, ~Eval.Pattern~ ← ~Eval.Scope~ ← ~Eval.Structural~ ← ~Eval.Engine~ | everything below                                             |
 | Pipeline     | ~Data.Ouro~                                                                                                      | everything                                                   |
 | Command line | =app/= (~CLI.Parser~, ~CLI.Runner~, ~CLI.Printer~)                                                               | ~Data.Ouro~ only                                             |
@@ -1021,7 +1069,7 @@ Recorded 2026-10-12 and kept up to date since; none were caused by the scoping r
 
 12. *Zero-argument functions re-evaluate* on every call; as pure constants they could be shared.
 
-13. *Code health:* the =[ ]= bracket syntax parses but has no meaning; =validate= without =-o= overwrites its input; there are no tests for the CLI.
+13. *Code health:* the =[ ]= bracket syntax parses but has no meaning; =validate= without =-o= overwrites its input; there are no tests for the CLI; and no test checks an error message as a user sees it. The ~failsWith~ checks search the Haskell =show= of an error, but the rendered diagnostic (title, code, source line and caret, blurb) is built in =app/CLI/Printer.hs=, which writes ANSI straight to stderr and cannot be imported by the tests. The planned fix: move the rendering into the library as a pure document, leaving the CLI to colour and print it, and add golden tests (=test/fixtures/errors/=, one =.ouro= and its expected =.txt= per error kind).
 
 14. *A record made only of inlays is read as an array:* ~((inlay (a)) (inlay (b)))~ has no written attribute pair, so structural classification makes it an array, and each =inlay= then expects an array. Workaround: write at least one attribute pair.
 
@@ -1034,5 +1082,7 @@ Recorded 2026-10-12 and kept up to date since; none were caused by the scoping r
 18. *An attribute pair among array values has no hint:* ~(1 :a 2)~ is read as a record (one attribute pair makes the form a record), so =1= is reported as an unbound expression. The error is right, but it could suggest ~(1 (:a 2))~.
 
 19. *Strings are not escaped in the output:* the serialiser writes a string's characters between quotes as they are, so ~"say \"hi\""~ becomes ="say "hi""=, and a backslash, newline or tab is written raw, all of which is invalid JSON. A computed key, such as ~(attr "a\"b" 1)~, is written the same way. =ouro validate= has the same fault, so a valid document with ="a\"b"= comes back as ="a"b"=.
+
+20. *=compile -o= needs an existing directory:* compiling into an output directory that does not exist reports "Compilation Success" and then crashes with ~withFile: does not exist~, writing nothing. Not pinned by a test, since the CLI has none (gap 13).
 
 #  LocalWords:  Ouro LD

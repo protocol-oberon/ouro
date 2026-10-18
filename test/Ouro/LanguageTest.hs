@@ -1,3 +1,5 @@
+{-# LANGUAGE DataKinds #-}
+
 module Ouro.LanguageTest
 ( serialisation
 , formsAndBuiltins
@@ -17,6 +19,8 @@ import qualified Data.ByteString           as BS
 import           Data.Maybe                (fromJust)
 import           Data.Ouro                 (decodeSource, defaultOptions,
                                             readSource, validate)
+import qualified Data.Ouro.Internal.Expr   as I
+import qualified Data.Ouro.Internal.Kinds  as JLD
 import           Data.Ouro.Internal.Schema (ContextEntry (..), ContextValue (..),
                                             Directives, Schema (..), directive)
 import qualified Data.Text                 as T
@@ -345,6 +349,29 @@ contexts = Group "Contexts: a context is a value"
     , ("and one written after an inlay",            compilesToJSON "(defn base () (:id \"1\" :type \"T\")) (graph g ((inlay (base)) :a 1 :context \"https://a.org/c.json\"))"
                                                                    "{\"@context\": \"https://a.org/c.json\", \"id\": \"1\", \"type\": \"T\", \"a\": 1}")
 
+    -- An inlay layers its record's context under the record's own, as it layers attribute pairs:
+    -- the inlays' contexts in order, then the written one, applied last
+    , ("an inlay keeps its record's context",       compilesToJSON (ctx <> "(graph g (:r ((inlay (c)) :b 2)))")
+                                                                   "{\"r\": {\"@context\": \"https://a.org/c.json\", \"a\": 1, \"b\": 2}}")
+    , ("a written context is applied after it",     compilesToJSON (ctx <> "(graph g (:r ((inlay (c)) :context \"https://w.org/c.json\" :b 2)))")
+                                                                   "{\"r\": {\"@context\": [\"https://a.org/c.json\", \"https://w.org/c.json\"], \"a\": 1, \"b\": 2}}")
+    , ("wherever it is written",                    compilesToJSON (ctx <> "(graph g (:r (:context \"https://w.org/c.json\" (inlay (c)) :b 2)))")
+                                                                   "{\"r\": {\"@context\": [\"https://a.org/c.json\", \"https://w.org/c.json\"], \"a\": 1, \"b\": 2}}")
+    , ("inlays' contexts keep their order",         compilesToJSON (ctx <> "(graph g (:r ((inlay (c)) (inlay (d)) :b 2)))")
+                                                                   "{\"r\": {\"@context\": [\"https://a.org/c.json\", \"https://d.org/c.json\"], \"a\": 1, \"d\": 4, \"b\": 2}}")
+    , ("a pipeline keeps its context",              compilesToJSON (ctx <> "(graph g (:r (-> (c) (with :b 2) (with :x 3))))")
+                                                                   "{\"r\": {\"@context\": \"https://a.org/c.json\", \"a\": 1, \"b\": 2, \"x\": 3}}")
+    , ("the same context twice is written once",   compilesToJSON (ctx <> "(graph g (:r ((inlay (c)) :context \"https://a.org/c.json\" :b 2)))")
+                                                                   "{\"r\": {\"@context\": \"https://a.org/c.json\", \"a\": 1, \"b\": 2}}")
+    , ("so is a repeat written in the array",       compilesToJSON "(graph g (:context (\"https://a.org/c.json\" \"https://a.org/c.json\") :a 1))"
+                                                                   "{\"@context\": \"https://a.org/c.json\", \"a\": 1}")
+    , ("but only next to itself",                   compilesToJSON "(graph g (:context (\"https://a.org/c.json\" (:ex \"https://e.org/\") \"https://a.org/c.json\") :a 1))"
+                                                                   "{\"@context\": [\"https://a.org/c.json\", {\"ex\": \"https://e.org/\"}, \"https://a.org/c.json\"], \"a\": 1}")
+    , ("validate collapses a repeat",               withTests 1 . property $
+                                                       fmap (T.filter (/= ' ') . T.filter (/= '\n') . TL.toStrict)
+                                                            (validate "t.json" "{\"@context\": [\"https://a.org/c.json\", \"https://a.org/c.json\"], \"a\": 1}" defaultOptions)
+                                                       === Right "{\"@context\":\"https://a.org/c.json\",\"a\":1}")
+
     , ("validate keeps a context array",            withTests 1 . property $
                                                        fmap (T.filter (/= ' ') . T.filter (/= '\n') . TL.toStrict)
                                                             (validate "t.json" "{\"@context\": [\"https://a.org/c.json\", {\"ex\": \"https://e.org/\"}], \"a\": 1}" defaultOptions)
@@ -368,6 +395,8 @@ contexts = Group "Contexts: a context is a value"
     , ("the (context (...)) form is replaced",      failsWith "has been replaced by ':context value'"
                                                               "(graph g ((context (vocab \"https://e.org/\")) :a 1))")
     ]
+    where
+    ctx = "(defn c () (:context \"https://a.org/c.json\" :a 1)) (defn d () (:context \"https://d.org/c.json\" :d 4)) "
 
 
 -- Contexts compose: a context is a Monoid under concatenation, its entries applied in order,
@@ -396,6 +425,20 @@ contextAlgebra = Group "Contexts: combining them is a monoid"
     , ("adjacent local contexts are not merged", withTests 1 . property $
                                                     (Schema [LocalContext (directive "a" CNull)] <> Schema [LocalContext (directive "b" CNull)])
                                                     === Schema [LocalContext (directive "a" CNull), LocalContext (directive "b" CNull)])
+    , ("an entry next to itself is applied once", withTests 1 . property $
+                                                    (remote "https://a.org/c.json" <> remote "https://a.org/c.json")
+                                                    === remote "https://a.org/c.json")
+    , ("but an entry apart from itself is kept",  withTests 1 . property $
+                                                    (remote "https://a.org/c.json" <> remote "https://b.org/c.json" <> remote "https://a.org/c.json")
+                                                    === Schema (map remoteEntry ["https://a.org/c.json", "https://b.org/c.json", "https://a.org/c.json"]))
+
+    -- A record's metadata is a Monoid over its context, with no context as the identity
+    , ("metadata combines associatively",       property $ do
+                                                    (a, b, c) <- forAll ((,,) <$> genMeta <*> genMeta <*> genMeta)
+                                                    (a <> b) <> c === a <> (b <> c))
+    , ("no context changes nothing",            property $ do
+                                                    a <- forAll genMeta
+                                                    (mempty <> a, a <> mempty) === (a, a))
     ]
     where
     -- A few keys, so that unions overlap
@@ -408,11 +451,21 @@ contextAlgebra = Group "Contexts: combining them is a monoid"
                           , CBool <$> Gen.bool
                           , pure CNull ]
 
+    genMeta :: Gen (I.Expr 'JLD.Meta)
+    genMeta = Gen.choice [ pure I.EmptyMeta, I.Context <$> genSchema ]
+
+    -- Built with '<>', as contexts are, so a context never holds two equal neighbours
     genSchema :: Gen Schema
-    genSchema = Schema <$> Gen.list (Range.linear 0 4)
-                    (Gen.choice [ pure ClearContext
-                                , LocalContext <$> genDirectives
-                                , RemoteContext . fromJust . URI.mkURI <$> Gen.element ["https://a.org/c.json", "https://b.org/c.json"] ])
+    genSchema = mconcat <$> Gen.list (Range.linear 0 4)
+                    (Schema . pure <$> Gen.choice [ pure ClearContext
+                                                   , LocalContext <$> genDirectives
+                                                   , remoteEntry <$> Gen.element ["https://a.org/c.json", "https://b.org/c.json"] ])
+
+    remoteEntry :: T.Text -> ContextEntry
+    remoteEntry = RemoteContext . fromJust . URI.mkURI
+
+    remote :: T.Text -> Schema
+    remote = Schema . pure . remoteEntry
 
 
 -- Known gaps, numbered as in the specification's Appendix B. Each test pins the current,

@@ -41,6 +41,10 @@ tests = Group "Evaluation Tests (Surface to Higher IR)"
 
     , ("routes to the correct branch in (case ...)",   prop_case_routing)
 
+    , ("runs Canon's passes in order",                 prop_pass_order)
+    , ("runs all but two passes on a pattern",         prop_pattern_passes)
+    , ("runs a single pass on its own",                prop_single_pass)
+
     , ("returns L.EvalError for invalid attr name",    prop_error_invalid_attr)
     , ("returns L.EvalError for out-of-bounds nth",    prop_error_nth_bounds)
 
@@ -130,8 +134,7 @@ prop_chained_comparison = property $ do
         expr     = S.Form dummyPos (S.Symbol dummyPos opName : map (S.Literal dummyPos . S.Num) nums)
         expected = and (zipWith op nums (drop 1 nums))
 
-    -- 'Canon.construct' only desugars a form's children, so desugar the form as a list element
-    map runEval (Canon.desugar [expr]) === [L.Primitive (I.Boolean expected)]
+    runEval (Canon.canonical expr) === L.Primitive (I.Boolean expected)
 
 
 -- Control Flow Execution (Case)
@@ -143,8 +146,33 @@ prop_case_routing = withTests 1 . property $ do
     let fallback = S.Form dummyPos [S.Symbol dummyPos "otherwise", S.Literal dummyPos (S.Num 2)]
     let expr     = S.Form dummyPos [S.Symbol dummyPos "case", target, branch1, fallback]
 
-    -- Guards are marked by the desugarer, so the case goes through it first
-    runEval (Canon.constructRoot expr) === L.Primitive (I.Number 1)
+    -- Guards are marked by the 'guards' pass, so the case goes through Canon first
+    runEval (Canon.canonical expr) === L.Primitive (I.Number 1)
+
+
+-- Canon's passes
+prop_pass_order :: Property
+prop_pass_order = withTests 1 . property $
+    map Canon.passName Canon.passes
+        === [ "placeholders", "threading", "bindings", "guards", "contexts"
+            , "with", "thru", "comparisons", "operators", "alternatives" ]
+
+-- A parameter pattern skips placeholders and threading
+prop_pattern_passes :: Property
+prop_pattern_passes = withTests 1 . property $
+    map Canon.passName Canon.patternPasses === drop 2 (map Canon.passName Canon.passes)
+
+-- Running 'operators' alone unrolls arithmetic and leaves a variadic comparison alone
+prop_single_pass :: Property
+prop_single_pass = withTests 1 . property $ do
+    let sym           = S.Symbol dummyPos
+        num           = S.Literal dummyPos . S.Num
+        form          = S.Form dummyPos
+        onlyOperators = filter ((== "operators") . Canon.passName) Canon.passes
+    Canon.runPasses onlyOperators (form [sym "+", num 1, num 2, num 3])
+        === form [sym "+", form [sym "+", num 1, num 2], num 3]
+    Canon.runPasses onlyOperators (form [sym "<", num 1, num 2, num 3])
+        === form [sym "<", num 1, num 2, num 3]
 
 
 -- Fault Isolation and Error Propagation

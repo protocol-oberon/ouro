@@ -176,6 +176,38 @@ evalExpr expr = do
                & EvalError
                & pure
 
+        -- (%apply f x): a '->' step that is itself a function, such as a placeholder, called
+        -- with the value threaded into it. A form headed by a fn is an array, so the function is
+        -- bound to a name that cannot be written in Ouro, and the call is an ordinary one:
+        -- arity, signatures and the recursion check apply as they do anywhere else.
+        S.Form pos [S.Symbol _ "%apply", fnExpr, argExpr]
+            -> evalExpr fnExpr >>= \case
+                   EvalError err -> pure (EvalError err)
+                   f             -> do
+                                    frame <- allocValues (\names -> env
+                                                                  & L.localScope       .~ names
+                                                                  & L.functionRegistry .~ Map.empty
+                                                                  & L.parentEnv        .~ Just env)
+                                                         pos
+                                                         [("%apply-fn", f)]
+                                    local (const frame) $
+                                        applyFunction pos [S.Symbol (S.exprPos fnExpr) "%apply-fn", argExpr]
+
+        -- '->' and 'with' are rewritten before evaluation, so what reaches here has no value
+        S.Form pos [S.Symbol _ "->"]
+            -> lexicalError "-> is written (-> value step ...): a value, then the steps it is threaded through."
+               & withBlurb "Each step receives the value before it as its first argument: (-> (base) (with :_label \"Name\") (f arg))."
+               & OuroError pos
+               & EvalError
+               & pure
+
+        S.Form pos [S.Symbol _ "with"]
+            -> lexicalError "with is written (with value :key value ...): a value, then what to write over it."
+               & withBlurb "Written attribute pairs win over the value's own, as in an inlay: (with (base) :_label \"Name\")."
+               & OuroError pos
+               & EvalError
+               & pure
+
         -- (let ($name expr ...) expr): private bindings, in any order, around one result
         S.Form pos (S.Symbol _ "let" : rest)
             -> case rest of

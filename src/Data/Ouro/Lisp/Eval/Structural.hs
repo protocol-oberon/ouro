@@ -3,13 +3,13 @@
 
 module Data.Ouro.Lisp.Eval.Structural where
 
-import           Control.Monad.Reader        (ask, local, runReader)
+import           Control.Monad.Reader        (ask, local)
 import           Data.Functor                ((<&>))
 import           Data.Function               ((&))
 import qualified Data.Map                    as Map
-import           Data.Ouro.Error.Diagnostics (incorrectArity, internalValueLeak,
-                                              lexicalError, typeMismatch,
-                                              typeMismatchBlurb, withBlurb)
+import           Data.Ouro.Error.Diagnostics (incorrectArity, lexicalError,
+                                              typeMismatch, typeMismatchBlurb,
+                                              withBlurb)
 import           Data.Ouro.Error.Types       (OuroError (..))
 import qualified Data.Ouro.Internal.Expr     as I
 import qualified Data.Ouro.Internal.Kinds    as JLD
@@ -146,10 +146,13 @@ emitProps evaluator env attrAddrs expressions = go I.EmptyMeta expressions
                                                     -- 2. The successful path: Merge the evaluated pairs (p) into the current scope.
                                                     --    A key written in this record, or supplied by a later inlay
                                                     --    (already in nextPairs), overrides this inlay's attribute pair.
-                                                    Record _ p    -> let laterKeys = Set.fromList [ k | (k, _) <- nextPairs, k `notElem` ["*err*", "@context"] ]
+                                                    --    The inlay's context is layered under the record's in the same
+                                                    --    order: finalMeta already holds the later inlays' contexts and
+                                                    --    the written one, which are applied after it.
+                                                    Record m p    -> let laterKeys = Set.fromList [ k | (k, _) <- nextPairs, k `notElem` ["*err*", "@context"] ]
                                                                          overridden k = Set.member k writtenKeys || Set.member k laterKeys
                                                                          spliced   = [ (k, v) | (k, v) <- p, not (overridden k) ]
-                                                                     in Record finalMeta (spliced <> nextPairs)
+                                                                     in Record (m <> finalMeta) (spliced <> nextPairs)
 
                                                     -- 3. If it evaluated to something other than a record, throw a type mismatch
                                                     otherVal      -> let err = typeMismatch

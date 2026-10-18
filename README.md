@@ -434,6 +434,57 @@ Inlay is useful for systematically merging records, but it can also be used to m
 }
 ```
 
+An inlaid record's `@context` is layered in too. The record ends up with the inlays' contexts, in order, then its own, so its own context, applied last, overrides a term both define. The same context twice in a row, such as Linked Art's from both an inlaid node and the record, is written once.
+
+### With and ->
+
+`(with base :key value ...)` is `base` with the attribute pairs written over it, exactly as `((inlay base) :key value ...)`: a written attribute pair wins over the base's own. `(-> x step ...)` threads a value through steps, each receiving the value before it as its first argument. Together they build a record step by step:
+
+```clojure
+(defn core (id type label)
+  (:id #uri id :type type :_label label))
+
+(defn aat (id label)
+  (core (+ "http://vocab.getty.edu/aat/" id) "Type" label))
+
+(defn classified (r t) (with r :classified_as (list t)))
+(defn named      (r n) (with r :identified_by (list (:type "Name" :content n))))
+
+(graph amsterdam
+  (-> (core "https://linked.art/example/place/amsterdam/1" "Place" "Amsterdam")
+      (with :context "https://linked.art/ns/v1/linked-art.json")
+      (classified (aat "300008389" "City"))
+      (named "Amsterdam")))
+```
+
+...compiles to:
+
+``` json
+{
+  "@context": "https://linked.art/ns/v1/linked-art.json",
+  "id": "https://linked.art/example/place/amsterdam/1",
+  "type": "Place",
+  "_label": "Amsterdam",
+  "classified_as": [
+    {
+      "id": "http://vocab.getty.edu/aat/300008389",
+      "type": "Type",
+      "_label": "City"
+    }
+  ],
+  "identified_by": [
+    {
+      "type": "Name",
+      "content": "Amsterdam"
+    }
+  ]
+}
+```
+
+- A step's value goes in as its first argument, or where a hole marks it: `(-> 1 (- 10))` is `-9`, and `(-> 1 (- 10 ?))` is `9`. A bare name is called with the value, and so is a `fn`.
+- `(-> ? step ...)` is a function of the value, so a pipeline can be mapped: `(map (-> ? (with :seen true)) records)`.
+- `with` extends an Array too: `(with (1 2) 3 4)` is `(1 2 3 4)`.
+
 ### Insert
 
 `(insert)` serves as the dual to `(inlay)`, while `(inlay)` is used to bring things into the current scope, `(insert)` takes either a Record, or an Array, and merges its contents into the current Record/Array, `(insert)` does the same from an outside perspective. It takes an **insert position**, the payload to be inserted and a **Record**/**Array** to insert into. As Ouro is a functional language, `(insert)` returns a new instance of the original record, with the values inserted rather than mutating in-place. In this sense, `(insert)` is not to dissimilar to *lenses* in Haskell.    
@@ -926,4 +977,3 @@ These are agreed directions for Ouro, roughly in the order they will be built. N
       ((:type "Person" :_label #str ?))))
   ```
 
-- **A threading form:** `(-> (base-node ...) (with :_label "Painting"))`, for building a record step by step, layered like `(inlay)`.

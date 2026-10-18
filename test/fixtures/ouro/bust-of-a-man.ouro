@@ -23,9 +23,9 @@
    :type   "HumanMadeObject"
    :_label "Bust of a Man"
 
-   ;; inlay splices a record's attribute pairs into this one
-   :classified_as (((inlay (aat-type "300047090" "Sculpture"))
-                    :classified_as ((aat-type "300435443" "Type of Work"))))
+   ;; with writes attribute pairs over a record
+   :classified_as ((with (aat-type "300047090" "Sculpture")
+                     :classified_as ((aat-type "300435443" "Type of Work"))))
 
    :produced_by   (:type           "Production"
                    :technique      ((aat-type "300264383" "Sculpting"))

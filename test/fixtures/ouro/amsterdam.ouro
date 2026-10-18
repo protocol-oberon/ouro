@@ -1,29 +1,38 @@
-(defn core #rec (#uri id #str type #str label)
+;; Will be in std: Linked Art's own patterns. Named std/... here until modules exist
+(defn std/core #rec (#uri id #str type #str label)
   (:id id :type type :_label label))
 
-(defn aat #rec (#str id #str label)
-  (core #uri (+ "http://vocab.getty.edu/aat/" id) "Type" label))
+(defn std/aat #rec (#str id #str label)
+  (std/core #uri (+ "http://vocab.getty.edu/aat/" id) "Type" label))
+
+(defn std/name #rec (#str content)
+  (:type "Name" :content content))
+
+(defn std/classified #rec (#rec r #rec t)
+  (with r :classified_as (list t)))
 
 (defn example #uri (#str path)
   (+ "https://linked.art/example/" path))
 
 (defn place #rec (#str slug #str label)
-  (core (example (+ "place/" slug)) "Place" label))
-
-(defn name #rec (#str content)
-  (:type "Name" :content content))
+  (std/core (example (+ "place/" slug)) "Place" label))
 
 (defn brief-text #rec (#str content)
   (:type          "LinguisticObject"
-   :classified_as (((inlay (aat "300435416" "Description"))
-                    :classified_as ((aat "300418049" "Brief Text"))))
+   :classified_as ((-> (std/aat "300435416" "Description")
+                       (std/classified (std/aat "300418049" "Brief Text"))))
    :content       content))
 
+;; Steps: each takes a record first and returns it extended, so they thread with ->
+(defn named     #rec (#rec r #str n)     (with r :identified_by ((std/name n))))
+(defn described #rec (#rec r #str text)  (with r :referred_to_by ((brief-text text))))
+(defn part-of   #rec (#rec r #rec whole) (with r :part_of (list whole)))
+
 (graph amsterdam
-  (:context "https://linked.art/ns/v1/linked-art.json"
-   (inlay (place "amsterdam/1" "Amsterdam"))
-   :classified_as  ((aat "300008389" "City"))
-   :identified_by  ((name "Amsterdam"))
-   :referred_to_by ((brief-text "Amsterdam is a city in the Netherlands"))
-   :part_of        (((inlay (place "netherlands" "Netherlands"))
-                     :classified_as ((aat "300128207" "Nation"))))))
+  (-> (place "amsterdam/1" "Amsterdam")
+      (with :context "https://linked.art/ns/v1/linked-art.json")
+      (std/classified (std/aat "300008389" "City"))
+      (named "Amsterdam")
+      (described "Amsterdam is a city in the Netherlands")
+      (part-of (-> (place "netherlands" "Netherlands")
+                   (std/classified (std/aat "300128207" "Nation"))))))

@@ -15,8 +15,8 @@
  (let ($aat-type (core ? "Type" ?)
        $person   (core ? "Person" ?))
 
-  (:context "https://linked.art/ns/v1/linked-art.json"
-   (inlay (core "manet_proust/1" "Activity" "Purchase of Spring by Proust"))
+  (with (core "manet_proust/1" "Activity" "Purchase of Spring by Proust")
+   :context "https://linked.art/ns/v1/linked-art.json"
    :classified_as ((aat-type "300055863" "Provenance Activity"))
 
    :identified_by ((:type          "Name"

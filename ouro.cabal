@@ -71,6 +71,17 @@ library
         Data.Ouro.Json.Parser
         Data.Ouro.Json.Serializer
         Data.Ouro.Lisp.Canon
+        Data.Ouro.Lisp.Canon.Alternatives
+        Data.Ouro.Lisp.Canon.Bindings
+        Data.Ouro.Lisp.Canon.Comparisons
+        Data.Ouro.Lisp.Canon.Context
+        Data.Ouro.Lisp.Canon.Guards
+        Data.Ouro.Lisp.Canon.Operators
+        Data.Ouro.Lisp.Canon.Placeholders
+        Data.Ouro.Lisp.Canon.Threading
+        Data.Ouro.Lisp.Canon.Thru
+        Data.Ouro.Lisp.Canon.Traverse
+        Data.Ouro.Lisp.Canon.With
         Data.Ouro.Lisp.Eval.Builtins
         Data.Ouro.Lisp.Eval.Engine
         Data.Ouro.Lisp.Eval.Pattern
