@@ -52,6 +52,7 @@ main = withUtf8Console $ do
         , Language.dates
         , Language.classification
         , Language.encoding
+        , Language.strings
         , Language.contexts
         , Language.contextAlgebra
         -- Known gaps: pinned as they are today; a fix flips its test

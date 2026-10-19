@@ -8,6 +8,7 @@ import           Control.Monad.Identity    (Identity, runIdentity)
 import           Control.Monad.Reader      (MonadReader (..), ReaderT (..),
                                             asks)
 import           Control.Monad.State       (MonadState, StateT (..), modify)
+import           Data.Char                 (ord)
 import           Data.List                 (isSuffixOf)
 import           Data.Ouro.Internal.Expr   (Expr)
 import qualified Data.Ouro.Internal.Expr   as Expr
@@ -20,6 +21,7 @@ import qualified Data.Text.Lazy            as TL
 import qualified Data.Text.Lazy.Builder    as B
 import qualified Data.Time.Format          as TF
 import           Lens.Micro                (Lens', over, to, (%~), (^.))
+import           Numeric                   (showHex)
 import qualified Text.URI                  as URI
 
 
@@ -307,9 +309,22 @@ renderArrayElement (Expr.SomeExpr e) = do
                                        buildJSON e
 
 -- Text Utils
--- Wraps raw textual fragments inside a pair of escaped double quotes for correct JSON string conformity.
+-- Writes text as a JSON string: quotes, backslashes and control characters are escaped, and
+-- every other character is written as it is (the output is UTF-8)
 escapeString :: Text -> B.Builder
-escapeString txt = "\"" <> B.fromText txt <> "\""
+escapeString txt = "\"" <> B.fromText (T.concatMap escapeChar txt) <> "\""
+
+escapeChar :: Char -> Text
+escapeChar c = case c of
+    '"'  -> "\\\""
+    '\\' -> "\\\\"
+    '\n' -> "\\n"
+    '\r' -> "\\r"
+    '\t' -> "\\t"
+    '\b' -> "\\b"
+    '\f' -> "\\f"
+    _ | c < ' '   -> "\\u" <> T.justifyRight 4 '0' (T.pack (showHex (ord c) ""))
+      | otherwise -> T.singleton c
 
 
 -- isNIl.

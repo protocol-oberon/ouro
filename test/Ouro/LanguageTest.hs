@@ -10,6 +10,7 @@ module Ouro.LanguageTest
 , dates
 , classification
 , encoding
+, strings
 , contexts
 , contextAlgebra
 , knownGaps
@@ -383,6 +384,29 @@ encoding = Group "Encoding: source files are UTF-8"
         decodeSource "t.ouro" (BS.pack bytes) === Right expected
 
 
+-- A string is written as a JSON string: quotes, backslashes and control characters are
+-- escaped, and every other character is written as it is. This fixed gap 19.
+strings :: Group
+strings = Group "Strings: escaped in the output"
+    [ ("a quote is escaped",                     emitsExactly "(graph g (:quote \"say \\\"hi\\\"\"))"
+                                                              "\"quote\": \"say \\\"hi\\\"\"")
+    , ("a backslash is escaped",                 emitsExactly "(graph g (:slash \"a\\\\b\"))"
+                                                              "\"slash\": \"a\\\\b\"")
+    , ("a newline is escaped",                   emitsExactly "(graph g (:newline \"a\\nb\"))"
+                                                              "\"newline\": \"a\\nb\"")
+    , ("a tab is escaped",                       emitsExactly "(graph g (:tab \"a\\tb\"))"
+                                                              "\"tab\": \"a\\tb\"")
+    , ("other control characters are \\u escapes", emitsExactly "(graph g (:bell \"a\\1b\"))"
+                                                              "\"bell\": \"a\\u0001b\"")
+    , ("other characters are written as they are", emitsExactly "(graph g (:r \"caf\233\"))"
+                                                              "\"r\": \"caf\233\"")
+    , ("validate keeps an escaped quote",        withTests 1 . property $
+                                                  fmap (T.isInfixOf "\"k\": \"a\\\"b\"" . TL.toStrict)
+                                                       (validate "t.json" "{\"k\": \"a\\\"b\"}" defaultOptions)
+                                                  === Right True)
+    ]
+
+
 -- A record's context is an ordinary value, written as JSON-LD writes it: a remote context's
 -- URL, a local context record, null, or an array of them, applied in order. It is checked
 -- where it is written.
@@ -556,16 +580,14 @@ knownGaps = Group "Known gaps: current, incorrect behaviour"
                                                                    "{\"u\": \"https://a.org\"}")
     , ("gap 18: an attribute pair among values has no hint", failsWithout "(1 (:a 2))"
                                                                  "(graph g (:r (1 :a 2)))")
-    , ("gap 19: a quote in a string is not escaped", emitsExactly "(graph g (:quote \"say \\\"hi\\\"\"))"
-                                                                 "\"quote\": \"say \"hi\"\"")
-    , ("gap 19: nor is a backslash",                emitsExactly "(graph g (:slash \"a\\\\b\"))"
-                                                                 "\"slash\": \"a\\b\"")
-    , ("gap 19: nor is a newline",                  emitsExactly "(graph g (:newline \"a\\nb\"))"
-                                                                 "\"newline\": \"a\nb\"")
-    , ("gap 19: nor is a tab",                      emitsExactly "(graph g (:tab \"a\\tb\"))"
-                                                                 "\"tab\": \"a\tb\"")
-    , ("gap 19: validate unescapes a valid document", withTests 1 . property $
-                                                       fmap (T.isInfixOf "\"k\": \"a\"b\"" . TL.toStrict)
-                                                            (validate "t.json" "{\"k\": \"a\\\"b\"}" defaultOptions)
-                                                       === Right True)
+    , ("gap 21: validate rejects a \\u escape",    withTests 1 . property $
+                                                    assert (either (const True) (const False)
+                                                                   (validate "t.json" "{\"k\": \"\\u00e9\"}" defaultOptions)))
+    , ("gap 21: and an escaped slash",            withTests 1 . property $
+                                                    assert (either (const True) (const False)
+                                                                   (validate "t.json" "{\"k\": \"\\/\"}" defaultOptions)))
+    , ("gap 21: but accepts a Haskell escape",    withTests 1 . property $
+                                                    fmap (T.isInfixOf "\"k\": \"A\"" . TL.toStrict)
+                                                         (validate "t.json" "{\"k\": \"\\x41\"}" defaultOptions)
+                                                    === Right True)
     ]

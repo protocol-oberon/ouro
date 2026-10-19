@@ -994,6 +994,8 @@ data PrinterState = PrinterState { activeDirectives :: ![ContextEntry]
 
 The output is UTF-8 with LF line endings and a trailing newline. Numbers that are whole print without a decimal point.
 
+Strings, keys, URIs and dates are written as JSON strings: a quote, a backslash, a newline, a carriage return, a tab, a backspace and a form feed are written as their two-character escapes, any other control character as a =\u= escape, and every other character as it is.
+
 The same serialiser backs ~ouro validate~, which parses JSON-LD into ~I.Expr~ (~Json.Parser~) and prints it back, as a check that a document is representable.
 
 * Architectural Boundaries
@@ -1089,8 +1091,10 @@ Recorded 2026-10-12 and kept up to date since; none were caused by the scoping r
 
 18. *An attribute pair among array values has no hint:* ~(1 :a 2)~ is read as a record (one attribute pair makes the form a record), so =1= is reported as an unbound expression. The error is right, but it could suggest ~(1 (:a 2))~.
 
-19. *Strings are not escaped in the output:* the serialiser writes a string's characters between quotes as they are, so ~"say \"hi\""~ becomes ="say "hi""=, and a backslash, newline or tab is written raw, all of which is invalid JSON. =ouro validate= has the same fault, so a valid document with ="a\"b"= comes back as ="a"b"=.
+19. /Fixed:/ strings were not escaped in the output, so ~"say \"hi\""~ became ="say "hi""=, which is invalid JSON, and =ouro validate= turned ="a\"b"= into ="a"b"=. Quotes, backslashes and control characters are now escaped (see [[*The Emission Engine][The Emission Engine]]).
 
 20. *=compile -o= needs an existing directory:* compiling into an output directory that does not exist reports "Compilation Success" and then crashes with ~withFile: does not exist~, writing nothing. Not pinned by a test, since the CLI has none (gap 13).
+
+21. *=ouro validate= reads strings with Haskell's escapes, not JSON's:* it rejects the valid JSON escapes =é= and =\/=, and accepts the invalid =\x41= and =\65= (both read as =A=). The JSON parser reads string characters with Megaparsec's ~charLiteral~, which follows Haskell's rules.
 
 #  LocalWords:  Ouro LD
