@@ -215,7 +215,7 @@ call         = "(" , symbol , { expression | placeholder } , ")" ;
 placeholder  = [ property ] , hole ;     (* a call with placeholders is a function of them *)
 
 (* ---------- Special forms ---------- *)
-special-form = let | fn | case | get | nth | map | insert | replace-at | with | thread ;
+special-form = let | fn | case | get | nth | map | insert | replace-at | with | thread | all | some ;
 let          = "(" , "let" , "(" , { binding } , ")" , expression , ")" ;
 binding      = "$" , symbol , expression ;
 fn           = "(" , "fn" , [ property ] , params , expression , ")" ;
@@ -455,6 +455,8 @@ Special forms are recognised by their head symbol before any name lookup, so the
 | =(inlay expr)=                           | splice a record's attribute pairs into a record, or an array's elements into an array |
 | =(with base item ...)=                   | =base= with =item=s written over it, as ~((inlay base) item ...)~                     |
 | =(-> x step ...)=                        | =x= threaded through the steps, each receiving the value before it                    |
+| =(all b ...)=                            | =true= when every operand is; stops at the first =false=                              |
+| =(some b ...)=                           | =true= when one operand is; stops at the first =true=                                 |
 | =(list e ...)=                           | an array, whatever its first element is                                               |
 | =(thru duration)=                        | extend a duration to the end of its unit (see Built-ins)                              |
 | =:context e=                             | the record's JSON-LD =@context=, a context value (see [[*=@context=][=@context=]])                |
@@ -522,11 +524,14 @@ shadows them with its own attribute pairs.
 |-------------+-------------------------------------------+-----------------------------------------------------------------------------------------|
 | Arithmetic  | ~+~ ~-~ ~*~ ~/~                           | variadic, left-associative; =+= also joins strings and arrays, adds durations to dates  |
 | Comparison  | ~eq~ ~neq~ ~>~ ~>=~ ~<~ ~<=~              | variadic comparisons are chained: ~(< a b c)~ = a<b and b<c                             |
+| Logic       | ~or~                                      | ~(or a b)~ of two Booleans, both evaluated; =(some ...)= stops at the first =true=      |
 | Length      | ~len~                                     | ~(len x)~ is the number of an array's elements, or of a string's characters             |
 | Durations   | =years months days hours minutes seconds= | ~(days 19)~ is a Duration                                                               |
 | End-of-unit | =(thru d)=                                | ~(thru (days 1))~ = 1 day 23:59:59; ~(thru (years 0))~ = to the end of the current year |
 
 An operator written with the wrong number of operands is an arity error. Ordering (~>~ ~>=~ ~<~ ~<=~) compares numbers only.
+
+=all= and =some= are special forms that combine Booleans: ~(all a b ...)~ is =true= when every operand is, and ~(some a b ...)~ when one is. Each evaluates its operands in order and stops at the one that decides the answer, so ~(all false (nth 5 ()))~ is =false=, and each operand it reaches must have the property =#bool=. ~(all)~ is =true= and ~(some)~ is =false=. They are desugared into =case= (see [[*Desugaring (~Canon~)][desugaring]]), take holes like a call, and cannot name a =defn=. =or= is the built-in for two Booleans: both operands are evaluated, as for any built-in, and both must be =#bool=.
 
 =len= takes exactly one argument. An array's elements are counted whatever their types, so ~(len (1 (2 3) (:k 4)))~ is 3, and =()= and =#arr-empty= have length 0. A string is counted in characters (Unicode code points), not bytes, so ~(len "Málaga")~ is 6. Any other value, a record or a URI included, is a type error. Recursion is banned, so a length cannot be written in Ouro itself; =len= is an ordinary built-in otherwise, so ~(map len xs)~ works.
 
@@ -605,20 +610,21 @@ Before evaluation, ~Canon.canonicalModule~ rewrites every function body and grap
 |------------------+-----------+--------------------------------------------------------------------------------------------|
 | 1. placeholders  | top-down  | a call with =?= holes into a function of them, leaving =case= and =fn= patterns as they are |
 | 2. threading     | top-down  | ~(-> x step ...)~ into nested calls; a step with a hole is already a function (1)           |
-| 3. bindings      | top-down  | =$name value= in a =let='s bindings into ~(%bind "name" value)~                             |
-| 4. guards        | top-down  | a =case= guard ~((< 10) e)~ into ~((%guard < 10) e)~                                        |
-| 5. contexts      | bottom-up | =:context e= into ~(%context e)~                                                            |
-| 6. with          | bottom-up | ~(with base item ...)~ into ~((inlay base) item ...)~                                       |
-| 7. thru          | siblings  | ~(thru (days n))~ into the durations it stands for                                          |
-| 8. comparisons   | bottom-up | ~(< a b c)~ into ~(%and (< a b) (< b c))~                                                   |
-| 9. operators     | bottom-up | ~(+ a b c)~ into ~(+ (+ a b) c)~                                                            |
-| 10. alternatives | bottom-up | a =case= branch ~(("a" "b") e)~ into one branch per literal                                 |
+| 3. connectives   | top-down  | ~(all a b)~ into ~(case #bool a (true (all b)) (otherwise false))~, and =some= alike        |
+| 4. bindings      | top-down  | =$name value= in a =let='s bindings into ~(%bind "name" value)~                             |
+| 5. guards        | top-down  | a =case= guard ~((< 10) e)~ into ~((%guard < 10) e)~                                        |
+| 6. contexts      | bottom-up | =:context e= into ~(%context e)~                                                            |
+| 7. with          | bottom-up | ~(with base item ...)~ into ~((inlay base) item ...)~                                       |
+| 8. thru          | siblings  | ~(thru (days n))~ into the durations it stands for                                          |
+| 9. comparisons   | bottom-up | ~(< a b c)~ into ~(%and (< a b) (< b c))~                                                   |
+| 10. operators    | bottom-up | ~(+ a b c)~ into ~(+ (+ a b) c)~                                                            |
+| 11. alternatives | bottom-up | a =case= branch ~(("a" "b") e)~ into one branch per literal                                 |
 
 A pass walks the tree in one of three ways (~Canon.Traverse~): top-down, rewriting a form before its parts, when the rule depends on the form's own shape; bottom-up, rewriting a form's parts first; or over lists of siblings, for a rule that turns one element into several. An expression that stands on its own, such as a graph's body or the payload of a property, is a list of one: a =thru= there has no meaning and is left for the evaluator to report.
 
-The order matters in four places. Threading runs before =with=, so in ~(-> x (with :k v))~ =with= receives =x= as its base. Bindings run before =thru=, so a value that expands into several elements stays inside its binding. Guards run before comparisons and alternatives, which leave a marked guard alone, so a guard's operands are not unrolled as a comparison of their own. Only =thru= walks siblings.
+The order matters in five places. Threading runs before =with=, so in ~(-> x (with :k v))~ =with= receives =x= as its base. Bindings run before =thru=, so a value that expands into several elements stays inside its binding. Guards run before comparisons and alternatives, which leave a marked guard alone, so a guard's operands are not unrolled as a comparison of their own. Connectives run after threading, so a step =(all y)= receives the threaded value as its first operand. Only =thru= walks siblings.
 
-Each pass is a module of its own under =Lisp/Canon/= (=Placeholders.hs=, =Threading.hs=, =Bindings.hs=, =Guards.hs=, =Context.hs=, =With.hs=, =Thru.hs=, =Comparisons.hs=, =Operators.hs=, =Alternatives.hs=, with the walks in =Traverse.hs=), and =Lisp/Canon.hs= is the single entry point: it lists the passes, in order, and runs them (~Canon.runPasses~ runs any selection of them). A =defn='s parameter patterns go through ~Canon.patternPasses~, every pass but placeholders and threading, since their holes match values.
+Each pass is a module of its own under =Lisp/Canon/= (=Placeholders.hs=, =Threading.hs=, =Connectives.hs=, =Bindings.hs=, =Guards.hs=, =Context.hs=, =With.hs=, =Thru.hs=, =Comparisons.hs=, =Operators.hs=, =Alternatives.hs=, with the walks in =Traverse.hs=), and =Lisp/Canon.hs= is the single entry point: it lists the passes, in order, and runs them (~Canon.runPasses~ runs any selection of them). A =defn='s parameter patterns go through ~Canon.patternPasses~, every pass but placeholders, threading and connectives, since a pattern is matched, not evaluated.
 
 | Sugar                                   | Core                                                          |
 |-----------------------------------------+---------------------------------------------------------------|

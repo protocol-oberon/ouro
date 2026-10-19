@@ -518,6 +518,21 @@ The following Ouro code:
 
 A record can't end up with a key twice, so inserting an attribute pair whose key already exists is an error. To change an existing attribute pair or element, use `(replace-at)`, which takes the same arguments and replaces whatever is at the index. Negative indexes count from the end in `(insert)` and `(replace-at)`, as they do in `(nth)`.
 
+### All and Some
+
+`(all a b ...)` is `true` when every operand is, and `(some a b ...)` when at least one is. They stop at the operand that decides the answer, so later operands are never evaluated:
+
+``` clojure
+(graph tags
+  (let ($tags ())
+    (:featured (all  (> (len tags) 0) (eq (nth 0 tags) "featured"))     ; false: nth is never reached
+     :listed   (some (eq (len tags) 0) (eq (nth 0 tags) "listed")))))  ; true
+```
+
+- Each operand that is reached must be a Boolean: `(all true 1)` is an error, `Expected data to have the property #bool, got #num instead.`
+- `(all)` is `true`, and `(some)` is `false`.
+- They take holes like a call, `(map (some ? false) (true false))`, and are threading steps, `(-> true (all false))`.
+
 ## Builtin Functions
 
 Ouro has the following built in functions:
@@ -549,6 +564,12 @@ Time windows are made with `(years n)`, `(months n)`, `(days n)`, `(hours n)`, `
 | **`neq`** | `(neq 1 2)`    | Evaluates to `true` (The values differ).          |
 
 Using an operator with the wrong number of operands is an arity error.
+
+**Logic:** `or` combines two Booleans. Both operands are evaluated, as for every builtin; use `(some ...)` to stop at the first `true`.
+
+| Function | Syntax Example              | Behaviour / Domain Rules              |
+|:---------|:----------------------------|:--------------------------------------|
+| **`or`** | `(or false true)` -> `true` | `true` when either Boolean is `true`. |
 
 **Length:** `len` counts an Array's elements, whatever their types, or a String's characters.
 

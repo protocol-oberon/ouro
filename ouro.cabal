@@ -74,6 +74,7 @@ library
         Data.Ouro.Lisp.Canon.Alternatives
         Data.Ouro.Lisp.Canon.Bindings
         Data.Ouro.Lisp.Canon.Comparisons
+        Data.Ouro.Lisp.Canon.Connectives
         Data.Ouro.Lisp.Canon.Context
         Data.Ouro.Lisp.Canon.Guards
         Data.Ouro.Lisp.Canon.Operators

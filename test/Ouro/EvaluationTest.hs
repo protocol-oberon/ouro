@@ -42,7 +42,7 @@ tests = Group "Evaluation Tests (Surface to Higher IR)"
     , ("routes to the correct branch in (case ...)",   prop_case_routing)
 
     , ("runs Canon's passes in order",                 prop_pass_order)
-    , ("runs all but two passes on a pattern",         prop_pattern_passes)
+    , ("runs all but three passes on a pattern",       prop_pattern_passes)
     , ("runs a single pass on its own",                prop_single_pass)
 
     , ("returns L.EvalError for the removed attr form", prop_error_removed_attr)
@@ -154,13 +154,13 @@ prop_case_routing = withTests 1 . property $ do
 prop_pass_order :: Property
 prop_pass_order = withTests 1 . property $
     map Canon.passName Canon.passes
-        === [ "placeholders", "threading", "bindings", "guards", "contexts"
+        === [ "placeholders", "threading", "connectives", "bindings", "guards", "contexts"
             , "with", "thru", "comparisons", "operators", "alternatives" ]
 
--- A parameter pattern skips placeholders and threading
+-- A parameter pattern skips placeholders, threading and connectives
 prop_pattern_passes :: Property
 prop_pattern_passes = withTests 1 . property $
-    map Canon.passName Canon.patternPasses === drop 2 (map Canon.passName Canon.passes)
+    map Canon.passName Canon.patternPasses === drop 3 (map Canon.passName Canon.passes)
 
 -- Running 'operators' alone unrolls arithmetic and leaves a variadic comparison alone
 prop_single_pass :: Property

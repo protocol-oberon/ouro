@@ -119,6 +119,41 @@ formsAndBuiltins = Group "Special forms and built-ins"
                                                               "(graph g (:r ((attr \"k\" 1))))")
     , ("insert takes a written attribute pair",     compilesToJSON "(graph g (:r (insert 2 :_label \"Proust\" (:id \"1\" :type \"Person\"))))"
                                                                    "{\"r\": {\"id\": \"1\", \"type\": \"Person\", \"_label\": \"Proust\"}}")
+
+    -- (all a ...) is true when every operand is, and (some a ...) when one is. Each stops
+    -- at the operand that decides it, and checks every operand it reaches as a #bool
+    , ("all is true when every operand is",         compilesToJSON "(graph g (:a (all true true) :b (all true false) :c (all true) :d (all)))"
+                                                                   "{\"a\": true, \"b\": false, \"c\": true, \"d\": true}")
+    , ("some is true when one operand is",          compilesToJSON "(graph g (:a (some false true) :b (some false false) :c (some)))"
+                                                                   "{\"a\": true, \"b\": false, \"c\": false}")
+    , ("all stops at the first false",              compilesToJSON "(graph g (:r (all false (nth 5 ())) :s (all false 1)))"
+                                                                   "{\"r\": false, \"s\": false}")
+    , ("some stops at the first true",              compilesToJSON "(graph g (:r (some true (nth 5 ()))))"
+                                                                   "{\"r\": true}")
+    , ("an operand must be a #bool",                failsWith "expectedProperty = \"#bool\", actualProperty = \"#num\""
+                                                              "(graph g (:r (all true 1)))")
+    , ("so must a lone operand",                    failsWith "expectedProperty = \"#bool\", actualProperty = \"#num\""
+                                                              "(graph g (:r (all 1)))")
+    , ("all and some combine comparisons",          compilesToJSON "(graph g (:r (all (> 2 1) (some (eq \"a\" \"b\") (eq \"a\" \"a\")))))"
+                                                                   "{\"r\": true}")
+    , ("all and some take holes",                   compilesToJSON "(graph g (:r (let ($f (all ? true)) (f false)) :s (map (some ? false) (true false))))"
+                                                                   "{\"r\": false, \"s\": [true, false]}")
+    , ("and are threading steps",                   compilesToJSON "(graph g (:r (-> true (all false))))"
+                                                                   "{\"r\": false}")
+    , ("all cannot name a function",                failsWith "'all' is a special form"
+                                                              "(defn all (x) x) (graph g (:r (all 1)))")
+    , ("all and some guard an index",               compilesToJSON "(graph g (let ($tags ()) (:featured (all (> (len tags) 0) (eq (nth 0 tags) \"featured\")) :listed (some (eq (len tags) 0) (eq (nth 0 tags) \"listed\")))))"
+                                                                   "{\"featured\": false, \"listed\": true}")
+
+    -- (or a b) is a built-in: both operands are evaluated, and both must be #bool
+    , ("or is true when either operand is",         compilesToJSON "(graph g (:a (or true false) :b (or false false)))"
+                                                                   "{\"a\": true, \"b\": false}")
+    , ("or evaluates both operands",                failsWith "Index"
+                                                              "(graph g (:r (or true (nth 5 ()))))")
+    , ("or takes #bool operands",                   failsWith "expectedProperty = \"#bool\", actualProperty = \"#num\""
+                                                              "(graph g (:r (or 1 true)))")
+    , ("or takes two operands",                     failsWith "IncorrectArity"
+                                                              "(graph g (:r (or true)))")
     ]
 
 

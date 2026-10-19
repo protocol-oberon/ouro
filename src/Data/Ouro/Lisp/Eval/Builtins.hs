@@ -13,8 +13,8 @@ import           Data.Function               ((&))
 import qualified Data.Map                    as Map
 import           Data.Ouro.Error.Diagnostics (astCorruption,
                                               binaryOpMismatchBlurb,
-                                              incorrectArity, typeMismatch,
-                                              withBlurb)
+                                              incorrectArity, propertyMismatch,
+                                              typeMismatch, withBlurb)
 import           Data.Ouro.Error.Types       (ErrorContext (..), OuroError (..),
                                               SyntaxError (..))
 import qualified Data.Ouro.Internal.Expr     as I
@@ -46,6 +46,7 @@ builtinRegistry = Map.fromList
                       , ("<",           handleLess)
                       , ("eq",          handleEquality)
                       , ("neq",         handleNeq)
+                      , ("or",          handleOr)
                       , ("len",         handleLength)
                       -- Internal: emitted only by the desugarer for chained comparisons
                       , ("%and",        handleAnd)
@@ -386,6 +387,37 @@ handleAnd pos =
              & OuroError pos
              & L.EvalError
              & pure
+
+
+-- handleOr.
+--
+-- Binary disjunction of two Booleans. As for any built-in, both operands are evaluated
+-- first; (some a b ...) is the form that stops at the first true operand.
+handleOr :: SourcePos -> [L.Expr] -> Reader Env L.Expr
+handleOr pos =
+    \case
+     [a, b] -> case (a, b) of
+                   -- Error propagation
+                   (err@(L.EvalError _), _) -> pure err
+                   (_, err@(L.EvalError _)) -> pure err
+
+                   (L.Primitive (I.Boolean b1), L.Primitive (I.Boolean b2)) -> pure $ L.Primitive (I.Boolean (b1 || b2))
+
+                   (L.Primitive (I.Boolean _), notBool) -> notABoolean notBool
+                   (notBool, _)                         -> notABoolean notBool
+
+     -- The wrong number of operands, as written: each operator compares or combines two values
+     operands
+         -> wrongOperandCount "or" operands
+            & OuroError pos
+            & L.EvalError
+            & pure
+
+    where
+    notABoolean value = Data.Ouro.Error.Diagnostics.propertyMismatch "#bool" (L.propertyOf value)
+                        & OuroError pos
+                        & L.EvalError
+                        & pure
 
 
 -- Functions cannot be compared: two different functions can behave identically,
