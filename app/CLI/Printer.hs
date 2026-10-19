@@ -176,6 +176,13 @@ splitErrorContext = \case
            , Nothing
            )
 
+    Typing (PropertyMismatch expected actual)
+        -> ( "Property Mismatch"
+           , [ highlightDiagnostic ("Expected data to have the property " <> expected <> ", got " <> actual <> " instead.")
+             ]
+           , Nothing
+           )
+
     Syntax (LexicalError lexeme)
         -> ( "Lexical Error"
            , [ highlightDiagnostic lexeme
@@ -191,8 +198,8 @@ splitErrorContext = \case
            )
 
     Syntax (MalformedTagPayload tag shape)
-        -> ( "Malformed Tag Payload"
-           , [ labeled "Tag Context: " (pretty tag)
+        -> ( "Malformed Payload"
+           , [ labeled "Context:     " (pretty tag)
              , labeled "Got Shape:   " (pretty shape)
              ]
            , Nothing

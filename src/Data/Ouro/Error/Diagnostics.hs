@@ -12,7 +12,6 @@ import           Data.Ouro.Error.Types     (ErrorContext (..),
                                             SyntaxError (..), TypeError (..),
                                             VocabularyWarning (..),
                                             WarningContext (..))
-import qualified Data.Ouro.Internal.Expr   as I
 import           Data.Ouro.Lisp.Eval.Types (humanReadableType)
 import qualified Data.Ouro.Lisp.Eval.Types as L
 import           Data.Text                 (Text)
@@ -91,6 +90,13 @@ typeMismatch :: Text -> Text -> ErrorContext
 typeMismatch expected actual = Typing $ TypeMismatch
     { expectedType = expected
     , actualType   = actual
+    }
+
+-- A value without the built-in property it is typed with
+propertyMismatch :: Text -> Text -> ErrorContext
+propertyMismatch expected actual = Typing $ PropertyMismatch
+    { expectedProperty = expected
+    , actualProperty   = actual
     }
 
 
@@ -185,33 +191,12 @@ instance GConstructorCount (C1 c a) where
 
 -- Type Error
 typeMismatchBlurb :: L.Expr -> Text
-typeMismatchBlurb =
-    let blurb = "Ouro evaluates type tags as strict domain assertions. When layout constraints fail, the engine isolates the node to protect the structural integrity of the compiled JSON."
-    in \case
-        (L.Primitive p) -> let suggestion   = blurb <> "\n\nPerhaps use the type assertion tag "
-                               cannotAssert = blurb <> "\n\nYou cannot make a type assertion for "
-                         in case p of
-                                -- Primitives
-                                I.BlankNode _ -> cannotAssert <> "a blank node"
-                                I.Boolean   _ -> suggestion   <> "#bool"
-                                I.Date      _ -> suggestion   <> "#data"
-                                I.EmptyArr    -> suggestion   <> "#arr-empty"
-                                I.EmptyRec    -> suggestion   <> "#rec-empty"
-                                I.Null        -> cannotAssert <> "a null value"
-                                I.Number    _ -> suggestion   <> "#num"
-                                I.String    _ -> suggestion   <> "#str"
-                                I.URI       _ -> suggestion   <> "#uri"
-                                -- Structural Primitives
-                                I.Array  _    -> cannotAssert <> "an array"
-                                I.Record _ _  -> cannotAssert <> "a record"
-
-        _ -> blurb
-          <> "You can only make type assertions on primitive values. Supported types include:"
-          <> "\n  String  -> #str"
-          <> "\n  Number  -> #num"
-          <> "\n  URI     -> #uri"
-          <> "\n  Boolean -> #bool"
-          <> "\n  Date    -> #date"
+typeMismatchBlurb value =
+    "Ouro's built-in properties are #str, #num, #bool, #uri, #date, #rec, #arr and #fn."
+    <> case L.propertyOf value of
+           property
+               | "#" `T.isPrefixOf` property -> ""
+               | otherwise                   -> " This value is " <> property <> ", which has no built-in property."
 
 
 binaryOpMismatchBlurb :: L.Expr -> L.Expr -> Text

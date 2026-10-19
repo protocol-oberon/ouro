@@ -102,7 +102,7 @@ formsAndBuiltins = Group "Special forms and built-ins"
                                                                    "{\"r\": [2, 3]}")
     , ("comparisons chain, and null is a value",    compilesToJSON "(graph g (:a (eq 1 1 1) :b (neq 1 2) :c null))"
                                                                    "{\"a\": true, \"b\": true, \"c\": null}")
-    , ("#str asserts a String",                     failsWith "a String"
+    , ("#str asserts a string",                     failsWith "expectedProperty = \"#str\", actualProperty = \"#num\""
                                                               "(graph g (:a #str 1))")
     , ("recursion is an error",                     failsWith "a recursive function call"
                                                               "(defn f (n) (f n)) (graph g (:r (f 1)))")
@@ -217,10 +217,18 @@ types = Group "Types: the rules as they are"
                                                               "(graph g (:r (+ null 1)))")
 
       -- Assertions check, and only #uri and #date convert a String
-    , ("#num does not convert a String",            failsWith "a Number"
+    , ("#num does not convert a string",            failsWith "expectedProperty = \"#num\", actualProperty = \"#str\""
                                                               "(graph g (:r #num \"5\"))")
-    , ("#uri does not accept a Date",               failsWith "a URI layout"
+    , ("#uri does not accept a date",               failsWith "expectedProperty = \"#uri\", actualProperty = \"#date\""
                                                               ("(graph g (:r #uri " <> date <> "))"))
+
+      -- A failed property names both properties, and says why when the value's own is not enough
+    , ("a URI needs a scheme",                      failsWith "actualProperty = \"a #str without a URI scheme\""
+                                                              "(graph g (:r #uri \"nope\"))")
+    , ("a date needs ISO-8601 form",                failsWith "actualProperty = \"a #str that is not a date\""
+                                                              "(graph g (:r #date \"1642\"))")
+    , ("null has no built-in property",             failsWith "expectedProperty = \"#str\", actualProperty = \"null\""
+                                                              "(graph g (:r #str null))")
     ]
 
     where
@@ -228,18 +236,18 @@ types = Group "Types: the rules as they are"
 
 
 -- Operators take two operands. Variadic arithmetic and comparisons are unrolled into pairs
--- wherever they are written, including under a type tag; a case guard compares the case's
--- target with its operands, chaining like a comparison. A count that is wrong as written
--- is an arity error.
+-- wherever they are written, including under a built-in property; a case guard compares
+-- the case's target with its operands, chaining like a comparison. A count that is wrong
+-- as written is an arity error.
 operators :: Group
 operators = Group "Operators: operands and desugaring"
-    [ ("variadic + under a type tag",               compilesToJSON "(graph g (:u #uri (+ \"https://a.org/\" \"b/\" \"c\")))"
+    [ ("variadic + under a built-in property",      compilesToJSON "(graph g (:u #uri (+ \"https://a.org/\" \"b/\" \"c\")))"
                                                                    "{\"u\": \"https://a.org/b/c\"}")
-    , ("thru under a type tag",                     compilesToJSON "(graph g (:d #date (+ #date \"2020-01-01T00:00:00Z\" (thru (days 1)))))"
+    , ("thru under a built-in property",            compilesToJSON "(graph g (:d #date (+ #date \"2020-01-01T00:00:00Z\" (thru (days 1)))))"
                                                                    "{\"d\": \"2020-01-02T23:59:59Z\"}")
-    , ("a chained comparison under a type tag",     compilesToJSON "(graph g (:r #bool (< 1 2 3) :s #num (* 2 3 4)))"
+    , ("a chained comparison under a property",     compilesToJSON "(graph g (:r #bool (< 1 2 3) :s #num (* 2 3 4)))"
                                                                    "{\"r\": true, \"s\": 24}")
-    , ("a tagged function body",                    compilesToJSON "(defn f () #uri (+ \"https://a.org/\" \"b/\" \"c\")) (graph g (:r (f)))"
+    , ("a typed function body",                     compilesToJSON "(defn f () #uri (+ \"https://a.org/\" \"b/\" \"c\")) (graph g (:r (f)))"
                                                                    "{\"r\": \"https://a.org/b/c\"}")
     , ("a guard compares the target",               compilesToJSON "(defn size (n) (case n ((> 100) \"large\") ((< 10) \"small\") (otherwise \"medium\"))) (graph g (:a (size 150) :b (size 5) :c (size 50)))"
                                                                    "{\"a\": \"large\", \"b\": \"small\", \"c\": \"medium\"}")

@@ -316,6 +316,33 @@ describePrimitive =
      I.Array     _    -> "Array"
 
 
+-- The built-in property a value has, written as in Ouro, for messages: "#str", "#rec". A
+-- value with no built-in property, such as null or a Duration, is described instead.
+propertyOf :: Expr -> Text
+propertyOf =
+    \case
+     Primitive p
+         -> case p of
+                I.String    _    -> "#str"
+                I.Number    _    -> "#num"
+                I.Boolean   _    -> "#bool"
+                I.URI       _    -> "#uri"
+                I.Date      _    -> "#date"
+                I.EmptyRec       -> "#rec"
+                I.Record    _ _  -> "#rec"
+                I.EmptyArr       -> "#arr"
+                I.Array     _    -> "#arr"
+                I.Null           -> "null"
+                I.BlankNode _    -> "a blank node"
+     Record      _ _        -> "#rec"
+     Array       _          -> "#arr"
+     FunctionClosure _ _ _ _ -> "#fn"
+     PrimitiveOp _          -> "#fn"
+     Duration    _ _        -> "a Duration"
+     Attr        _ _        -> "an attribute pair"
+     EvalError   _          -> "an error"
+
+
 -- Generated last: Env refers to 'Binding' and 'Expr', and Expr to 'PeriodUnit'
 makeLenses ''Env
 makeLenses ''Promise

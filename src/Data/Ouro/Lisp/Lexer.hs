@@ -99,7 +99,7 @@ pReaderTags = lexeme . withPos $ do
                                      "rec-empty" -> pure Tkn.TagRecordEmpty
                                      "arr-empty" -> pure Tkn.TagArrEmpty
                                      other       -> M.region (\err -> M.setErrorOffset startOffset err)
-                                                             (fail ("Invalid type assertion tag: #" ++ other))
+                                                             (fail ("Unknown property: #" ++ other))
 
 -- Structural Holes for Pattern Matching (? or ?name)
 pHole :: Parser Tkn.Token

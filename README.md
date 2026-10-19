@@ -27,13 +27,13 @@ Each key can appear once in a record: writing a key twice is an error. An attrib
 
 Source files are UTF-8 on every platform, so strings, names and keys can hold any text: `(:_label "Édouard Manet")` compiles to `"_label": "Édouard Manet"` on Windows as well as Linux. A file saved in another encoding is reported, not garbled.
 
-## Type assertions
+## Built-in properties
 
-In JSON-LD, there are many datatypes which can look similar to a compiler. To ensure that the compiled JSON from Ouro code is always well formed, we can use type assertions to tell the compiler how to treat the next expression it encounters. Type assertions are denoted by `#type (expr)`.
+In JSON-LD, there are many datatypes which can look similar to a compiler. To ensure that the compiled JSON from Ouro code is always well formed, we can give an expression a property, which tells the compiler how to treat it. A property is written before the expression, as in `#str (expr)`.
 
-There are 8 type assertion tags:
+There are 8 built-in properties:
 
-| Tag          | Description                                                                              |
+| Property     | Description                                                                              |
 |:-------------|:-----------------------------------------------------------------------------------------|
 | `#uri`       | Ensures that any expression that evaluates to a URI is properly formed.                  |
 | `#date`      | Ensures valid ISO 8601 date-time formats and enables temporal desugaring (e.g., `thru`). |
@@ -44,11 +44,11 @@ There are 8 type assertion tags:
 | `#arr`       | Asserts that the evaluated result is an Array.                                           |
 | `#fn`        | Asserts that the evaluated result is a function (a `fn`, a `defn` name or a built-in).   |
 
-The same tags are used to type a function's parameters and result (see [Functions](#functions)).
+A value without the property it is given is an error, such as `Expected data to have the property #num, got #str instead.` The same properties type a function's parameters and result (see [Functions](#functions)).
 
-Two further tags are values rather than assertions, written in place of an empty collection:
+Two further `#` forms are values rather than properties, written in place of an empty collection:
 
-| Tag          | Description                                                                              |
+| Value        | Description                                                                              |
 |:-------------|:-----------------------------------------------------------------------------------------|
 | `#arr-empty` | An empty Array, `[]` (the same as `()`).                                                 |
 | `#rec-empty` | An empty Record, `{}`.                                                                   |
@@ -622,7 +622,7 @@ A `defn` body is checked when the file is parsed: it must be one expression and 
 
 ### Signatures
 
-A function's types are written as type assertion tags in its header. A tag between the name and the parameters is the return type, and a tag before a parameter is that parameter's type. Any of them can be left out.
+A function's types are written as built-in properties in its header. One between the name and the parameters is the return type, and one before a parameter is that parameter's type. Any of them can be left out.
 
 ``` clojure
 (defn node #rec (#uri id type)
@@ -634,19 +634,19 @@ A function's types are written as type assertion tags in its header. A tag betwe
      :n (node "https://linked.art/example/object/spring" "HumanMadeObject"))))
 ```
 
-- A signature's tag behaves exactly as the same tag would anywhere else: it checks the value, and `#uri` and `#date` convert a string. In `node` above, `id` arrives as a URI.
+- A property in a signature behaves exactly as it would anywhere else: it checks the value, and `#uri` and `#date` convert a string. In `node` above, `id` arrives as a URI.
 - Each argument is checked where the call is written, so a mismatch is reported at the argument, in the call. The result is checked where the body is.
 - An argument is checked even if the function never uses it.
 - Nothing is inferred: an untyped parameter or result is not checked.
 - A return type of `#arr` says that a one-value Array is intended, so `(defn f #arr () ("x"))` does not warn.
 
-### Contracts
+### When signatures are checked
 
-Ouro's signatures are *contracts*, in the sense of Racket's contracts, rather than static types. A signature is a promise between two parties: the caller promises arguments of the right types, and the function promises a result of the right type. It is checked when values cross it, and when a check fails, the party that broke its promise is blamed: a bad argument is reported at the call, a bad result at the function's body.
+A signature is checked when a value crosses it, not before evaluation as a static type is, and a failed check is reported where the value came from: a bad argument at the call, a bad result at the function's body.
 
-Since Ouro evaluates everything at compile time, contracts cost nothing in the output: every check has already run before the JSON-LD is written.
+Since Ouro evaluates everything at compile time, the checks cost nothing in the output: every one has already run before the JSON-LD is written.
 
-Where contracts are going next is described under [Planned](#planned).
+User-defined properties are described under [Planned](#planned).
 
 ### Placeholders
 
@@ -683,7 +683,7 @@ A call with `?` holes among its arguments is not called: it is a function of its
 
 - Each `?` is a parameter, in the order the holes are written: `(- ? ?)` takes two arguments.
 - A named hole is one parameter, however often it is written: `(* ?n ?n)` takes one.
-- A tagged hole is a typed parameter: `(node #uri ? "Type")` checks and converts its argument, as a signature would.
+- A typed hole is a typed parameter: `(node #uri ? "Type")` checks and converts its argument, as a signature would.
 - A hole belongs to the call it is an argument of, so `(f (g ?))` passes `f` a function.
 - Any call takes holes: a `defn`, a `fn`, a builtin, and the special forms that evaluate their arguments (`get`, `nth`, `insert`, `replace-at`, `list`, `map`).
 - A placeholder is an ordinary `fn` value. It is called with exactly as many arguments as it has holes, and functions themselves stay uncurried.
@@ -728,7 +728,7 @@ A parameter can be a pattern, written as a `case` pattern is. It takes one argum
 - A pattern is one parameter: `(fn ((?a ?b)) ...)` takes one argument. Names and patterns can be mixed, as in `(defn sum (base (?a ?b)) ...)`.
 - Any `case` pattern can be written: Array and Record patterns, `?..rest` holes, and values compared by value, as in `(fn (("Person" ?l)) l)`. A pattern must bind something.
 - The argument is matched when the function is called, even if the body uses none of its holes. An argument that does not match is reported at the argument, or at the Array in `map`.
-- A tag before a pattern checks the argument first: `(fn (#arr (?a ?b)) ...)`.
+- A property before a pattern checks the argument first: `(fn (#arr (?a ?b)) ...)`.
 - Each name is bound once: two parameters, two holes, or a hole and a parameter with the same name are an error.
 
 ## Syntax Sugar
@@ -950,11 +950,11 @@ For compile, if the `-o` path has a file extension then that is the file the com
 These are agreed directions for Ouro, roughly in the order they will be built. None of them is implemented yet.
 
 - **Imports and exports:** modules will import and export functions only, never graphs or data, so modules stay stateless and there can be no data cycles between files. Builds will be described in `build.ouro`, itself written in Ouro.
-- **Contracts:** user-defined types that refine JSON's types. A contract is a function tagged `#contract` whose body is a `(case)`: its patterns describe a shape, and its branches can add checks of their own. A contract checks a value and passes it through unchanged, so `#person` can be used in a signature just like `#str`:
+- **Properties:** user-defined types that refine JSON's types. A property is a named set of values: a function marked `#property` whose body ends in a `(case)`, whose patterns describe a shape and whose branches can add checks of their own. A property checks a value and passes it through unchanged, so `#person` can be used in a signature just like `#str`:
 
   ``` clojure
-  (defn person #contract (#rec r)
+  (defn person #property (#rec r)
     (case r
-      ((:type "Person" :_label #str ?))))
+      ((:_label #str ? :born #date ?))))
   ```
 

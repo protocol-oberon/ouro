@@ -76,7 +76,7 @@ Ouro is dynamically typed, with optional type annotations that are checked when 
 
 Evaluation happens in a flexible, dynamically typed sandbox (~L.Expr~) in which errors are values. Before anything is serialised, the evaluated tree must pass the verification gate and is then collapsed into ~I.Expr~, a GADT indexed by JSON-LD kinds. Ouro is dynamic where curators write code and static where the output is produced.
 
-The annotations are type tags, on an expression or in a function's [[*Functions: =defn=, =fn= and calls][signature]]. They behave like contracts (as in Racket) rather than static types: nothing is checked before evaluation, and an annotation on code that is never evaluated is never checked. When a check fails, the blame falls where it belongs: a bad argument is reported at the call, and a bad result at the function's body.
+The annotations are built-in properties, on an expression or in a function's [[*Functions: =defn=, =fn= and calls][signature]]. They are checked when values reach them, not as static types are: nothing is checked before evaluation, and an annotation on code that is never evaluated is never checked. When a check fails, the blame falls where it belongs: a bad argument is reported at the call, and a bad result at the function's body.
 
 This is not gradual typing in the sense of Siek and Taha, where annotated code is checked statically and checks are inserted only at the boundary with untyped code.
 
@@ -167,7 +167,7 @@ Only graphs are serialised. Functions exist to build and reuse values. A module-
 | Symbol         | =artist=, =type-node=, =+=, =legacy!=    | starts with a letter or an operator character (see below the table) |
 | Attribute      | =:key=, =:@vocab=                        | letters, digits, =-= and =_=, after an optional =@=; a pair's key   |
 | Binding        | =$name=                                  | any symbol; a private binding, only inside a =let=                  |
-| Reader tag     | =#uri=, =#date=, =#str=, =#num=, =#bool= | asserts the type of what follows; also =#rec=, =#arr=, =#fn=        |
+| Property       | =#uri=, =#date=, =#str=, =#num=, =#bool= | a built-in property of what follows; also =#rec=, =#arr=, =#fn=     |
 | Empty values   | =#rec-empty=, =#arr-empty=, =()=         | ={}=, =[]= and =[]=                                                 |
 | Hole           | =?=, =?name=, =?..name=                  | a placeholder in a call, or part of a pattern                       |
 | Delimiters     | =( )=                                    | =[ ]= is reserved: it parses, but has no meaning yet                |
@@ -187,18 +187,18 @@ The grammar below describes the language accepted by the parser and evaluator to
 (* ---------- Modules ---------- *)
 module       = { declaration } ;
 declaration  = defn | graph ;
-defn         = "(" , "defn" , symbol , [ tag ] , params , expression , ")" ;
+defn         = "(" , "defn" , symbol , [ property ] , params , expression , ")" ;
 graph        = "(" , "graph" , symbol , expression , ")" ;
-params       = "(" , { [ tag ] , ( symbol | param-pattern ) } , ")" ;     (* a tag types the parameter after it *)
+params       = "(" , { [ property ] , ( symbol | param-pattern ) } , ")" ;     (* a property types the parameter after it *)
 param-pattern = record-pattern | array-pattern ;     (* binds the parts of one argument *)
 
 (* ---------- Expressions ---------- *)
-expression   = literal | tagged | symbol | record | array | call | special-form ;
+expression   = literal | asserted | symbol | record | array | call | special-form ;
 
 literal      = string | number | "true" | "false" | "null"
              | "#rec-empty" | "#arr-empty" | "(" , ")" ;
-tagged       = tag , expression ;
-tag          = "#uri" | "#date" | "#str" | "#num" | "#bool" | "#rec" | "#arr" | "#fn" ;
+asserted     = property , expression ;
+property     = "#uri" | "#date" | "#str" | "#num" | "#bool" | "#rec" | "#arr" | "#fn" ;
 
 (* A record: at least one attribute pair or context *)
 record       = "(" , { record-item } , ")" ;
@@ -212,13 +212,13 @@ array        = "(" , [ non-symbol-expr , { expression } ] , ")"
 
 (* A call: a form headed by an expression that evaluates to a function *)
 call         = "(" , symbol , { expression | placeholder } , ")" ;
-placeholder  = [ tag ] , hole ;     (* a call with placeholders is a function of them *)
+placeholder  = [ property ] , hole ;     (* a call with placeholders is a function of them *)
 
 (* ---------- Special forms ---------- *)
 special-form = let | fn | case | get | nth | map | insert | replace-at | with | thread ;
 let          = "(" , "let" , "(" , { binding } , ")" , expression , ")" ;
 binding      = "$" , symbol , expression ;
-fn           = "(" , "fn" , [ tag ] , params , expression , ")" ;
+fn           = "(" , "fn" , [ property ] , params , expression , ")" ;
 case         = "(" , "case" , expression , { branch } , "(" , "otherwise" , expression , ")" , ")" ;
 branch       = "(" , ( pattern | guard | alternatives ) , expression , ")" ;
 guard        = "(" , comparison , expression , ")" ;
@@ -259,7 +259,7 @@ sub-pattern  = hole | record-pattern | array-pattern | expression ;
 
 Durations and functions are values during compilation, but have no JSON form: they must be consumed (added to a date, called) before they reach the output.
 
-*Type assertions.* =#uri= checks that a string is a URI with a scheme; =#date= checks that a string is an ISO-8601 timestamp (=YYYY-MM-DDTHH:mm:ssZ=); =#str=, =#num=, =#bool=, =#rec=, =#arr= and =#fn= check the type of any expression (=#fn= accepts a =fn=, a =defn= name or a built-in). An assertion on a value that is already a URI or a Date passes it through. Assertions are how URIs and dates, which look like strings in JSON, keep their meaning inside Ouro.
+*Built-in properties.* =#uri= checks that a string is a URI with a scheme; =#date= checks that a string is an ISO-8601 timestamp (=YYYY-MM-DDTHH:mm:ssZ=); =#str=, =#num=, =#bool=, =#rec=, =#arr= and =#fn= check the type of any expression (=#fn= accepts a =fn=, a =defn= name or a built-in). An assertion on a value that is already a URI or a Date passes it through. Assertions are how URIs and dates, which look like strings in JSON, keep their meaning inside Ouro. A value without the property it is typed with is reported as "Expected data to have the property =#num=, got =#str= instead", naming both properties as they are written; for =#uri= and =#date= the reason is given too, "got a =#str= without a URI scheme" or "got a =#str= that is not a date", with the expected form in the blurb.
 
 ** Records and arrays
 
@@ -370,7 +370,7 @@ Semantics of a call:
 
 A =defn= body is checked when the file is parsed: it must be one expression and cannot be a spliced record (~(defn f (x) :k v)~). A =define= or a nested =defn= in it is reported with its replacement, =let= or a =let=-bound =fn=.
 
-*Signatures.* A function's types are tags in its header: a tag between the name and the parameters is the return type, and a tag before a parameter is that parameter's type. Either can be left out, and so can any parameter's.
+*Signatures.* A function's types are built-in properties in its header: one between the name and the parameters is the return type, and one before a parameter is that parameter's type. Either can be left out, and so can any parameter's.
 
 #+BEGIN_SRC clojure
 (defn node #rec (#uri id type)
@@ -380,13 +380,13 @@ A =defn= body is checked when the file is parsed: it must be one expression and 
   (:r (double 21)))               ; {"r": 42}
 #+END_SRC
 
-- The types are the type tags: =#str=, =#num=, =#bool=, =#uri=, =#date=, =#rec=, =#arr= and =#fn=. There is one sigil for types: =#= always asserts a type, and its position says what it applies to.
-- A signature's tag behaves exactly as the same tag would anywhere else: it checks the value, and =#uri= and =#date= convert a string. In =node= above, =id= arrives as a URI.
+- The types are the built-in properties: =#str=, =#num=, =#bool=, =#uri=, =#date=, =#rec=, =#arr= and =#fn=. There is one sigil for types: =#= always names a property, and its position says what it applies to.
+- A property in a signature behaves exactly as it would anywhere else: it checks the value, and =#uri= and =#date= convert a string. In =node= above, =id= arrives as a URI.
 - Each argument is checked where the call is written, so a mismatch is reported at the argument, in the call. The result is checked where the body is, and a mismatch is reported there.
 - An argument is checked even if the function never uses it.
 - Nothing is inferred: an untyped parameter or result is not checked, and unannotated code behaves as before.
 
-*Signatures are contracts.* A signature is a promise between two parties: the caller promises arguments of the parameters' types, and the function promises a result of its return type. It is checked when values cross it, as a contract is (Findler and Felleisen's higher-order contracts, as in Racket), not before evaluation, as a static type is. A failed check blames the party that broke its promise: a bad argument is reported at the call, and a bad result at the function's body. Because Ouro evaluates everything at compile time, contracts cost nothing in the output: every check has run before the document is written.
+*Signatures are checked when values cross them.* The caller's arguments must have the parameters' properties, and the function's result its return property. A signature is checked when a value crosses it, not before evaluation, as a static type is, and a failed check is reported where the value came from: a bad argument at the call, and a bad result at the function's body. Because Ouro evaluates everything at compile time, the checks cost nothing in the output: every one has run before the document is written.
 
 *** Placeholders
 
@@ -406,7 +406,7 @@ A call with =?= holes among its arguments is not called: it is a function of its
 
 - *Each =?= is a parameter*, in the order the holes are written: ~(- ? ?)~ takes two arguments, the first to subtract from.
 - *A named hole is one parameter*, however often it is written: ~(* ?n ?n)~ takes one. Parameters follow the order in which each hole is first written, so ~(+ ?a ?b ?a)~ takes =a= then =b=.
-- *A tagged hole is a typed parameter*: ~(node #uri ? "Painting")~ checks, and converts, its argument as a signature would, and a mismatch is reported at the argument where the placeholder is called. An untyped hole passed to a typed parameter of the function is checked by that function, and a mismatch is reported at the hole.
+- *A typed hole is a typed parameter*: ~(node #uri ? "Painting")~ checks, and converts, its argument as a signature would, and a mismatch is reported at the argument where the placeholder is called. An untyped hole passed to a typed parameter of the function is checked by that function, and a mismatch is reported at the hole.
 - *A hole belongs to the call it is an argument of*, so ~(* 2 (+ ? 1))~ multiplies 2 by a function (an error), and ~(f (g ?))~ passes =f= a function.
 - *Any call takes holes*: a =defn=, a =fn=, a built-in, a variadic operator (~(< ? 10 20)~) and the special forms that evaluate their arguments (=get=, =nth=, =insert=, =replace-at=, =list=, =map=, =->=). The forms with their own structure (=let=, =fn=, =case=, =context=, =inlay=, =thru=) do not.
 - *A placeholder is a value*: it is a =fn=, closed over the scope it is written in, so it can be bound, passed and returned like one. It is called with exactly as many arguments as it has holes.
@@ -433,7 +433,7 @@ A parameter can be a pattern, written as a =case= pattern is. It takes one argum
 - *Any pattern* can be written: array patterns, record patterns (open, as in =case=), =?..rest= holes, and values compared by value, as in ~(fn (("Person" ?l)) l)~. A pattern must bind something, so it is a record pattern or holds a hole.
 - *It is matched when the function is called*, even if the body uses none of its holes, as a typed argument is checked. The holes are bound in a frame around the body.
 - *A mismatch is the caller's*: it is reported at the argument in the call, or at the array in =map=.
-- *A tag before a pattern* checks the argument first: ~(fn (#arr (?a ?b)) ...)~.
+- *A property before a pattern* checks the argument first: ~(fn (#arr (?a ?b)) ...)~.
 - *Each name is bound once*: two parameters, two holes, or a hole and a parameter with the same name are an error, reported where the function is defined.
 - *A pattern's values are evaluated where the function is defined*: a =defn='s pattern sees the module's functions, and a =fn='s sees the scope it is written in, but neither sees the function's other parameters. A check against another parameter is written in the body, with =case=.
 - *Placeholders leave parameters alone*: a =fn='s parameter list is not read as calls, so a hole in it is always a pattern's.
@@ -574,7 +574,7 @@ data Expr
     | Form        SourcePos [Expr]          -- (...)
     | Bracket     SourcePos [Expr]          -- [...], reserved
 
--- A function's parameter, the type tag written before it, if any, and the pattern it
+-- A function's parameter, the property written before it, if any, and the pattern it
 -- destructures its argument with, if any
 data Param = Param
     { paramName    :: Text
@@ -593,7 +593,7 @@ data HigherExpression (t :: Declaration) where
     Graph    :: SourcePos -> Text -> Expr            -> HigherExpression 'GraphExpr
 #+END_SRC
 
-A =defn='s return type is applied when it is parsed: its body is stored under the return tag, as ~Tagged~. A =fn= is an ordinary form until it is evaluated, where a return tag is read from its parameter list, ~(fn #num (n) ...)~.
+A =defn='s return type is applied when it is parsed: its body is stored under the return property, as ~Tagged~. A =fn= is an ordinary form until it is evaluated, where a return property is read from its parameter list, ~(fn #num (n) ...)~.
 
 The parser also enforces the module-level rules: a function name cannot be a special form, a function cannot be defined twice, a body must be one expression, and the removed keywords (=defun=, =define=, a nested =defn=) are reported with their replacements.
 
@@ -614,7 +614,7 @@ Before evaluation, ~Canon.canonicalModule~ rewrites every function body and grap
 | 9. operators     | bottom-up | ~(+ a b c)~ into ~(+ (+ a b) c)~                                                            |
 | 10. alternatives | bottom-up | a =case= branch ~(("a" "b") e)~ into one branch per literal                                 |
 
-A pass walks the tree in one of three ways (~Canon.Traverse~): top-down, rewriting a form before its parts, when the rule depends on the form's own shape; bottom-up, rewriting a form's parts first; or over lists of siblings, for a rule that turns one element into several. An expression that stands on its own, such as a graph's body or the payload of a type tag, is a list of one: a =thru= there has no meaning and is left for the evaluator to report.
+A pass walks the tree in one of three ways (~Canon.Traverse~): top-down, rewriting a form before its parts, when the rule depends on the form's own shape; bottom-up, rewriting a form's parts first; or over lists of siblings, for a rule that turns one element into several. An expression that stands on its own, such as a graph's body or the payload of a property, is a list of one: a =thru= there has no meaning and is left for the evaluator to report.
 
 The order matters in four places. Threading runs before =with=, so in ~(-> x (with :k v))~ =with= receives =x= as its base. Bindings run before =thru=, so a value that expands into several elements stays inside its binding. Guards run before comparisons and alternatives, which leave a marked guard alone, so a guard's operands are not unrolled as a comparison of their own. Only =thru= walks siblings.
 
@@ -825,7 +825,7 @@ Arrays (~compileArray~) evaluate their elements in order, with =inlay= splicing 
 
 *** Calling a function
 
-~evalFunction~ checks arity and recursion, allocates one promise per argument over the /caller's/ environment (under its parameter's tag, if the parameter is typed), and evaluates the body in the closure extended with a parameter frame:
+~evalFunction~ checks arity and recursion, allocates one promise per argument over the /caller's/ environment (under its parameter's property, if the parameter is typed), and evaluates the body in the closure extended with a parameter frame:
 
 #+BEGIN_SRC haskell
 (_, argAddrs) <- allocFrame (const callerEnv) [ FrameEntry (paramName param) (exprPos arg) (typedArgument param arg) False | ... ]
@@ -1049,7 +1049,7 @@ Recorded 2026-10-12 and kept up to date since; none were caused by the scoping r
 
 1. /Fixed:/ =@context= handling was incomplete: only four directives could be written, with no term definitions or =null=, and a remote context with local directives serialised as a nested =@context= object, which is invalid JSON-LD. A context is now a value written as JSON-LD writes it, and several contexts are an array (see [[*=@context=][=@context=]]).
 
-2. /Fixed:/ variadic operators under a type tag hit an internal error. A tag's payload is now desugared like any other expression.
+2. /Fixed:/ variadic operators under a built-in property hit an internal error. A property's payload is now desugared like any other expression.
 
 3. /Fixed:/ guards with more than one operand hit the same internal error. A guard now chains with the target as its first operand, and an operator written with the wrong number of operands is an arity error rather than an internal one.
 

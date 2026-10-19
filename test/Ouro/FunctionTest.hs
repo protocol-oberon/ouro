@@ -80,12 +80,12 @@ plainNames = Group "Functions: names are plain symbols, in one namespace"
     ]
 
 
--- A signature's types are tags in a function's header: one between the name and the
--- parameters for the result, and one before a parameter for that parameter. A tag checks
--- (and converts to #uri or #date) exactly as it would anywhere else. An argument is
--- checked where the call is written, and the result where the body is.
+-- A signature's types are built-in properties in a function's header: one between the
+-- name and the parameters for the result, and one before a parameter for that one. A
+-- property checks (and converts to #uri or #date) exactly as it would anywhere else. An
+-- argument is checked where the call is written, and the result where the body is.
 signatures :: Group
-signatures = Group "Functions: signatures are tags in the header"
+signatures = Group "Functions: signatures are properties in the header"
     [ ("a typed defn",                            compilesToJSON "(defn node #rec (#uri id type) (:id id :type type)) (graph g (:r (node \"https://a.org/x\" \"Type\")))"
                                                                  "{\"r\": {\"id\": \"https://a.org/x\", \"type\": \"Type\"}}")
     , ("a typed fn",                              compilesToJSON "(graph g (let ($double (fn #num (#num n) (* n 2))) (:r (double 21))))"
@@ -98,23 +98,23 @@ signatures = Group "Functions: signatures are tags in the header"
                                                                  "{\"r\": [{\"a\": 1}]}")
     , ("#fn in a signature",                      compilesToJSON "(defn apply #num (#fn f x) (f x)) (graph g (:r (apply (fn (n) (+ n 1)) 1)))"
                                                                  "{\"r\": 2}")
-    , ("#rec and #arr are tags anywhere",         compilesToJSON "(graph g (:r #rec (:a 1) :s #arr (1 2)))"
+    , ("#rec and #arr are properties anywhere",   compilesToJSON "(graph g (:r #rec (:a 1) :s #arr (1 2)))"
                                                                  "{\"r\": {\"a\": 1}, \"s\": [1, 2]}")
 
     -- Mismatches, checked by message and by where they are reported
-    , ("an argument of the wrong type",           failsWith "expectedType = \"a Number\", actualType = \"a String\""
+    , ("an argument of the wrong type",           failsWith "expectedProperty = \"#num\", actualProperty = \"#str\""
                                                             "(defn double (#num n) (* n 2)) (graph g (:r (double \"x\")))")
     , ("it is reported at the argument",          failsWith "line 1, col 53"
                                                             "(defn double (#num n) (* n 2)) (graph g (:r (double \"x\")))")
-    , ("an unused argument is still checked",     failsWith "expectedType = \"a Number\""
+    , ("an unused argument is still checked",     failsWith "expectedProperty = \"#num\""
                                                             "(defn second (#num a b) b) (graph g (:r (second \"x\" 2)))")
-    , ("a result of the wrong type",              failsWith "expectedType = \"a Number\", actualType = \"a String\""
+    , ("a result of the wrong type",              failsWith "expectedProperty = \"#num\", actualProperty = \"#str\""
                                                             "(defn label #num (who) (+ who \"!\")) (graph g (:r (label \"a\")))")
     , ("it is reported at the body",              failsWith "line 1, col 24"
                                                             "(defn label #num (who) (+ who \"!\")) (graph g (:r (label \"a\")))")
-    , ("a fn result of the wrong type",           failsWith "expectedType = \"a String\""
+    , ("a fn result of the wrong type",           failsWith "expectedProperty = \"#str\""
                                                             "(graph g (let ($f (fn #str (n) n)) (:r (f 1))))")
-    , ("a value that is not a function",          failsWith "expectedType = \"a function\""
+    , ("a value that is not a function",          failsWith "expectedProperty = \"#fn\""
                                                             "(defn apply (#fn f x) (f x)) (graph g (:r (apply 1 2)))")
     , ("a type needs a parameter after it",       failsWith "written before its name"
                                                             "(defn f (#num) 1) (graph g (:r (f)))")
@@ -152,12 +152,12 @@ placeholders = Group "Functions: a call with holes is a function of them"
     , ("a case body can be a placeholder",        compilesToJSON "(graph g (:r (case (1 2) ((?a ?b) (let ($add (+ ? b)) (add a))) (otherwise 0))))"
                                                                  "{\"r\": 3}")
 
-    -- A tagged hole is a typed parameter: it converts, and a mismatch is reported at the call
-    , ("a tagged hole converts",                  compilesToJSON "(graph g (let ($y (+ #date ? (years 1))) (:r (y \"2020-01-01T00:00:00Z\"))))"
+    -- A typed hole is a typed parameter: it converts, and a mismatch is reported at the call
+    , ("a typed hole converts",                   compilesToJSON "(graph g (let ($y (+ #date ? (years 1))) (:r (y \"2020-01-01T00:00:00Z\"))))"
                                                                  "{\"r\": \"2021-01-01T00:00:00Z\"}")
-    , ("a named hole is typed where it is tagged", compilesToJSON "(graph g (let ($f (+ #num ?x ?x)) (:r (f 2))))"
+    , ("a named hole is typed where it is written", compilesToJSON "(graph g (let ($f (+ #num ?x ?x)) (:r (f 2))))"
                                                                  "{\"r\": 4}")
-    , ("a tagged hole is checked at the call",    failsWith "line 1, col 87"
+    , ("a typed hole is checked at the call",     failsWith "line 1, col 87"
                                                             "(defn node (id type) (:id id :type type)) (graph g (let ($n (node #num ? \"T\")) (:r (n \"x\"))))")
     , ("an untyped hole is checked at the hole",  failsWith "line 1, col 58"
                                                             "(defn double (#num n) (* n 2)) (graph g (let ($d (double ?)) (:r (d \"x\"))))")
@@ -198,11 +198,11 @@ mapping = Group "Functions: map calls a function on each element"
                                                                  "{\"map\": 5, \"r\": 5}")
 
     -- Each element is checked by the function's signature, and reported at the Array
-    , ("a typed parameter checks each element",   failsWith "expectedType = \"a Number\", actualType = \"a String\""
+    , ("a typed parameter checks each element",   failsWith "expectedProperty = \"#num\", actualProperty = \"#str\""
                                                             "(defn double (#num n) (* n 2)) (graph g (:r (map double (1 \"x\" 3))))")
     , ("it is reported at the array",             failsWith "line 1, col 57"
                                                             "(defn double (#num n) (* n 2)) (graph g (:r (map double (1 \"x\" 3))))")
-    , ("a result is checked by the return type",  failsWith "expectedType = \"a Number\""
+    , ("a result is checked by the return type",  failsWith "expectedProperty = \"#num\""
                                                             "(graph g (:r (map (fn #num (n) (+ n \"!\")) (\"a\"))))")
 
     -- Errors
@@ -237,7 +237,7 @@ destructuring = Group "Functions: a parameter can be a pattern"
                                                                  "{\"r\": \"Manet\"}")
     , ("a pattern beside a named parameter",      compilesToJSON "(defn sum (base (?a ?b)) (+ base a b)) (graph g (:r (sum 1 (2 3))))"
                                                                  "{\"r\": 6}")
-    , ("a tag before a pattern",                  compilesToJSON "(graph g (let ($f (fn (#arr (?a ?b)) (+ a b))) (:r (f (1 2)))))"
+    , ("a property before a pattern",             compilesToJSON "(graph g (let ($f (fn (#arr (?a ?b)) (+ a b))) (:r (f (1 2)))))"
                                                                  "{\"r\": 3}")
     , ("map with a pattern parameter",            compilesToJSON "(graph g (:r (map (fn ((?slug ?label)) (:id slug :_label label)) ((\"allan\" \"Scott Allan\") (\"beeny\" \"Emily Beeny\")))))"
                                                                  "{\"r\": [{\"id\": \"allan\", \"_label\": \"Scott Allan\"}, {\"id\": \"beeny\", \"_label\": \"Emily Beeny\"}]}")
@@ -265,7 +265,7 @@ destructuring = Group "Functions: a parameter can be a pattern"
                                                             "(graph g (let ($f (fn ((?a ?b)) 1)) (:r (f 5))))")
     , ("in map it is reported at the array",      failsWith "line 1, col 36"
                                                             "(graph g (:r (map (fn ((?a ?b)) a) ((1 2) (3)))))")
-    , ("the tag is checked before the pattern",   failsWith "expectedType = \"a Record\""
+    , ("the property is checked before the pattern", failsWith "expectedProperty = \"#rec\""
                                                             "(graph g (let ($f (fn (#rec (?a ?b)) a)) (:r (f (1 2)))))")
 
     -- Errors, reported where the function is defined

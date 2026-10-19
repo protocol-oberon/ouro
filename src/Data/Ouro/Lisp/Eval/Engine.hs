@@ -19,7 +19,8 @@ import           Data.Ouro.Error.Diagnostics    (astCorruption,
                                                  malformedTag, missingOtherwise,
                                                  missingOtherwiseBlurb,
                                                  missingPathKey,
-                                                 targetMismatch, typeMismatch,
+                                                 propertyMismatch, targetMismatch,
+                                                 typeMismatch,
                                                  typeMismatchBlurb,
                                                  unbalancedDelimiter, withBlurb)
 import           Data.Ouro.Error.Types          (ErrorContext (..),
@@ -34,7 +35,7 @@ import           Data.Ouro.Lisp.Eval.Structural (BlockTarget (..), alreadyAField
                                                  determineBlockTarget,
                                                  evalFunction)
 import           Data.Ouro.Lisp.Eval.Types      (Env (..), EvalM, Expr (..),
-                                                 humanReadableType)
+                                                 humanReadableType, propertyOf)
 import qualified Data.Ouro.Lisp.Eval.Types      as L
 import           Data.Ouro.Lisp.Function        (checkParams, isFunctionKeyword,
                                                  misplacedBinding, patternParam,
@@ -256,7 +257,7 @@ evalExpr expr = do
 
         S.Form pos (S.Symbol _ "fn" : _)
             -> lexicalError "A fn is written (fn (args) expr): argument names or patterns, each with an optional type, then exactly one result expression."
-               & withBlurb "A signature's types are tags: (fn #num (#num n) (* n 2))."
+               & withBlurb "A signature's types are properties: (fn #num (#num n) (* n 2))."
                & OuroError pos
                & EvalError
                & pure
@@ -418,8 +419,8 @@ evalExpr expr = do
 
 -- assertTag.
 --
--- Validates, coerces, and casts runtime primitive values against strict structural type assertions.
--- Isolates external text serialization and parsing dependencies away from the core execution engine loop.
+-- Checks a value against a built-in property, as a signature or an assertion such as #str x
+-- names it. Only #uri and #date convert: a String that passes them becomes a URI or a Date.
 assertTag :: S.ReaderTag -> S.Expr -> EvalM L.Expr
 assertTag tag payload = do
     evaluatedVal <- evalExpr payload
@@ -436,7 +437,7 @@ assertTag tag payload = do
                                  S.RecTag  -> isRecord   pos evaluatedVal
                                  S.ArrTag  -> isArray    pos evaluatedVal
                                  S.FnTag   -> isFn       pos evaluatedVal
-                                 _badTag   -> malformedTag (T.pack (show tag)) "You cannot type assert an empty record or array"
+                                 _badTag   -> malformedTag (T.pack (show tag)) "#rec-empty and #arr-empty are values, not properties, so nothing can be asserted with them"
                                               & OuroError pos
                                               & EvalError
                                               & pure
@@ -445,29 +446,29 @@ assertTag tag payload = do
     -- Typed Primitive Helpers
     isString pos v = case v of
                          Primitive (I.String _) -> pure v
-                         other                  -> failMismatch pos "a String" (humanReadableType other) other
+                         other                  -> failProperty pos "#str" (propertyOf other) (typeMismatchBlurb other)
 
     isNumber pos v = case v of
                          Primitive (I.Number _) -> pure v
-                         other                  -> failMismatch pos "a Number" (humanReadableType other) other
+                         other                  -> failProperty pos "#num" (propertyOf other) (typeMismatchBlurb other)
 
     isRecord pos v = case v of
                          Record _ _           -> pure v
                          Primitive I.EmptyRec -> pure v
-                         other                -> failMismatch pos "a Record" (humanReadableType other) other
+                         other                -> failProperty pos "#rec" (propertyOf other) (typeMismatchBlurb other)
 
     isArray pos v = case L.asArray v of
                         Just _  -> pure v
-                        Nothing -> failMismatch pos "an Array" (humanReadableType v) v
+                        Nothing -> failProperty pos "#arr" (propertyOf v) (typeMismatchBlurb v)
 
     isFn pos v = case v of
                      FunctionClosure _ _ _ _ -> pure v
                      PrimitiveOp _           -> pure v
-                     other                   -> failMismatch pos "a function" (humanReadableType other) other
+                     other                   -> failProperty pos "#fn" (propertyOf other) (typeMismatchBlurb other)
 
     isBoolean pos v = case v of
                           Primitive (I.Boolean _) -> pure v
-                          other                   -> failMismatch pos "a Boolean" (humanReadableType other) other
+                          other                   -> failProperty pos "#bool" (propertyOf other) (typeMismatchBlurb other)
 
     -- Complex Parsers
     assertUri :: SourcePos -> L.Expr -> EvalM L.Expr
@@ -475,29 +476,20 @@ assertTag tag payload = do
         Primitive (I.String rawText)
             -> case URI.mkURI rawText of
                    Left _
-                       -> failMismatch pos
-                              "a String matching URI layout"
-                              "invalid URI format"
-                              (Primitive $ I.String rawText)
+                       -> failProperty pos "#uri" "a #str that is not a URI" uriBlurb
 
                    Right uri
                        -> case URI.uriScheme uri of
                               Just _
                                   -> pure $ Primitive (I.URI uri)
                               Nothing
-                                  -> failMismatch pos
-                                         "a String matching a URI layout with a scheme included (https:)"
-                                         "a String in an invalid URI format"
-                                         (Primitive $ I.String rawText)
+                                  -> failProperty pos "#uri" "a #str without a URI scheme" uriBlurb
 
         Primitive (I.URI uri)
             -> pure $ Primitive (I.URI uri)
 
         otherVal
-            -> failMismatch pos
-                   "a String matching a URI layout with a scheme included (https:)"
-                   (humanReadableType otherVal)
-                   otherVal
+            -> failProperty pos "#uri" (propertyOf otherVal) uriBlurb
 
     assertDate :: SourcePos -> L.Expr -> EvalM L.Expr
     assertDate pos =
@@ -505,25 +497,22 @@ assertTag tag payload = do
          Primitive (I.String rawText)
              -> case parseISO8601 (T.unpack rawText) of
                     Just    utcTime -> pure $ Primitive (I.Date utcTime)
-                    Nothing         -> failMismatch pos
-                                           "a String matching ISO-8601 layout (YYYY-MM-DDTHH:mm:ssZ)"
-                                           "a String in an invalid Date format"
-                                           (Primitive $ I.String rawText)
+                    Nothing         -> failProperty pos "#date" "a #str that is not a date" dateBlurb
 
          Primitive (I.Date date)
              -> pure $ Primitive (I.Date date)
 
          otherVal
-             -> failMismatch pos
-                    "a String matching ISO-8601 layout (YYYY-MM-DDTHH:mm:ssZ)"
-                    (humanReadableType otherVal)
-                    otherVal
+             -> failProperty pos "#date" (propertyOf otherVal) dateBlurb
 
-    -- Reusable Validation Helpers
-    failMismatch :: SourcePos -> Text -> Text -> L.Expr -> EvalM L.Expr
-    failMismatch pos expected actual valForBlurb =
-        typeMismatch expected actual
-        & withBlurb (typeMismatchBlurb valForBlurb)
+    uriBlurb  = "A #uri is a #str with a scheme, such as \"https://linked.art/example/1\"."
+    dateBlurb = "A #date is a #str in ISO-8601 form, YYYY-MM-DDTHH:mm:ssZ, such as \"1642-01-01T00:00:00Z\"."
+
+    -- A value without the built-in property it is typed with
+    failProperty :: SourcePos -> Text -> Text -> Text -> EvalM L.Expr
+    failProperty pos expected actual blurb =
+        propertyMismatch expected actual
+        & withBlurb blurb
         & OuroError pos
         & EvalError
         & pure
@@ -712,7 +701,7 @@ validatePathKeys = traverse $ \case
     badNode
         -> targetMismatch "a lookup Symbol property identifier" "a structural node form"
            & withBlurb ( "Path navigation parameters following the target node must evaluate "
-                      <> "strictly to atomic path components. Compound S-Expression trees, macro tags, "
+                      <> "strictly to atomic path components. Compound S-Expression trees, properties, "
                       <> "and loose primitive values cannot be read as horizontal layout lookup slots."
                        )
            & OuroError (S.exprPos badNode)
