@@ -4,10 +4,12 @@ module Data.Ouro.Lisp.Function
 , checkParams
 , duplicateFunction
 , functionBody
+, functionDoc
 , graphBody
 , isFunctionKeyword
 , keyInLet
 , misplacedBinding
+, misplacedDoc
 , patternParam
 , removedAttrForm
 , removedContextForm
@@ -21,6 +23,7 @@ module Data.Ouro.Lisp.Function
 
 import           Data.Foldable               (traverse_)
 import           Data.Function               ((&))
+import           Data.Maybe                  (listToMaybe, mapMaybe)
 import           Data.Ouro.Error.Diagnostics (invalidFunctionName, lexicalError,
                                               withBlurb)
 import           Data.Ouro.Error.Types       (OuroError (..))
@@ -171,6 +174,58 @@ functionBody name pos body
                        _notAFunction                     -> False
 
 
+-- functionDoc.
+--
+-- A function is documented with a (doc "text") among the direct elements of its body,
+-- before or after its result:
+--
+--   (defn place #rec (#str slug #str label)
+--     (doc "A Linked Art Place, identified under /place/.")
+--     (std/core (example (+ "place/" slug)) "Place" label))
+--
+-- It is taken out of the body and kept with the function, and is never evaluated.
+-- A function has at most one, and it holds a single string. A (doc ...) inside the
+-- result is misplaced, and is reported here, when the file is parsed, so that it is
+-- found even in a function that is never called.
+functionDoc :: Text -> [S.Expr] -> Either OuroError (Maybe Text, [S.Expr])
+functionDoc name body = do
+    doc <- case filter (isHeadedBy "doc") body of
+               []
+                   -> Right Nothing
+
+               [S.Form _ [_, S.Literal _ (S.Str text)]]
+                   -> Right (Just text)
+
+               [malformed]
+                   -> lexicalError ("The documentation of '" <> name <> "' is not a single string.")
+                      & withBlurb "A function is documented with one string: (doc \"what the function does\")."
+                      & OuroError (S.exprPos malformed)
+                      & Left
+
+               _first : extra : _
+                   -> lexicalError ("The function '" <> name <> "' is documented more than once.")
+                      & withBlurb "A function has one (doc \"...\"). Perhaps join the texts into one string."
+                      & OuroError (S.exprPos extra)
+                      & Left
+
+    let results = filter (not . isHeadedBy "doc") body
+    case mapMaybe nestedDoc results of
+        docPos : _ -> Left (misplacedDoc docPos)
+        []         -> Right (doc, results)
+
+
+-- The position of the first (doc ...) anywhere inside an expression. The walk is over
+-- the tree as it was written, before desugaring, since where a doc may stand is a
+-- question about how the code is written.
+nestedDoc :: S.Expr -> Maybe SourcePos
+nestedDoc = \case
+    S.Form pos (S.Symbol _ "doc" : _) -> Just pos
+    S.Form _ items                    -> listToMaybe (mapMaybe nestedDoc items)
+    S.Bracket _ items                 -> listToMaybe (mapMaybe nestedDoc items)
+    S.Tagged _ _ inner                -> nestedDoc inner
+    _leaf                             -> Nothing
+
+
 -- graphBody.
 --
 -- A graph is one expression, usually a Record: (graph name (:key value ...)).
@@ -179,6 +234,9 @@ graphBody name pos = \case
     [S.Form _ (S.Symbol _ "%attr" : _)]
         -> spliced
     [result]
+        | Just docPos <- nestedDoc result
+        -> Left (misplacedDoc docPos)
+        | otherwise
         -> Right result
     []
         -> lexicalError ("The graph '" <> name <> "' has no expression.")
@@ -225,6 +283,15 @@ removedDefine :: SourcePos -> OuroError
 removedDefine pos =
     lexicalError "'define' has been replaced by let."
     & withBlurb "Bind private values around the expression that uses them: (let ($name value ...) expr)."
+    & OuroError pos
+
+
+-- A (doc "...") documents a named function, so it belongs among the direct elements of
+-- a defn's body: never inside its result, in a fn or in a graph
+misplacedDoc :: SourcePos -> OuroError
+misplacedDoc pos =
+    lexicalError "'doc' belongs directly in the body of a defn."
+    & withBlurb "Document a function with (doc \"...\") beside its result: (defn name (args) (doc \"...\") expr)."
     & OuroError pos
 
 
@@ -320,7 +387,7 @@ duplicateFunction name pos =
 
 -- Forms the evaluator recognises by their head symbol, before any name lookup
 specialForms :: [Text]
-specialForms = [ "->", "all", "attr", "case", "context", "define", "defn", "defun", "fn", "get"
+specialForms = [ "->", "all", "attr", "case", "context", "define", "defn", "defun", "doc", "fn", "get"
                , "graph", "inlay", "insert", "let", "list", "map", "nth", "replace-at", "some"
                , "thru", "with" ]
 

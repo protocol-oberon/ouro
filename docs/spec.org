@@ -344,6 +344,8 @@ A local function is a =let=-bound =fn=:
 
 *The body.* A function's body is one expression, written exactly as it would be anywhere else, and its value is the result. A body can be a =let=, so a function binds its private values the same way a graph does. Because parentheses around values make an array, ~(fn () ("hello"))~ returns ~["hello"]~; the compiler warns (=WRN0002=) when a result is a single plain value in parentheses, unless a return type of =#arr= says the array is intended.
 
+*Documentation.* A =defn= is documented with a =(doc "...")= among the direct elements of its body, before or after its result: ~(defn place #rec (#str slug #str label) (doc "A Linked Art Place.") (std/core ...))~. The parser takes it out of the body and keeps it with the function; it is never evaluated, and it is not part of the result. A function has at most one, holding a single string. A =doc= anywhere else (inside a result, in a =fn= or in a graph) is an error, reported when the file is parsed, so it is found even in a function that is never called; =doc= cannot name a function.
+
 Semantics of a call:
 
 - *Arity* is checked: a call with the wrong number of arguments is an error. Functions are not curried.
@@ -368,7 +370,7 @@ Semantics of a call:
       (:r (inc 2))))              ; {"r": 3}
   #+END_SRC
 
-A =defn= body is checked when the file is parsed: it must be one expression and cannot be a spliced record (~(defn f (x) :k v)~). A =define= or a nested =defn= in it is reported with its replacement, =let= or a =let=-bound =fn=.
+A =defn= body is checked when the file is parsed: apart from its =doc=, it must be one expression and cannot be a spliced record (~(defn f (x) :k v)~). A =define= or a nested =defn= in it is reported with its replacement, =let= or a =let=-bound =fn=.
 
 *Signatures.* A function's types are built-in properties in its header: one between the name and the parameters is the return type, and one before a parameter is that parameter's type. Either can be left out, and so can any parameter's.
 

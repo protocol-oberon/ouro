@@ -20,9 +20,10 @@ data Declaration
 
 
 -- Higher Expression Surface AST of a module, indexed by the DeclType
+-- A function keeps its documentation, from a (doc "...") in its body, if it has one
 data HigherExpression (t :: Declaration) where
-    Function :: SourcePos -> Text -> [Param] -> Expr -> HigherExpression 'FunctionExpr
-    Graph    :: SourcePos -> Text -> Expr            -> HigherExpression 'GraphExpr
+    Function :: SourcePos -> Text -> Maybe Text -> [Param] -> Expr -> HigherExpression 'FunctionExpr
+    Graph    :: SourcePos -> Text -> Expr                          -> HigherExpression 'GraphExpr
 
 deriving instance Show (HigherExpression t)
 deriving instance Eq   (HigherExpression t)
@@ -32,8 +33,8 @@ deriving instance Eq   (HigherExpression t)
 mapExpr :: (Expr -> Expr) -> HigherExpression t -> HigherExpression t
 mapExpr f exprNode =
     case exprNode of
-        Function pos name args expr -> Function pos name args (f expr)
-        Graph    pos name expr      -> Graph    pos name (f expr)
+        Function pos name doc args expr -> Function pos name doc args (f expr)
+        Graph    pos name expr          -> Graph    pos name (f expr)
 
 
 -- The ExportMap mirrors the segregation to maintain type safety across boundaries
@@ -65,8 +66,8 @@ mapParamPatterns :: (Expr -> Expr) -> Module -> Module
 mapParamPatterns transform m = m
     { _functionRegistry = Map.map patterns (_functionRegistry m) }
     where
-    patterns (Function pos name args expr) =
-        Function pos name [ arg { paramPattern = transform <$> paramPattern arg } | arg <- args ] expr
+    patterns (Function pos name doc args expr) =
+        Function pos name doc [ arg { paramPattern = transform <$> paramPattern arg } | arg <- args ] expr
 
 makeLenses ''ExportMap
 makeLenses ''Module

@@ -1,5 +1,8 @@
+{-# LANGUAGE GADTs #-}
+
 module Ouro.FunctionTest
 ( destructuring
+, documentation
 , expressionBodies
 , mapping
 , placeholders
@@ -8,10 +11,15 @@ module Ouro.FunctionTest
 , threading
 ) where
 
-import qualified Data.Text as T
+import qualified Data.Map.Strict             as Map
+import           Data.Ouro.Lisp.Lexer        (tokenize)
+import qualified Data.Ouro.Lisp.Module.Types as M
+import           Data.Ouro.Lisp.Parser       (parseModule)
+import qualified Data.Text                   as T
 import           Hedgehog
-import           Utils     (compilesLike, compilesToJSON, compilesWithoutWarnings,
-                            failsToCompile, failsWith)
+import           Utils                       (compilesLike, compilesToJSON,
+                                              compilesWithoutWarnings,
+                                              failsToCompile, failsWith)
 
 
 -- A function body is exactly one expression: its result, written exactly as it would be
@@ -346,3 +354,45 @@ threading = Group "Functions: with and -> build a value step by step"
     ]
     where
     base = "(defn base () (:id \"1\" :type \"T\")) "
+
+
+-- A function is documented with one (doc "...") among the direct elements of its body,
+-- before or after its result. It is kept with the function and never evaluated, and a
+-- doc anywhere else is reported when the file is parsed.
+documentation :: Group
+documentation = Group "Functions: a body can hold one (doc ...)"
+    [ ("a doc before the result",                 compilesLike "(defn one! () (doc \"One.\") 1) (graph g (:r (one!)))"
+                                                               "(graph g (:r 1))")
+    , ("a doc after the result",                  compilesLike "(defn one! () 1 (doc \"One.\")) (graph g (:r (one!)))"
+                                                               "(graph g (:r 1))")
+    , ("a doc with a signature",                  compilesLike "(defn inc! #num (#num n) (doc \"Adds one.\") (+ n 1)) (graph g (:r (inc! 1)))"
+                                                               "(graph g (:r 2))")
+    , ("the doc is kept with the function",       documents "(defn one! () (doc \"One.\") 1) (graph g (:r (one!)))" "one!" (Just "One."))
+    , ("so is a doc after the result",            documents "(defn one! () 1 (doc \"One.\")) (graph g (:r (one!)))" "one!" (Just "One."))
+    , ("a function without one has none",         documents "(defn one! () 1) (graph g (:r (one!)))" "one!" Nothing)
+
+    -- One doc, a single string, directly in a defn's body
+    , ("two docs are an error",                   failsWith "is documented more than once"
+                                                            "(defn one! () (doc \"One.\") (doc \"Uno.\") 1) (graph g (:r (one!)))")
+    , ("a doc that is not a string is an error",  failsWith "is not a single string"
+                                                            "(defn one! () (doc 1) 1) (graph g (:r (one!)))")
+    , ("a doc of two strings is an error",        failsWith "is not a single string"
+                                                            "(defn one! () (doc \"One\" \"Uno\") 1) (graph g (:r (one!)))")
+    , ("a doc inside the result is an error",     failsWith "'doc' belongs directly in the body of a defn"
+                                                            "(defn one! () (:r 1 :d (doc \"One.\"))) (graph g (:r (one!)))")
+    , ("even in a function never called",         failsWith "'doc' belongs directly in the body of a defn"
+                                                            "(defn one! () (:r 1 :d (doc \"One.\"))) (graph g (:r 1))")
+    , ("a doc in a fn is an error",               failsWith "'doc' belongs directly in the body of a defn"
+                                                            "(defn one! () (let ($f (fn () (doc \"F.\") 1)) (f))) (graph g (:r (one!)))")
+    , ("a doc in a graph is an error",            failsWith "'doc' belongs directly in the body of a defn"
+                                                            "(graph g (:r 1 :d (doc \"A graph.\")))")
+    , ("doc cannot be a function name",           failsWith "'doc' is a special form"
+                                                            "(defn doc (x) x) (graph g (:r 1))")
+    ]
+    where
+    documents src name expected = withTests 1 . property $
+        either (const Nothing) docOf (tokenize "t.ouro" src >>= parseModule) === Just expected
+        where
+        docOf m = case Map.lookup name (M._functionRegistry m) of
+                      Just (M.Function _ _ doc _ _) -> Just doc
+                      Nothing                       -> Nothing

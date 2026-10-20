@@ -39,7 +39,7 @@ lintExpression =
 lintModule :: M.Module -> [OuroWarning]
 lintModule ouroModule =
        concat [ lintResult name body <> lintFns body
-              | M.Function _ name _ (S.Form _ [body]) <- Map.elems (ouroModule ^. M.functionRegistry) ]
+              | M.Function _ name _ _ (S.Form _ [body]) <- Map.elems (ouroModule ^. M.functionRegistry) ]
     <> concat [ lintFns expr
               | M.Graph _ _ expr <- Map.elems (ouroModule ^. M.graphRegistry) ]
 

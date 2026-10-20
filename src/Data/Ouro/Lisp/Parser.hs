@@ -15,9 +15,10 @@ import           Data.Ouro.Error.Types       (ErrorContext (..), OuroError (..),
                                               SyntaxError (..))
 import           Data.Ouro.Lisp.Function     (checkFunctionName, checkParams,
                                               duplicateFunction, functionBody,
-                                              graphBody, isFunctionKeyword,
-                                              patternParam, removedLocalDefn,
-                                              renamedDefun, typedResult)
+                                              functionDoc, graphBody,
+                                              isFunctionKeyword, patternParam,
+                                              removedLocalDefn, renamedDefun,
+                                              typedResult)
 import           Data.Ouro.Lisp.Module.Types (Declaration (..),
                                               HigherExpression (..),
                                               Module (..), graphRegistry,
@@ -57,7 +58,7 @@ buildModuleRegistry = foldM insertDecl emptyModule
 
     insertDecl :: Module -> ParsedDecl -> Either OuroError Module
     insertDecl m = \case
-                    (PFunction t@(Function pos name _ _))
+                    (PFunction t@(Function pos name _ _ _))
                         -> do
                            checkFunctionName name pos
                            case Map.member name (m ^. functionRegistry) of
@@ -117,10 +118,13 @@ pDefn pos = do
     -- A pattern parameter binds something, and each name is bound once
     lift (checkParams pos args)
 
-    -- A body is exactly one result expression, checked against the return type
-    result <- lift (functionBody name pos body)
+    -- A (doc "...") among the body's direct elements is the function's documentation
+    (doc, results) <- lift (functionDoc name body)
 
-    pure $ PFunction (Function pos name args (S.Form pos [typedResult retType result]))
+    -- A body is exactly one result expression, checked against the return type
+    result <- lift (functionBody name pos results)
+
+    pure $ PFunction (Function pos name doc args (S.Form pos [typedResult retType result]))
 
 
 -- A type tag between a function's name and its parameters is its return type

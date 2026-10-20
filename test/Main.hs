@@ -32,7 +32,7 @@ main = withUtf8Console $ do
         , Scoping.lexicalFunctions
         , Scoping.valueGetAndErrors
         , Scoping.cleanup
-        -- Functions: bodies are one result expression, names are plain symbols, signatures, placeholders, map, patterns
+        -- Functions: bodies are one result expression, names are plain symbols, signatures, placeholders, map, patterns, docs
         , Function.expressionBodies
         , Function.plainNames
         , Function.signatures
@@ -40,6 +40,7 @@ main = withUtf8Console $ do
         , Function.mapping
         , Function.destructuring
         , Function.threading
+        , Function.documentation
         -- Bindings: let, fn and defn replace define and defun
         , Let.letAndFn
         -- The language as specified: what reaches the output, special forms and built-ins
