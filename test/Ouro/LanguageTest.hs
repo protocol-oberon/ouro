@@ -122,40 +122,36 @@ formsAndBuiltins = Group "Special forms and built-ins"
     , ("insert takes a written attribute pair",     compilesToJSON "(graph g (:r (insert 2 :_label \"Proust\" (:id \"1\" :type \"Person\"))))"
                                                                    "{\"r\": {\"id\": \"1\", \"type\": \"Person\", \"_label\": \"Proust\"}}")
 
-    -- (all a ...) is true when every operand is, and (some a ...) when one is. Each stops
+    -- (and a ...) is true when every operand is, and (or a ...) when one is. Each stops
     -- at the operand that decides it, and checks every operand it reaches as a #bool
-    , ("all is true when every operand is",         compilesToJSON "(graph g (:a (all true true) :b (all true false) :c (all true) :d (all)))"
+    , ("and is true when every operand is",         compilesToJSON "(graph g (:a (and true true) :b (and true false) :c (and true) :d (and)))"
                                                                    "{\"a\": true, \"b\": false, \"c\": true, \"d\": true}")
-    , ("some is true when one operand is",          compilesToJSON "(graph g (:a (some false true) :b (some false false) :c (some)))"
+    , ("or is true when one operand is",            compilesToJSON "(graph g (:a (or false true) :b (or false false) :c (or)))"
                                                                    "{\"a\": true, \"b\": false, \"c\": false}")
-    , ("all stops at the first false",              compilesToJSON "(graph g (:r (all false (nth 5 ())) :s (all false 1)))"
+    , ("and stops at the first false",              compilesToJSON "(graph g (:r (and false (nth 5 ())) :s (and false 1)))"
                                                                    "{\"r\": false, \"s\": false}")
-    , ("some stops at the first true",              compilesToJSON "(graph g (:r (some true (nth 5 ()))))"
+    , ("or stops at the first true",                compilesToJSON "(graph g (:r (or true (nth 5 ()))))"
                                                                    "{\"r\": true}")
     , ("an operand must be a #bool",                failsWith "expectedProperty = \"#bool\", actualProperty = \"#num\""
-                                                              "(graph g (:r (all true 1)))")
+                                                              "(graph g (:r (and true 1)))")
     , ("so must a lone operand",                    failsWith "expectedProperty = \"#bool\", actualProperty = \"#num\""
-                                                              "(graph g (:r (all 1)))")
-    , ("all and some combine comparisons",          compilesToJSON "(graph g (:r (all (> 2 1) (some (eq \"a\" \"b\") (eq \"a\" \"a\")))))"
-                                                                   "{\"r\": true}")
-    , ("all and some take holes",                   compilesToJSON "(graph g (:r (let ($f (all ? true)) (f false)) :s (map (some ? false) (true false))))"
-                                                                   "{\"r\": false, \"s\": [true, false]}")
-    , ("and are threading steps",                   compilesToJSON "(graph g (:r (-> true (all false))))"
-                                                                   "{\"r\": false}")
-    , ("all cannot name a function",                failsWith "'all' is a special form"
-                                                              "(defn all (x) x) (graph g (:r (all 1)))")
-    , ("all and some guard an index",               compilesToJSON "(graph g (let ($tags ()) (:featured (all (> (len tags) 0) (eq (nth 0 tags) \"featured\")) :listed (some (eq (len tags) 0) (eq (nth 0 tags) \"listed\")))))"
-                                                                   "{\"featured\": false, \"listed\": true}")
-
-    -- (or a b) is a built-in: both operands are evaluated, and both must be #bool
-    , ("or is true when either operand is",         compilesToJSON "(graph g (:a (or true false) :b (or false false)))"
-                                                                   "{\"a\": true, \"b\": false}")
-    , ("or evaluates both operands",                failsWith "Index"
-                                                              "(graph g (:r (or true (nth 5 ()))))")
-    , ("or takes #bool operands",                   failsWith "expectedProperty = \"#bool\", actualProperty = \"#num\""
+                                                              "(graph g (:r (and 1)))")
+    , ("or checks its operands too",                failsWith "expectedProperty = \"#bool\", actualProperty = \"#num\""
                                                               "(graph g (:r (or 1 true)))")
-    , ("or takes two operands",                     failsWith "IncorrectArity"
-                                                              "(graph g (:r (or true)))")
+    , ("and and or combine comparisons",            compilesToJSON "(graph g (:r (and (> 2 1) (or (eq \"a\" \"b\") (eq \"a\" \"a\")))))"
+                                                                   "{\"r\": true}")
+    , ("and and or take holes",                     compilesToJSON "(graph g (:r (let ($f (and ? true)) (f false)) :s (map (or ? false) (true false))))"
+                                                                   "{\"r\": false, \"s\": [true, false]}")
+    , ("and and or are threading steps",            compilesToJSON "(graph g (:r (-> true (and false)) :s (-> false (or true))))"
+                                                                   "{\"r\": false, \"s\": true}")
+    , ("and cannot name a function",                failsWith "'and' is a special form"
+                                                              "(defn and (x) x) (graph g (:r (and 1)))")
+    , ("nor can or",                                failsWith "'or' is a special form"
+                                                              "(defn or (x) x) (graph g (:r 1))")
+    , ("and and or guard an index",                 compilesToJSON "(graph g (let ($tags ()) (:featured (and (> (len tags) 0) (eq (nth 0 tags) \"featured\")) :listed (or (eq (len tags) 0) (eq (nth 0 tags) \"listed\")))))"
+                                                                   "{\"featured\": false, \"listed\": true}")
+    , ("a chained comparison stops at the first false", compilesToJSON "(graph g (:r (< 2 1 (nth 5 ()))))"
+                                                                       "{\"r\": false}")
     ]
 
 
@@ -414,8 +410,8 @@ strings = Group "Strings: escaped in the output"
     ]
 
 
--- not negates; any, every and filter call a function on each element, as map does, and
--- any and every stop at the element that decides; contains and distinct compare as eq
+-- not negates; exists, forall and filter call a function on each element, as map does,
+-- and exists and forall stop at the element that decides; contains and distinct compare as eq
 -- does; has and get-or walk a path as get does, and tell a missing key from an error.
 logicAndCollections :: Group
 logicAndCollections = Group "Built-ins: logic, arrays and records"
@@ -426,37 +422,49 @@ logicAndCollections = Group "Built-ins: logic, arrays and records"
     , ("not takes one operand",                  failsWith "nameOfFunc = \"not\""
                                                            "(graph g (:r (not true false)))")
 
-      -- any, every and filter
-    , ("any finds an element",                   compilesToJSON "(graph g (:r (any (> ? 2) (1 2 3))))"
+      -- exists, forall and filter
+    , ("exists finds an element",                compilesToJSON "(graph g (:r (exists (> ? 2) (1 2 3))))"
                                                                 "{\"r\": true}")
-    , ("any of nothing is false",                compilesToJSON "(graph g (:r (any (> ? 2) ())))"
+    , ("exists of nothing is false",             compilesToJSON "(graph g (:r (exists (> ? 2) ())))"
                                                                 "{\"r\": false}")
-    , ("every checks each element",              compilesToJSON "(graph g (:a (every (> ? 0) (1 2 3)) :b (every (> ? 1) (1 2 3))))"
+    , ("forall checks each element",             compilesToJSON "(graph g (:a (forall (> ? 0) (1 2 3)) :b (forall (> ? 1) (1 2 3))))"
                                                                 "{\"a\": true, \"b\": false}")
-    , ("every of nothing is true",               compilesToJSON "(graph g (:r (every (> ? 2) ())))"
+    , ("forall of nothing is true",              compilesToJSON "(graph g (:r (forall (> ? 2) ())))"
                                                                 "{\"r\": true}")
-    , ("any stops at the deciding element",      compilesToJSON "(graph g (:r (any (fn (x) (> (len x) 1)) (\"ab\" 5))))"
+    , ("exists stops at the deciding element",   compilesToJSON "(graph g (:r (exists (fn (x) (> (len x) 1)) (\"ab\" 5))))"
                                                                 "{\"r\": true}")
-    , ("every stops at the deciding element",    compilesToJSON "(graph g (:r (every (fn (x) (> (len x) 5)) (\"ab\" 5))))"
+    , ("forall stops at the deciding element",   compilesToJSON "(graph g (:r (forall (fn (x) (> (len x) 5)) (\"ab\" 5))))"
                                                                 "{\"r\": false}")
-    , ("none is not any",                        compilesToJSON "(graph g (:r (not (any (eq ? 3) (1 2)))))"
+    , ("none is not exists",                     compilesToJSON "(graph g (:r (not (exists (eq ? 3) (1 2)))))"
                                                                 "{\"r\": true}")
+    , ("omits is true when no element answers true", compilesToJSON "(graph g (:a (omits (> ? 2) (1 2)) :b (omits (> ? 2) (1 5))))"
+                                                                    "{\"a\": true, \"b\": false}")
+    , ("omits of nothing is true",               compilesToJSON "(graph g (:r (omits (> ? 2) ())))"
+                                                                "{\"r\": true}")
+    , ("omits stops at the deciding element",    compilesToJSON "(graph g (:r (omits (fn (x) (> (len x) 1)) (\"ab\" 5))))"
+                                                                "{\"r\": false}")
+    , ("omits finds no contradiction",           compilesToJSON "(graph g (let ($book (:tp46 (\"a\" \"b\") :ntp46 (\"c\"))) (:r (omits (contains (get-or () book ntp46) ?) (get-or () book tp46)))))"
+                                                                "{\"r\": true}")
+    , ("omits needs a function",                 failsWith "a function for omits to call"
+                                                           "(graph g (:r (omits 1 (1 2))))")
+    , ("omits cannot name a function",           failsWith "'omits' is a special form"
+                                                           "(defn omits (x) x) (graph g (:r 1))")
     , ("filter keeps the matching elements",     compilesToJSON "(graph g (:r (filter (> ? 1) (1 2 3))))"
                                                                 "{\"r\": [2, 3]}")
     , ("filter with has",                        compilesToJSON "(graph g (:r (filter (fn (p) (has p name)) ((:name \"a\") (:id 1)))))"
                                                                 "{\"r\": [{\"name\": \"a\"}]}")
-    , ("a hole for the array",                   compilesToJSON "(graph g (let ($big (any (> ? 2) ?)) (:r (big (1 5)))))"
+    , ("a hole for the array",                   compilesToJSON "(graph g (let ($big (exists (> ? 2) ?)) (:r (big (1 5)))))"
                                                                 "{\"r\": true}")
     , ("the answer must be a Boolean",           failsWith "expectedProperty = \"#bool\""
-                                                           "(graph g (:r (any (+ ? 1) (1 2))))")
-    , ("any needs a function",                   failsWith "a function for any to call"
-                                                           "(graph g (:r (any 1 (1 2))))")
-    , ("every needs an Array",                   failsWith "an Array for every to go through"
-                                                           "(graph g (:r (every (> ? 1) 5)))")
+                                                           "(graph g (:r (exists (+ ? 1) (1 2))))")
+    , ("exists needs a function",                failsWith "a function for exists to call"
+                                                           "(graph g (:r (exists 1 (1 2))))")
+    , ("forall needs an Array",                  failsWith "an Array for forall to go through"
+                                                           "(graph g (:r (forall (> ? 1) 5)))")
     , ("a malformed filter is an error",         failsWith "filter is written (filter f array)"
                                                            "(graph g (:r (filter (> ? 1))))")
-    , ("any cannot name a function",             failsWith "'any' is a special form"
-                                                           "(defn any (x) x) (graph g (:r 1))")
+    , ("exists cannot name a function",          failsWith "'exists' is a special form"
+                                                           "(defn exists (x) x) (graph g (:r 1))")
 
       -- contains and distinct
     , ("contains looks in an Array",             compilesToJSON "(graph g (:a (contains (1 2 3) 2) :b (contains (1 2) 5)))"

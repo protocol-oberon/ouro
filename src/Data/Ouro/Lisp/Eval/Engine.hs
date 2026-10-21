@@ -199,11 +199,12 @@ evalExpr expr = do
                & EvalError
                & pure
 
-        -- (any f array), (every f array), (filter f array): f is called on each element, as
-        -- map calls it, and must answer with a Boolean. any and every stop at the element
-        -- that decides the answer, as some and all stop at an operand.
+        -- (exists f array), (forall f array), (omits f array), (filter f array): f is called
+        -- on each element, as map calls it, and must answer with a Boolean. exists, forall
+        -- and omits stop at the element that decides the answer, as or and and stop at an
+        -- operand; omits is exists the other way round.
         S.Form pos [S.Symbol _ form, fnExpr, arrExpr]
-            | form `elem` ["any", "every", "filter"]
+            | form `elem` ["exists", "forall", "omits", "filter"]
             -> do
                fnVal  <- evalExpr fnExpr
                arrVal <- evalExpr arrExpr
@@ -224,9 +225,10 @@ evalExpr expr = do
                        -> let answer element = predicateVerdict form (S.exprPos arrExpr)
                                                <$> callOnElement pos fnExpr arrExpr f element
                           in case form of
-                                 "any"   -> decideOn True  answer elems
-                                 "every" -> decideOn False answer elems
-                                 _filter -> keepWhere answer elems
+                                 "exists" -> decideOn True  answer elems
+                                 "forall" -> decideOn False answer elems
+                                 "omits"  -> negateAnswer <$> decideOn True answer elems
+                                 _filter  -> keepWhere answer elems
 
                    (_, arr)
                        -> typeMismatch ("an Array for " <> form <> " to go through") (humanReadableType arr)
@@ -236,7 +238,7 @@ evalExpr expr = do
                           & pure
 
         S.Form pos (S.Symbol _ form : _)
-            | form `elem` ["any", "every", "filter"]
+            | form `elem` ["exists", "forall", "omits", "filter"]
             -> lexicalError (form <> " is written (" <> form <> " f array): a function that answers true or false, then the Array to call it on.")
                & withBlurb (predicateUsage form)
                & OuroError pos
@@ -812,7 +814,7 @@ findPath value = \case
         _notARecord          -> Just (getPath value path)
 
 
--- A value map, any, every and filter can call on each element
+-- A value map, exists, forall, omits and filter can call on each element
 callable :: L.Expr -> Bool
 callable = \case
     FunctionClosure {} -> True
@@ -820,7 +822,7 @@ callable = \case
     _notAFunction      -> False
 
 
--- Calls a function on one element of an Array, for map, any, every and filter. The call
+-- Calls a function on one element of an Array, for map, exists, forall, omits and filter. The call
 -- is an ordinary one, made in a frame that binds the function and the element to names
 -- that cannot be written in Ouro, so arity, signatures and the recursion check apply as
 -- they do anywhere else. An element has no position of its own, so it is reported at the
@@ -838,7 +840,7 @@ callOnElement pos fnExpr arrExpr f element = do
         applyFunction pos [S.Symbol (S.exprPos fnExpr) "%map-fn", S.Symbol (S.exprPos arrExpr) "%map-element"]
 
 
--- The answer of one call of any's, every's or filter's function: a Boolean, or the
+-- The answer of one call of exists', forall's, omits' or filter's function: a Boolean, or the
 -- value to stop with, an error reported at the Array
 predicateVerdict :: Text -> SourcePos -> L.Expr -> Either L.Expr Bool
 predicateVerdict form arrPos = \case
@@ -851,7 +853,7 @@ predicateVerdict form arrPos = \case
                                & Left
 
 
--- any and every: stop at the first element whose answer is the deciding one
+-- exists, forall and omits: stop at the first element whose answer is the deciding one
 decideOn :: Bool -> (L.Expr -> EvalM (Either L.Expr Bool)) -> [L.Expr] -> EvalM L.Expr
 decideOn deciding answer = \case
     []             -> pure (Primitive (I.Boolean (not deciding)))
@@ -859,6 +861,14 @@ decideOn deciding answer = \case
                           Left stop                -> pure stop
                           Right b | b == deciding  -> pure (Primitive (I.Boolean deciding))
                                   | otherwise      -> decideOn deciding answer rest
+
+
+-- omits: the answer exists gives, the other way round. An error it stopped at is kept as
+-- it is.
+negateAnswer :: L.Expr -> L.Expr
+negateAnswer = \case
+    Primitive (I.Boolean b) -> Primitive (I.Boolean (not b))
+    stop                    -> stop
 
 
 -- filter: the elements whose answer is true, in order

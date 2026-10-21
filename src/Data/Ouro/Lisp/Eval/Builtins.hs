@@ -12,8 +12,7 @@ import           Control.Monad.Reader        (Reader)
 import           Data.Function               ((&))
 import           Data.List                   (find, nub)
 import qualified Data.Map                    as Map
-import           Data.Ouro.Error.Diagnostics (astCorruption,
-                                              binaryOpMismatchBlurb,
+import           Data.Ouro.Error.Diagnostics (binaryOpMismatchBlurb,
                                               incorrectArity, propertyMismatch,
                                               typeMismatch, withBlurb)
 import           Data.Ouro.Error.Types       (ErrorContext (..), OuroError (..),
@@ -47,13 +46,10 @@ builtinRegistry = Map.fromList
                       , ("<",           handleLess)
                       , ("eq",          handleEquality)
                       , ("neq",         handleNeq)
-                      , ("or",          handleOr)
                       , ("not",         handleNot)
                       , ("len",         handleLength)
                       , ("contains",    handleContains)
                       , ("distinct",    handleDistinct)
-                      -- Internal: emitted only by the desugarer for chained comparisons
-                      , ("%and",        handleAnd)
                       , ("years",       handleYearsModifier)
                       , ("months",      handleMonthsModifier)
                       , ("days",        handleDaysModifier)
@@ -362,66 +358,6 @@ handleNeq pos =
              & OuroError pos
              & L.EvalError
              & pure
-
-
--- handleAnd.
---
--- Binary logical conjunction. Internal only: the desugar pass emits it to
--- chain variadic comparisons, e.g. (< 1 2 3) -> (%and (< 1 2) (< 2 3)).
-handleAnd :: SourcePos -> [L.Expr] -> Reader Env L.Expr
-handleAnd pos =
-    \case
-     [a, b] -> case (a, b) of
-                   -- Error propagation
-                   (err@(L.EvalError _), _) -> pure err
-                   (_, err@(L.EvalError _)) -> pure err
-
-                   (L.Primitive (I.Boolean b1), L.Primitive (I.Boolean b2)) -> pure $ L.Primitive (I.Boolean (b1 && b2))
-
-                   _typeMismatch
-                       -> Data.Ouro.Error.Diagnostics.typeMismatch "Boolean results from a chained comparison"
-                               (humanReadableType a <> " and " <> humanReadableType b)
-                          & OuroError pos
-                          & L.EvalError
-                          & pure
-
-     -- Arity Fallback: The desugar pass failed to normalize the AST
-     _badAST
-         -> Data.Ouro.Error.Diagnostics.astCorruption "%and" "Conjunction received non-binary arguments after desugaring."
-             & OuroError pos
-             & L.EvalError
-             & pure
-
-
--- handleOr.
---
--- Binary disjunction of two Booleans. As for any built-in, both operands are evaluated
--- first; (some a b ...) is the form that stops at the first true operand.
-handleOr :: SourcePos -> [L.Expr] -> Reader Env L.Expr
-handleOr pos =
-    \case
-     [a, b] -> case (a, b) of
-                   -- Error propagation
-                   (err@(L.EvalError _), _) -> pure err
-                   (_, err@(L.EvalError _)) -> pure err
-
-                   (L.Primitive (I.Boolean b1), L.Primitive (I.Boolean b2)) -> pure $ L.Primitive (I.Boolean (b1 || b2))
-
-                   (L.Primitive (I.Boolean _), notBool) -> notABoolean notBool
-                   (notBool, _)                         -> notABoolean notBool
-
-     -- The wrong number of operands, as written: each operator compares or combines two values
-     operands
-         -> wrongOperandCount "or" operands
-            & OuroError pos
-            & L.EvalError
-            & pure
-
-    where
-    notABoolean value = Data.Ouro.Error.Diagnostics.propertyMismatch "#bool" (L.propertyOf value)
-                        & OuroError pos
-                        & L.EvalError
-                        & pure
 
 
 -- handleNot.

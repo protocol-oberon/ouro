@@ -2,36 +2,32 @@ module Data.Ouro.Lisp.Canon.Comparisons
 ( comparisons
 ) where
 
-import           Data.Ouro.Lisp.Canon.Traverse (bottomUp)
-import qualified Data.Ouro.Lisp.Surface        as S
+import           Data.Ouro.Lisp.Canon.Connectives (connectives)
+import           Data.Ouro.Lisp.Canon.Traverse    (bottomUp)
+import qualified Data.Ouro.Lisp.Surface           as S
 
 
 -- comparisons.
 --
--- Unrolls variadic comparisons into nested binary 'and' checks:
+-- Unrolls a variadic comparison into an 'and' of its neighbouring pairs:
 --
---   (eq 1 2 3)   (%and (eq 1 2) (eq 2 3))
+--   (< a b c)    (and (< a b) (< b c))
 --
--- '%and' is an internal builtin: '%' cannot be lexed in user symbols or keys, so the
--- desugared form can never be shadowed by a user binding. After 'guards', so a case guard,
--- marked (%guard < 10 20), is not unrolled as a comparison of its own operands.
+-- so a chain stops at the first pair that is false, as and does. 'connectives' has already
+-- run, so the and is desugared here, into the same chain of cases a written and becomes.
+-- After 'guards', so a case guard, marked (%guard < 10 20), is not unrolled as a
+-- comparison of its own operands.
 comparisons :: S.Expr -> S.Expr
 comparisons = bottomUp unroll
     where
     unroll = \case
-        -- Base Case: Exactly two arguments. Return as-is.
-        S.Form pos (opNode@(S.Symbol _ opName) : a : b : [])
+        -- Three or more operands: one comparison per neighbouring pair, all of which must hold
+        S.Form pos (opNode@(S.Symbol sPos opName) : operands@(_ : _ : _ : _))
             | opName `elem` comparisonOperators
-                -> S.Form pos [opNode, a, b]
+                -> let pairs = zipWith (\a b -> S.Form pos [opNode, a, b]) operands (drop 1 operands)
+                   in connectives (S.Form pos (S.Symbol sPos "and" : pairs))
 
-        -- Recursive Case: Three or more arguments. Chain them.
-        S.Form pos (opNode@(S.Symbol sPos opName) : a : b : xs)
-            | opName `elem` comparisonOperators
-                -> let leftCheck  = S.Form pos [opNode, a, b]
-                       rightCheck = unroll (S.Form pos (opNode : b : xs))
-                   in S.Form pos [S.Symbol sPos "%and", leftCheck, rightCheck]
-
-        -- Pass-through for anything that isn't a comparison
+        -- Two operands, or anything that isn't a comparison
         otherVal
             -> otherVal
 

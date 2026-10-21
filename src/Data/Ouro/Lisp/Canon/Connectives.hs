@@ -8,23 +8,23 @@ import           Text.Megaparsec        (SourcePos)
 
 -- connectives.
 --
--- (all a ...) is true when every operand is, and (some a ...) when at least one is. Each
+-- (and a ...) is true when every operand is, and (or a ...) when at least one is. Each
 -- becomes a chain of cases, so an operand is only evaluated when the ones before it have
 -- not already decided the answer, and each operand is checked as a #bool:
 --
---   (all a b c)    (case #bool a (true (all b c)) (otherwise false))
---   (some a b c)   (case #bool a (true true) (otherwise (some b c)))
---   (all a)        #bool a
---   (all)          true, and (some) is false
+--   (and a b c)    (case #bool a (true (and b c)) (otherwise false))
+--   (or a b c)     (case #bool a (true true) (otherwise (or b c)))
+--   (and a)        #bool a
+--   (and)          true, and (or) is false
 --
 -- Top-down, so the rest of a chain is rewritten in turn. Runs after 'threading', so in
--- (-> x (all y)) the step receives x as its first operand. A case's patterns and a fn's
+-- (-> x (and y)) the step receives x as its first operand. A case's patterns and a fn's
 -- parameters are matched, not evaluated, so they are left as they are.
 connectives :: S.Expr -> S.Expr
 connectives = \case
-    S.Form pos (S.Symbol _ "all" : operands)
+    S.Form pos (S.Symbol _ "and" : operands)
         -> connectives (chain pos True operands)
-    S.Form pos (S.Symbol _ "some" : operands)
+    S.Form pos (S.Symbol _ "or" : operands)
         -> connectives (chain pos False operands)
 
     S.Form pos (cSym@(S.Symbol _ "case") : target : branches)
@@ -46,7 +46,7 @@ connectives = \case
         malformed                   -> malformed
 
 
--- The chain of cases for (all ...), or for (some ...) when isAll is False
+-- The chain of cases for (and ...), or for (or ...) when isAll is False
 chain :: SourcePos -> Bool -> [S.Expr] -> S.Expr
 chain pos isAll = \case
     []
@@ -62,8 +62,8 @@ chain pos isAll = \case
            where
            restOf name     = S.Form pos (S.Symbol pos name : rest)
            (whenTrue, whenFalse)
-               | isAll     = (restOf "all", S.Literal pos (S.Bool False))
-               | otherwise = (S.Literal pos (S.Bool True), restOf "some")
+               | isAll     = (restOf "and", S.Literal pos (S.Bool False))
+               | otherwise = (S.Literal pos (S.Bool True), restOf "or")
 
     where
     -- Each operand is checked where it is written
