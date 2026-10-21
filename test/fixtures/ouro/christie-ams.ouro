@@ -1,0 +1,27 @@
+;; Will be in std: Linked Art's own patterns. Named std/... here until modules exist
+(defn std/core #rec (#uri id #str type #str label)
+  (:id id :type type :_label label))
+
+(defn std/name #rec (#str content)
+  (:type "Name" :content content))
+
+(defn example #uri (#str path)
+  (+ "https://linked.art/example/" path))
+
+(defn place #rec (#str slug #str label)
+  (std/core (example (+ "place/" slug)) "Place" label))
+
+;; Steps: each takes a record first and returns it extended, so they thread with ->
+(defn named #rec (#rec r #str n)
+  (doc "Adds a Name to a record's identified_by.")
+  (with r :identified_by ((std/name n))))
+
+(defn part-of #rec (#rec r #rec whole)
+  (doc "Places a record inside a larger whole.")
+  (with r :part_of (list whole)))
+
+(graph christie-ams
+  (-> (place "amsterdam_auction_house/1" "Christie's AMS")
+      (with :context "https://linked.art/ns/v1/linked-art.json")
+      (named "Christie's Amsterdam Location")
+      (part-of (place "amsterdam/1" "Amsterdam"))))

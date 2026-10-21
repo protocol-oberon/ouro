@@ -265,6 +265,12 @@ types = Group "Types: the rules as they are"
                                                               "(graph g (:r #date \"1642\"))")
     , ("null has no built-in property",             failsWith "expectedProperty = \"#str\", actualProperty = \"null\""
                                                               "(graph g (:r #str null))")
+
+      -- A URI keeps the slashes of its path; gaps 17 and 22 are the exceptions
+    , ("#uri keeps a trailing slash",               compilesToJSON "(graph g (:u #uri \"https://a.org/x/\"))"
+                                                                   "{\"u\": \"https://a.org/x/\"}")
+    , ("a string keeps a doubled slash",            compilesToJSON "(graph g (:u \"https://a.org/x//y\"))"
+                                                                   "{\"u\": \"https://a.org/x//y\"}")
     ]
 
     where
@@ -590,4 +596,8 @@ knownGaps = Group "Known gaps: current, incorrect behaviour"
                                                     fmap (T.isInfixOf "\"k\": \"A\"" . TL.toStrict)
                                                          (validate "t.json" "{\"k\": \"\\x41\"}" defaultOptions)
                                                     === Right True)
+    , ("gap 22: a URI's empty path segment is dropped", compilesToJSON "(graph g (:u #uri \"https://a.org/x//y\"))"
+                                                                      "{\"u\": \"https://a.org/x/y\"}")
+    , ("gap 22: so is a leading one",              compilesToJSON "(graph g (:u #uri \"https://a.org//x\"))"
+                                                                   "{\"u\": \"https://a.org/x\"}")
     ]

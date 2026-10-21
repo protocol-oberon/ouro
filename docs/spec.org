@@ -1097,6 +1097,8 @@ Recorded 2026-10-12 and kept up to date since; none were caused by the scoping r
 
 20. *=compile -o= needs an existing directory:* compiling into an output directory that does not exist reports "Compilation Success" and then crashes with ~withFile: does not exist~, writing nothing. Not pinned by a test, since the CLI has none (gap 13).
 
-21. *=ouro validate= reads strings with Haskell's escapes, not JSON's:* it rejects the valid JSON escapes =é= and =\/=, and accepts the invalid =\x41= and =\65= (both read as =A=). The JSON parser reads string characters with Megaparsec's ~charLiteral~, which follows Haskell's rules.
+21. *=ouro validate= reads strings with Haskell's escapes, not JSON's:* it rejects the valid JSON escapes =\u00e9= and =\/=, and accepts the invalid =\x41= and =\65= (both read as =A=). The JSON parser reads string characters with Megaparsec's ~charLiteral~, which follows Haskell's rules.
+
+22. *A URI's empty path segments are dropped:* ~#uri "https://a.org/x//y"~ serialises as ="https://a.org/x/y"=, and ~#uri "https://a.org//x"~ as ="https://a.org/x"=, which changes the IRI's text. A plain string keeps its slashes, and so does a URI's trailing slash. It was found through a stray leading slash, ~(example "/place/...")~, whose =#uri= return type hid the doubled slash. Like gap 17, it comes from how the URI library renders a path.
 
 #  LocalWords:  Ouro LD
