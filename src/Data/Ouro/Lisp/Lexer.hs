@@ -163,19 +163,33 @@ pBinding = lexeme . withPos $ Tkn.Binding <$> (char '$' *> symbolName)
 
 -- The characters of a symbol. 'λ' on its own is read as 'fn', so it is fn everywhere: as
 -- the head of a function, and as a name that cannot be used for anything else. A longer
--- name that begins with it, such as 'λx', is an ordinary symbol.
+-- name that begins with it, such as 'λx', is an ordinary symbol. The symbols of logic and
+-- of sets are read the same way, as the names they stand for, so messages use the names.
 symbolName :: Parser Text
 symbolName = do
-             first <- letterChar <|> oneOf ("_+-*/<>=!&|~" :: String)
+             first <- letterChar <|> oneOf ("_+-*/<>=!&|~" :: String) <|> oneOf mathSymbols
              rest  <- many (alphaNumChar <|> oneOf ("_-+*/<>=!?&|~'" :: String))
              pure $ case first : rest of
                         "λ"   -> "fn"
+                        "="   -> "eq"
+                        "/="  -> "neq"
+                        "≠"   -> "neq"
+                        "¬"   -> "not"
                         "∧"   -> "and"
                         "∨"   -> "or"
                         "∀"   -> "forall"
                         "∃"   -> "exists"
                         "∄"   -> "omits"
+                        "∪"   -> "union"
+                        "∩"   -> "intersect"
+                        "∖"   -> "setminus"
+                        "⊆"   -> "subset"
+                        "⋃"   -> "unions"
+                        "⋂"   -> "intersections"
                         name  -> T.pack name
+    where
+    -- They are not letters, so each is allowed to begin a symbol by name
+    mathSymbols = "¬∧∨∀∃∄∪∩∖⊆⋃⋂" :: String
 
 
 pSingleToken :: Parser Tkn.Token

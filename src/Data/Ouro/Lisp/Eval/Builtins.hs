@@ -12,6 +12,7 @@ import           Control.Monad.Reader        (Reader)
 import           Data.Function               ((&))
 import           Data.List                   (find, nub)
 import qualified Data.Map                    as Map
+import           Data.Maybe                  (isNothing)
 import           Data.Ouro.Error.Diagnostics (binaryOpMismatchBlurb,
                                               incorrectArity, propertyMismatch,
                                               typeMismatch, withBlurb)
@@ -50,6 +51,12 @@ builtinRegistry = Map.fromList
                       , ("len",         handleLength)
                       , ("contains",    handleContains)
                       , ("distinct",    handleDistinct)
+                      , ("union",       handleUnion)
+                      , ("intersect",   handleIntersect)
+                      , ("setminus",    handleSetminus)
+                      , ("subset",      handleSubset)
+                      , ("unions",        handleUnions)
+                      , ("intersections", handleIntersections)
                       , ("years",       handleYearsModifier)
                       , ("months",      handleMonthsModifier)
                       , ("days",        handleDaysModifier)
@@ -547,6 +554,127 @@ handleDistinct pos =
             & OuroError pos
             & L.EvalError
             & pure
+
+
+-- handleUnion, handleIntersect, handleSetminus and handleSubset.
+--
+-- Arrays as sets, as JSON-LD reads a property's values: elements are compared as eq
+-- compares them, and a result has no repeats, keeping the first of each in the order it
+-- is first written. The first three take one or more Arrays, subset two:
+--
+--   (union (1 2) (2 3))          (1 2 3)      in any of them
+--   (intersect (1 2 3) (3 2 4))  (2 3)        in all of them, in the first's order
+--   (setminus (1 2 3) (2) (3))   (1)          in the first and none of the rest
+--   (subset (1 2) (2 3 1))       true         every value of the first is in the second
+handleUnion :: SourcePos -> [L.Expr] -> Reader Env L.Expr
+handleUnion pos args = withSets pos "union" args unionOf
+
+handleIntersect :: SourcePos -> [L.Expr] -> Reader Env L.Expr
+handleIntersect pos args = withSets pos "intersect" args intersectionOf
+
+handleSetminus :: SourcePos -> [L.Expr] -> Reader Env L.Expr
+handleSetminus pos args = withSets pos "setminus" args (L.Array . difference)
+
+-- a ⊆ b exactly when a ∖ b is empty
+handleSubset :: SourcePos -> [L.Expr] -> Reader Env L.Expr
+handleSubset pos = \case
+    args@[_, _] -> withSets pos "subset" args (L.Primitive . I.Boolean . null . difference)
+    args        -> Data.Ouro.Error.Diagnostics.incorrectArity "subset" 2 (length args)
+                   & Data.Ouro.Error.Diagnostics.withBlurb "subset takes two Arrays: (subset (1 2) (1 2 3)) is true when every value of the first is in the second."
+                   & OuroError pos
+                   & L.EvalError
+                   & pure
+
+-- handleUnions and handleIntersections.
+--
+-- The union and the intersection of one Array of Arrays, for sets that are computed rather
+-- than written: (unions (map (get ? classified_as) parts)) is every classification of
+-- every part. The union of no sets is (), and the intersection of no sets is an error.
+handleUnions :: SourcePos -> [L.Expr] -> Reader Env L.Expr
+handleUnions pos = overSets pos "unions" $ \case
+    []   -> pure (L.Array [])
+    sets -> withSets pos "unions" sets unionOf
+
+handleIntersections :: SourcePos -> [L.Expr] -> Reader Env L.Expr
+handleIntersections pos = overSets pos "intersections" $ \case
+    []   -> Data.Ouro.Error.Diagnostics.typeMismatch "at least one Array to intersect" "an empty Array"
+            & Data.Ouro.Error.Diagnostics.withBlurb "The intersection of no sets is not defined: (intersections ((1 2) (2 3))) is (2)."
+            & OuroError pos
+            & L.EvalError
+            & pure
+    sets -> withSets pos "intersections" sets intersectionOf
+
+-- Applies a set operation to the elements of one Array
+overSets :: SourcePos -> Text -> ([L.Expr] -> Reader Env L.Expr) -> [L.Expr] -> Reader Env L.Expr
+overSets pos name operation = \case
+    [err@(L.EvalError _)]
+        -> pure err
+
+    [arr]
+        | Just sets <- L.asArray arr
+        -> operation sets
+
+    [other]
+        -> Data.Ouro.Error.Diagnostics.typeMismatch "an Array of Arrays" (humanReadableType other)
+           & Data.Ouro.Error.Diagnostics.withBlurb (name <> " takes one Array of Arrays: (" <> name <> " ((1 2) (2 3))).")
+           & OuroError pos
+           & L.EvalError
+           & pure
+
+    args
+        -> Data.Ouro.Error.Diagnostics.incorrectArity name 1 (length args)
+           & OuroError pos
+           & L.EvalError
+           & pure
+
+-- Every value in any of the sets
+unionOf :: [[L.Expr]] -> L.Expr
+unionOf = L.Array . nub . concat
+
+-- The values of the first set that are in all the rest
+intersectionOf :: [[L.Expr]] -> L.Expr
+intersectionOf = L.Array . \case
+    first : rest -> filter (\x -> all (x `elem`) rest) (nub first)
+    []           -> []
+
+-- The values of the first set in none of the rest
+difference :: [[L.Expr]] -> [L.Expr]
+difference = \case
+    first : rest -> filter (\x -> not (any (x `elem`) rest)) (nub first)
+    []           -> []
+
+
+-- Runs a set operation on its Arrays. The first error among the arguments or their
+-- elements is the result; so is a type error for a value that is not an Array, or for a
+-- function, which cannot be compared.
+withSets :: SourcePos -> Text -> [L.Expr] -> ([[L.Expr]] -> L.Expr) -> Reader Env L.Expr
+withSets pos name args operation =
+    case (args, find isError args, traverse L.asArray args) of
+        ([], _, _)
+            -> Data.Ouro.Error.Diagnostics.incorrectArity name 1 0
+               & Data.Ouro.Error.Diagnostics.withBlurb (name <> " takes one or more Arrays: (" <> name <> " (1 2) (2 3)).")
+               & OuroError pos
+               & L.EvalError
+               & pure
+
+        (_, Just err, _)
+            -> pure err
+
+        (_, _, Nothing)
+            -> case find (isNothing . L.asArray) args of
+                   Just other -> Data.Ouro.Error.Diagnostics.typeMismatch "an Array, as a set" (humanReadableType other)
+                                 & Data.Ouro.Error.Diagnostics.withBlurb (name <> " treats Arrays as sets: (" <> name <> " (1 2) (2 3)).")
+                                 & OuroError pos
+                                 & L.EvalError
+                                 & pure
+                   Nothing    -> pure (operation [])
+
+        (_, _, Just sets)
+            -> let elements = concat sets
+               in case (find isError elements, find isFunction elements) of
+                      (Just err, _) -> pure err
+                      (_, Just f)   -> uncomparable pos name f
+                      _noProblem    -> pure (operation sets)
 
 
 isError :: L.Expr -> Bool

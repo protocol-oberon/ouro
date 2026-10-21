@@ -164,16 +164,16 @@ Only graphs are serialised. Functions exist to build and reuse values. A module-
 | String         | ="text"=                                 | Haskell-style character escapes                                     |
 | Number         | =42=, =-3.5=, =1e3=                      | a Double: integers are exact up to 2^53                             |
 | Boolean / null | =true=, =false=, =null=                  |                                                                     |
-| Symbol         | =artist=, =type-node=, =+=, =legacy!=    | starts with a letter or an operator character (see below the table) |
+| Symbol         | =artist=, =type-node=, =+=, =∧=, =legacy!= | starts with a letter, an operator character or a symbol of logic or sets (see below the table) |
 | Attribute      | =:key=, =:@vocab=                        | letters, digits, =-= and =_=, after an optional =@=; a pair's key   |
 | Binding        | =$name=                                  | any symbol; a private binding, only inside a =let=                  |
 | Property       | =#uri=, =#date=, =#str=, =#num=, =#bool= | a built-in property of what follows; also =#rec=, =#arr=, =#fn=     |
 | Empty values   | =#rec-empty=, =#arr-empty=, =()=         | ={}=, =[]= and =[]=                                                 |
 | Hole           | =?=, =?name=, =?..name=                  | a placeholder in a call, or part of a pattern                       |
 | Delimiters     | =( )=                                    | =[ ]= is reserved: it parses, but has no meaning yet                |
-| Keywords       | =defn=, =graph=, =import=, =export=      | a keyword that only begins a longer name (=defnode=) is a symbol    |
+| Keywords       | =defn=, =graph=, =import=, =export=      | a keyword that only begins a longer name (=defnode=) is a symbol; =import= and =export= are reserved, not yet implemented |
 
-Block comments are written ~#| … |#~. A symbol starts with a letter or one of the operator characters ~_ + - * / < > = ! & | ~~, and may also contain digits, ~?~ and ~'~.
+Block comments are written ~#| … |#~. A symbol starts with a letter, one of the operator characters ~_ + - * / < > = ! & | ~~, or one of the symbols of logic and sets ~¬ ∧ ∨ ∀ ∃ ∄ ∪ ∩ ∖ ⊆ ⋃ ⋂~, and may also contain digits, ~?~ and ~'~. On its own, each of those symbols, like =λ=, is read as the name it stands for (see [[*Functions: =defn=, =fn= and calls][functions]]).
 
 A source file is UTF-8, on every platform. A letter is any Unicode letter, so =café= is a name and =:naïve= a key, and strings hold any text. A leading byte order mark is dropped and CRLF line endings become LF, so a file reads the same wherever it was saved; a file that is not valid UTF-8 is an error, not garbled text (~Data.Ouro.readSource~). The compiler's messages are UTF-8 too: on Windows the console's code page is switched to UTF-8 (65001) while =ouro= runs, and restored when it exits.
 
@@ -187,7 +187,8 @@ The grammar below describes the language accepted by the parser and evaluator to
 (* ---------- Modules ---------- *)
 module       = { declaration } ;
 declaration  = defn | graph ;
-defn         = "(" , "defn" , symbol , [ property ] , params , expression , ")" ;
+defn         = "(" , "defn" , symbol , [ property ] , params , [ doc ] , expression , [ doc ] , ")" ;
+doc          = "(" , "doc" , string , ")" ;     (* at most one, before or after the result *)
 graph        = "(" , "graph" , symbol , expression , ")" ;
 params       = "(" , { [ property ] , ( symbol | param-pattern ) } , ")" ;     (* a property types the parameter after it *)
 param-pattern = record-pattern | array-pattern ;     (* binds the parts of one argument *)
@@ -215,7 +216,8 @@ call         = "(" , symbol , { expression | placeholder } , ")" ;
 placeholder  = [ property ] , hole ;     (* a call with placeholders is a function of them *)
 
 (* ---------- Special forms ---------- *)
-special-form = let | fn | case | get | nth | map | insert | replace-at | with | thread | and | or ;
+special-form = let | fn | case | get | has | get-or | nth | map | filter | quantifier
+             | insert | replace-at | inlay | with | thread | connective | thru ;
 let          = "(" , "let" , "(" , { binding } , ")" , expression , ")" ;
 binding      = "$" , symbol , expression ;
 fn           = "(" , "fn" , [ property ] , params , expression , ")" ;
@@ -224,8 +226,14 @@ branch       = "(" , ( pattern | guard | alternatives ) , expression , ")" ;
 guard        = "(" , comparison , expression , ")" ;
 alternatives = "(" , literal , { literal } , ")" ;
 get          = "(" , "get" , expression , symbol , { symbol } , ")" ;
+has          = "(" , "has" , expression , symbol , { symbol } , ")" ;
+get-or       = "(" , "get-or" , expression , expression , symbol , { symbol } , ")" ;     (* a default, then a record and its path *)
 nth          = "(" , "nth" , expression , expression , ")" ;
 map          = "(" , "map" , expression , expression , ")" ;     (* a function, then an array *)
+filter       = "(" , "filter" , expression , expression , ")" ;     (* a function, then an array *)
+quantifier   = "(" , ( "forall" | "exists" | "omits" ) , expression , expression , ")" ;     (* a function, then an array *)
+connective   = "(" , ( "and" | "or" ) , { expression } , ")" ;
+thru         = "(" , "thru" , expression , ")" ;     (* a duration *)
 with         = "(" , "with" , expression , { record-item | expression } , ")" ;
 thread       = "(" , "->" , ( expression | placeholder ) , { expression } , ")" ;     (* a value, then its steps *)
 insert       = "(" , "insert" , expression , ( expression | attribute-pair ) , expression , ")" ;
@@ -334,6 +342,8 @@ A =let= binds private values with =$name value= pairs. The =$= marks a binding t
 Both kinds of function take an optional signature: =(defn name #type (#type x y) expr)=, =(fn #type (#type x) expr)=.
 
 =λ= is another way to write =fn=: ~(λ (x) (+ x 1))~. The lexer reads =λ= on its own as =fn=, so it is =fn= everywhere, and messages name it =fn=; it cannot name a function or a binding, but a longer name that begins with it, such as =λx=, is an ordinary symbol.
+
+The symbols of logic and sets are read the same way, as the names they stand for: =¬= is =not=, =∧= =and=, =∨= =or=, =∀= =forall=, =∃= =exists=, =∄= =omits=, =∪= =union=, =∩= =intersect=, =∖= =setminus=, =⊆= =subset=, =⋃= =unions= and =⋂= =intersections=; and ~=~ and ~/=~ are =eq= and =neq=. ~(∀ (> ? 0) xs)~ is ~(forall (> ? 0) xs)~, messages name the word, and a longer name that begins with a symbol, such as =∧x=, is an ordinary symbol.
 
 A local function is a =let=-bound =fn=:
 
@@ -541,6 +551,8 @@ shadows them with its own attribute pairs.
 | Negation    | ~not~                                     | ~(not b)~ of one Boolean                                                                |
 | Length      | ~len~                                     | ~(len x)~ is the number of an array's elements, or of a string's characters             |
 | Collections | ~contains~ ~distinct~                     | ~(contains coll x)~ for an element or a substring; ~(distinct xs)~ drops repeats        |
+| Sets        | ~union~ ~intersect~ ~setminus~ ~subset~   | arrays as sets: ~(union (1 2) (2 3))~ is ~(1 2 3)~; ~(subset a b)~ for a ⊆ b            |
+| Big sets    | ~unions~ ~intersections~                  | over one array of arrays: ~(unions (map f xs))~                                         |
 | Durations   | =years months days hours minutes seconds= | ~(days 19)~ is a Duration                                                               |
 | End-of-unit | =(thru d)=                                | ~(thru (days 1))~ = 1 day 23:59:59; ~(thru (years 0))~ = to the end of the current year |
 
@@ -551,6 +563,10 @@ An operator written with the wrong number of operands is an arity error. Orderin
 =len= takes exactly one argument. An array's elements are counted whatever their types, so ~(len (1 (2 3) (:k 4)))~ is 3, and =()= and =#arr-empty= have length 0. A string is counted in characters (Unicode code points), not bytes, so ~(len "Málaga")~ is 6. Any other value, a record or a URI included, is a type error. Recursion is banned, so a length cannot be written in Ouro itself; =len= is an ordinary built-in otherwise, so ~(map len xs)~ works.
 
 =contains= takes two arguments: ~(contains (1 2 3) 2)~ is =true= when the array has the value as an element, compared as =eq= compares, so records and arrays are compared by value; ~(contains "Amsterdam" "dam")~ is =true= when the string has the other as a substring. =distinct= takes one array and keeps the first of each value, in order: ~(distinct (1 2 1 3))~ is ~(1 2 3)~. An array holding a function is a type error for both, since functions cannot be compared. =not= takes one =#bool=.
+
+=union=, =intersect= and =setminus= treat arrays as sets, as JSON-LD reads a property's values. Elements are compared as =eq= compares them, so records and arrays are compared by value, and a result has no repeats: the first of each is kept, in the order it is first written, so the output is always the same. Each takes one or more arrays. ~(union a b ...)~ is every value in any of them; ~(intersect a b ...)~ the values in all of them, in =a='s order; ~(setminus a b ...)~ the values of =a= in none of the rest, so ~(setminus a b c)~ is a ∖ (b ∪ c). An argument that is not an array, or an array holding a function, is a type error. They are ordinary built-ins, so they can be passed as values and take holes: ~(map (setminus ? excluded) groups)~. ~(subset a b)~ takes exactly two arrays and is =true= when every value of =a= is in =b=, that is when ~(setminus a b)~ is empty: ~(subset required (ids obj))~ checks that an object has every one of several classifications.
+
+~(unions xs)~ and ~(intersections xs)~ are the union and intersection of one array of arrays, =⋃= and =⋂=, for sets that are computed rather than written: ~(unions (map (get ? classified_as) parts))~ is every classification of every part. ~(unions ())~ is =()=; the intersection of no sets is not defined, so ~(intersections ())~ is an error.
 
 Dates are shifted with =+= and =-=: ~(+ start (days 19))~. Shifting by months or years clips to the end of a shorter month instead of rolling over, so 31 March minus one month is the last day of February. =thru= exists for Linked Art timespans, whose
 =end_of_the_end= is the last moment of a period:

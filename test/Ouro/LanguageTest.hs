@@ -374,6 +374,22 @@ encoding = Group "Encoding: source files are UTF-8"
                                                             "(defn \955 (x) x) (graph g (:r 1))")
     , ("\955x is an ordinary name",          compilesToJSON "(graph g (let ($\955x 1) (:r \955x)))"
                                                                  "{\"r\": 1}")
+
+      -- The symbols of logic and sets are their names
+    , ("\172 \8743 \8744 are not, and, or",  compilesToJSON "(graph g (:a (\172 true) :b (\8743 true false) :c (\8744 false true)))"
+                                                                 "{\"a\": false, \"b\": false, \"c\": true}")
+    , ("\8704 \8707 \8708 are the quantifiers", compilesToJSON "(graph g (:a (\8704 (> ? 0) (1 2)) :b (\8707 (> ? 1) (1 2)) :c (\8708 (> ? 5) (1 2))))"
+                                                                    "{\"a\": true, \"b\": true, \"c\": true}")
+    , ("\8746 \8745 \8726 \8838 are the set operations", compilesToJSON "(graph g (:a (\8746 (1) (2)) :b (\8745 (1 2) (2)) :c (\8726 (1 2) (2)) :d (\8838 (1) (1 2))))"
+                                                                            "{\"a\": [1, 2], \"b\": [2], \"c\": [1], \"d\": true}")
+    , ("messages name the word",             failsWith "'and' is a special form"
+                                                            "(defn \8743 (x) x) (graph g (:r 1))")
+    , ("\8743x is an ordinary name",         compilesToJSON "(graph g (let ($\8743x 1) (:r \8743x)))"
+                                                                 "{\"r\": 1}")
+    , ("= and /= are eq and neq",            compilesToJSON "(graph g (:a (= 1 1) :b (/= 1 2) :c (= 1 1 2) :d (case 3 ((= 3) \"three\") (otherwise \"other\"))))"
+                                                                 "{\"a\": true, \"b\": true, \"c\": false, \"d\": \"three\"}")
+    , ("\8899 \8898 are unions and intersections", compilesToJSON "(graph g (:a (\8899 ((1) (2))) :b (\8898 ((1 2) (2)))))"
+                                                                      "{\"a\": [1, 2], \"b\": [2]}")
     , ("UTF-8 is decoded",                   decodesTo [0xC3, 0x89, 0x64] "\201d")
     , ("a byte order mark is dropped",       decodesTo [0xEF, 0xBB, 0xBF, 0x61] "a")
     , ("CRLF becomes LF",                    decodesTo [0x61, 0x0D, 0x0A, 0x62] "a\nb")
@@ -497,6 +513,42 @@ logicAndCollections = Group "Built-ins: logic, arrays and records"
                                                                      "{\"r\": 1}")
     , ("a malformed get-or is an error",         failsWith "get-or is written (get-or default record key ...)"
                                                            "(graph g (:r (get-or 1 (:x 1))))")
+
+      -- union, intersect and setminus treat Arrays as sets
+    , ("union joins without repeats",            compilesToJSON "(graph g (:a (union (1 2) (2 3)) :b (union (1 1)) :c (union (1) (2) (1 3))))"
+                                                                "{\"a\": [1, 2, 3], \"b\": [1], \"c\": [1, 2, 3]}")
+    , ("intersect keeps what all share",         compilesToJSON "(graph g (:a (intersect (1 2 3) (3 2 4)) :b (intersect (1 2) (3)) :c (intersect (1 2 3) (2 3) (3))))"
+                                                                "{\"a\": [2, 3], \"b\": [], \"c\": [3]}")
+    , ("setminus removes the rest",              compilesToJSON "(graph g (:a (setminus (1 2 3) (2)) :b (setminus (1 2 3) (1) (3)) :c (setminus (1 1 2) ())))"
+                                                                "{\"a\": [1, 3], \"b\": [2], \"c\": [1, 2]}")
+    , ("sets compare records by value",          compilesToJSON "(graph g (:r (intersect ((:a 1) (:b 2)) ((:a 1)))))"
+                                                                "{\"r\": [{\"a\": 1}]}")
+    , ("set operations take holes",              compilesToJSON "(graph g (:r (map (setminus ? (2)) ((1 2) (2 3)))))"
+                                                                "{\"r\": [[1], [3]]}")
+    , ("a set must be an Array",                 failsWith "an Array, as a set"
+                                                           "(graph g (:r (union (1) 2)))")
+    , ("a set cannot hold a function",           failsWith "functions cannot be compared"
+                                                           "(graph g (:r (union (list (fn (x) x)))))")
+    , ("a set operation needs an Array",         failsWith "nameOfFunc = \"intersect\""
+                                                           "(graph g (:r (intersect)))")
+    , ("subset is true when all are in the other", compilesToJSON "(graph g (:a (subset (1 2) (2 3 1)) :b (subset (1 4) (1 2)) :c (subset () (1)) :d (subset (1 1) (1))))"
+                                                                  "{\"a\": true, \"b\": false, \"c\": true, \"d\": true}")
+    , ("subset compares records by value",       compilesToJSON "(graph g (:r (subset ((:a 1)) ((:b 2) (:a 1)))))"
+                                                                "{\"r\": true}")
+    , ("subset takes two Arrays",                failsWith "nameOfFunc = \"subset\""
+                                                           "(graph g (:r (subset (1) (1) (1))))")
+    , ("unions joins an Array of Arrays",        compilesToJSON "(graph g (:a (unions ((1 2) (2 3) (4))) :b (unions ())))"
+                                                                "{\"a\": [1, 2, 3, 4], \"b\": []}")
+    , ("intersections of an Array of Arrays",    compilesToJSON "(graph g (:r (intersections ((1 2 3) (2 3) (3 2)))))"
+                                                                "{\"r\": [2, 3]}")
+    , ("unions of computed sets",                compilesToJSON "(graph g (:r (unions (map (get ? k) ((:k (1)) (:k (1 2)))))))"
+                                                                "{\"r\": [1, 2]}")
+    , ("intersections of nothing is an error",   failsWith "at least one Array to intersect"
+                                                           "(graph g (:r (intersections ())))")
+    , ("unions needs an Array of Arrays",        failsWith "an Array of Arrays"
+                                                           "(graph g (:r (unions 5)))")
+    , ("each must be an Array",                  failsWith "an Array, as a set"
+                                                           "(graph g (:r (unions ((1) 2))))")
     ]
 
 
