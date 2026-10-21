@@ -12,7 +12,7 @@ import qualified Data.Ouro.Lisp.Surface        as S
 --
 --   (case x (("Manet" "Proust") body) ...)   (case x ("Manet" body) ("Proust" body) ...)
 --
--- After 'guards': a marked guard, (%guard < 10), is kept, and so are 'otherwise' and
+-- After 'guards': a condition, (%when cond), is kept, and so are 'otherwise' and
 -- destructuring patterns, which hold a '?' hole or a ':key pattern'.
 alternatives :: S.Expr -> S.Expr
 alternatives = bottomUp $ \case
@@ -26,8 +26,8 @@ alternatives = bottomUp $ \case
     expandBranch = \case
         S.Form bPos [pattern, body]
             -> case pattern of
-                   -- Keep guards intact (e.g., (> 5)), marked by 'guards'
-                   S.Form _ (S.Symbol _ "%guard" : _)
+                   -- Keep conditions intact, written by 'guards'
+                   S.Form _ (S.Symbol _ "%when" : _)
                        -> [S.Form bPos [pattern, body]]
 
                    -- Keep 'otherwise' intact

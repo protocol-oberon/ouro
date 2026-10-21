@@ -12,6 +12,7 @@ module Ouro.LanguageTest
 , encoding
 , strings
 , logicAndCollections
+, conditions
 , contexts
 , contextAlgebra
 , knownGaps
@@ -549,6 +550,33 @@ logicAndCollections = Group "Built-ins: logic, arrays and records"
                                                            "(graph g (:r (unions 5)))")
     , ("each must be an Array",                  failsWith "an Array, as a set"
                                                            "(graph g (:r (unions ((1) 2))))")
+    ]
+
+
+-- A case branch can be headed by a condition, (when cond), as well as by a pattern, a
+-- literal or a comparison guard. A condition must be a Boolean; true takes the branch.
+conditions :: Group
+conditions = Group "Case: conditions"
+    [ ("when takes a branch when true",          compilesToJSON "(graph g (:r (case 1 ((when false) \"a\") ((when (eq 1 1)) \"b\") (otherwise \"c\"))))"
+                                                                "{\"r\": \"b\"}")
+    , ("when can use other values",              compilesToJSON "(graph g (let ($strict true) (:r (case 5 ((when strict) \"strict\") (otherwise \"lenient\")))))"
+                                                                "{\"r\": \"strict\"}")
+    , ("when takes and and or",                  compilesToJSON "(graph g (:r (case 5 ((when (and (> 5 1) (< 5 9))) \"in\") (otherwise \"out\"))))"
+                                                                "{\"r\": \"in\"}")
+    , ("when sits beside patterns and literals", compilesToJSON "(graph g (:r (case (:k 1) (2 \"two\") ((when false) \"no\") ((:k ?v) v) (otherwise \"other\"))))"
+                                                                "{\"r\": 1}")
+    , ("a condition must be a Boolean",          failsWith "expectedProperty = \"#bool\""
+                                                           "(graph g (:r (case 5 ((when 1) \"a\") (otherwise \"b\"))))")
+    , ("when outside a case is an error",        failsWith "when is written as the head of a case branch"
+                                                           "(graph g (:r (when true)))")
+    , ("when cannot name a function",            failsWith "'when' is a special form"
+                                                           "(defn when (x) x) (graph g (:r 1))")
+
+      -- Comparison guards become conditions on the case's target
+    , ("a guard compares a computed target",     compilesToJSON "(graph g (:r (case (+ 2 3) ((> 4) \"big\") (otherwise \"small\"))))"
+                                                                "{\"r\": \"big\"}")
+    , ("a chained guard stops at the first false", compilesToJSON "(graph g (:r (case 5 ((< 1 (nth 9 ())) \"x\") (otherwise \"y\"))))"
+                                                                  "{\"r\": \"y\"}")
     ]
 
 

@@ -301,6 +301,14 @@ evalExpr expr = do
         S.Form pos (S.Symbol _ "define" : _)
             -> pure (EvalError (removedDefine pos))
 
+        -- (when cond) is the head of a case branch; anywhere else it is misplaced
+        S.Form pos (S.Symbol _ "when" : _)
+            -> lexicalError "when is written as the head of a case branch, with one condition: ((when cond) result)."
+               & withBlurb "Perhaps write (case x ((when (has x key)) \"yes\") (otherwise \"no\"))."
+               & OuroError pos
+               & EvalError
+               & pure
+
         S.Form pos (S.Symbol _ keyword : _)
             | isFunctionKeyword keyword
             -> pure (EvalError (removedLocalDefn pos))
@@ -647,14 +655,18 @@ evaluateGuards eval env pos target attempts branches =
                case pattern of
                    S.Symbol _ "otherwise" -> eval body
 
-                   -- A guard, marked by the desugarer: (%guard op operand ...)
-                   S.Form _ (S.Symbol _ "%guard" : S.Symbol opPos op : guardArgs)
-                        -> do
-                           guardRes <- evalGuardCond eval env opPos op target guardArgs
-                           case guardRes of
-                               EvalError err              -> pure $ EvalError err
-                               Primitive (I.Boolean True) -> eval body
-                               _nextCase                  -> evaluateGuards eval env pos target (attempts + 1) rest
+                   -- A condition, written by the desugarer from (when cond) or a guard: true
+                   -- takes the branch, false tries the next, and anything else is an error
+                   S.Form _ [S.Symbol _ "%when", cond]
+                        -> eval cond >>= \case
+                               Primitive (I.Boolean True)  -> eval body
+                               Primitive (I.Boolean False) -> evaluateGuards eval env pos target (attempts + 1) rest
+                               err@(EvalError _)           -> pure err
+                               other                       -> propertyMismatch "#bool" (propertyOf other)
+                                                              & withBlurb "A case condition answers true or false: ((when cond) result), or a comparison such as ((< 10) result)."
+                                                              & OuroError (S.exprPos cond)
+                                                              & EvalError
+                                                              & pure
 
                    -- Destructuring: a record form, or a form containing '?' holes
                    _ | S.isPatternForm pattern
@@ -675,11 +687,11 @@ evaluateGuards eval env pos target attempts branches =
                                                        local (const patternFrame) (eval body)
 
                    -- If just a literal is passed in we can default to eq
-                   S.Literal lpos lvalue
+                   S.Literal lpos _
                        -> do
-                          guardRes <- evalGuardCond eval env lpos "eq" target [S.Literal lpos lvalue]
-                          case guardRes of
-                              EvalError err              -> pure $ EvalError err
+                          literal <- eval pattern
+                          case literalMatch env lpos target literal of
+                              err@(EvalError _)          -> pure err
                               Primitive (I.Boolean True) -> eval body
                               _nextCase                  -> evaluateGuards eval env pos target (attempts + 1) rest
 
@@ -705,41 +717,14 @@ hasValidOtherwise branches =
         _noOtherwise                               -> False
 
 
-evalGuardCond
-    :: (S.Expr -> EvalM L.Expr)
-    -> Env
-    -> SourcePos
-    -> Text
-    -> L.Expr
-    -> [S.Expr]
-    -> EvalM L.Expr
-evalGuardCond eval env pos op target runtimeArgs =
-    case Map.lookup op builtinRegistry of
-        Just handler -> do
-                        evaledArgs <- mapM eval runtimeArgs
-
-                        -- The target is the guard's first operand: ((< 10) ...) asks (< target 10).
-                        -- With more operands the comparison chains, like (< target 10 20).
-                        -- 'neq' does not chain, so its handler reports the wrong operand count.
-                        let operands    = target : evaledArgs
-                            compareWith = \a b -> runReader (handler pos [a, b]) env
-
-                        pure $ case op /= "neq" && length operands > 2 of
-                                   True  -> allOf (zipWith compareWith operands (drop 1 operands))
-                                   False -> runReader (handler pos operands) env
-
-        Nothing      -> astCorruption op "Guard condition operator missing from internal builtin registry."
+-- A literal branch compares the target with its literal, as eq compares them
+literalMatch :: Env -> SourcePos -> L.Expr -> L.Expr -> L.Expr
+literalMatch env pos target literal =
+    case Map.lookup "eq" builtinRegistry of
+        Just handler -> runReader (handler pos [target, literal]) env
+        Nothing      -> astCorruption "eq" "The eq built-in is missing from the registry."
                         & OuroError pos
                         & EvalError
-                        & pure
-
-
-    where
-    -- The pairwise results of a chained comparison: the first error, or whether all hold
-    allOf results =
-        case [ err | err@(EvalError _) <- results ] of
-            err : _  -> err
-            []       -> Primitive (I.Boolean (and [ b | Primitive (I.Boolean b) <- results ]))
 
 
 -- validatePathKeys.

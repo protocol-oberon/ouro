@@ -521,7 +521,9 @@ A branch head is:
 
 - =otherwise=: always matches; it is required, and must be the last branch.
 
-- *A guard*, a form headed by a comparison (~>~, ~>=~, ~<~, ~<=~, =eq=, =neq=): the target is inserted as the comparison's first argument.
+- *A guard*, a form headed by a comparison (~>~, ~>=~, ~<~, ~<=~, =eq=, =neq=): the target is inserted as the comparison's first argument, so ~((< 10 20) e)~ tests ~(< target 10 20)~, chained like any comparison and stopping at the first false pair.
+
+- *A condition*, ~(when cond)~: =cond= must have the property =#bool=; =true= takes the branch and =false= tries the next. It can use any value in scope, not only the target, but not the names a pattern binds. =when= is only a branch head, and cannot name a =defn=.
 
 - *A pattern*, a record form or a form containing a =?= hole (described below).
 
@@ -645,7 +647,7 @@ Before evaluation, ~Canon.canonicalModule~ rewrites every function body and grap
 | 2. threading     | top-down  | ~(-> x step ...)~ into nested calls; a step with a hole is already a function (1)           |
 | 3. connectives   | top-down  | ~(and a b)~ into ~(case #bool a (true (and b)) (otherwise false))~, and =or= alike          |
 | 4. bindings      | top-down  | =$name value= in a =let='s bindings into ~(%bind "name" value)~                             |
-| 5. guards        | top-down  | a =case= guard ~((< 10) e)~ into ~((%guard < 10) e)~                                        |
+| 5. guards        | top-down  | a condition, =(when c)= or a guard ~((< 10) e)~, into a ~(%when c)~ head; a guard names the target, bound once |
 | 6. contexts      | bottom-up | =:context e= into ~(%context e)~                                                            |
 | 7. with          | bottom-up | ~(with base item ...)~ into ~((inlay base) item ...)~                                       |
 | 8. thru          | siblings  | ~(thru (days n))~ into the durations it stands for                                          |
@@ -671,7 +673,8 @@ Each pass is a module of its own under =Lisp/Canon/= (=Placeholders.hs=, =Thread
 | ~(thru (days n))~                       | ~(days n) (hours 23) (minutes 59) (seconds 59)~               |
 | ~(thru (years n))~, ~(thru (months n))~ | ~(years-end n)~, ~(months-end n)~ (resolved against the date) |
 | =case= alternatives ~(("a" "b") e)~     | one branch per literal                                        |
-| a =case= guard ~((< 10) e)~             | ~((%guard < 10) e)~, chained with the target as first operand |
+| a =case= guard ~((< 10) e)~             | ~((%when (< %target 10)) e)~, the case bound as ~(let ((%bind "%target" x)) (case %target ...))~ |
+| a condition ~((when c) e)~              | ~((%when c) e)~                                               |
 | =$name value= in a =let='s bindings     | ~(%bind "name" value)~                                        |
 
 A =$name= with no value becomes ~(%bind "name")~ and is reported as having no value; a =$name= anywhere outside a =let='s bindings stays ~(%binder "name")~ and is reported where it is evaluated. The =%= heads cannot be written by users. =%apply= exists because a form headed by a =fn= is an array, not a call: the evaluator binds the function to a name that cannot be written and calls it with the threaded value, as =map= does for each element. Nor can a placeholder's parameter names: =%1= cannot be lexed, and =?n= is read as a hole, so a placeholder never captures a name its call refers to. A hole left after ~Canon.Placeholders.placeholders~, outside a call's arguments and =case= patterns, is reported where it is evaluated.

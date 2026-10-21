@@ -3,32 +3,65 @@ module Data.Ouro.Lisp.Canon.Guards
 , guards
 ) where
 
-import           Data.Ouro.Lisp.Canon.Traverse (topDown)
-import qualified Data.Ouro.Lisp.Surface        as S
-import           Data.Text                     (Text)
+import           Data.Ouro.Lisp.Canon.Connectives  (connectives)
+import           Data.Ouro.Lisp.Canon.Placeholders (placeholders)
+import           Data.Ouro.Lisp.Canon.Traverse     (topDown)
+import qualified Data.Ouro.Lisp.Surface            as S
+import           Data.Text                         (Text)
 
 
 -- guards.
 --
--- Marks the guards of a case. A guard such as ((< 10 20) body) compares the case's target
--- with its operands, (< target 10 20), so it must not be desugared as a comparison of its own
--- operands. The head becomes (%guard < 10 20); '%' cannot be written in Ouro, so the marker
--- cannot be shadowed. Top-down, before 'comparisons' and 'alternatives', which leave a
--- marked guard alone.
+-- Turns the conditions of a case into (%when cond) heads, which the evaluator takes when
+-- cond is true and skips when it is false:
+--
+--   ((when (has book ntp46)) e)   ((%when (has book ntp46)) e)
+--   ((< 10 20) e)                 ((%when (< %target 10 20)) e)
+--
+-- A comparison guard compares the case's target, so the case binds its target once, to a
+-- name that cannot be written in Ouro, and the comparison names it:
+--
+--   (case x ((< 10) e) ...)   (let ((%bind "%target" x)) (case %target ((%when (< %target 10)) e) ...))
+--
+-- A branch head is matched, not evaluated, so 'placeholders' and 'connectives' left it
+-- alone; a condition is evaluated, so they are run on it here. 'comparisons' runs later and
+-- chains (< %target 10 20) into an and that stops at the first false pair. Top-down, after
+-- 'bindings', so the binding is written as bindings writes one; before 'alternatives',
+-- which keeps a (%when ...) head.
 guards :: S.Expr -> S.Expr
 guards = topDown $ \case
     S.Form pos (cSym@(S.Symbol _ "case") : target : branches)
-        -> S.Form pos (cSym : target : map markBranch branches)
+        | any comparesTarget branches
+        -> S.Form pos [ S.Symbol pos "let"
+                      , S.Form pos [S.Form pos [S.Symbol pos "%bind", S.Literal pos (S.Str "%target"), target]]
+                      , S.Form pos (cSym : S.Symbol pos "%target" : map condition branches)
+                      ]
+        | otherwise
+        -> S.Form pos (cSym : target : map condition branches)
     other
         -> other
 
     where
-    markBranch = \case
-        S.Form bPos [S.Form gPos (opNode@(S.Symbol sPos op) : operands), body]
+    -- A branch whose head is a condition gets a (%when cond) head. A malformed (when ...)
+    -- becomes the condition itself, which the evaluator reports as a misplaced when.
+    condition = \case
+        S.Form bPos [S.Form gPos [S.Symbol wPos "when", cond], body]
+            -> S.Form bPos [S.Form gPos [S.Symbol wPos "%when", evaluated cond], body]
+        S.Form bPos [whenForm@(S.Form gPos (S.Symbol wPos "when" : _)), body]
+            -> S.Form bPos [S.Form gPos [S.Symbol wPos "%when", whenForm], body]
+        S.Form bPos [S.Form gPos (opNode@(S.Symbol _ op) : operands), body]
             | op `elem` guardOperators
-            -> S.Form bPos [S.Form gPos (S.Symbol sPos "%guard" : opNode : operands), body]
+            -> S.Form bPos [ S.Form gPos [S.Symbol gPos "%when", evaluated (S.Form gPos (opNode : S.Symbol gPos "%target" : operands))]
+                           , body ]
         branch
             -> branch
+
+    comparesTarget = \case
+        S.Form _ [S.Form _ (S.Symbol _ op : _), _] -> op `elem` guardOperators
+        _notAGuard                                 -> False
+
+    -- The passes a condition would have had, had it not been in a branch head
+    evaluated = connectives . placeholders
 
 
 -- The comparisons that can head a case guard

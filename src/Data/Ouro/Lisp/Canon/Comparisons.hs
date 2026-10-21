@@ -15,8 +15,8 @@ import qualified Data.Ouro.Lisp.Surface           as S
 --
 -- so a chain stops at the first pair that is false, as and does. 'connectives' has already
 -- run, so the and is desugared here, into the same chain of cases a written and becomes.
--- After 'guards', so a case guard, marked (%guard < 10 20), is not unrolled as a
--- comparison of its own operands.
+-- After 'guards', so a case guard, by then the condition (%when (< %target 10 20)), is
+-- chained like any other comparison.
 comparisons :: S.Expr -> S.Expr
 comparisons = bottomUp unroll
     where

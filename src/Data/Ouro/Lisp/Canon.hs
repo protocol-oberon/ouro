@@ -40,8 +40,9 @@ import           Data.Text                         (Text)
 --                                so an operand is only evaluated when it can decide the answer
 --    4. bindings      top-down   '$name value' in a let becomes (%bind "name" value), before a
 --                                value can expand into several elements (8)
---    5. guards        top-down   a case guard ((< 10) e) is marked (%guard < 10), so that
---                                comparisons (9) and alternatives (11) leave it alone
+--    5. guards        top-down   a case condition, (when c) or a guard ((< 10) e), becomes a
+--                                (%when c) head; a guard names the case's target, bound once.
+--                                Comparisons (9) then chain it, and alternatives (11) keep it
 --    6. contexts      bottom-up  ':context e' becomes the record's metadata, (%context e)
 --    7. with          bottom-up  (with base item ...) becomes ((inlay base) item ...)
 --    8. thru          siblings   (thru (days n)) becomes the durations it stands for
