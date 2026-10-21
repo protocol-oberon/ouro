@@ -4,8 +4,10 @@ module Data.Ouro.Error.Linter where
 
 import qualified Data.Map.Strict             as Map
 import           Data.Ouro.Error.Diagnostics (parenthesisedResult,
+                                              shadowedBuiltin,
                                               unanchoredLiteral)
 import           Data.Ouro.Error.Types       (OuroWarning (..))
+import           Data.Ouro.Lisp.Eval.Builtins (builtinRegistry)
 import qualified Data.Ouro.Lisp.Module.Types as M
 import qualified Data.Ouro.Lisp.Surface      as S
 import qualified Data.Ouro.Lisp.Tokens       as Tkn
@@ -35,13 +37,17 @@ lintExpression =
 --
 -- Checks the parsed functions and graphs. A function's result is one expression, and
 -- parentheses around a single plain value make it an array: (fn () ("hello")) returns
--- ["hello"], which is rarely what was meant.
+-- ["hello"], which is rarely what was meant. A defn named after a built-in replaces it,
+-- which is allowed, as in Scheme, but worth saying.
 lintModule :: M.Module -> [OuroWarning]
 lintModule ouroModule =
        concat [ lintResult name body <> lintFns body
               | M.Function _ name _ _ (S.Form _ [body]) <- Map.elems (ouroModule ^. M.functionRegistry) ]
     <> concat [ lintFns expr
               | M.Graph _ _ expr <- Map.elems (ouroModule ^. M.graphRegistry) ]
+    <> [ OuroWarning pos (shadowedBuiltin name)
+       | M.Function pos name _ _ _ <- Map.elems (ouroModule ^. M.functionRegistry)
+       , Map.member name builtinRegistry ]
 
 
 -- Finds every (fn (args) expr) and checks its result

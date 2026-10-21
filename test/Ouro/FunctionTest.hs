@@ -19,7 +19,8 @@ import qualified Data.Text                   as T
 import           Hedgehog
 import           Utils                       (compilesLike, compilesToJSON,
                                               compilesWithoutWarnings,
-                                              failsToCompile, failsWith)
+                                              failsToCompile, failsWith,
+                                              warnsWith)
 
 
 -- A function body is exactly one expression: its result, written exactly as it would be
@@ -85,6 +86,15 @@ plainNames = Group "Functions: names are plain symbols, in one namespace"
                                                              "(defn get (x) x) (graph g (:r 1))")
     , ("calling a value that shadows a function",  failsWith "not a function"
                                                              "(defn label () \"function\") (graph g (:label \"value\" :r (label)))")
+
+      -- A defn may take a built-in's name, and replaces it everywhere, with a warning
+    , ("a defn named after a built-in warns",      warnsWith "The function 'eq' replaces the built-in 'eq'"
+                                                             "(defn eq (a b) true) (graph g (:r (eq 1 2)))")
+    , ("so does one named with its symbol",        warnsWith "replaces the built-in 'eq'"
+                                                             "(defn = (a b) true) (graph g (:r (= 1 2)))")
+    , ("it replaces calls and guards alike",       compilesToJSON "(defn eq (a b) true) (graph g (:r (eq 1 2) :s (case 1 ((eq 2) \"guard\") (otherwise \"no\"))))"
+                                                                  "{\"r\": true, \"s\": \"guard\"}")
+    , ("other names do not warn",                  compilesWithoutWarnings "(defn mine (a b) true) (graph g (:r (mine 1 2)))")
     ]
 
 

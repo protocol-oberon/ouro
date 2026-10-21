@@ -312,6 +312,16 @@ data LinterWarning
       { resultOwner :: Text -- The function's name, or "fn"
       , resultValue :: Text -- The value inside the parentheses
       }
+
+    -- LINT WARNING: SHADOWED BUILT-IN
+    -- Occurs when a defn is named after a built-in, such as (defn eq (a b) ...). The function
+    -- replaces the built-in throughout the file: in calls, in case guards, and under any
+    -- symbol the built-in is also written with, so (defn = ...) replaces eq too.
+    --
+    -- * Remediation: Issue warning. Suggest another name, unless the replacement is intended.
+    | ShadowedBuiltin
+      { shadowedName :: Text -- The name of the built-in the function replaces
+      }
     deriving (Show, Eq, Ord, Generic)
 
 

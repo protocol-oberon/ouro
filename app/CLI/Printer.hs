@@ -413,6 +413,11 @@ splitWarningContext ctx =
                , [ labeled "Array of: " (highlightDiagnostic val) ]
                , Just blurb
                )
+        Lint (ShadowedBuiltin name)
+            -> ( title
+               , [ labeled "Replaced Built-in: " (highlightDiagnostic name) ]
+               , Just blurb
+               )
         Semantic (ElidedPropertyAssign key construct)
             -> ( title
                , [ labeled "Omitted Attribute: " (highlightDiagnostic key)

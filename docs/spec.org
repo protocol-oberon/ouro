@@ -177,7 +177,7 @@ Block comments are written ~#| … |#~. A symbol starts with a letter, one of th
 
 A source file is UTF-8, on every platform. A letter is any Unicode letter, so =café= is a name and =:naïve= a key, and strings hold any text. A leading byte order mark is dropped and CRLF line endings become LF, so a file reads the same wherever it was saved; a file that is not valid UTF-8 is an error, not garbled text (~Data.Ouro.readSource~). The compiler's messages are UTF-8 too: on Windows the console's code page is switched to UTF-8 (65001) while =ouro= runs, and restored when it exits.
 
-A trailing =!= on a function name is allowed but has no meaning. Names live in one namespace, values and functions share it, and an inner value shadows an outer function of the same name.
+A trailing =!= on a function name is allowed but has no meaning. Names live in one namespace, values and functions share it, and an inner value shadows an outer function of the same name. A =defn= may take the name of a built-in, as a definition can in Scheme, and replaces it throughout the file: in calls, in =case= guards, and under any symbol the built-in is also written with, so ~(defn = ...)~ replaces =eq=. The compiler warns when it does (=WRN0003=). A special form's name cannot be taken.
 
 ** Formal grammar (EBNF)
 

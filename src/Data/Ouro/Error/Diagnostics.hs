@@ -260,6 +260,10 @@ parenthesisedResult owner val = Lint $ ParenthesisedResult
     , resultValue = val
     }
 
+-- Create a warning for a defn that replaces a built-in
+shadowedBuiltin :: Text -> WarningContext
+shadowedBuiltin name = Lint $ ShadowedBuiltin { shadowedName = name }
+
 -- Create a compile-time elided property assignment semantic warning
 elidedPropertyAssign :: Text -> Text -> WarningContext
 elidedPropertyAssign key construct = Semantic $ ElidedPropertyAssign
@@ -310,6 +314,11 @@ warningBlurb = \case
         <> "(" <> val <> ") is [" <> val <> "].\n\n"
         <> "Perhaps remove the parentheses: " <> val <> ", if a single value is intended."
 
+    Lint (ShadowedBuiltin name)
+        -> "A defn named after a built-in replaces it throughout the file: in calls, in case guards, "
+        <> "and under any symbol the built-in is also written with (= is eq, ∪ is union).\n\n"
+        <> "Perhaps choose another name for the function, unless replacing '" <> name <> "' is intended."
+
     Semantic (ElidedPropertyAssign key construct)
         -> "The expression assigned to the property attribute '" <> key <> "' evaluates exclusively to a compile-time '"
         <> construct <> "' block. Because elided control structures leave zero footprint in final binary payloads, "
@@ -327,5 +336,6 @@ warningSummary = \case
     Lint (UnanchoredLiteral _ val)      -> "Unanchored primitive literal " <> val <> " detected"
     Lint (DeprecatedSyntax feature)     -> "Use of deprecated syntactic feature: " <> feature
     Lint (ParenthesisedResult owner _)  -> "The result of '" <> owner <> "' is an array of one value"
+    Lint (ShadowedBuiltin name)         -> "The function '" <> name <> "' replaces the built-in '" <> name <> "'"
     Semantic (ElidedPropertyAssign k _) -> "Property assignment '" <> k <> "' binds to an elided value"
     Vocab (UnboundTypeReference t _)    -> "Unbound schema type reference '" <> t <> "'"
