@@ -105,6 +105,15 @@ evalExpr expr = do
         S.Literal _ S.EmptyArr  -> pure $ Primitive I.EmptyArr
         S.Literal _ S.EmptyRec  -> pure $ Primitive I.EmptyRec
 
+        -- A property on its own, #str with nothing after it, is the subject-less form of
+        -- (satisfies #str), which only a case branch head fills in
+        S.Tagged pos _ (S.Hole _ "%subject")
+            -> lexicalError "A property on its own has nothing to check: a property is written before the value it applies to, as in #str x."
+               & withBlurb "In a case branch head, (satisfies #str) asks it of the case's target: (case x ((satisfies #str) \"text\") (otherwise \"other\"))."
+               & OuroError pos
+               & EvalError
+               & pure
+
         S.Tagged _   tag   payload -> assertTag tag payload
         S.Symbol pos name          -> lookupVar evalExpr pos name env
 
@@ -309,6 +318,24 @@ evalExpr expr = do
                & EvalError
                & pure
 
+        -- (satisfies #p x): whether x has the property #p, as a Boolean. Only the property's
+        -- check failing is false: an error in x, or a property that is not one, stays an error
+        S.Form _ [S.Symbol _ "satisfies", S.Tagged tagPos tag subject]
+            | not (isSubjectHole subject)
+            -> evalExpr subject >>= \case
+                   err@(EvalError _) -> pure err
+                   value             -> checkProperty tag tagPos value >>= \case
+                                            EvalError (OuroError _ ctx) | isPropertyMismatch ctx -> pure (Primitive (I.Boolean False))
+                                            err@(EvalError _)                                    -> pure err
+                                            _hasIt                                               -> pure (Primitive (I.Boolean True))
+
+        S.Form pos (S.Symbol _ "satisfies" : _)
+            -> lexicalError "satisfies is written (satisfies #property value), or as the head of a case branch, ((satisfies #property) result)."
+               & withBlurb "Perhaps write (satisfies #str x), or (case x ((satisfies #str) \"text\") (otherwise \"other\"))."
+               & OuroError pos
+               & EvalError
+               & pure
+
         S.Form pos (S.Symbol _ keyword : _)
             | isFunctionKeyword keyword
             -> pure (EvalError (removedLocalDefn pos))
@@ -496,11 +523,15 @@ evalExpr expr = do
 assertTag :: S.ReaderTag -> S.Expr -> EvalM L.Expr
 assertTag tag payload = do
     evaluatedVal <- evalExpr payload
-    let pos = S.exprPos payload
-
     case evaluatedVal of
         err@(EvalError _) -> pure err
-        _notError         -> case tag of
+        _notError         -> checkProperty tag (S.exprPos payload) evaluatedVal
+
+
+-- Checks an evaluated value against a built-in property: the value, converted for #uri and
+-- #date, or a PropertyMismatch error at the position given
+checkProperty :: S.ReaderTag -> SourcePos -> L.Expr -> EvalM L.Expr
+checkProperty tag pos evaluatedVal = case tag of
                                  S.Uri     -> assertUri  pos evaluatedVal
                                  S.Date    -> assertDate pos evaluatedVal
                                  S.StrTag  -> isString   pos evaluatedVal
@@ -715,6 +746,21 @@ hasValidOtherwise branches =
         -- Check the very last branch in the list (the first element of the reversed list)
         (S.Form _ [S.Symbol _ "otherwise", _] : _) -> True
         _noOtherwise                               -> False
+
+
+-- The subject of a property written on its own, (satisfies #p), which a case fills in
+isSubjectHole :: S.Expr -> Bool
+isSubjectHole = \case
+    S.Hole _ "%subject" -> True
+    _notTheSubject      -> False
+
+
+-- Whether an error is a value lacking a property, under any blurbs written on it
+isPropertyMismatch :: ErrorContext -> Bool
+isPropertyMismatch = \case
+    Typing PropertyMismatch {} -> True
+    AnnotatedContext _ ctx     -> isPropertyMismatch ctx
+    _otherError                -> False
 
 
 -- A literal branch compares the target with its literal, as eq compares them

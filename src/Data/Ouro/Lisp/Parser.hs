@@ -321,12 +321,17 @@ parseBracketContainer startPos = do
 -- Reader Tag Helper: Verifies that the evaluated expression is a raw string payload
 parseTaggedNode :: SourcePos -> S.ReaderTag -> Parser S.Expr
 parseTaggedNode tagPos tagType = do
-                                 -- Dynamically pull the next full S-expression in the stream
-                                 -- (Could be a string literal, symbol, or list form)
-                                 nextExpr <- pExpr
+                                 stream <- get
+                                 case stream of
+                                     -- A property on its own, at the end of a form: (satisfies #str).
+                                     -- Its subject is a hole that cannot be written in Ouro, filled
+                                     -- in by the case it heads, and reported anywhere else
+                                     t : _ | Tkn.CloseParen <- Tkn.tokenType t
+                                         -> pure $ S.Tagged tagPos tagType (S.Hole tagPos "%subject")
 
-                                 -- Construct the Tagged node using the expression directly
-                                 pure $ S.Tagged tagPos tagType nextExpr
+                                     -- Otherwise the property applies to the expression after it
+                                     _anExpression
+                                         -> S.Tagged tagPos tagType <$> pExpr
 
 
 -- Reader Macro Helper: Desugars attributes into `(%attr "name" expr)`. '%' cannot be

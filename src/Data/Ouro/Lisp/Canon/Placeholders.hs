@@ -63,10 +63,11 @@ holeFreeForms = [ "%attr", "case", "context", "define", "defn", "defun", "fn", "
                 , "inlay", "let", "thru", "%binder" ]
 
 
--- An argument that is a hole, or a hole under a type tag. A rest hole is not a parameter.
+-- An argument that is a hole, or a hole under a type tag. A rest hole is not a parameter,
+-- and nor is a subject-less property's '%subject', which only a case fills in.
 hole :: S.Expr -> Bool
 hole = \case
-    S.Hole _ name                  -> not ("?.." `T.isPrefixOf` name)
+    S.Hole _ name                  -> "?" `T.isPrefixOf` name && not ("?.." `T.isPrefixOf` name)
     S.Tagged _ _ inner@(S.Hole _ _) -> hole inner
     _notAHole                      -> False
 

@@ -173,7 +173,7 @@ Only graphs are serialised. Functions exist to build and reuse values. A module-
 | Delimiters     | =( )=                                    | =[ ]= is reserved: it parses, but has no meaning yet                |
 | Keywords       | =defn=, =graph=, =import=, =export=      | a keyword that only begins a longer name (=defnode=) is a symbol; =import= and =export= are reserved, not yet implemented |
 
-Block comments are written ~#| … |#~. A symbol starts with a letter, one of the operator characters ~_ + - * / < > = ! & | ~~, or one of the symbols of logic and sets ~¬ ∧ ∨ ∀ ∃ ∄ ∪ ∩ ∖ ⊆ ⋃ ⋂~, and may also contain digits, ~?~ and ~'~. On its own, each of those symbols, like =λ=, is read as the name it stands for (see [[*Functions: =defn=, =fn= and calls][functions]]).
+Block comments are written ~#| … |#~. A symbol starts with a letter, one of the operator characters ~_ + - * / < > = ! & | ~~, or one of the symbols of logic and sets ~¬ ∧ ∨ ∀ ∃ ∄ ∪ ∩ ∖ ⊆ ⋃ ⋂ ⊨~, and may also contain digits, ~?~ and ~'~. On its own, each of those symbols, like =λ=, is read as the name it stands for (see [[*Functions: =defn=, =fn= and calls][functions]]).
 
 A source file is UTF-8, on every platform. A letter is any Unicode letter, so =café= is a name and =:naïve= a key, and strings hold any text. A leading byte order mark is dropped and CRLF line endings become LF, so a file reads the same wherever it was saved; a file that is not valid UTF-8 is an error, not garbled text (~Data.Ouro.readSource~). The compiler's messages are UTF-8 too: on Windows the console's code page is switched to UTF-8 (65001) while =ouro= runs, and restored when it exits.
 
@@ -343,7 +343,7 @@ Both kinds of function take an optional signature: =(defn name #type (#type x y)
 
 =λ= is another way to write =fn=: ~(λ (x) (+ x 1))~. The lexer reads =λ= on its own as =fn=, so it is =fn= everywhere, and messages name it =fn=; it cannot name a function or a binding, but a longer name that begins with it, such as =λx=, is an ordinary symbol.
 
-The symbols of logic and sets are read the same way, as the names they stand for: =¬= is =not=, =∧= =and=, =∨= =or=, =∀= =forall=, =∃= =exists=, =∄= =omits=, =∪= =union=, =∩= =intersect=, =∖= =setminus=, =⊆= =subset=, =⋃= =unions= and =⋂= =intersections=; and ~=~ and ~/=~ are =eq= and =neq=. ~(∀ (> ? 0) xs)~ is ~(forall (> ? 0) xs)~, messages name the word, and a longer name that begins with a symbol, such as =∧x=, is an ordinary symbol.
+The symbols of logic and sets are read the same way, as the names they stand for: =¬= is =not=, =∧= =and=, =∨= =or=, =∀= =forall=, =∃= =exists=, =∄= =omits=, =∪= =union=, =∩= =intersect=, =∖= =setminus=, =⊆= =subset=, =⋃= =unions=, =⋂= =intersections= and =⊨= =satisfies=; and ~=~ and ~/=~ are =eq= and =neq=. ~(∀ (> ? 0) xs)~ is ~(forall (> ? 0) xs)~, messages name the word, and a longer name that begins with a symbol, such as =∧x=, is an ordinary symbol.
 
 A local function is a =let=-bound =fn=:
 
@@ -462,6 +462,7 @@ Special forms are recognised by their head symbol before any name lookup, so the
 | =(get record key ...)=                   | the value at a path of keys through evaluated records                                 |
 | =(has record key ...)=                   | =true= when the path of keys reaches a value                                          |
 | =(get-or default record key ...)=        | the value at the path, or =default= when a key on the way is missing                  |
+| =(satisfies #p x)=                       | =true= when =x= has the property =#p=; =false= when it does not                         |
 | =(nth i coll)=                           | the i-th element of an array, or the value of a record's i-th attribute pair          |
 | =(map f array)=                          | an array of =f= called on each element                                                |
 | =(exists f array)=                       | =true= when =f= answers =true= for some element; stops at the first                   |
@@ -490,6 +491,8 @@ Negative indexes count from the end in =nth=, =insert= and =replace-at=. =insert
 ~(omits f xs)~ is ~(not (exists f xs))~, the quantifier =∄=. It is named for what the data omits, not for what does not exist: a document's silence is not a complete observation, so =omits= says only that the array has no such element, never that no such thing exists. A contradiction check reads ~(omits (contains (get-or () book ntp46) ?) (get-or () book tp46))~: no type is recorded as both present and absent.
 
 *=has= and =get-or=.* Both walk a path as =get= does. ~(has record key ...)~ is =false= when a record on the way has no such key, and ~(get-or default record key ...)~ is then =default=, which is evaluated only in that case. Anything else that stops the walk, a value on the way that is not a record or an error, is reported as =get= reports it. Both need at least one key and cannot name a =defn=.
+
+*=satisfies=.* ~(satisfies #p x)~ is a question, where =#p x= is a requirement: it answers =false= when =x= does not have the property, where =#p x= is an error. Only the property's own check gives =false=: an error inside =x= stays an error. A property written on its own, with nothing after it, is only meaningful in ~(satisfies #p)~ at the head of a =case= branch, where the case's target fills it in; anywhere else it is an error. =satisfies= cannot name a =defn=.
 
 *=with= and =->=.* ~(with base item ...)~ is =base= with =item=s written over it, layered as an =inlay= is: a written attribute pair wins over the base's own, and an array base has its elements spliced, so ~(with (1 2) 3 4)~ is ~(1 2 3 4)~. With nothing to add, ~(with base)~ is =base=. ~(-> x step ...)~ threads =x= through its steps, each receiving the value before it:
 
@@ -524,6 +527,8 @@ A branch head is:
 - *A guard*, a form headed by a comparison (~>~, ~>=~, ~<~, ~<=~, =eq=, =neq=): the target is inserted as the comparison's first argument, so ~((< 10 20) e)~ tests ~(< target 10 20)~, chained like any comparison and stopping at the first false pair.
 
 - *A condition*, ~(when cond)~: =cond= must have the property =#bool=; =true= takes the branch and =false= tries the next. It can use any value in scope, not only the target, but not the names a pattern binds. =when= is only a branch head, and cannot name a =defn=.
+
+- *A property*, ~(satisfies #p)~ or ~(⊨ #p)~: the target satisfies the property =#p=, as ~(satisfies #p target)~ asks.
 
 - *A pattern*, a record form or a form containing a =?= hole (described below).
 
@@ -675,6 +680,7 @@ Each pass is a module of its own under =Lisp/Canon/= (=Placeholders.hs=, =Thread
 | =case= alternatives ~(("a" "b") e)~     | one branch per literal                                        |
 | a =case= guard ~((< 10) e)~             | ~((%when (< %target 10)) e)~, the case bound as ~(let ((%bind "%target" x)) (case %target ...))~ |
 | a condition ~((when c) e)~              | ~((%when c) e)~                                               |
+| a property ~((satisfies #p) e)~         | ~((%when (satisfies #p %target)) e)~, the case bound as for a guard |
 | =$name value= in a =let='s bindings     | ~(%bind "name" value)~                                        |
 
 A =$name= with no value becomes ~(%bind "name")~ and is reported as having no value; a =$name= anywhere outside a =let='s bindings stays ~(%binder "name")~ and is reported where it is evaluated. The =%= heads cannot be written by users. =%apply= exists because a form headed by a =fn= is an array, not a call: the evaluator binds the function to a name that cannot be written and calls it with the threaded value, as =map= does for each element. Nor can a placeholder's parameter names: =%1= cannot be lexed, and =?n= is read as a hole, so a placeholder never captures a name its call refers to. A hole left after ~Canon.Placeholders.placeholders~, outside a call's arguments and =case= patterns, is reported where it is evaluated.

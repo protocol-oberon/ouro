@@ -17,9 +17,10 @@ import           Data.Text                         (Text)
 --
 --   ((when (has book ntp46)) e)   ((%when (has book ntp46)) e)
 --   ((< 10 20) e)                 ((%when (< %target 10 20)) e)
+--   ((satisfies #uri) e)          ((%when (satisfies #uri %target)) e)
 --
--- A comparison guard compares the case's target, so the case binds its target once, to a
--- name that cannot be written in Ouro, and the comparison names it:
+-- A comparison guard, and a property on its own, are about the case's target, so the case
+-- binds its target once, to a name that cannot be written in Ouro, and the condition names it:
 --
 --   (case x ((< 10) e) ...)   (let ((%bind "%target" x)) (case %target ((%when (< %target 10)) e) ...))
 --
@@ -53,12 +54,16 @@ guards = topDown $ \case
             | op `elem` guardOperators
             -> S.Form bPos [ S.Form gPos [S.Symbol gPos "%when", evaluated (S.Form gPos (opNode : S.Symbol gPos "%target" : operands))]
                            , body ]
+        S.Form bPos [S.Form gPos [sSym@(S.Symbol _ "satisfies"), S.Tagged tPos tag (S.Hole _ "%subject")], body]
+            -> S.Form bPos [ S.Form gPos [S.Symbol gPos "%when", S.Form gPos [sSym, S.Tagged tPos tag (S.Symbol tPos "%target")]]
+                           , body ]
         branch
             -> branch
 
     comparesTarget = \case
-        S.Form _ [S.Form _ (S.Symbol _ op : _), _] -> op `elem` guardOperators
-        _notAGuard                                 -> False
+        S.Form _ [S.Form _ [S.Symbol _ "satisfies", S.Tagged _ _ (S.Hole _ "%subject")], _] -> True
+        S.Form _ [S.Form _ (S.Symbol _ op : _), _]                                          -> op `elem` guardOperators
+        _notAGuard                                                                          -> False
 
     -- The passes a condition would have had, had it not been in a branch head
     evaluated = connectives . placeholders

@@ -186,10 +186,11 @@ symbolName = do
                         "⊆"   -> "subset"
                         "⋃"   -> "unions"
                         "⋂"   -> "intersections"
+                        "⊨"   -> "satisfies"
                         name  -> T.pack name
     where
     -- They are not letters, so each is allowed to begin a symbol by name
-    mathSymbols = "¬∧∨∀∃∄∪∩∖⊆⋃⋂" :: String
+    mathSymbols = "¬∧∨∀∃∄∪∩∖⊆⋃⋂⊨" :: String
 
 
 pSingleToken :: Parser Tkn.Token

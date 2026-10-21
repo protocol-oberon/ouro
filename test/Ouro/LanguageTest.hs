@@ -577,6 +577,22 @@ conditions = Group "Case: conditions"
                                                                 "{\"r\": \"big\"}")
     , ("a chained guard stops at the first false", compilesToJSON "(graph g (:r (case 5 ((< 1 (nth 9 ())) \"x\") (otherwise \"y\"))))"
                                                                   "{\"r\": \"y\"}")
+
+      -- satisfies asks a property; in a branch head, of the case's target
+    , ("satisfies asks a property",              compilesToJSON "(graph g (:a (satisfies #str \"x\") :b (satisfies #num \"x\") :c (satisfies #uri \"https://a.org/x\") :d (satisfies #uri \"nope\")))"
+                                                                "{\"a\": true, \"b\": false, \"c\": true, \"d\": false}")
+    , ("satisfies keeps errors",                 failsWith "Index"
+                                                           "(graph g (:r (satisfies #str (nth 5 ()))))")
+    , ("satisfies heads a branch",               compilesToJSON "(graph g (:r (map (fn (v) (case v ((satisfies #uri) \"an identifier\") ((satisfies #num) \"a number\") (otherwise \"other\"))) (list #uri \"https://a.org/1\" 3 \"x\"))))"
+                                                                "{\"r\": [\"an identifier\", \"a number\", \"other\"]}")
+    , ("\8872 is satisfies",                     compilesToJSON "(graph g (:r (case 3 ((\8872 #num) \"n\") (otherwise \"o\"))))"
+                                                                "{\"r\": \"n\"}")
+    , ("a subject-less satisfies needs a case",  failsWith "satisfies is written"
+                                                           "(graph g (:r (map (satisfies #str) (list 1))))")
+    , ("a property on its own is misplaced",     failsWith "A property on its own"
+                                                           "(graph g (:r (list #str)))")
+    , ("satisfies cannot name a function",       failsWith "'satisfies' is a special form"
+                                                           "(defn satisfies (x) x) (graph g (:r 1))")
     ]
 
 
