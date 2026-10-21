@@ -10,6 +10,7 @@ module Data.Ouro.Lisp.Eval.Builtins
 
 import           Control.Monad.Reader        (Reader)
 import           Data.Function               ((&))
+import           Data.List                   (find, nub)
 import qualified Data.Map                    as Map
 import           Data.Ouro.Error.Diagnostics (astCorruption,
                                               binaryOpMismatchBlurb,
@@ -47,7 +48,10 @@ builtinRegistry = Map.fromList
                       , ("eq",          handleEquality)
                       , ("neq",         handleNeq)
                       , ("or",          handleOr)
+                      , ("not",         handleNot)
                       , ("len",         handleLength)
+                      , ("contains",    handleContains)
+                      , ("distinct",    handleDistinct)
                       -- Internal: emitted only by the desugarer for chained comparisons
                       , ("%and",        handleAnd)
                       , ("years",       handleYearsModifier)
@@ -420,6 +424,31 @@ handleOr pos =
                         & pure
 
 
+-- handleNot.
+--
+-- The negation of a Boolean.
+handleNot :: SourcePos -> [L.Expr] -> Reader Env L.Expr
+handleNot pos =
+    \case
+     [err@(L.EvalError _)]
+         -> pure err
+
+     [L.Primitive (I.Boolean b)]
+         -> pure $ L.Primitive (I.Boolean (not b))
+
+     [other]
+         -> Data.Ouro.Error.Diagnostics.propertyMismatch "#bool" (L.propertyOf other)
+            & OuroError pos
+            & L.EvalError
+            & pure
+
+     args
+         -> Data.Ouro.Error.Diagnostics.incorrectArity "not" 1 (length args)
+            & OuroError pos
+            & L.EvalError
+            & pure
+
+
 -- Functions cannot be compared: two different functions can behave identically,
 -- so any answer 'eq' gave would be misleading
 isFunction :: L.Expr -> Bool
@@ -509,6 +538,96 @@ handleLength pos =
             & OuroError pos
             & L.EvalError
             & pure
+
+
+-- handleContains.
+--
+-- (contains coll x): whether an Array has x as one of its elements, compared as eq
+-- compares them, or whether a String has x as a substring.
+handleContains :: SourcePos -> [L.Expr] -> Reader Env L.Expr
+handleContains pos =
+    \case
+     -- Error propagation
+     [err@(L.EvalError _), _]
+         -> pure err
+     [_, err@(L.EvalError _)]
+         -> pure err
+
+     [L.Primitive (I.String s), L.Primitive (I.String part)]
+         -> pure $ L.Primitive (I.Boolean (part `T.isInfixOf` s))
+
+     [coll, x]
+         | Just elements <- L.asArray coll
+         -> case (find isError elements, find isFunction (x : elements)) of
+                (Just err, _) -> pure err
+                (_, Just f)   -> uncomparable pos "contains" f
+                _noProblem    -> pure $ L.Primitive (I.Boolean (x `elem` elements))
+
+     [L.Primitive (I.String _), other]
+         -> Data.Ouro.Error.Diagnostics.typeMismatch "a String to look for in a String" (humanReadableType other)
+            & OuroError pos
+            & L.EvalError
+            & pure
+
+     [other, _]
+         -> Data.Ouro.Error.Diagnostics.typeMismatch "an Array or a String to search" (humanReadableType other)
+            & Data.Ouro.Error.Diagnostics.withBlurb "contains looks for an element in an Array, (contains (1 2 3) 2), or for a substring in a String, (contains \"Amsterdam\" \"dam\")."
+            & OuroError pos
+            & L.EvalError
+            & pure
+
+     args
+         -> Data.Ouro.Error.Diagnostics.incorrectArity "contains" 2 (length args)
+            & OuroError pos
+            & L.EvalError
+            & pure
+
+
+-- handleDistinct.
+--
+-- An Array without repeated elements, compared as eq compares them. The first of each is
+-- kept, in order, so (distinct (1 2 1 3)) is (1 2 3).
+handleDistinct :: SourcePos -> [L.Expr] -> Reader Env L.Expr
+handleDistinct pos =
+    \case
+     [err@(L.EvalError _)]
+         -> pure err
+
+     [arr]
+         | Just elements <- L.asArray arr
+         -> case (find isError elements, find isFunction elements) of
+                (Just err, _) -> pure err
+                (_, Just f)   -> uncomparable pos "distinct" f
+                _noProblem    -> pure $ L.Array (nub elements)
+
+     [other]
+         -> Data.Ouro.Error.Diagnostics.typeMismatch "an Array" (humanReadableType other)
+            & OuroError pos
+            & L.EvalError
+            & pure
+
+     args
+         -> Data.Ouro.Error.Diagnostics.incorrectArity "distinct" 1 (length args)
+            & OuroError pos
+            & L.EvalError
+            & pure
+
+
+isError :: L.Expr -> Bool
+isError = \case
+           L.EvalError _ -> True
+           _notAnError   -> False
+
+
+-- An Array holding a function cannot be searched or deduplicated, for the reason eq
+-- cannot compare functions
+uncomparable :: SourcePos -> Text -> L.Expr -> Reader Env L.Expr
+uncomparable pos name f =
+    Data.Ouro.Error.Diagnostics.typeMismatch ("values " <> name <> " can compare (functions cannot be compared)") (humanReadableType f)
+    & Data.Ouro.Error.Diagnostics.withBlurb "Functions have no meaningful equality, so an Array holding one cannot be searched or deduplicated."
+    & OuroError pos
+    & L.EvalError
+    & pure
 
 
 -- Shared helper for duration modifiers to ensure consistent error handling.

@@ -126,6 +126,40 @@ evalExpr expr = do
                    Left  err  -> pure (EvalError err)
                    Right keys -> (`getPath` keys) <$> evalExpr rootTarget
 
+        -- (has record key ...): whether the path of keys reaches a value. A missing key at
+        -- any step is false; anything else that stops the walk is reported as get reports it.
+        S.Form _ (S.Symbol _ "has" : rootTarget : pathExpressions@(_ : _))
+            -> case validatePathKeys pathExpressions of
+                   Left  err  -> pure (EvalError err)
+                   Right keys -> (\root -> case findPath root keys of
+                                               Nothing                -> Primitive (I.Boolean False)
+                                               Just err@(EvalError _) -> err
+                                               Just _found            -> Primitive (I.Boolean True))
+                                 <$> evalExpr rootTarget
+
+        -- (get-or default record key ...): the value at the path, or the default when a
+        -- record on the way has no such key. The default is evaluated only when it is used.
+        S.Form _ (S.Symbol _ "get-or" : defaultExpr : rootTarget : pathExpressions@(_ : _))
+            -> case validatePathKeys pathExpressions of
+                   Left  err  -> pure (EvalError err)
+                   Right keys -> evalExpr rootTarget >>= \root -> case findPath root keys of
+                                     Nothing    -> evalExpr defaultExpr
+                                     Just value -> pure value
+
+        S.Form pos (S.Symbol _ "has" : _)
+            -> lexicalError "has is written (has record key ...): a Record, then the path of keys to look for."
+               & withBlurb "Perhaps write (has book ntp46), which is true when the Record has an attribute ntp46."
+               & OuroError pos
+               & EvalError
+               & pure
+
+        S.Form pos (S.Symbol _ "get-or" : _)
+            -> lexicalError "get-or is written (get-or default record key ...): the value to use when a key is missing, a Record, then the path of keys."
+               & withBlurb "Perhaps write (get-or () book ntp46), which is the Record's ntp46, or () when it has none."
+               & OuroError pos
+               & EvalError
+               & pure
+
         S.Form _ (S.Symbol _ "list" : items)             -> Array <$> mapM evalExpr items
 
         -- (map f array): calls f on each element. Each call is an ordinary call, written
@@ -140,7 +174,7 @@ evalExpr expr = do
                    (_, EvalError err) -> pure (EvalError err)
 
                    (f, _)
-                       | not (isFunction f)
+                       | not (callable f)
                        -> typeMismatch "a function to map with" (humanReadableType f)
                           & withBlurb "map calls a function on each element of an Array: (map f array), e.g. (map (+ ? 1) (1 2 3))."
                           & OuroError (S.exprPos fnExpr)
@@ -149,7 +183,7 @@ evalExpr expr = do
 
                    (f, arr)
                        | Just elems <- L.asArray arr
-                       -> Array <$> mapM (callOn f) elems
+                       -> Array <$> mapM (callOnElement pos fnExpr arrExpr f) elems
 
                    (_, arr)
                        -> typeMismatch "an Array to map over" (humanReadableType arr)
@@ -157,26 +191,54 @@ evalExpr expr = do
                           & OuroError (S.exprPos arrExpr)
                           & EvalError
                           & pure
-            where
-            isFunction = \case
-                FunctionClosure {} -> True
-                PrimitiveOp _      -> True
-                _notAFunction      -> False
-
-            -- An element has no position of its own, so it is reported at the Array
-            callOn f element = do
-                frame <- allocValues (\names -> env
-                                              & L.localScope       .~ names
-                                              & L.functionRegistry .~ Map.empty
-                                              & L.parentEnv        .~ Just env)
-                                     pos
-                                     [("%map-fn", f), ("%map-element", element)]
-                local (const frame) $
-                    applyFunction pos [S.Symbol (S.exprPos fnExpr) "%map-fn", S.Symbol (S.exprPos arrExpr) "%map-element"]
 
         S.Form pos (S.Symbol _ "map" : _)
             -> lexicalError "map is written (map f array): a function, then the Array to call it on."
                & withBlurb "Perhaps write (map (+ ? 1) (1 2 3)), or (map f xs) with a function f."
+               & OuroError pos
+               & EvalError
+               & pure
+
+        -- (any f array), (every f array), (filter f array): f is called on each element, as
+        -- map calls it, and must answer with a Boolean. any and every stop at the element
+        -- that decides the answer, as some and all stop at an operand.
+        S.Form pos [S.Symbol _ form, fnExpr, arrExpr]
+            | form `elem` ["any", "every", "filter"]
+            -> do
+               fnVal  <- evalExpr fnExpr
+               arrVal <- evalExpr arrExpr
+               case (fnVal, arrVal) of
+                   (EvalError err, _) -> pure (EvalError err)
+                   (_, EvalError err) -> pure (EvalError err)
+
+                   (f, _)
+                       | not (callable f)
+                       -> typeMismatch ("a function for " <> form <> " to call") (humanReadableType f)
+                          & withBlurb (predicateUsage form)
+                          & OuroError (S.exprPos fnExpr)
+                          & EvalError
+                          & pure
+
+                   (f, arr)
+                       | Just elems <- L.asArray arr
+                       -> let answer element = predicateVerdict form (S.exprPos arrExpr)
+                                               <$> callOnElement pos fnExpr arrExpr f element
+                          in case form of
+                                 "any"   -> decideOn True  answer elems
+                                 "every" -> decideOn False answer elems
+                                 _filter -> keepWhere answer elems
+
+                   (_, arr)
+                       -> typeMismatch ("an Array for " <> form <> " to go through") (humanReadableType arr)
+                          & withBlurb (predicateUsage form)
+                          & OuroError (S.exprPos arrExpr)
+                          & EvalError
+                          & pure
+
+        S.Form pos (S.Symbol _ form : _)
+            | form `elem` ["any", "every", "filter"]
+            -> lexicalError (form <> " is written (" <> form <> " f array): a function that answers true or false, then the Array to call it on.")
+               & withBlurb (predicateUsage form)
                & OuroError pos
                & EvalError
                & pure
@@ -736,6 +798,85 @@ getPath value = \case
                                            )
                                & OuroError keyPos
                                & EvalError
+
+
+-- The value at a path, or Nothing when a record on the way has no such key. Anything else
+-- that stops the walk, an error or a value that is not a record, is the value 'get' would
+-- give, so that has and get-or report it as get does.
+findPath :: L.Expr -> [(Text, SourcePos)] -> Maybe L.Expr
+findPath value = \case
+    []                     -> Just value
+    path@((key, _) : rest) -> case value of
+        Record _ pairs       -> lookup key pairs >>= (`findPath` rest)
+        Primitive I.EmptyRec -> Nothing
+        _notARecord          -> Just (getPath value path)
+
+
+-- A value map, any, every and filter can call on each element
+callable :: L.Expr -> Bool
+callable = \case
+    FunctionClosure {} -> True
+    PrimitiveOp _      -> True
+    _notAFunction      -> False
+
+
+-- Calls a function on one element of an Array, for map, any, every and filter. The call
+-- is an ordinary one, made in a frame that binds the function and the element to names
+-- that cannot be written in Ouro, so arity, signatures and the recursion check apply as
+-- they do anywhere else. An element has no position of its own, so it is reported at the
+-- Array.
+callOnElement :: SourcePos -> S.Expr -> S.Expr -> L.Expr -> L.Expr -> EvalM L.Expr
+callOnElement pos fnExpr arrExpr f element = do
+    env   <- ask
+    frame <- allocValues (\names -> env
+                                  & L.localScope       .~ names
+                                  & L.functionRegistry .~ Map.empty
+                                  & L.parentEnv        .~ Just env)
+                         pos
+                         [("%map-fn", f), ("%map-element", element)]
+    local (const frame) $
+        applyFunction pos [S.Symbol (S.exprPos fnExpr) "%map-fn", S.Symbol (S.exprPos arrExpr) "%map-element"]
+
+
+-- The answer of one call of any's, every's or filter's function: a Boolean, or the
+-- value to stop with, an error reported at the Array
+predicateVerdict :: Text -> SourcePos -> L.Expr -> Either L.Expr Bool
+predicateVerdict form arrPos = \case
+    Primitive (I.Boolean b) -> Right b
+    err@(EvalError _)       -> Left err
+    other                   -> propertyMismatch "#bool" (propertyOf other)
+                               & withBlurb (form <> "'s function must answer true or false for each element.")
+                               & OuroError arrPos
+                               & EvalError
+                               & Left
+
+
+-- any and every: stop at the first element whose answer is the deciding one
+decideOn :: Bool -> (L.Expr -> EvalM (Either L.Expr Bool)) -> [L.Expr] -> EvalM L.Expr
+decideOn deciding answer = \case
+    []             -> pure (Primitive (I.Boolean (not deciding)))
+    element : rest -> answer element >>= \case
+                          Left stop                -> pure stop
+                          Right b | b == deciding  -> pure (Primitive (I.Boolean deciding))
+                                  | otherwise      -> decideOn deciding answer rest
+
+
+-- filter: the elements whose answer is true, in order
+keepWhere :: (L.Expr -> EvalM (Either L.Expr Bool)) -> [L.Expr] -> EvalM L.Expr
+keepWhere answer = go []
+    where
+    go kept = \case
+        []             -> pure (Array (reverse kept))
+        element : rest -> answer element >>= \case
+                              Left stop   -> pure stop
+                              Right True  -> go (element : kept) rest
+                              Right False -> go kept rest
+
+
+predicateUsage :: Text -> Text
+predicateUsage form =
+    form <> " calls a function that answers true or false on each element of an Array: ("
+    <> form <> " f array), e.g. (" <> form <> " (> ? 1) (1 2 3))."
 
 
 -- A ':key value' attribute pair, as a value, belongs in a record, not an array

@@ -170,6 +170,9 @@ symbolName = do
              rest  <- many (alphaNumChar <|> oneOf ("_-+*/<>=!?&|~'" :: String))
              pure $ case first : rest of
                         "λ"   -> "fn"
+                        "∨"   -> "or"
+                        "∀"   -> "all"
+                        "∃"   -> "exists"
                         name  -> T.pack name
 
 

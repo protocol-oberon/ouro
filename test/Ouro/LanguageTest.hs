@@ -11,6 +11,7 @@ module Ouro.LanguageTest
 , classification
 , encoding
 , strings
+, logicAndCollections
 , contexts
 , contextAlgebra
 , knownGaps
@@ -410,6 +411,84 @@ strings = Group "Strings: escaped in the output"
                                                   fmap (T.isInfixOf "\"k\": \"a\\\"b\"" . TL.toStrict)
                                                        (validate "t.json" "{\"k\": \"a\\\"b\"}" defaultOptions)
                                                   === Right True)
+    ]
+
+
+-- not negates; any, every and filter call a function on each element, as map does, and
+-- any and every stop at the element that decides; contains and distinct compare as eq
+-- does; has and get-or walk a path as get does, and tell a missing key from an error.
+logicAndCollections :: Group
+logicAndCollections = Group "Built-ins: logic, arrays and records"
+    [ ("not negates",                            compilesToJSON "(graph g (:a (not true) :b (not false)))"
+                                                                "{\"a\": false, \"b\": true}")
+    , ("not needs a Boolean",                    failsWith "expectedProperty = \"#bool\""
+                                                           "(graph g (:r (not 1)))")
+    , ("not takes one operand",                  failsWith "nameOfFunc = \"not\""
+                                                           "(graph g (:r (not true false)))")
+
+      -- any, every and filter
+    , ("any finds an element",                   compilesToJSON "(graph g (:r (any (> ? 2) (1 2 3))))"
+                                                                "{\"r\": true}")
+    , ("any of nothing is false",                compilesToJSON "(graph g (:r (any (> ? 2) ())))"
+                                                                "{\"r\": false}")
+    , ("every checks each element",              compilesToJSON "(graph g (:a (every (> ? 0) (1 2 3)) :b (every (> ? 1) (1 2 3))))"
+                                                                "{\"a\": true, \"b\": false}")
+    , ("every of nothing is true",               compilesToJSON "(graph g (:r (every (> ? 2) ())))"
+                                                                "{\"r\": true}")
+    , ("any stops at the deciding element",      compilesToJSON "(graph g (:r (any (fn (x) (> (len x) 1)) (\"ab\" 5))))"
+                                                                "{\"r\": true}")
+    , ("every stops at the deciding element",    compilesToJSON "(graph g (:r (every (fn (x) (> (len x) 5)) (\"ab\" 5))))"
+                                                                "{\"r\": false}")
+    , ("none is not any",                        compilesToJSON "(graph g (:r (not (any (eq ? 3) (1 2)))))"
+                                                                "{\"r\": true}")
+    , ("filter keeps the matching elements",     compilesToJSON "(graph g (:r (filter (> ? 1) (1 2 3))))"
+                                                                "{\"r\": [2, 3]}")
+    , ("filter with has",                        compilesToJSON "(graph g (:r (filter (fn (p) (has p name)) ((:name \"a\") (:id 1)))))"
+                                                                "{\"r\": [{\"name\": \"a\"}]}")
+    , ("a hole for the array",                   compilesToJSON "(graph g (let ($big (any (> ? 2) ?)) (:r (big (1 5)))))"
+                                                                "{\"r\": true}")
+    , ("the answer must be a Boolean",           failsWith "expectedProperty = \"#bool\""
+                                                           "(graph g (:r (any (+ ? 1) (1 2))))")
+    , ("any needs a function",                   failsWith "a function for any to call"
+                                                           "(graph g (:r (any 1 (1 2))))")
+    , ("every needs an Array",                   failsWith "an Array for every to go through"
+                                                           "(graph g (:r (every (> ? 1) 5)))")
+    , ("a malformed filter is an error",         failsWith "filter is written (filter f array)"
+                                                           "(graph g (:r (filter (> ? 1))))")
+    , ("any cannot name a function",             failsWith "'any' is a special form"
+                                                           "(defn any (x) x) (graph g (:r 1))")
+
+      -- contains and distinct
+    , ("contains looks in an Array",             compilesToJSON "(graph g (:a (contains (1 2 3) 2) :b (contains (1 2) 5)))"
+                                                                "{\"a\": true, \"b\": false}")
+    , ("contains compares records by value",     compilesToJSON "(graph g (:r (contains ((:a 1)) (:a 1))))"
+                                                                "{\"r\": true}")
+    , ("contains looks in a String",             compilesToJSON "(graph g (:a (contains \"Amsterdam\" \"dam\") :b (contains \"Amsterdam\" \"x\")))"
+                                                                "{\"a\": true, \"b\": false}")
+    , ("contains cannot compare functions",      failsWith "functions cannot be compared"
+                                                           "(graph g (:r (contains (list (fn (x) x)) 1)))")
+    , ("contains needs an Array or a String",    failsWith "an Array or a String to search"
+                                                           "(graph g (:r (contains 5 1)))")
+    , ("distinct keeps the first of each",       compilesToJSON "(graph g (:r (distinct (1 2 1 3 2))))"
+                                                                "{\"r\": [1, 2, 3]}")
+    , ("distinct of nothing is nothing",         compilesToJSON "(graph g (:r (distinct ())))"
+                                                                "{\"r\": []}")
+    , ("distinct needs an Array",                failsWith "expectedType = \"an Array\""
+                                                           "(graph g (:r (distinct \"aa\")))")
+
+      -- has and get-or
+    , ("has follows a path",                     compilesToJSON "(graph g (:a (has (:x (:y 1)) x y) :b (has (:x 1) z)))"
+                                                                "{\"a\": true, \"b\": false}")
+    , ("has reports a path through a value",     failsWith "a Record to look up"
+                                                           "(graph g (:r (has (:x 1) x y)))")
+    , ("get-or gives the value when it is there", compilesToJSON "(graph g (:r (get-or \"none\" (:x 1) x)))"
+                                                                 "{\"r\": 1}")
+    , ("get-or gives the default when it is not", compilesToJSON "(graph g (:a (get-or \"none\" (:x 1) z) :b (get-or 0 (:x (:y 1)) x z)))"
+                                                                 "{\"a\": \"none\", \"b\": 0}")
+    , ("get-or evaluates the default only when used", compilesToJSON "(graph g (:r (get-or (nth 5 ()) (:x 1) x)))"
+                                                                     "{\"r\": 1}")
+    , ("a malformed get-or is an error",         failsWith "get-or is written (get-or default record key ...)"
+                                                           "(graph g (:r (get-or 1 (:x 1))))")
     ]
 
 

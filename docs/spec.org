@@ -450,8 +450,13 @@ Special forms are recognised by their head symbol before any name lookup, so the
 | =(fn (args) body)=                       | an anonymous function, optionally with a signature                                    |
 | =(case target branch ... (otherwise e))= | pattern matching and guards; =otherwise= is required and last                         |
 | =(get record key ...)=                   | the value at a path of keys through evaluated records                                 |
+| =(has record key ...)=                   | =true= when the path of keys reaches a value                                          |
+| =(get-or default record key ...)=        | the value at the path, or =default= when a key on the way is missing                  |
 | =(nth i coll)=                           | the i-th element of an array, or the value of a record's i-th attribute pair          |
 | =(map f array)=                          | an array of =f= called on each element                                                |
+| =(any f array)=                          | =true= when =f= answers =true= for some element; stops at the first                   |
+| =(every f array)=                        | =true= when =f= answers =true= for every element; stops at the first =false=          |
+| =(filter f array)=                       | the elements for which =f= answers =true=, in order                                   |
 | =(insert i x coll)=                      | insert =x= at index =i= (an array element, or a =:key value= attribute pair)          |
 | =(replace-at i x coll)=                  | replace the element or attribute pair at index =i=                                    |
 | =(inlay expr)=                           | splice a record's attribute pairs into a record, or an array's elements into an array |
@@ -468,6 +473,10 @@ Negative indexes count from the end in =nth=, =insert= and =replace-at=. =insert
 *Value-based =get=.* =get= evaluates its target and walks the resulting records, so it works through function results, =inlay=, =case= and =let= alike. Only a record's attribute pairs can be reached, =let= bindings are private. Path components are bare symbols (=(get p q r)=, not =(get p :q)=) arrays are indexed with =nth=.
 
 *=map=.* ~(map f array)~ evaluates =f=, which must be a function (a =fn=, a =defn= name, a built-in or a placeholder), and =array=, which must be an array (=()= and =#arr-empty= are empty arrays). The result is an array of =f= called on each element, in order. Each element is passed as an ordinary call, made in a frame that binds the function and the element to names that cannot be written in Ouro, so arity, signatures and the recursion check apply as they do to any call: =f= must take one argument, a typed parameter checks every element, and a mismatch is reported at the array, since an element has no position of its own. With placeholders, ~(map (+ ? 1) xs)~ needs no =fn=, and ~(map f ?)~ is a function waiting for the array. Elements that are themselves arrays or records are taken apart by a [[*Destructuring parameters][pattern parameter]]: ~(map (fn ((?k ?v)) ...) pairs)~. =map= is a special form only at the head of a form: it cannot name a =defn=, but =:map= and =$map= are ordinary names.
+
+*=any=, =every= and =filter=.* Each calls =f= on the elements of an array exactly as =map= does, with the same arity, signature and recursion rules, and =f= must answer =#bool=; an answer that is not a Boolean is reported at the array. =any= and =every= stop at the element that decides the answer, as =some= and =all= stop at an operand, so ~(any (> ? 0) (1 "x"))~ is =true= without calling =f= on ="x"=. ~(any f ())~ is =false=, ~(every f ())~ is =true= and ~(filter f ())~ is =()=. "None" is ~(not (any f xs))~. They take holes, ~(any (> ? 2) ?)~, and cannot name a =defn=.
+
+*=has= and =get-or=.* Both walk a path as =get= does. ~(has record key ...)~ is =false= when a record on the way has no such key, and ~(get-or default record key ...)~ is then =default=, which is evaluated only in that case. Anything else that stops the walk, a value on the way that is not a record or an error, is reported as =get= reports it. Both need at least one key and cannot name a =defn=.
 
 *=with= and =->=.* ~(with base item ...)~ is =base= with =item=s written over it, layered as an =inlay= is: a written attribute pair wins over the base's own, and an array base has its elements spliced, so ~(with (1 2) 3 4)~ is ~(1 2 3 4)~. With nothing to add, ~(with base)~ is =base=. ~(-> x step ...)~ threads =x= through its steps, each receiving the value before it:
 
@@ -527,7 +536,9 @@ shadows them with its own attribute pairs.
 | Arithmetic  | ~+~ ~-~ ~*~ ~/~                           | variadic, left-associative; =+= also joins strings and arrays, adds durations to dates  |
 | Comparison  | ~eq~ ~neq~ ~>~ ~>=~ ~<~ ~<=~              | variadic comparisons are chained: ~(< a b c)~ = a<b and b<c                             |
 | Logic       | ~or~                                      | ~(or a b)~ of two Booleans, both evaluated; =(some ...)= stops at the first =true=      |
+| Negation    | ~not~                                     | ~(not b)~ of one Boolean                                                                |
 | Length      | ~len~                                     | ~(len x)~ is the number of an array's elements, or of a string's characters             |
+| Collections | ~contains~ ~distinct~                     | ~(contains coll x)~ for an element or a substring; ~(distinct xs)~ drops repeats        |
 | Durations   | =years months days hours minutes seconds= | ~(days 19)~ is a Duration                                                               |
 | End-of-unit | =(thru d)=                                | ~(thru (days 1))~ = 1 day 23:59:59; ~(thru (years 0))~ = to the end of the current year |
 
@@ -536,6 +547,8 @@ An operator written with the wrong number of operands is an arity error. Orderin
 =all= and =some= are special forms that combine Booleans: ~(all a b ...)~ is =true= when every operand is, and ~(some a b ...)~ when one is. Each evaluates its operands in order and stops at the one that decides the answer, so ~(all false (nth 5 ()))~ is =false=, and each operand it reaches must have the property =#bool=. ~(all)~ is =true= and ~(some)~ is =false=. They are desugared into =case= (see [[*Desugaring (~Canon~)][desugaring]]), take holes like a call, and cannot name a =defn=. =or= is the built-in for two Booleans: both operands are evaluated, as for any built-in, and both must be =#bool=.
 
 =len= takes exactly one argument. An array's elements are counted whatever their types, so ~(len (1 (2 3) (:k 4)))~ is 3, and =()= and =#arr-empty= have length 0. A string is counted in characters (Unicode code points), not bytes, so ~(len "Málaga")~ is 6. Any other value, a record or a URI included, is a type error. Recursion is banned, so a length cannot be written in Ouro itself; =len= is an ordinary built-in otherwise, so ~(map len xs)~ works.
+
+=contains= takes two arguments: ~(contains (1 2 3) 2)~ is =true= when the array has the value as an element, compared as =eq= compares, so records and arrays are compared by value; ~(contains "Amsterdam" "dam")~ is =true= when the string has the other as a substring. =distinct= takes one array and keeps the first of each value, in order: ~(distinct (1 2 1 3))~ is ~(1 2 3)~. An array holding a function is a type error for both, since functions cannot be compared. =not= takes one =#bool=.
 
 Dates are shifted with =+= and =-=: ~(+ start (days 19))~. Shifting by months or years clips to the end of a shorter month instead of rolling over, so 31 March minus one month is the last day of February. =thru= exists for Linked Art timespans, whose
 =end_of_the_end= is the last moment of a period:

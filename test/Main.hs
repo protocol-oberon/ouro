@@ -54,6 +54,7 @@ main = withUtf8Console $ do
         , Language.classification
         , Language.encoding
         , Language.strings
+        , Language.logicAndCollections
         , Language.contexts
         , Language.contextAlgebra
         -- Known gaps: pinned as they are today; a fix flips its test
