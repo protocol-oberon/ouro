@@ -429,7 +429,8 @@ strings = Group "Strings: escaped in the output"
 
 -- not negates; exists, forall and filter call a function on each element, as map does,
 -- and exists and forall stop at the element that decides; contains and distinct compare as eq
--- does; has and get-or walk a path as get does, and tell a missing key from an error.
+-- does; has and get-or walk a path as get does, and tell a missing key from an error; image
+-- reads a path as a set, through Arrays.
 logicAndCollections :: Group
 logicAndCollections = Group "Built-ins: logic, arrays and records"
     [ ("not negates",                            compilesToJSON "(graph g (:a (not true) :b (not false)))"
@@ -514,6 +515,30 @@ logicAndCollections = Group "Built-ins: logic, arrays and records"
                                                                      "{\"r\": 1}")
     , ("a malformed get-or is an error",         failsWith "get-or is written (get-or default record key ...)"
                                                            "(graph g (:r (get-or 1 (:x 1))))")
+
+      -- image reads a path as a set
+    , ("image follows a path through Arrays",    compilesToJSON "(graph g (:r (image (:part ((:k (1 2)) (:k (2 3)))) part k)))"
+                                                                "{\"r\": [1, 2, 3]}")
+    , ("image of a single value is one element", compilesToJSON "(graph g (:r (image (:k 1) k)))"
+                                                                "{\"r\": [1]}")
+    , ("a missing key adds nothing",             compilesToJSON "(graph g (:a (image (:part ((:k 1) (:x 2))) part k) :b (image (:x 1) k)))"
+                                                                "{\"a\": [1], \"b\": []}")
+    , ("image starts from an Array",             compilesToJSON "(graph g (:r (image ((:k 1) (:k 2)) k)))"
+                                                                "{\"r\": [1, 2]}")
+    , ("image compares records by value",        compilesToJSON "(graph g (:r (image (:p ((:t (:id 1)) (:t (:id 1)))) p t)))"
+                                                                "{\"r\": [{\"id\": 1}]}")
+    , ("image compares kinds by id",             compilesToJSON "(graph g (:r (image (:p ((:t ((:id \"a\" :_label \"x\"))) (:t ((:id \"a\" :_label \"y\"))))) p t id)))"
+                                                                "{\"r\": [\"a\"]}")
+    , ("image takes a hole",                     compilesToJSON "(graph g (:r (map (image ? k) ((:k 1) (:k (2 3))))))"
+                                                                "{\"r\": [[1], [2, 3]]}")
+    , ("image reports a value on the way",       failsWith "a Record to follow 'j' from"
+                                                           "(graph g (:r (image (:k 1) k j)))")
+    , ("image keeps errors",                     failsWith "Index"
+                                                           "(graph g (:r (image (:p ((:k (nth 5 ())))) p k)))")
+    , ("a malformed image is an error",          failsWith "image is written (image record key ...)"
+                                                           "(graph g (:r (image (:k 1))))")
+    , ("image cannot name a function",           failsWith "'image' is a special form"
+                                                           "(defn image (x) x) (graph g (:r 1))")
 
       -- union, intersect and setminus treat Arrays as sets
     , ("union joins without repeats",            compilesToJSON "(graph g (:a (union (1 2) (2 3)) :b (union (1 1)) :c (union (1) (2) (1 3))))"

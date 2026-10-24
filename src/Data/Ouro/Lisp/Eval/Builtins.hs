@@ -6,6 +6,7 @@ module Data.Ouro.Lisp.Eval.Builtins
 ( builtinRegistry
 , parseISO8601
 , isNumber
+, distinctValues
 ) where
 
 import           Control.Monad.Reader        (Reader)
@@ -630,6 +631,11 @@ overSets pos name operation = \case
 -- Every value in any of the sets
 unionOf :: [[L.Expr]] -> L.Expr
 unionOf = L.Array . nub . concat
+
+-- The values of one Array as a set, for image: repeats are dropped as union drops them,
+-- and an error or a function among them is reported as union reports it
+distinctValues :: SourcePos -> Text -> [L.Expr] -> Reader Env L.Expr
+distinctValues pos name values = withSets pos name [L.Array values] unionOf
 
 -- The values of the first set that are in all the rest
 intersectionOf :: [[L.Expr]] -> L.Expr

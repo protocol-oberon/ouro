@@ -216,7 +216,7 @@ call         = "(" , symbol , { expression | placeholder } , ")" ;
 placeholder  = [ property ] , hole ;     (* a call with placeholders is a function of them *)
 
 (* ---------- Special forms ---------- *)
-special-form = let | fn | case | get | has | get-or | nth | map | filter | quantifier
+special-form = let | fn | case | get | has | get-or | image | nth | map | filter | quantifier
              | insert | replace-at | inlay | with | thread | connective | thru ;
 let          = "(" , "let" , "(" , { binding } , ")" , expression , ")" ;
 binding      = "$" , symbol , expression ;
@@ -228,6 +228,7 @@ alternatives = "(" , literal , { literal } , ")" ;
 get          = "(" , "get" , expression , symbol , { symbol } , ")" ;
 has          = "(" , "has" , expression , symbol , { symbol } , ")" ;
 get-or       = "(" , "get-or" , expression , expression , symbol , { symbol } , ")" ;     (* a default, then a record and its path *)
+image        = "(" , "image" , expression , symbol , { symbol } , ")" ;                   (* a record or an array, then its path *)
 nth          = "(" , "nth" , expression , expression , ")" ;
 map          = "(" , "map" , expression , expression , ")" ;     (* a function, then an array *)
 filter       = "(" , "filter" , expression , expression , ")" ;     (* a function, then an array *)
@@ -420,7 +421,7 @@ A call with =?= holes among its arguments is not called: it is a function of its
 - *A named hole is one parameter*, however often it is written: ~(* ?n ?n)~ takes one. Parameters follow the order in which each hole is first written, so ~(+ ?a ?b ?a)~ takes =a= then =b=.
 - *A typed hole is a typed parameter*: ~(node #uri ? "Painting")~ checks, and converts, its argument as a signature would, and a mismatch is reported at the argument where the placeholder is called. An untyped hole passed to a typed parameter of the function is checked by that function, and a mismatch is reported at the hole.
 - *A hole belongs to the call it is an argument of*, so ~(* 2 (+ ? 1))~ multiplies 2 by a function (an error), and ~(f (g ?))~ passes =f= a function.
-- *Any call takes holes*: a =defn=, a =fn=, a built-in, a variadic operator (~(< ? 10 20)~) and the special forms that evaluate their arguments (=get=, =nth=, =insert=, =replace-at=, =list=, =map=, =->=). The forms with their own structure (=let=, =fn=, =case=, =context=, =inlay=, =thru=) do not.
+- *Any call takes holes*: a =defn=, a =fn=, a built-in, a variadic operator (~(< ? 10 20)~) and the special forms that evaluate their arguments (=get=, =image=, =nth=, =insert=, =replace-at=, =list=, =map=, =->=). The forms with their own structure (=let=, =fn=, =case=, =context=, =inlay=, =thru=) do not.
 - *A placeholder is a value*: it is a =fn=, closed over the scope it is written in, so it can be bound, passed and returned like one. It is called with exactly as many arguments as it has holes.
 - *A hole anywhere else is an error*: in an array, in a record, or as a binding's value. A rest hole, =?..name=, only matches the rest of an array or record, so it can only be written in a pattern: a =case= pattern or a [[*Destructuring parameters][parameter]].
 
@@ -462,6 +463,7 @@ Special forms are recognised by their head symbol before any name lookup, so the
 | =(get record key ...)=                   | the value at a path of keys through evaluated records                                 |
 | =(has record key ...)=                   | =true= when the path of keys reaches a value                                          |
 | =(get-or default record key ...)=        | the value at the path, or =default= when a key on the way is missing                  |
+| =(image record key ...)=                 | every value the path reaches, as a set, through Arrays                                 |
 | =(satisfies #p x)=                       | =true= when =x= has the property =#p=; =false= when it does not                         |
 | =(nth i coll)=                           | the i-th element of an array, or the value of a record's i-th attribute pair          |
 | =(map f array)=                          | an array of =f= called on each element                                                |
@@ -491,6 +493,8 @@ Negative indexes count from the end in =nth=, =insert= and =replace-at=. =insert
 ~(omits f xs)~ is ~(not (exists f xs))~, the quantifier =∄=. It is named for what the data omits, not for what does not exist: a document's silence is not a complete observation, so =omits= says only that the array has no such element, never that no such thing exists. A contradiction check reads ~(omits (contains (get-or () book ntp46) ?) (get-or () book tp46))~: no type is recorded as both present and absent.
 
 =has= and =get-or=. Both walk a path as =get= does. ~(has record key ...)~ is =false= when a record on the way has no such key, and ~(get-or default record key ...)~ is then =default=, which is evaluated only in that case. Anything else that stops the walk, a value on the way that is not a record or an error, is reported as =get= reports it. Both need at least one key and cannot name a =defn=.
+
+=image=. ~(image record key ...)~ reads a path as JSON-LD reads properties, as sets of values: ~(image book part classified_as)~ is every classification of every part. At each key, a record gives that key's values (an Array is its elements, any other value is one value), an Array gives the key's values from each of its elements, and a record without the key adds nothing, so ~(image book tp46)~ is =()= when there is no =tp46=. The result is always an Array with no repeats, compared as =eq= compares and kept in the order first reached, as =union= keeps them. A value on the way that is not a record, an Array inside an Array among them, is an error, and so is the first error reached. Following =id= compares by identity rather than by value: ~(image book part classified_as id)~ is a set of IRIs, so one type written with two labels is one element. Like =get=, it needs at least one key, takes bare symbols as path components, and cannot name a =defn=. Use =get= where the data has one value by construction, and =image= for anything JSON-LD reads as a set. Because a missing key gives =()= rather than an error, a misspelt key gives an empty set.
 
 =satisfies=. ~(satisfies #p x)~ is a question, where =#p x= is a requirement: it answers =false= when =x= does not have the property, where =#p x= is an error. Only the property's own check gives =false=: an error inside =x= stays an error. A property written on its own, with nothing after it, is only meaningful in ~(satisfies #p)~ at the head of a =case= branch, where the case's target fills it in; anywhere else it is an error. =satisfies= cannot name a =defn=.
 

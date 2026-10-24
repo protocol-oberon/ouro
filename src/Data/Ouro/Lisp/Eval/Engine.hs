@@ -4,12 +4,13 @@
 
 module Data.Ouro.Lisp.Eval.Engine where
 
-import           Control.Monad                  (unless)
+import           Control.Monad                  (foldM, unless)
 import           Control.Monad.Reader           (MonadReader (..), runReader)
 import           Control.Monad.State.Strict     (gets)
 import qualified Data.IntMap.Strict             as IntMap
 import           Data.Function                  ((&))
 import qualified Data.Map                       as Map
+import           Data.Maybe                     (fromMaybe)
 import           Data.Ouro.Error.Diagnostics    (astCorruption,
                                                  indexOutOfBounds,
                                                  inexhaustiveCase,
@@ -26,7 +27,7 @@ import           Data.Ouro.Error.Diagnostics    (astCorruption,
 import           Data.Ouro.Error.Types          (ErrorContext (..),
                                                  OuroError (..), TypeError (..))
 import qualified Data.Ouro.Internal.Expr        as I
-import           Data.Ouro.Lisp.Eval.Builtins   (builtinRegistry, parseISO8601)
+import           Data.Ouro.Lisp.Eval.Builtins   (builtinRegistry, distinctValues, parseISO8601)
 import           Data.Ouro.Lisp.Eval.Pattern    (matchPattern)
 import           Data.Ouro.Lisp.Eval.Scope      (allocFrame, allocValues, force,
                                                  letBindings, lookupVar)
@@ -165,6 +166,23 @@ evalExpr expr = do
         S.Form pos (S.Symbol _ "get-or" : _)
             -> lexicalError "get-or is written (get-or default record key ...): the value to use when a key is missing, a Record, then the path of keys."
                & withBlurb "Perhaps write (get-or () book ntp46), which is the Record's ntp46, or () when it has none."
+               & OuroError pos
+               & EvalError
+               & pure
+
+        -- (image record key ...): the values a path reaches, read as a set, as JSON-LD
+        -- reads a property's values. It goes through Arrays, a missing key adds nothing,
+        -- and the result has no repeats, kept in the order they are reached.
+        S.Form pos (S.Symbol _ "image" : rootTarget : pathExpressions@(_ : _))
+            -> case validatePathKeys pathExpressions of
+                   Left  err  -> pure (EvalError err)
+                   Right keys -> evalExpr rootTarget >>= \root -> case imageOf root keys of
+                                     Left  err    -> pure err
+                                     Right values -> runReader (distinctValues pos "image" values) <$> ask
+
+        S.Form pos (S.Symbol _ "image" : _)
+            -> lexicalError "image is written (image record key ...): a Record, or an Array of them, then the path of keys to follow."
+               & withBlurb "Perhaps write (image book part classified_as), every classification of every part."
                & OuroError pos
                & EvalError
                & pure
@@ -843,6 +861,33 @@ findPath value = \case
         Record _ pairs       -> lookup key pairs >>= (`findPath` rest)
         Primitive I.EmptyRec -> Nothing
         _notARecord          -> Just (getPath value path)
+
+
+-- imageOf.
+--
+-- The values a path reaches, read as JSON-LD reads a property's values: an Array is its
+-- elements and any other value is one value. Each key is followed from every value reached
+-- so far, and a Record without the key adds nothing. A value on the way that is not a
+-- Record is an error, as it is for get, and so is the first error reached.
+imageOf :: L.Expr -> [(Text, SourcePos)] -> Either L.Expr [L.Expr]
+imageOf root = foldM step (valuesOf root)
+    where
+    step reached (key, keyPos) = concat <$> traverse (follow key keyPos) reached
+
+    follow key keyPos = \case
+        err@(EvalError _)    -> Left err
+        Record _ pairs       -> Right (maybe [] valuesOf (lookup key pairs))
+        Primitive I.EmptyRec -> Right []
+        notARecord           -> typeMismatch ("a Record to follow '" <> key <> "' from") (humanReadableType notARecord)
+                                & withBlurb ( "image follows keys through Records, and through the elements of an Array. "
+                                           <> "A value on the way that is neither has no attribute pairs to follow, "
+                                           <> "and an Array inside an Array is not one of a property's values."
+                                            )
+                                & OuroError keyPos
+                                & EvalError
+                                & Left
+
+    valuesOf value = fromMaybe [value] (L.asArray value)
 
 
 -- A value map, exists, forall, omits and filter can call on each element
