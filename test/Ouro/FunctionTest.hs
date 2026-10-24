@@ -74,8 +74,6 @@ plainNames = Group "Functions: names are plain symbols, in one namespace"
     -- Compiles today, and must keep compiling
     , ("a trailing ! is still allowed",            compilesLike "(defn legacy! () 1) (graph g (:r (legacy!)))"
                                                                 "(graph g (:r 1))")
-    , ("a name can contain /, as std/... does",    compilesLike "(defn std/inc (n) (+ n 1)) (graph g (:r (std/inc 1)))"
-                                                                "(graph g (:r 2))")
 
     -- Checked by message: today every program here already fails, but for another reason
     , ("a let value shadows a top-level function", compilesLike "(defn label () \"function\") (graph g (let ($label \"value\") (:r label)))"

@@ -313,6 +313,24 @@ splitErrorContext = \case
            , Nothing
            )
 
+    Scope (ModuleNotFound path)
+        -> ("Module Not Found"
+           , [ labeled "Module: " (pretty path) ]
+           , Nothing
+           )
+
+    Scope (UnknownQualifier qualifier)
+        -> ("Unknown Qualifier"
+           , [ labeled "Qualifier: " (pretty qualifier) ]
+           , Nothing
+           )
+
+    Scope (NotExported qualifier name _)
+        -> ("Not Exported"
+           , [ labeled "Function: " (pretty $ qualifier <> "/" <> name) ]
+           , Nothing
+           )
+
     Internal (ErasureValueLeakError block)
         -> ( "Compiler Internal Error"
            , [ labeled "Expected: " "nil (erased)"

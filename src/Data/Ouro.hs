@@ -35,10 +35,9 @@ module Data.Ouro
 , warningSummary
 ) where
 
-import           Control.Monad.Validate      (ValidateT, refute, runValidateT)
-import           Control.Monad.Writer        (WriterT, runWriter, tell)
+import           Control.Monad.Validate      (refute, runValidateT)
+import           Control.Monad.Writer        (runWriter, tell)
 import qualified Data.ByteString             as BS
-import           Data.Functor.Identity       (Identity)
 import           Data.Containers.ListUtils   (nubOrd)
 import           Data.Function               ((&))
 import           Data.List                   (sortOn)
@@ -60,6 +59,7 @@ import           Data.Ouro.Error.Types       (ErrorContext (..),
                                               SyntaxError (..), TypeError (..),
                                               VocabularyWarning (..),
                                               WarningContext (..))
+import           Data.Ouro.Internal.Compiler (CompilerM)
 import qualified Data.Ouro.Internal.Expr     as I
 import qualified Data.Ouro.Internal.Kinds    as JLD
 import           Data.Ouro.Internal.Utils    (rankBySimilarity)
@@ -72,6 +72,8 @@ import qualified Data.Ouro.Lisp.Eval.Engine  as EN
 import           Data.Ouro.Lisp.Eval.Types   (Expr (..), freeze)
 import qualified Data.Ouro.Lisp.Eval.Types   as L
 import qualified Data.Ouro.Lisp.Lexer        as LX
+import           Data.Ouro.Lisp.Module.Loader (bundledOnly, loadImports,
+                                              runLoader)
 import           Data.Ouro.Lisp.Module.Types (HigherExpression (..),
                                               graphRegistry)
 import qualified Data.Ouro.Lisp.Parser       as LP
@@ -87,14 +89,6 @@ import           Text.Megaparsec             (errorBundlePretty)
 data CompilationResult
     = CompilationSuccess [OuroWarning] (I.Expr   'JLD.Primitive)
     | CompilationFailure [OuroWarning] (NonEmpty OuroError)
-
--- The compiler's errors and warnings. Errors accumulate in ValidateT: work that does not
--- depend on another result (a traverse, <*>) reports every error it finds, while >>= stops
--- at the first, since the next step needs the value it did not get. So <*> collects errors
--- where ap would stop at the first. Warnings accumulate in the Writer underneath, so they
--- survive a failure. The base monad is Identity for compile, and IO for loading modules.
-type CompilerT m = ValidateT (NonEmpty OuroError) (WriterT [OuroWarning] m)
-type CompilerM   = CompilerT Identity
 
 
 compile :: String -> String -> Text -> CompilationResult
@@ -121,7 +115,11 @@ compile filename trgt content = compilationResult . runWriter . runValidateT $ c
                -- Pass 3.1 Desugar all ASTs, running Canon's passes in order (see 'Canon.passes')
                let desugaredModule = Canon.canonicalModule ouroModule
 
-               -- Pass 3.2: Find target graph
+               -- Pass 3.2: Load the modules it imports, each linked into its own root frame.
+               -- Only the bundled modules can be imported so far.
+               imported <- runLoader bundledOnly (loadImports desugaredModule)
+
+               -- Pass 3.3: Find target graph
                graph <- case Map.lookup (T.pack trgt) (desugaredModule ^. graphRegistry) of
                             Just    g -> return g
                             Nothing
@@ -141,7 +139,7 @@ compile filename trgt content = compilationResult . runWriter . runValidateT $ c
                                               & refute
                -- Pass 4: Evaluation
                let (Graph gPos _ gAst)          = graph
-                   (evalTree, bindingErrors) = EN.evaluate desugaredModule gAst
+                   (evalTree, bindingErrors) = EN.evaluate imported desugaredModule gAst
 
                case validateAST gPos bindingErrors evalTree of
                    Just    errs -> refute errs

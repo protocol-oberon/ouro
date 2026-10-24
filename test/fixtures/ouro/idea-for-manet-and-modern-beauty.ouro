@@ -1,14 +1,13 @@
-;; Will be in std: Linked Art's own patterns. Named std/... here until modules exist
-(defn std/core #rec (#uri id #str type #str label)
-  (:id id :type type :_label label))
+(import std)
 
-(defn std/aat #rec (#str id #str label)
+;; Not yet in std: Linked Art patterns kept here until std grows
+(defn aat #rec (#str id #str label)
   (std/core #uri (+ "http://vocab.getty.edu/aat/" id) "Type" label))
 
-(defn std/ulan #rec (#str id #str label)
+(defn ulan #rec (#str id #str label)
   (std/core #uri (+ "http://vocab.getty.edu/ulan/" id) "Person" label))
 
-(defn std/classified #rec (#rec r #rec t)
+(defn classified #rec (#rec r #rec t)
   (with r :classified_as (list t)))
 
 (defn example #uri (#str path)
@@ -20,7 +19,7 @@
 ;; Steps: each takes a record first and returns it extended, so they thread with ->
 (defn named      #rec (#rec r #str n)
   (with r :identified_by ((:type          "Name"
-                           :classified_as ((std/aat "300404670" "Primary Name"))
+                           :classified_as ((aat "300404670" "Primary Name"))
                            :content       n))))
 (defn about      #rec (#rec r xs)     (with r :about xs))
 (defn created-by #rec (#rec r people)
@@ -30,10 +29,10 @@
 (graph idea-for-manet-and-modern-beauty
   (-> (std/core (example "concept/exhidea/1") "PropositionalObject" "Idea for Manet and Modern Beauty")
       (with :context "https://linked.art/ns/v1/linked-art.json")
-      (std/classified (std/aat "300417531" "Exhibition"))
+      (classified (aat "300417531" "Exhibition"))
       (named "Manet and Modern Beauty")
-      (about ((std/aat "300055821" "Beauty")
-              (std/ulan "500010363" "Manet")))
+      (about ((aat "300055821" "Beauty")
+              (ulan "500010363" "Manet")))
       (created-by (("allan" "Scott Allan")
                    ("beeny" "Emily Beeny")
                    ("groom" "Gloria Groom")))))

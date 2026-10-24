@@ -1,14 +1,10 @@
-;; Will be in std: Linked Art's own patterns. Named std/... here until modules exist
-(defn std/core #rec (#uri id #str type #str label)
-  (:id id :type type :_label label))
+(import std)
 
-(defn std/aat #rec (#str id #str label)
+;; Not yet in std: Linked Art patterns kept here until std grows
+(defn aat #rec (#str id #str label)
   (std/core #uri (+ "http://vocab.getty.edu/aat/" id) "Type" label))
 
-(defn std/name #rec (#str content)
-  (:type "Name" :content content))
-
-(defn std/classified #rec (#rec r #rec t)
+(defn classified #rec (#rec r #rec t)
   (with r :classified_as (list t)))
 
 (defn example #uri (#str path)
@@ -19,8 +15,8 @@
 
 (defn brief-text #rec (#str content)
   (:type          "LinguisticObject"
-   :classified_as ((-> (std/aat "300435416" "Description")
-                       (std/classified (std/aat "300418049" "Brief Text"))))
+   :classified_as ((-> (aat "300435416" "Description")
+                       (classified (aat "300418049" "Brief Text"))))
    :content       content))
 
 ;; Steps: each takes a record first and returns it extended, so they thread with ->
@@ -31,8 +27,8 @@
 (graph amsterdam
   (-> (place "amsterdam/1" "Amsterdam")
       (with :context "https://linked.art/ns/v1/linked-art.json")
-      (std/classified (std/aat "300008389" "City"))
+      (classified (aat "300008389" "City"))
       (named "Amsterdam")
       (described "Amsterdam is a city in the Netherlands")
       (part-of (-> (place "netherlands" "Netherlands")
-                   (std/classified (std/aat "300128207" "Nation"))))))
+                   (classified (aat "300128207" "Nation"))))))

@@ -6,6 +6,7 @@ import           Hedgehog
 import qualified Ouro.CanonicalTest  as Canonical
 import qualified Ouro.EvaluationTest as Evaluation
 import qualified Ouro.FunctionTest   as Function
+import qualified Ouro.ImportTest     as Import
 import qualified Ouro.LanguageTest   as Language
 import qualified Ouro.LetTest        as Let
 import qualified Ouro.ScopingTest    as Scoping
@@ -41,6 +42,8 @@ main = withUtf8Console $ do
         , Function.destructuring
         , Function.threading
         , Function.documentation
+        -- Modules: import, export and the bundled std
+        , Import.imports
         -- Bindings: let, fn and defn replace define and defun
         , Let.letAndFn
         -- The language as specified: what reaches the output, special forms and built-ins

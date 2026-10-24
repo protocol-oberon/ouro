@@ -1,9 +1,4 @@
-;; Will be in std: Linked Art's own patterns. Named std/... here until modules exist
-(defn std/core #rec (#uri id #str type #str label)
-  (:id id :type type :_label label))
-
-(defn std/name #rec (#str content)
-  (:type "Name" :content content))
+(import std)
 
 (defn example #uri (#str path)
   (+ "https://linked.art/example/" path))

@@ -12,6 +12,7 @@ import           Data.Ouro.Error.Types     (ErrorContext (..),
                                             SyntaxError (..), TypeError (..),
                                             VocabularyWarning (..),
                                             WarningContext (..))
+import           Data.Ouro.Internal.Utils  (rankBySimilarity)
 import           Data.Ouro.Lisp.Eval.Types (humanReadableType)
 import qualified Data.Ouro.Lisp.Eval.Types as L
 import           Data.Text                 (Text)
@@ -131,6 +132,45 @@ indexOutOfBounds = \cb tOft att act -> Scope $ IndexOutOfBoundsError cb tOft att
 
 nonExistentGraph :: Text -> Text -> ErrorContext
 nonExistentGraph = \trgt sug -> Scope $ NonExistentGraph trgt sug
+
+
+-- An (import path) of a module that cannot be found, given the bundled modules' names
+moduleNotFound :: Text -> [Text] -> ErrorContext
+moduleNotFound path bundledNames =
+    withBlurb ("The bundled modules are: " <> T.intercalate ", " bundledNames <> "." <> closest path bundledNames)
+              (Scope (ModuleNotFound { missingModule = path }))
+
+
+-- A qualified name whose qualifier names no import, given the file's qualifiers and the
+-- bundled modules' names
+unknownQualifier :: Text -> [Text] -> [Text] -> ErrorContext
+unknownQualifier qualifier known bundledNames =
+    withBlurb blurb (Scope (UnknownQualifier { qualifierName = qualifier }))
+    where
+    blurb
+        | not (T.null (closest qualifier known))
+            = "A qualified name, module/function, names a function of an imported module." <> closest qualifier known
+        | qualifier `elem` bundledNames
+            = "A qualified name needs its module imported: perhaps add (import " <> qualifier <> ") at the top of the file."
+        | null known
+            = "A qualified name, module/function, names a function of a module imported at the top of the file with (import ...). This file imports nothing."
+        | otherwise
+            = "A qualified name, module/function, names a function of an imported module. This file imports: " <> T.intercalate ", " known <> "."
+
+
+-- A qualified name the module does not export, given what it does export
+notExported :: Text -> Text -> [Text] -> ErrorContext
+notExported qualifier name exportNames =
+    withBlurb ("The module imported as '" <> qualifier <> "' exports: " <> T.intercalate ", " exportNames <> "." <> closest name exportNames)
+              (Scope (NotExported { fromQualifier = qualifier, unexportedName = name, exportedNames = exportNames }))
+
+
+-- " Perhaps you meant 'x'." for the closest candidate, when one is close enough
+closest :: Text -> [Text] -> Text
+closest target candidates =
+    case rankBySimilarity target candidates of
+        (candidate, score) : _ | score <= 2 -> " Perhaps you meant '" <> candidate <> "'."
+        _noneClose                          -> ""
 
 
 -- Internal Violations

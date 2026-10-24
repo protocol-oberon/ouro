@@ -47,16 +47,26 @@ data Env = Env
     { _localScope       :: Map.Map Text Binding
     , _parentEnv        :: Maybe Env
     , _functionRegistry :: FunctionRegistry   -- Functions defined in this frame only
+    , _moduleImports    :: Map.Map Text Imported   -- The module's imports, by qualifier
     , _callStack        :: Set FunctionId   -- The functions currently being called
     }
 
 
--- Default root environment.
-defaultEnv :: M.Module -> Env
-defaultEnv moduleEnv = Env
+-- A module as its importers see it: its own root frame, in which its functions close over
+-- its own functions and imports, and the names it exports.
+data Imported = Imported
+    { importedRoot    :: Env
+    , importedExports :: Set Text
+    }
+
+
+-- A module's root frame: its functions, and the modules it imports, by qualifier.
+defaultEnv :: Map.Map Text Imported -> M.Module -> Env
+defaultEnv imported moduleEnv = Env
     { _localScope       = Map.empty
     , _parentEnv        = Nothing
     , _functionRegistry = (moduleEnv ^. M.functionRegistry)
+    , _moduleImports    = imported
     , _callStack        = Set.empty
     }
 
@@ -66,6 +76,7 @@ emptyEnv = Env
     { _localScope       = Map.empty
     , _parentEnv        = Nothing
     , _functionRegistry = Map.empty
+    , _moduleImports    = Map.empty
     , _callStack        = Set.empty
     }
 

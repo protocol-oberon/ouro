@@ -57,8 +57,9 @@ import qualified Text.URI                       as URI
 -- Evaluates the graph, then forces every promise its output never needed (unused
 -- let bindings and arguments), so that errors in them are reported too. Returns the
 -- graph's value, with its errors embedded, and the errors found in those bindings.
-evaluate :: Module -> S.Expr -> (L.Expr, [OuroError])
-evaluate moduleEnv rootExpr = L.runEvalM (L.defaultEnv moduleEnv) $ do
+-- The graph is evaluated in its module's root frame, with the modules it imports.
+evaluate :: Map.Map Text L.Imported -> Module -> S.Expr -> (L.Expr, [OuroError])
+evaluate imported moduleEnv rootExpr = L.runEvalM (L.defaultEnv imported moduleEnv) $ do
     graph <- evalExpr rootExpr
     forceRemaining
     promises <- gets IntMap.elems

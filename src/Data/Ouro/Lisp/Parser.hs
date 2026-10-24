@@ -3,16 +3,18 @@
 
 module Data.Ouro.Lisp.Parser where
 
-import           Control.Monad               (foldM)
+import           Control.Monad               (foldM, foldM_, when)
 import           Control.Monad.State.Strict  (MonadState (get, put),
                                               MonadTrans (lift),
                                               StateT (runStateT))
 import           Data.Foldable               (traverse_)
 import qualified Data.Function               as F
 import qualified Data.Map                    as Map
-import           Data.Ouro.Error.Diagnostics (lexicalError, unbalancedDelimiter)
+import           Data.Ouro.Error.Diagnostics (lexicalError, unbalancedDelimiter,
+                                              withBlurb)
 import           Data.Ouro.Error.Types       (ErrorContext (..), OuroError (..),
                                               SyntaxError (..))
+import           Data.Ouro.Internal.Utils    (rankBySimilarity)
 import           Data.Ouro.Lisp.Function     (checkFunctionName, checkParams,
                                               duplicateFunction, functionBody,
                                               functionDoc, graphBody,
@@ -21,13 +23,16 @@ import           Data.Ouro.Lisp.Function     (checkFunctionName, checkParams,
                                               typedResult)
 import           Data.Ouro.Lisp.Module.Types (Declaration (..),
                                               HigherExpression (..),
-                                              Module (..), graphRegistry,
-                                              functionRegistry)
+                                              Import (..), Module (..),
+                                              exports, functionRegistry,
+                                              graphRegistry, imports,
+                                              qualifierOf)
 import qualified Data.Ouro.Lisp.Surface      as S
 import qualified Data.Ouro.Lisp.Tokens       as Tkn
+import qualified Data.Set                    as Set
 import           Data.Text                   (Text)
 import qualified Data.Text                   as T
-import           Lens.Micro.Platform         (at, (&), (?~), (^.))
+import           Lens.Micro.Platform         (at, (%~), (&), (.~), (?~), (^.))
 import           Text.Megaparsec             (SourcePos)
 import qualified Text.Megaparsec.Pos         as M
 
@@ -41,20 +46,24 @@ type Parser a = StateT ParseState (Either OuroError) a
 data ParsedDecl
     = PFunction (HigherExpression 'FunctionExpr)
     | PGraph    (HigherExpression 'GraphExpr)
+    | PImport   Import
+    | PExport   SourcePos [(Text, SourcePos)]
 
 
 -- Top-level entry point
 parseModule :: [Tkn.Token] -> Either OuroError Module
 parseModule tokens = do
     (decls, _) <- runStateT (collectHigherExpressions []) tokens
-    buildModuleRegistry decls
+    ouroModule <- buildModuleRegistry decls
+    checkExports ouroModule
+    pure ouroModule
 
 
 -- Collection Pass (Building the structured env)
 buildModuleRegistry :: [ParsedDecl] -> Either OuroError Module
 buildModuleRegistry = foldM insertDecl emptyModule
     where
-    emptyModule = Module Map.empty Map.empty Map.empty
+    emptyModule = Module Map.empty Map.empty [] []
 
     insertDecl :: Module -> ParsedDecl -> Either OuroError Module
     insertDecl m = \case
@@ -67,6 +76,36 @@ buildModuleRegistry = foldM insertDecl emptyModule
                     (PGraph    g@(Graph    _ name body)) -> do
                                                             validateGraphBody body
                                                             Right $ m & graphRegistry    . at name ?~ g
+                    (PImport imp)
+                        -> do
+                           comesFirst m (importPos imp)
+                           case filter ((== qualifierOf imp) . qualifierOf) (m ^. imports) of
+                               earlier : _ -> Left (qualifierClash earlier imp)
+                               []          -> Right $ m & imports %~ (<> [imp])
+                    (PExport pos names)
+                        -> do
+                           comesFirst m pos
+                           case m ^. exports of
+                               []         -> Right $ m & exports .~ names
+                               _secondOne -> lexicalError "A module has one export, naming every function it exports."
+                                             F.& withBlurb "Perhaps join them into one: (export f g)."
+                                             F.& OuroError pos
+                                             F.& Left
+
+    -- Imports and exports are the first thing in a file: they say what it depends on and offers
+    comesFirst m pos =
+        when (not (Map.null (m ^. functionRegistry) && Map.null (m ^. graphRegistry))) $
+            lexicalError "Imports and exports come first in a file, before any defn or graph."
+            F.& withBlurb "Perhaps move it to the top of the file, so the file's dependencies and exports are the first thing read."
+            F.& OuroError pos
+            F.& Left
+
+    qualifierClash earlier imp =
+        lexicalError ("Two imports are both qualified '" <> qualifierOf imp <> "': " <> importPath earlier <> " and " <> importPath imp <> ".")
+        F.& withBlurb ( "Each import's functions are written qualifier/name, so two imports need two qualifiers. "
+                     <> "Perhaps name one with as: (import " <> importPath imp <> " as another-name)."
+                      )
+        F.& OuroError (importPos imp)
 
     -- Semantic validation
     validateGraphBody :: S.Expr -> Either OuroError ()
@@ -76,6 +115,32 @@ buildModuleRegistry = foldM insertDecl emptyModule
              | isFunctionKeyword keyword        -> Left (removedLocalDefn pos)
          S.Form _   exprs                       -> traverse_ validateGraphBody exprs
          _safeLeafs                             -> Right ()
+
+
+-- Every exported name is a defn of this module, named once
+checkExports :: Module -> Either OuroError ()
+checkExports m = foldM_ check Set.empty (m ^. exports)
+    where
+    defined = Map.keys (m ^. functionRegistry)
+
+    check seen (name, pos)
+        | name `Set.member` seen
+            = lexicalError ("The function '" <> name <> "' is exported twice.")
+              F.& withBlurb "Perhaps remove one of them from the export."
+              F.& OuroError pos
+              F.& Left
+        | not (name `elem` defined)
+            = lexicalError ("The module exports '" <> name <> "', but defines no function by that name.")
+              F.& withBlurb (exportBlurb name)
+              F.& OuroError pos
+              F.& Left
+        | otherwise
+            = Right (Set.insert name seen)
+
+    exportBlurb name =
+        case rankBySimilarity name defined of
+            (closest, score) : _ | score <= 3 -> "Perhaps you meant '" <> closest <> "'."
+            _noneClose                         -> "A module exports its own functions only, written with defn in the same file."
 
 
 collectHigherExpressions :: [ParsedDecl] -> Parser [ParsedDecl]
@@ -93,11 +158,13 @@ pHigherExpression = do
     startTkn <- popToken "Expected expression declaration starting with '('"
     case Tkn.tokenType startTkn of
         Tkn.OpenParen -> do
-                         kwTkn <- popToken "Expected higher expression declaration keyword (defn, graph)"
+                         kwTkn <- popToken "Expected higher expression declaration keyword (defn, graph, import, export)"
                          case Tkn.tokenType kwTkn of
                              Tkn.Defn     -> pDefn (Tkn.pos startTkn)
                              Tkn.Defun    -> lift (Left (renamedDefun (Tkn.pos kwTkn)))
                              Tkn.Graph    -> pGraph (Tkn.pos startTkn)
+                             Tkn.Import   -> pImport (Tkn.pos startTkn)
+                             Tkn.Export   -> pExport (Tkn.pos startTkn)
                              other        -> lexicalError ("Invalid top-level keyword: " <> T.pack (show other))
                                              F.& OuroError (Tkn.pos kwTkn)
                                              F.& Left
@@ -147,6 +214,67 @@ pGraph pos = do
     expr <- lift (graphBody name pos body)
 
     pure $ PGraph (Graph pos name expr)
+
+
+-- (import path) or (import path as alias). A path is names joined by '/', and an alias is
+-- one name, since it qualifies the module's functions: alias/name.
+pImport :: SourcePos -> Parser ParsedDecl
+pImport pos = do
+    path   <- expectSymbol importForm
+    lift (checkPath path)
+    stream <- get
+    alias  <- case stream of
+                  Tkn.Token _ (Tkn.Symbol "as") : Tkn.Token aliasPos (Tkn.Symbol name) : rest
+                      -> do
+                         put rest
+                         lift (checkAlias aliasPos name)
+                         pure (Just name)
+                  _noAlias
+                      -> pure Nothing
+    closing <- popToken importForm
+    case Tkn.tokenType closing of
+        Tkn.CloseParen -> pure (PImport (Import pos path alias))
+        _somethingElse -> lexicalError importForm
+                          F.& OuroError (Tkn.pos closing)
+                          F.& Left
+                          F.& lift
+
+    where
+    importForm = "An import is written (import path) or (import path as name)."
+
+    checkPath path =
+        when (any T.null (T.splitOn "/" path)) $
+            lexicalError ("The module path '" <> path <> "' has an empty part.")
+            F.& withBlurb "A module path is names joined by '/', as in linked-art/v1/people."
+            F.& OuroError pos
+            F.& Left
+
+    checkAlias aliasPos name =
+        when (T.any (== '/') name) $
+            lexicalError ("The import's name '" <> name <> "' has a '/' in it.")
+            F.& withBlurb "An import's name qualifies its functions, name/function, so it is one name: (import linked-art/v1/people as people)."
+            F.& OuroError aliasPos
+            F.& Left
+
+
+-- (export f g ...): the functions this module offers its importers
+pExport :: SourcePos -> Parser ParsedDecl
+pExport pos = collectNames []
+    where
+    collectNames acc = do
+        t <- popToken "Expected ')' to close the export"
+        case Tkn.tokenType t of
+            Tkn.CloseParen
+                | null acc     -> lexicalError "An export names at least one function: (export f g)."
+                                  F.& OuroError pos
+                                  F.& Left
+                                  F.& lift
+                | otherwise    -> pure (PExport pos (reverse acc))
+            Tkn.Symbol name    -> collectNames ((name, Tkn.pos t) : acc)
+            _notAName          -> lexicalError "An export names the module's functions: (export f g)."
+                                  F.& OuroError (Tkn.pos t)
+                                  F.& Left
+                                  F.& lift
 
 
 popToken :: Text -> Parser Tkn.Token

@@ -9,9 +9,11 @@ import qualified Data.IntMap.Strict           as IntMap
 import           Data.Function                ((&))
 import qualified Data.Map                     as Map
 import           Data.Ouro.Error.Diagnostics  (astCorruption, cyclicDependency,
-                                               lexicalError, shadowedVariable,
+                                               lexicalError, notExported,
+                                               shadowedVariable,
                                                shadowedVariableBlurb,
-                                               unboundIdentifier, withBlurb)
+                                               unboundIdentifier,
+                                               unknownQualifier, withBlurb)
 import           Data.Ouro.Error.Types        (OuroError (..))
 import           Data.Ouro.Internal.Utils     (rankBySimilarity)
 import           Data.Ouro.Lisp.Eval.Builtins (builtinRegistry)
@@ -22,6 +24,7 @@ import           Data.Ouro.Lisp.Function      (bindingWithoutValue,
                                                isFunctionKeyword, keyInLet,
                                                misplacedBinding, removedDefine,
                                                removedLocalDefn)
+import           Data.Ouro.Lisp.Module.Bundled (bundled)
 import qualified Data.Ouro.Lisp.Module.Types  as M
 import qualified Data.Ouro.Lisp.Surface       as S
 import qualified Data.Set                     as Set
@@ -97,14 +100,21 @@ letBindings = traverse $ \case
            & Left
 
 
--- Special forms are recognised by their head symbol, so they cannot be bound as names
+-- Special forms are recognised by their head symbol, so they cannot be bound as names, and
+-- a '/' qualifies an imported name, so a binding cannot have one
 checkBindableName :: Text -> SourcePos -> Either OuroError ()
-checkBindableName key pos =
-    when (key `elem` reservedNames) $
-        shadowedVariable key
-        & withBlurb (shadowedVariableBlurb key)
-        & OuroError pos
-        & Left
+checkBindableName key pos
+    | Just _ <- M.splitQualified key
+        = lexicalError ("The name '" <> key <> "' has a '/' in it.")
+          & withBlurb "A '/' qualifies an imported name, as in std/core, so a binding cannot have one. Perhaps use '-' instead."
+          & OuroError pos
+          & Left
+    | otherwise
+        = when (key `elem` reservedNames) $
+              shadowedVariable key
+              & withBlurb (shadowedVariableBlurb key)
+              & OuroError pos
+              & Left
 
 reservedNames :: [Text]
 reservedNames = ["nth", "list", "case", "get", "context", "define", "inlay", "insert", "attr", "defn", "defun", "let", "fn"]
@@ -199,19 +209,52 @@ cyclicLookup pos name =
 --
 -- Resolves a name by walking outward through the frames, then function definitions,
 -- then builtins. Every binding is a promise, forced in the environment it was written in.
+-- A qualified name, std/core, is an imported function, and skips the frames: no binding
+-- can have a '/'.
 lookupVar
   :: (S.Expr -> EvalM L.Expr)
   -> SourcePos
   -> Text
   -> Env
   -> EvalM L.Expr
-lookupVar evaluator pos name env =
-    case Map.lookup name (env ^. L.localScope) of
-        Just (Promised addr)
-            -> force evaluator pos addr
+lookupVar evaluator pos name env
+    | Just (qualifier, unqualified) <- M.splitQualified name
+        = lookupQualified evaluator pos qualifier unqualified env
+    | otherwise
+        = case Map.lookup name (env ^. L.localScope) of
+              Just (Promised addr)
+                  -> force evaluator pos addr
 
+              Nothing
+                  -> lookupFunction evaluator pos name env
+
+
+-- An imported function, qualifier/name. The qualifier names an import of the module being
+-- evaluated, and the name one of that module's exports, which is found in the module's own
+-- root frame, so that the function closes over its own module, never the importer.
+lookupQualified
+    :: (S.Expr -> EvalM L.Expr)
+    -> SourcePos
+    -> Text
+    -> Text
+    -> Env
+    -> EvalM L.Expr
+lookupQualified evaluator pos qualifier name env =
+    case Map.lookup qualifier (env ^. L.moduleImports) of
         Nothing
-            -> lookupFunction evaluator pos name env
+            -> unknownQualifier qualifier (Map.keys (env ^. L.moduleImports)) (Map.keys bundled)
+               & OuroError pos
+               & L.EvalError
+               & pure
+
+        Just imported
+            | name `Set.member` L.importedExports imported
+                -> lookupFunction evaluator pos name (L.importedRoot imported)
+            | otherwise
+                -> notExported qualifier name (Set.toList (L.importedExports imported))
+                   & OuroError pos
+                   & L.EvalError
+                   & pure
 
 
 -- Resolves structural function blueprints at the CURRENT scope level, then steps up.

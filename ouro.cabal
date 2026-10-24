@@ -49,7 +49,8 @@ build-type:         Simple
 -- extra-doc-files:    CHANGELOG.md
 
 -- Extra source files to be distributed with the package, such as examples, or a tutorial module.
--- extra-source-files:
+-- The bundled modules, embedded in the compiler when it is built.
+extra-source-files: lib/*.ouro
 
 common warnings
     ghc-options: -Wall
@@ -64,6 +65,7 @@ library
         Data.Ouro.Error.Diagnostics
         Data.Ouro.Error.Linter
         Data.Ouro.Error.Types
+        Data.Ouro.Internal.Compiler
         Data.Ouro.Internal.Expr
         Data.Ouro.Internal.Kinds
         Data.Ouro.Internal.Schema
@@ -92,6 +94,8 @@ library
         Data.Ouro.Lisp.Eval.Types
         Data.Ouro.Lisp.Function
         Data.Ouro.Lisp.Lexer
+        Data.Ouro.Lisp.Module.Bundled
+        Data.Ouro.Lisp.Module.Loader
         Data.Ouro.Lisp.Module.Types
         Data.Ouro.Lisp.Parser
         Data.Ouro.Lisp.Surface
@@ -108,6 +112,7 @@ library
         base          ^>= 4.20.2.0,
         bytestring    ^>= 0.12,
         containers    ^>=0.7,
+        file-embed    ^>= 0.0.16,
         megaparsec     >= 9.2 && < 10.0,
         microlens-platform ^>= 0.4.3,
         microlens     ^>= 0.5.0,
@@ -185,6 +190,7 @@ test-suite ouro-test
         Ouro.StructuralTest
         Ouro.EvaluationTest
         Ouro.FunctionTest
+        Ouro.ImportTest
         Ouro.LanguageTest
         Ouro.LetTest
         Ouro.ScopingTest

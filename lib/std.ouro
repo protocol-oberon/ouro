@@ -1,0 +1,11 @@
+;; std: Linked Art's own patterns, the nodes every document repeats. Everything here builds
+;; a Linked Art node, which is what the std/ prefix tells a reader.
+(export core name)
+
+(defn core #rec (#uri id #str type #str label)
+  (doc "A node's core properties: its id, its type and its _label.")
+  (:id id :type type :_label label))
+
+(defn name #rec (#str content)
+  (doc "A Name: Linked Art's pattern for what something is called.")
+  (:type "Name" :content content))

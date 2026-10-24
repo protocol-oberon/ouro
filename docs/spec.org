@@ -111,7 +111,7 @@ From pass 4 onwards, errors are collected and reported together.
 * The Language (Syntax Layer)
 ** Program structure
 
-An Ouro file (a module) is a sequence of top-level declarations, in any order:
+An Ouro file (a module) is a sequence of top-level declarations: its imports and export first (see [[*Modules: =import= and =export=][modules]]), then functions and graphs in any order:
 
 #+BEGIN_SRC clojure
 (defn name (arg ...) expr)   ; a named function, visible throughout the file
@@ -155,6 +155,22 @@ Compiles (with ~ouro compile file.ouro -t spring~) to:
 
 Only graphs are serialised. Functions exist to build and reuse values. A module-wide constant is written as a zero-argument function, such as =getty-aat= above.
 
+** Modules: =import= and =export=
+
+A module uses another's functions by importing it, and offers its own by exporting them. Both are written first in the file, before any =defn= or =graph=: a file's dependencies and what it offers are the first thing read.
+
+#+BEGIN_SRC clojure
+(import std)                          ; std/core, std/name
+(import linked-art/v1/people as la)   ; la/person
+(export place named part-of)
+#+END_SRC
+
+- *Qualified names.* An imported function is always written with a qualifier, =qualifier/name=: the path's last segment (=std=, =people=), or the name given after =as=. A module's own functions are written without one. Two imports with the same qualifier are an error that suggests =as=. A name is qualified when it has a =/= with something on each side, so =/= and =/== are not.
+- *Exports.* A module has one =(export f g ...)=, naming at least one of its own functions, each once. A module without one exports nothing. Only functions cross modules, never graphs or values, so modules hold no state; a module-wide constant is a zero-argument function.
+- *Each module is its own.* An imported module is lexed, parsed, linted and desugared on its own, loaded once however often it is imported, and given its own root frame: its functions close over its own functions and imports, never the importer's. A local function with the same name as an imported one is a different function, =name= and =std/name=.
+- *The bundled modules* ship inside the compiler, embedded from =lib/= when it is built, so they need no file on disk. There is one so far, =std=, which holds Linked Art's own patterns: =std/core= (a node's =id=, =type= and =_label=) and =std/name= (a Name). The =std/= prefix says that a function builds a Linked Art node. Other modules cannot be imported yet.
+- *Errors.* An import of a module that does not exist is =SCP0006=, naming the bundled modules; every missing module in a file is reported, not only the first. A qualifier that names no import is =SCP0007=, and suggests the import when it names a bundled module (~(std/name "A")~ without ~(import std)~). A name the module does not export is =SCP0008=, listing what it does export.
+
 ** Lexical elements
 
 | Element        | Written as                               | Notes                                                               |
@@ -171,13 +187,13 @@ Only graphs are serialised. Functions exist to build and reuse values. A module-
 | Empty values   | =#rec-empty=, =#arr-empty=, =()=         | ={}=, =[]= and =[]=                                                 |
 | Hole           | =?=, =?name=, =?..name=                  | a placeholder in a call, or part of a pattern                       |
 | Delimiters     | =( )=                                    | =[ ]= is reserved: it parses, but has no meaning yet                |
-| Keywords       | =defn=, =graph=, =import=, =export=      | a keyword that only begins a longer name (=defnode=) is a symbol; =import= and =export= are reserved, not yet implemented |
+| Keywords       | =defn=, =graph=, =import=, =export=      | a keyword that only begins a longer name (=defnode=) is a symbol |
 
 Block comments are written ~#| … |#~. A symbol starts with a letter, one of the operator characters ~_ + - * / < > = ! & | ~~, or one of the symbols of logic and sets ~¬ ∧ ∨ ∀ ∃ ∄ ∪ ∩ ∖ ⊆ ⋃ ⋂ ⊨~, and may also contain digits, ~?~ and ~'~. On its own, each of those symbols, like =λ=, is read as the name it stands for (see [[*Functions: =defn=, =fn= and calls][functions]]).
 
 A source file is UTF-8, on every platform. A letter is any Unicode letter, so =café= is a name and =:naïve= a key, and strings hold any text. A leading byte order mark is dropped and CRLF line endings become LF, so a file reads the same wherever it was saved; a file that is not valid UTF-8 is an error, not garbled text (~Data.Ouro.readSource~). The compiler's messages are UTF-8 too: on Windows the console's code page is switched to UTF-8 (65001) while =ouro= runs, and restored when it exits.
 
-A trailing =!= on a function name is allowed but has no meaning. Names live in one namespace, values and functions share it, and an inner value shadows an outer function of the same name. A =defn= may take the name of a built-in, as a definition can in Scheme, and replaces it throughout the file: in calls, in =case= guards, and under any symbol the built-in is also written with, so ~(defn = ...)~ replaces =eq=. The compiler warns when it does (=WRN0003=). A special form's name cannot be taken. Functions and graphs are named in kebab-case, =make-place=: a name with a capital or an underscore is a warning (=WRN0004=) that suggests the kebab-case spelling, so =makePlace= and =make_place= are both =make-place=. Attribute keys and local bindings are exempt, since keys follow the data's vocabulary (=:_label=).
+A trailing =!= on a function name is allowed but has no meaning. Names live in one namespace, values and functions share it, and an inner value shadows an outer function of the same name. A =defn= may take the name of a built-in, as a definition can in Scheme, and replaces it throughout the file: in calls, in =case= guards, and under any symbol the built-in is also written with, so ~(defn = ...)~ replaces =eq=. The compiler warns when it does (=WRN0003=). A special form's name cannot be taken. A =/= qualifies an imported name, =std/core=, so a =defn= or a =let= binding cannot have one: =/= and =/== themselves are names, being unqualified. Functions and graphs are named in kebab-case, =make-place=: a name with a capital or an underscore is a warning (=WRN0004=) that suggests the kebab-case spelling, so =makePlace= and =make_place= are both =make-place=. Attribute keys and local bindings are exempt, since keys follow the data's vocabulary (=:_label=).
 
 ** Formal grammar (EBNF)
 
@@ -185,7 +201,10 @@ The grammar below describes the language accepted by the parser and evaluator to
 
 #+BEGIN_SRC ebnf
 (* ---------- Modules ---------- *)
-module       = { declaration } ;
+module       = { import } , [ export ] , { import } , { declaration } ;     (* imports and the export come first *)
+import       = "(" , "import" , module-path , [ "as" , symbol ] , ")" ;
+module-path  = symbol ;     (* names joined by "/": std, linked-art/v1/people *)
+export       = "(" , "export" , symbol , { symbol } , ")" ;     (* at most one, naming the module's own functions *)
 declaration  = defn | graph ;
 defn         = "(" , "defn" , symbol , [ property ] , params , [ doc ] , expression , [ doc ] , ")" ;
 doc          = "(" , "doc" , string , ")" ;     (* at most one, before or after the result *)
@@ -643,7 +662,7 @@ data HigherExpression (t :: Declaration) where
 
 A =defn='s return type is applied when it is parsed: its body is stored under the return property, as ~Tagged~. A =fn= is an ordinary form until it is evaluated, where a return property is read from its parameter list, ~(fn #num (n) ...)~.
 
-The parser also enforces the module-level rules: a function name cannot be a special form, a function cannot be defined twice, a body must be one expression, and the removed keywords (=defun=, =define=, a nested =defn=) are reported with their replacements.
+The parser also enforces the module-level rules: imports and the export come first, an export names functions of the module, two imports cannot share a qualifier, a function name cannot be a special form or qualified, a function cannot be defined twice, a body must be one expression, and the removed keywords (=defun=, =define=, a nested =defn=) are reported with their replacements.
 
 ** Desugaring (~Canon~)
 

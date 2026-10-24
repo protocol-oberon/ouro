@@ -234,6 +234,23 @@ data ScopeError
       }
 
     | NoCompilationTarget Text
+
+    -- An (import path) names a module that cannot be found
+    | ModuleNotFound
+      { missingModule :: Text
+      }
+
+    -- A qualified name, qualifier/name, whose qualifier names no import of the module
+    | UnknownQualifier
+      { qualifierName :: Text
+      }
+
+    -- A qualified name the imported module does not export
+    | NotExported
+      { fromQualifier  :: Text
+      , unexportedName :: Text
+      , exportedNames  :: [Text]
+      }
     deriving (Show, Eq, Ord, Generic)
 
 

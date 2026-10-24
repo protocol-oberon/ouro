@@ -28,6 +28,7 @@ import           Data.Maybe                  (listToMaybe, mapMaybe)
 import           Data.Ouro.Error.Diagnostics (invalidFunctionName, lexicalError,
                                               withBlurb)
 import           Data.Ouro.Error.Types       (OuroError (..))
+import           Data.Ouro.Lisp.Module.Types (splitQualified)
 import qualified Data.Ouro.Lisp.Surface      as S
 import           Data.Text                   (Text)
 import qualified Data.Text                   as T
@@ -381,6 +382,13 @@ isFunctionKeyword = (`elem` ["defn", "defun"])
 -- recognised before names are looked up, so such a function could never be called.
 checkFunctionName :: Text -> SourcePos -> Either OuroError ()
 checkFunctionName name pos
+    | Just (qualifier, unqualified) <- splitQualified name
+        = lexicalError ("The function '" <> name <> "' has a '/' in its name.")
+          & withBlurb ( "A '/' qualifies an imported name: " <> name <> " is '" <> unqualified <> "' from the module imported as '"
+                     <> qualifier <> "'. Perhaps name the function without the '/', such as '" <> qualifier <> "-" <> unqualified <> "'."
+                      )
+          & OuroError pos
+          & Left
     | name `elem` specialForms
         = invalidFunctionName name
           & withBlurb ("'" <> name <> "' is a special form, so it cannot be used as a function name. Perhaps choose another name.")

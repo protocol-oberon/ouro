@@ -6,8 +6,10 @@
 module Data.Ouro.Lisp.Module.Types where
 
 import qualified Data.Map.Strict        as Map
+import           Data.Maybe             (fromMaybe)
 import           Data.Ouro.Lisp.Surface (Expr, Param (..))
 import           Data.Text              (Text)
+import qualified Data.Text              as T
 import           Lens.Micro.TH          (makeLenses)
 import           Text.Megaparsec        (SourcePos)
 
@@ -37,17 +39,37 @@ mapExpr f exprNode =
         Graph    pos name expr          -> Graph    pos name (f expr)
 
 
--- The ExportMap mirrors the segregation to maintain type safety across boundaries
-data ExportMap = ExportMap
-    { _exportedFunctions :: Map.Map Text (HigherExpression 'FunctionExpr)
+-- An (import path) or (import path as alias) declaration
+data Import = Import
+    { importPos   :: SourcePos
+    , importPath  :: Text         -- The module's path: std, or linked-art/v1/people
+    , importAlias :: Maybe Text   -- The name written after 'as'
     } deriving (Show, Eq)
 
 
--- Module Environment, mathematically proven to be segregated
+-- The name an import's functions are qualified with: its alias, or its path's last segment,
+-- so (import linked-art/v1/people) is people/person
+qualifierOf :: Import -> Text
+qualifierOf imp = fromMaybe (T.takeWhileEnd (/= '/') (importPath imp)) (importAlias imp)
+
+
+-- A qualified name split at its first '/': std/core is ("std", "core"). Both sides must be
+-- non-empty, so the operators / and /= are not qualified names.
+splitQualified :: Text -> Maybe (Text, Text)
+splitQualified name =
+    case T.breakOn "/" name of
+        (qualifier, rest)
+            | not (T.null qualifier), T.length rest > 1 -> Just (qualifier, T.drop 1 rest)
+        _notQualified                                   -> Nothing
+
+
+-- Module Environment, mathematically proven to be segregated. A module's imports and
+-- exports are written first in its file; the exports name functions of this module only.
 data Module = Module
     { _functionRegistry :: Map.Map Text (HigherExpression 'FunctionExpr)
     , _graphRegistry    :: Map.Map Text (HigherExpression 'GraphExpr)
-    , _importRegistry   :: Map.Map Text ExportMap
+    , _imports          :: [Import]
+    , _exports          :: [(Text, SourcePos)]
     } deriving (Show, Eq)
 
 
@@ -56,7 +78,7 @@ mapModuleExpr :: (Expr -> Expr) -> Module -> Module
 mapModuleExpr transform m = m
     { _functionRegistry = Map.map (mapExpr transform) (_functionRegistry m)
     , _graphRegistry    = Map.map (mapExpr transform) (_graphRegistry m)
-    -- _importRegistry is left untouched
+    -- imports and exports are names, left untouched
     }
 
 
@@ -69,5 +91,4 @@ mapParamPatterns transform m = m
     patterns (Function pos name doc args expr) =
         Function pos name doc [ arg { paramPattern = transform <$> paramPattern arg } | arg <- args ] expr
 
-makeLenses ''ExportMap
 makeLenses ''Module
