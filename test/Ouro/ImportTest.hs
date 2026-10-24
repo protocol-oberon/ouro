@@ -4,25 +4,51 @@ module Ouro.ImportTest
 ( importedModules
 , imports
 , moduleErrors
+, modulesOnDisk
+, sourceFrames
 ) where
 
+import           Control.Monad                 (forM_, when)
+import qualified Data.ByteString               as BS
+import           Data.Char                     (isSpace)
 import           Data.Foldable                 (toList)
+import           Data.List.NonEmpty            (NonEmpty (..))
 import qualified Data.Map.Strict               as Map
-import           Data.Ouro                     (CompilationResult (..))
+import           Data.Ouro                     (CompilationResult (..),
+                                                ErrorContext (..),
+                                                OuroError (..), OuroWarning (..),
+                                                SourceFrame (..), bundledFile,
+                                                compileFile, defaultOptions,
+                                                readSource, smartErrorCode,
+                                                smartWarningCode, sourceFrame,
+                                                toJSON)
 import           Data.Ouro.Lisp.Lexer          (tokenize)
 import           Data.Ouro.Lisp.Module.Bundled (bundled)
 import qualified Data.Ouro.Lisp.Module.Types   as M
 import           Data.Ouro.Lisp.Parser         (parseModule)
+import           Data.Text                     (Text)
 import qualified Data.Text                     as T
+import qualified Data.Text.Lazy                as TL
 import           Hedgehog
-import           Utils                         (compileG, compilesToJSON,
+import           System.Directory              (createDirectoryIfMissing,
+                                                doesDirectoryExist,
+                                                getTemporaryDirectory,
+                                                removeDirectoryRecursive)
+import           System.FilePath               (normalise, takeDirectory, (</>))
+import           Text.Megaparsec               (SourcePos (..), mkPos,
+                                                sourceColumn, sourceLine,
+                                                sourceName, unPos)
+import           Utils                         (compileG, compileWithModules,
+                                                compilesToJSON,
                                                 compilesWithoutWarnings,
-                                                failsWith, importsFailAt,
-                                                importsFailIn, importsFailTimes,
+                                                describe, failsWith,
+                                                importsFailAt, importsFailIn,
+                                                importsFailTimes,
                                                 importsFailWith,
                                                 importsFailWithEach,
-                                                importsToJSON, importsWarnIn,
-                                                importsWarnTimes)
+                                                importsToJSON, importsWarnAt,
+                                                importsWarnIn, importsWarnTimes,
+                                                warningText)
 
 
 -- A module imports others with (import path), and is qualified by the path's last segment
@@ -345,9 +371,168 @@ moduleErrors = Group "Modules: every error, with its code, place and hint"
       -- Warnings inside a module are reported in its file
     , ("a warning inside a module",                importsWarnIn "badly-named.ouro" "The function 'badName' is not named in kebab-case" [("badly-named", "(export badName)\n(defn badName () 1)")]
                                                                  "(import badly-named) (graph g (:r (badly-named/badName)))")
+
+      -- A module says where it was looked for, and a project's module replaces a bundled one
+    , ("a missing module says where it looked",    importsFailAt "SCP0006" ("inline-test", 1, 1) ["Looked for nope.ouro.", "The bundled modules are: std."] []
+                                                                 "(import nope) (graph g (:r 1))")
+    , ("a project module replaces a bundled one",  importsWarnAt "WRN0005" ("inline-test", 1, 1) ["The project's module 'std' replaces the bundled 'std'", "std.ouro replaces the bundled 'std'", "Perhaps rename the file"] [mineStd]
+                                                                 "(import std) (graph g (:r (std/core 1 2 3)))")
+    , ("and is the one imported",                  importsToJSON [mineStd] "(import std) (graph g (:r (std/core 1 2 3)))"
+                                                                          "{\"r\": \"mine\"}")
     ]
 
     where
     peopleA  = ("a/people", "(export f)\n(defn f () 1)")
     peopleB  = ("b/people", "(export f)\n(defn f () 2)")
     unparsed = ("unparsed", "(export f)\n(defn f)")
+    mineStd  = ("std", "(export core)\n(defn core (a b c) \"mine\")")
+
+
+-- Where a diagnostic is shown: in the file it was reported in, with that file's line. The
+-- command line once showed every diagnostic in the file compiled, so an error inside an
+-- imported module was printed with the wrong file's name and the wrong line.
+sourceFrames :: Group
+sourceFrames = Group "Modules: each diagnostic is shown in its own file"
+    [ ("an error in a module, in that module",     frameOfError [brokenBody] "(import broken-body) (graph g (:r (broken-body/bad)))"
+                                                                (SourceFrame "broken-body.ouro" 2 22 "(defn bad () (get () 5))"))
+    , ("an error in the file, in the file",        frameOfError [] "(graph g\n  (:r (get () 5)))"
+                                                                (SourceFrame "inline-test" 2 15 "  (:r (get () 5)))"))
+    , ("a cycle, in the module that closes it",    frameOfError [("a", "(import b)\n(export f)\n(defn f () 1)"), ("b", "(export f)\n(import a)\n(defn f () 2)")] "(import a) (graph g (:r (a/f)))"
+                                                                (SourceFrame "b.ouro" 2 1 "(import a)"))
+    , ("a warning in a module, in that module",    frameOfWarning [("badly-named", "(export badName)\n(defn badName () 1)")] "(import badly-named) (graph g (:r (badly-named/badName)))"
+                                                                  (SourceFrame "badly-named.ouro" 2 1 "(defn badName () 1)"))
+    , ("a bundled module's line, from the compiler", withTests 1 . property $
+                                                       sourceFrame bundledFile (at "lib/std.ouro" 5 1) === SourceFrame "lib/std.ouro" 5 1 "(defn core #rec (#uri id #str type #str label)")
+    , ("a line past the end is empty",             withTests 1 . property $
+                                                       sourceFrame (const (Just "one line")) (at "f.ouro" 3 1) === SourceFrame "f.ouro" 3 1 "")
+    , ("an unknown file is empty",                 withTests 1 . property $
+                                                       sourceFrame (const Nothing) (at "f.ouro" 1 1) === SourceFrame "f.ouro" 1 1 "")
+    ]
+
+    where
+    brokenBody = ("broken-body", "(export bad)\n(defn bad () (get () 5))")
+
+    at file line column = SourcePos file (mkPos line) (mkPos column)
+
+    -- The frame of the program's first error, with the sources of the program and its modules
+    frameOfError modules src expected = withTests 1 . property $
+        case compileWithModules modules src of
+            CompilationFailure _ (err :| _) -> sourceFrame (sourcesOf modules src) (errPos err) === expected
+            compiled                        -> annotate (describe compiled) >> failure
+
+    frameOfWarning modules src expected = withTests 1 . property $
+        case compileWithModules modules src of
+            CompilationSuccess (OuroWarning pos _ : _) _ -> sourceFrame (sourcesOf modules src) pos === expected
+            compiled                                     -> annotate (describe compiled) >> failure
+
+    sourcesOf modules src file
+        | file == "inline-test" = Just src
+        | otherwise             = lookup file [ (T.unpack path <> ".ouro", source) | (path, source) <- modules ]
+
+
+-- Modules in files on disk, read as the command line reads them: from the directory of the
+-- file compiled, before the bundled ones
+modulesOnDisk :: Group
+modulesOnDisk = Group "Modules: imported from files on disk"
+    [ ("a module beside the file",                 onDiskToJSON "beside" [helpers, main' "(import helpers)\n(graph g (:r (helpers/greet \"Ann\")))"]
+                                                                "{\"r\": \"Hello, Ann\"}")
+    , ("a module in a folder",                     onDiskToJSON "folder" [("linked-art/people.ouro", "(export person)\n(defn person (n) (+ \"Person: \" n))"), main' "(import linked-art/people)\n(graph g (:r (people/person \"A\")))"]
+                                                                "{\"r\": \"Person: A\"}")
+    , ("a module importing another",               onDiskToJSON "chain" [("lower.ouro", "(export shout)\n(defn shout (s) (+ s \"!\"))"), ("middle.ouro", "(import lower)\n(export call)\n(defn call (s) (lower/shout s))"), main' "(import middle)\n(graph g (:r (middle/call \"hi\")))"]
+                                                                "{\"r\": \"hi!\"}")
+    , ("a module with CRLF lines and a BOM",       onDiskToJSON "crlf" [("helpers.ouro", "\xEF\xBB\xBF(export greet)\r\n(defn greet (n) (+ \"Hello, \" n))\r\n"), main' "(import helpers)\n(graph g (:r (helpers/greet \"Ann\")))"]
+                                                                "{\"r\": \"Hello, Ann\"}")
+    , ("the bundled std, with nothing beside it",  onDiskToJSON "bundled" [main' "(import std)\n(graph g (std/name \"A\"))"]
+                                                                "{\"type\": \"Name\", \"content\": \"A\"}")
+    , ("a project std replaces the bundled one",   onDiskToJSON "replaced" [("std.ouro", "(export core)\n(defn core (a b c) \"mine\")"), main' "(import std)\n(graph g (:r (std/core 1 2 3)))"]
+                                                                "{\"r\": \"mine\"}")
+    , ("and says so",                              onDiskWarns "replaced-warns" [("std.ouro", "(export core)\n(defn core (a b c) \"mine\")"), main' "(import std)\n(graph g (:r (std/core 1 2 3)))"]
+                                                               (\_ -> "WRN0005") (\dir -> T.pack (dir </> "std.ouro") <> " replaces the bundled 'std'"))
+    , ("a missing module says where it looked",    onDiskFails "missing" [main' "(import nope)\n(graph g (:r 1))"]
+                                                               (\dir -> ("SCP0006", dir </> "main.ouro", 1, 1, ["Looked for " <> T.pack (dir </> "nope.ouro")])))
+    , ("an error in a module is in its file",      onDiskFails "broken" [("broken.ouro", "(export bad)\n(defn bad () (get () 5))"), main' "(import broken)\n(graph g (:r (broken/bad)))"]
+                                                               (\dir -> ("SCP0003", dir </> "broken.ouro", 2, 22, ["attemptedIndex = 5"])))
+    , ("a cycle on disk",                          onDiskFails "cycle" [("a.ouro", "(import b)\n(export f)\n(defn f () 1)"), ("b.ouro", "(import a)\n(export f)\n(defn f () 2)"), main' "(import a)\n(graph g (:r (a/f)))"]
+                                                               (\dir -> ("SCP0009", dir </> "b.ouro", 1, 1, ["cyclePath = [\"a\",\"b\",\"a\"]"])))
+    , ("a module that is not UTF-8",               onDiskFails "not-utf8" [("latin.ouro", "(export f)\n(defn f () \"caf\xE9\")"), main' "(import latin)\n(graph g (:r (latin/f)))"]
+                                                               (\dir -> ("SCP0010", dir </> "main.ouro", 1, 1, ["unreadableModule = \"latin\"", "is not valid UTF-8"])))
+    , ("a path written with / has one separator",  slashedPath)
+    ]
+
+    where
+    helpers = ("helpers.ouro", "(export greet)\n(defn greet (n) (+ \"Hello, \" n))")
+    main' source = ("main.ouro", source)
+
+
+-- A file compiled by a path written with '/' names its modules with one kind of separator. On
+-- Windows the modules were once named half with '/' and half with '\', as in
+-- Temp/cli-mods\broken.ouro, because the module's name was joined to the path as written.
+slashedPath :: Property
+slashedPath = withTests 1 . property $ do
+    (dir, _) <- evalIO (compileOnDisk "slashed" [("broken.ouro", "(export bad)\n(defn bad () (get () 5))"), ("main.ouro", "(import broken)\n(graph g (:r (broken/bad)))")])
+    let written = map (\c -> if c == '\\' then '/' else c) (dir </> "main.ouro")
+    source <- evalIO (either (error . T.unpack) id <$> readSource written)
+    result <- evalIO (compileFile written "g" source)
+    case result of
+        CompilationFailure _ (err :| _) -> sourceName (errPos err) === normalise (dir </> "broken.ouro")
+        compiled                        -> annotate (describe compiled) >> failure
+
+
+-- Writes the files into a directory of their own, named for the test, and compiles its
+-- main.ouro as the command line would: its imports are read from the files beside it
+compileOnDisk :: FilePath -> [(FilePath, BS.ByteString)] -> IO (FilePath, CompilationResult)
+compileOnDisk name files = do
+    tmp <- getTemporaryDirectory
+    let dir = tmp </> "ouro-test" </> name
+    exists <- doesDirectoryExist dir
+    when exists (removeDirectoryRecursive dir)
+    forM_ files $ \(file, bytes) -> do
+        createDirectoryIfMissing True (takeDirectory (dir </> file))
+        BS.writeFile (dir </> file) bytes
+    let mainFile = dir </> "main.ouro"
+    source <- either (error . T.unpack) id <$> readSource mainFile
+    (,) dir <$> compileFile mainFile "g" source
+
+onDiskToJSON :: FilePath -> [(FilePath, BS.ByteString)] -> Text -> Property
+onDiskToJSON name files expected = withTests 1 . property $ do
+    (_, result) <- evalIO (compileOnDisk name files)
+    case result of
+        CompilationSuccess _ ast -> squash (TL.toStrict (toJSON defaultOptions ast)) === squash expected
+        failed                   -> annotate (describe failed) >> failure
+    where
+    squash = T.filter (not . isSpace)
+
+-- The compile fails with an error of the given code, file, line and column, mentioning every
+-- given text; the file is a path in the test's directory, which is only known once it is made
+onDiskFails :: FilePath -> [(FilePath, BS.ByteString)] -> (FilePath -> (Text, FilePath, Int, Int, [Text])) -> Property
+onDiskFails name files expectation = withTests 1 . property $ do
+    (dir, result) <- evalIO (compileOnDisk name files)
+    let (code, file, line, column, messages) = expectation dir
+    case result of
+        CompilationFailure _ errs
+            -> do
+               annotate (unlines [ T.unpack (smartErrorCode (errContext err)) <> " at " <> sourceName (errPos err) <> ":" <> show (unPos (sourceLine (errPos err))) <> ":" <> show (unPos (sourceColumn (errPos err))) <> ": " <> show err | err <- toList errs ])
+               assert (any (\err -> smartErrorCode (errContext err) == code
+                                 && sourceName (errPos err) == file
+                                 && unPos (sourceLine (errPos err)) == line
+                                 && unPos (sourceColumn (errPos err)) == column
+                                 && all (`T.isInfixOf` errorText err) messages) errs)
+        compiled
+            -> annotate (describe compiled) >> failure
+    where
+    -- An error's text, with its blurb, unescaped: show would double a Windows path's backslashes
+    errorText (OuroError _ context) = contextText context
+    contextText = \case
+        AnnotatedContext blurb inner -> blurb <> "\n" <> contextText inner
+        other                        -> T.pack (show other)
+
+onDiskWarns :: FilePath -> [(FilePath, BS.ByteString)] -> (FilePath -> Text) -> (FilePath -> Text) -> Property
+onDiskWarns name files code message = withTests 1 . property $ do
+    (dir, result) <- evalIO (compileOnDisk name files)
+    case result of
+        CompilationSuccess warnings _
+            -> do
+               annotate (show [ (smartWarningCode context, warningText w) | w@(OuroWarning _ context) <- warnings ])
+               assert (any (\w@(OuroWarning _ context) -> smartWarningCode context == code dir && message dir `T.isInfixOf` warningText w) warnings)
+        failed
+            -> annotate (describe failed) >> failure

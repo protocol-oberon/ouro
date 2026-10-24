@@ -4,6 +4,7 @@
 module Data.Ouro
   -- * Core Compilation Pipeline
 ( compile
+, compileFile
 , compileWith
 , CompilationResult(..)
 , PrinterOptions(..)
@@ -11,7 +12,8 @@ module Data.Ouro
 , defaultOptions
 , validate
 
--- * Reading source files
+-- * Reading source files, and the bundled modules' sources
+, bundledFile
 , decodeSource
 , readSource
 
@@ -24,6 +26,8 @@ module Data.Ouro
 , SyntaxError(..)
 , TypeError(..)
 , smartErrorCode
+, SourceFrame(..)
+, sourceFrame
 
 -- * Warning Subsystems
 , LinterWarning(..)
@@ -37,17 +41,18 @@ module Data.Ouro
 ) where
 
 import           Control.Monad.Validate      (refute, runValidateT)
-import           Control.Monad.Writer        (runWriter, tell)
-import qualified Data.ByteString             as BS
+import           Control.Monad.Writer        (runWriterT, tell)
 import           Data.Containers.ListUtils   (nubOrd)
 import           Data.Function               ((&))
+import           Data.Functor.Identity       (runIdentity)
 import           Data.List                   (sortOn)
 import           Data.List.NonEmpty          (NonEmpty (..))
 import qualified Data.List.NonEmpty          as NE
 import qualified Data.Map                    as Map
-import           Data.Maybe                  (fromMaybe)
-import           Data.Ouro.Error.Diagnostics (nonExistentGraph, smartErrorCode,
-                                              smartWarningCode, typeMismatch,
+import           Data.Ouro.Error.Diagnostics (SourceFrame (..), nonExistentGraph,
+                                              smartErrorCode,
+                                              smartWarningCode, sourceFrame,
+                                              typeMismatch,
                                               warningBlurb, warningSummary,
                                               withBlurb)
 import qualified Data.Ouro.Error.Linter      as LN
@@ -60,9 +65,10 @@ import           Data.Ouro.Error.Types       (ErrorContext (..),
                                               SyntaxError (..), TypeError (..),
                                               VocabularyWarning (..),
                                               WarningContext (..))
-import           Data.Ouro.Internal.Compiler (CompilerM)
+import           Data.Ouro.Internal.Compiler (CompilerT)
 import qualified Data.Ouro.Internal.Expr     as I
 import qualified Data.Ouro.Internal.Kinds    as JLD
+import           Data.Ouro.Internal.Source   (decodeSource, readSource)
 import           Data.Ouro.Internal.Utils    (rankBySimilarity)
 import qualified Data.Ouro.Json.Parser       as JP
 import           Data.Ouro.Json.Serializer   (PrinterOptions (..),
@@ -73,16 +79,18 @@ import qualified Data.Ouro.Lisp.Eval.Engine  as EN
 import           Data.Ouro.Lisp.Eval.Types   (Expr (..), freeze)
 import qualified Data.Ouro.Lisp.Eval.Types   as L
 import qualified Data.Ouro.Lisp.Lexer        as LX
-import           Data.Ouro.Lisp.Module.Loader (fromSources, loadImports,
+import           Data.Ouro.Lisp.Module.Bundled (bundledFile)
+import           Data.Ouro.Lisp.Module.Loader (LoadEnv, fromDirectory,
+                                              fromSources, loadImports,
                                               runLoader)
 import           Data.Ouro.Lisp.Module.Types (HigherExpression (..),
                                               graphRegistry)
 import qualified Data.Ouro.Lisp.Parser       as LP
 import           Data.Text                   (Text)
 import qualified Data.Text                   as T
-import qualified Data.Text.Encoding          as TE
 import qualified Data.Text.Lazy              as TL
 import           Lens.Micro.Platform         ((^.))
+import           System.FilePath             (takeDirectory)
 import qualified Text.Megaparsec             as M
 import           Text.Megaparsec             (errorBundlePretty)
 
@@ -99,9 +107,20 @@ compile = compileWith Map.empty
 -- Compiles a file that can import the given modules, sources in memory by path, as well as
 -- the bundled ones. Nothing is read from disk, so it is pure: the test suite's fake files.
 compileWith :: Map.Map Text Text -> String -> String -> Text -> CompilationResult
-compileWith sources filename trgt content = compilationResult . runWriter . runValidateT $ compile'
+compileWith sources filename trgt content = runIdentity (compileUsing (fromSources sources) filename trgt content)
+
+
+-- Compiles a file on disk: it imports the modules in files beside it, a/b.ouro for (import a/b),
+-- and the bundled ones. A module in the project replaces a bundled one of the same name.
+compileFile :: FilePath -> String -> Text -> IO CompilationResult
+compileFile path = compileUsing (fromDirectory (takeDirectory path)) path
+
+
+-- Compiles a file whose imports are read through the given loader: from memory, or from disk
+compileUsing :: forall m. Monad m => LoadEnv m -> String -> String -> Text -> m CompilationResult
+compileUsing loader filename trgt content = compilationResult <$> runWriterT (runValidateT compile')
     where
-    compile' :: CompilerM (I.Expr 'JLD.Primitive)
+    compile' :: CompilerT m (I.Expr 'JLD.Primitive)
     compile' = do
                -- Pass 1: Lexical Tokenization
                tokens <- case LX.tokenize filename  content of
@@ -123,8 +142,8 @@ compileWith sources filename trgt content = compilationResult . runWriter . runV
                let desugaredModule = Canon.canonicalModule ouroModule
 
                -- Pass 3.2: Load the modules it imports, each linked into its own root frame.
-               -- Only the bundled modules and the given sources can be imported so far.
-               imported <- runLoader (fromSources sources) (loadImports desugaredModule)
+               -- They are read through the loader: from memory, or from disk.
+               imported <- runLoader loader (loadImports desugaredModule)
 
                -- Pass 3.3: Find target graph
                graph <- case Map.lookup (T.pack trgt) (desugaredModule ^. graphRegistry) of
@@ -215,22 +234,3 @@ validate :: String -> Text -> PrinterOptions -> Either String TL.Text
 validate filename input opts = case JP.go filename input of
                                    Left  err  -> Left (errorBundlePretty err)
                                    Right expr -> Right (Ser.toJSON opts expr)
-
-
--- Reading source files.
---
--- Ouro source is always UTF-8. GHC's text IO decodes with the locale's encoding, which on
--- Windows is a code page such as 850, so 'É' would be read as two characters. The bytes
--- are read as they are and decoded as UTF-8 instead. A leading byte order mark, which some
--- Windows editors write, is dropped, and CRLF line endings become LF, so a file reads the
--- same on every platform. A file that is not valid UTF-8 is an error, not garbled text.
-readSource :: FilePath -> IO (Either Text Text)
-readSource path = decodeSource path <$> BS.readFile path
-
-decodeSource :: FilePath -> BS.ByteString -> Either Text Text
-decodeSource path bytes =
-    case TE.decodeUtf8' (fromMaybe bytes (BS.stripPrefix byteOrderMark bytes)) of
-        Left  _    -> Left ("'" <> T.pack path <> "' is not valid UTF-8. Ouro source files are read as UTF-8: perhaps save it with that encoding.")
-        Right text -> Right (T.replace "\r\n" "\n" text)
-    where
-    byteOrderMark = BS.pack [0xEF, 0xBB, 0xBF]

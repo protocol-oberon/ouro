@@ -46,6 +46,8 @@ main = withUtf8Console $ do
         , Import.imports
         , Import.importedModules
         , Import.moduleErrors
+        , Import.sourceFrames
+        , Import.modulesOnDisk
         -- Bindings: let, fn and defn replace define and defun
         , Let.letAndFn
         -- The language as specified: what reaches the output, special forms and built-ins

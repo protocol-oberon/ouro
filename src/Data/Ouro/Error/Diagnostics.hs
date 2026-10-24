@@ -19,6 +19,8 @@ import           Data.Text                 (Text)
 import qualified Data.Text                 as T
 import           GHC.Generics              (C1, D1, Generic (from), M1 (..),
                                             Rep, type (:+:) (..))
+import           Text.Megaparsec           (SourcePos, sourceColumn, sourceLine,
+                                            sourceName, unPos)
 import           Text.Printf               (printf)
 
 
@@ -134,11 +136,22 @@ nonExistentGraph :: Text -> Text -> ErrorContext
 nonExistentGraph = \trgt sug -> Scope $ NonExistentGraph trgt sug
 
 
--- An (import path) of a module that cannot be found, given the bundled modules' names
-moduleNotFound :: Text -> [Text] -> ErrorContext
-moduleNotFound path bundledNames =
-    withBlurb ("The bundled modules are: " <> T.intercalate ", " bundledNames <> "." <> closest path bundledNames)
+-- An (import path) of a module that cannot be found, given the files looked for and the
+-- bundled modules' names
+moduleNotFound :: Text -> [FilePath] -> [Text] -> ErrorContext
+moduleNotFound path searched bundledNames =
+    withBlurb ( looked <> "The bundled modules are: " <> T.intercalate ", " bundledNames <> "." <> closest path bundledNames )
               (Scope (ModuleNotFound { missingModule = path }))
+    where
+    looked = case searched of
+                 []    -> ""
+                 files -> "Looked for " <> T.intercalate ", " (map T.pack files) <> ". "
+
+
+-- A module whose file exists but cannot be read: its file, and why
+moduleUnreadable :: Text -> Text -> Text -> ErrorContext
+moduleUnreadable path file reason =
+    withBlurb reason (Scope (ModuleUnreadable { unreadableModule = path, unreadableFile = file, unreadableReason = reason }))
 
 
 -- A qualified name whose qualifier names no import, given the file's qualifiers and the
@@ -321,6 +334,13 @@ notKebabCase kind name kebab = Lint $ NotKebabCase
     , kebabName       = kebab
     }
 
+-- Create a warning for a project module that replaces a bundled one: its name and file
+shadowedBundledModule :: Text -> Text -> WarningContext
+shadowedBundledModule name file = Lint $ ShadowedBundledModule
+    { shadowingModule = name
+    , shadowingFile   = file
+    }
+
 -- Create a compile-time elided property assignment semantic warning
 elidedPropertyAssign :: Text -> Text -> WarningContext
 elidedPropertyAssign key construct = Semantic $ ElidedPropertyAssign
@@ -381,6 +401,10 @@ warningBlurb = \case
         <> "Attribute keys and local bindings may be named as their data needs.\n\n"
         <> "Perhaps rename it '" <> kebab <> "'."
 
+    Lint (ShadowedBundledModule name file)
+        -> "A module of the project with the name of a bundled module is imported in its place: " <> file <> " replaces the bundled '" <> name <> "'.\n\n"
+        <> "Perhaps rename the file, unless replacing the bundled module is intended."
+
     Semantic (ElidedPropertyAssign key construct)
         -> "The expression assigned to the property attribute '" <> key <> "' evaluates exclusively to a compile-time '"
         <> construct <> "' block. Because elided control structures leave zero footprint in final binary payloads, "
@@ -400,5 +424,26 @@ warningSummary = \case
     Lint (ParenthesisedResult owner _)  -> "The result of '" <> owner <> "' is an array of one value"
     Lint (ShadowedBuiltin name)         -> "The function '" <> name <> "' replaces the built-in '" <> name <> "'"
     Lint (NotKebabCase kind name _)     -> "The " <> kind <> " '" <> name <> "' is not named in kebab-case"
+    Lint (ShadowedBundledModule name _) -> "The project's module '" <> name <> "' replaces the bundled '" <> name <> "'"
     Semantic (ElidedPropertyAssign k _) -> "Property assignment '" <> k <> "' binds to an elided value"
     Vocab (UnboundTypeReference t _)    -> "Unbound schema type reference '" <> t <> "'"
+
+
+-- Where a diagnostic is shown: the file it was reported in, its line and column, and the
+-- text of that line. The file is the one the position names, which is not always the file
+-- compiled: an error inside an imported module is shown in that module, with its line.
+data SourceFrame = SourceFrame
+    { frameFile   :: FilePath
+    , frameLine   :: Int
+    , frameColumn :: Int
+    , frameText   :: Text
+    } deriving (Show, Eq)
+
+sourceFrame :: (FilePath -> Maybe Text) -> SourcePos -> SourceFrame
+sourceFrame sourceOf pos = SourceFrame file line (unPos (sourceColumn pos)) text
+    where
+    file = sourceName pos
+    line = unPos (sourceLine pos)
+    text = case drop (line - 1) . T.lines <$> sourceOf file of
+               Just (found : _) -> found
+               _noSuchLine      -> ""

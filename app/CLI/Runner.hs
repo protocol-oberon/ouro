@@ -6,7 +6,11 @@ module CLI.Runner
 import           CLI.Printer       (pintDiagnostic)
 import           CLI.Types         (Command (..), TargetTransform (..),
                                     ValidateCommand (..))
-import           Data.Ouro         (PrinterOptions (..), defaultOptions)
+import           Control.Monad     (join)
+import           Data.Foldable     (toList)
+import           Data.List         (nub)
+import           Data.Ouro         (OuroError (..), OuroWarning (..),
+                                    PrinterOptions (..), defaultOptions)
 import qualified Data.Ouro         as O
 import qualified Data.Text         as T
 import qualified Data.Text.IO      as TIO
@@ -17,6 +21,7 @@ import           System.FilePath   (hasExtension, (</>))
 import           System.IO         (IOMode (..), hSetEncoding, hSetNewlineMode,
                                     noNewlineTranslation, stderr, utf8,
                                     withFile)
+import           Text.Megaparsec   (SourcePos, sourceName)
 
 
 runCommand :: Command -> IO ()
@@ -38,11 +43,14 @@ runCompile ifp trgt mOutDir = do
     -- Read and process the input file
     content <- readSourceOrExit ifp
 
-    case O.compile ifp trgt content of
+    result <- O.compileFile ifp trgt content
+
+    case result of
         O.CompilationSuccess warnings code
             -> do
                -- Print all accumulated diagnostics (both warnings and non-fatal/harvested errors) up front
-               mapM_ (pintDiagnostic ifp (T.unpack content). Left) warnings
+               sourceOf <- sourcesFor ifp content (map warnPos warnings)
+               mapM_ (pintDiagnostic sourceOf . Left) warnings
 
                -- Proceed with serialization
                let opts = defaultOptions
@@ -52,10 +60,11 @@ runCompile ifp trgt mOutDir = do
         O.CompilationFailure warnings errors
             -> do
                -- Even in failure, print the warnings gathered up to the crash point
-               mapM_ (pintDiagnostic ifp (T.unpack content) . Left) warnings
+               sourceOf <- sourcesFor ifp content (map warnPos warnings <> map errPos (toList errors))
+               mapM_ (pintDiagnostic sourceOf . Left) warnings
 
                -- Print the full harvest of architectural errors
-               mapM_ (pintDiagnostic ifp (T.unpack content). Right) errors
+               mapM_ (pintDiagnostic sourceOf . Right) errors
 
                putStrLn $ "Compilation Failed: " ++ ifp ++ " due to compiler errors."
                exitFailure
@@ -115,3 +124,15 @@ writeJSON path json = withFile path WriteMode $ \h -> do
     hSetEncoding    h utf8
     hSetNewlineMode h noNewlineTranslation
     TLIO.hPutStr    h json
+
+
+-- The sources of every file a diagnostic is reported in, each read once: the file compiled,
+-- a module of the project, or a bundled module, whose source is in the compiler itself
+sourcesFor :: FilePath -> T.Text -> [SourcePos] -> IO (FilePath -> Maybe T.Text)
+sourcesFor ifp content positions = do
+    others <- traverse (\file -> (file,) <$> readOther file) (nub [ sourceName pos | pos <- positions, sourceName pos /= ifp ])
+    pure $ \file -> if file == ifp then Just content else join (lookup file others)
+    where
+    readOther file = case O.bundledFile file of
+                         Just source -> pure (Just source)
+                         Nothing     -> either (const Nothing) Just <$> O.readSource file

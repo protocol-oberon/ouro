@@ -5,6 +5,7 @@
 -- and resolving a bundled module is pure.
 module Data.Ouro.Lisp.Module.Bundled
 ( bundled
+, bundledFile
 ) where
 
 import           Data.ByteString    (ByteString)
@@ -25,3 +26,9 @@ bundled = Map.fromList
     where
     files :: [(FilePath, ByteString)]
     files = $(embedDir "lib")
+
+
+-- A bundled module's source by its file name, lib/std.ouro, so that an error inside it can be
+-- shown with its line: the file is in the compiler, not on disk
+bundledFile :: FilePath -> Maybe Text
+bundledFile file = lookup file (Map.elems bundled)

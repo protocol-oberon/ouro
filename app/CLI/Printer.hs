@@ -13,12 +13,14 @@ import           Data.Ouro                     (ErrorContext (..),
                                                 OuroWarning (..),
                                                 PathError (..), ScopeError (..),
                                                 SemanticWarning (..),
+                                                SourceFrame (..),
                                                 SyntaxError (..),
                                                 TypeError (..),
                                                 VocabularyWarning (..),
                                                 WarningContext (..),
                                                 smartErrorCode,
-                                                smartWarningCode, warningBlurb,
+                                                smartWarningCode, sourceFrame,
+                                                warningBlurb,
                                                 warningSummary)
 import           Data.Text                     (Text)
 import qualified Data.Text                     as T
@@ -57,8 +59,11 @@ styleToAnsi = \case
                NoteBody -> mempty
 
 
-pintDiagnostic :: FilePath -> String -> Either OuroWarning OuroError -> IO ()
-pintDiagnostic fp sourceContent diagnostic = do
+-- Prints a diagnostic in the file it was reported in, which need not be the file compiled:
+-- an error inside an imported module is shown with that module's name and line. The sources
+-- of every file a diagnostic can be in are given by name.
+pintDiagnostic :: (FilePath -> Maybe Text) -> Either OuroWarning OuroError -> IO ()
+pintDiagnostic sourceOf diagnostic = do
     -- Source Coordinate and Frame Metric Extraction
     let (pos, headerStyle, codeText, title, details, mBlurb) = case diagnostic of
             Right (OuroError ePos context)
@@ -69,17 +74,14 @@ pintDiagnostic fp sourceContent diagnostic = do
                 -> let (warnTitle, warnDetails, warnBlurb) = splitWarningContext context
                    in (wPos, Warning, smartWarningCode context, warnTitle, warnDetails, warnBlurb)
 
-    let lineNum     = unPos (sourceLine pos)
-        colNum      = unPos (sourceColumn pos)
+    let frame       = sourceFrame sourceOf pos
+        lineNum     = frameLine frame
+        colNum      = frameColumn frame
         lineStr     = annotate Gutter (pretty $ show lineNum)
         gutterWidth = length (show lineNum)
 
-    -- Source Code Buffering
-    -- Safely retrieve the raw source string matching the target line index.
-    -- An empty string fallback is provided to prevent index out of bounds errors.
-    let rawLine = case lineNum <= length (lines sourceContent) of
-                      True  -> lines sourceContent !! (lineNum - 1)
-                      False -> ""
+    -- The text of the line the diagnostic is on, in its own file
+    let rawLine = T.unpack (frameText frame)
 
     let maxWidth = 100
 
@@ -133,7 +135,7 @@ pintDiagnostic fp sourceContent diagnostic = do
         doc = vsep $
             [ annotate headerStyle (pretty (renderLabel headerStyle) <> " [" <> pretty codeText <> "]: " <> pretty title)
             , pretty (replicate gutterWidth ' ') <> " ┌── │"
-              <> pretty fp <> ":" <> annotate Gutter (pretty lineNum) <> ":" <> annotate Gutter (pretty colNum) <> "│"
+              <> pretty (frameFile frame) <> ":" <> annotate Gutter (pretty lineNum) <> ":" <> annotate Gutter (pretty colNum) <> "│"
             , pretty (replicate gutterWidth ' ') <> " │"
             , mkGutter lineStr <> pretty slicedLine
 
@@ -337,6 +339,14 @@ splitErrorContext = \case
            , Nothing
            )
 
+    Scope (ModuleUnreadable name file _)
+        -> ("Module Unreadable"
+           , [ labeled "Module: " (pretty name)
+             , labeled "File:   " (pretty file)
+             ]
+           , Nothing
+           )
+
     Internal (ErasureValueLeakError block)
         -> ( "Compiler Internal Error"
            , [ labeled "Expected: " "nil (erased)"
@@ -445,6 +455,11 @@ splitWarningContext ctx =
         Lint (NotKebabCase _ _ kebab)
             -> ( title
                , [ labeled "Kebab-case: " (highlightDiagnostic kebab) ]
+               , Just blurb
+               )
+        Lint (ShadowedBundledModule _ file)
+            -> ( title
+               , [ labeled "Replaced by: " (highlightDiagnostic file) ]
                , Just blurb
                )
         Semantic (ElidedPropertyAssign key construct)

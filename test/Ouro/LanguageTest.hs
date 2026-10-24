@@ -34,6 +34,7 @@ import qualified Hedgehog.Range            as Range
 import qualified Text.URI                  as URI
 import           Utils                     (compilesToJSON, emitsExactly,
                                             failsWith, failsWithout, fixture,
+                                            importsFailAt,
                                             shouldCompileTo)
 
 
@@ -834,4 +835,6 @@ knownGaps = Group "Known gaps: current, incorrect behaviour"
                                                                       "{\"u\": \"https://a.org/x/y\"}")
     , ("gap 22: so is a leading one",              compilesToJSON "(graph g (:u #uri \"https://a.org//x\"))"
                                                                    "{\"u\": \"https://a.org/x\"}")
+    , ("gap 23: an unterminated string is reported where the input ends", importsFailAt "SYN0000" ("inline-test", 1, 21) ["Malformed or unrecognized lexical token sequence"] []
+                                                                                "(graph g (:r \"open))")
     ]

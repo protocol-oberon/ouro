@@ -256,6 +256,13 @@ data ScopeError
     | ImportCycle
       { cyclePath :: [Text]
       }
+
+    -- A module's file exists but cannot be read, such as one that is not UTF-8
+    | ModuleUnreadable
+      { unreadableModule :: Text
+      , unreadableFile   :: Text
+      , unreadableReason :: Text
+      }
     deriving (Show, Eq, Ord, Generic)
 
 
@@ -355,6 +362,16 @@ data LinterWarning
       { declarationKind :: Text -- "function" or "graph"
       , declarationName :: Text -- The name as written
       , kebabName       :: Text -- The suggested kebab-case name
+      }
+
+    -- LINT WARNING: SHADOWED BUNDLED MODULE
+    -- Occurs when a module of the project has the name of a module bundled with the compiler,
+    -- such as a std.ouro beside the file. The project's module is imported in its place.
+    --
+    -- * Remediation: Issue warning. Suggest another name, unless replacing it is intended.
+    | ShadowedBundledModule
+      { shadowingModule :: Text -- The module's name
+      , shadowingFile   :: Text -- The project's file that replaces it
       }
     deriving (Show, Eq, Ord, Generic)
 

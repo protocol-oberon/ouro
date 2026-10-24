@@ -11,7 +11,8 @@ import           Data.Ouro                    (CompilationResult (..), compile,
                                                compileWith,
                                                defaultOptions, readSource,
                                                toJSON)
-import           Data.Ouro.Error.Diagnostics  (smartErrorCode, warningBlurb,
+import           Data.Ouro.Error.Diagnostics  (smartErrorCode, smartWarningCode,
+                                               warningBlurb,
                                                warningSummary)
 import           Data.Ouro.Error.Types        (OuroError (..), OuroWarning (..))
 import qualified Data.Ouro.Internal.Expr      as I
@@ -349,3 +350,27 @@ importsWarnIn file message modules src = withTests 1 . property $
             -> do
                annotate (describe failed)
                failure
+
+-- With modules: the program compiles, with a warning of the given code at the given file,
+-- line and column, whose message and hint mention every given text
+importsWarnAt :: Text -> (FilePath, Int, Int) -> [Text] -> Modules -> Text -> Property
+importsWarnAt code (file, line, column) messages modules src = withTests 1 . property $
+    case compileWithModules modules src of
+        CompilationSuccess warnings _
+            | any matches warnings
+                -> success
+            | otherwise
+                -> do
+                   annotate ("no " <> T.unpack code <> " warning at " <> file <> ":" <> show line <> ":" <> show column <> " mentions all of: " <> show messages)
+                   annotate (unlines [ T.unpack (smartWarningCode context) <> " at " <> placeOf pos <> ": " <> T.unpack (warningText w) | w@(OuroWarning pos context) <- warnings ])
+                   failure
+        failed
+            -> do
+               annotate (describe failed)
+               failure
+    where
+    matches w@(OuroWarning pos context) = smartWarningCode context == code
+                                       && placeOf pos == file <> ":" <> show line <> ":" <> show column
+                                       && all (`T.isInfixOf` warningText w) messages
+
+    placeOf pos = sourceName pos <> ":" <> show (unPos (sourceLine pos)) <> ":" <> show (unPos (sourceColumn pos))
