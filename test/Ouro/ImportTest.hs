@@ -56,14 +56,14 @@ import           Utils                         (compileG, compileWithModules,
 -- bundled with the compiler, and holds Linked Art's own patterns.
 imports :: Group
 imports = Group "Modules: import, export and the bundled std"
-    [ ("std's core builds a node",                 compilesToJSON "(import std) (graph g (std/core #uri \"https://a.org/1\" \"Type\" \"A\"))"
+    [ ("std's core builds a node",                 compilesToJSON "(import std/base) (graph g (base/core #uri \"https://a.org/1\" \"Type\" \"A\"))"
                                                                   "{\"id\": \"https://a.org/1\", \"type\": \"Type\", \"_label\": \"A\"}")
-    , ("std's name builds a Name",                 compilesToJSON "(import std) (graph g (:identified_by ((std/name \"A\"))))"
+    , ("std's name builds a Name",                 compilesToJSON "(import std/base) (graph g (:identified_by ((base/name \"A\"))))"
                                                                   "{\"identified_by\": [{\"type\": \"Name\", \"content\": \"A\"}]}")
-    , ("an alias qualifies the module",            compilesToJSON "(import std as la) (graph g (la/name \"A\"))"
+    , ("an alias qualifies the module",            compilesToJSON "(import std/base as la) (graph g (la/name \"A\"))"
                                                                   "{\"type\": \"Name\", \"content\": \"A\"}")
-    , ("std compiles without warnings",            compilesWithoutWarnings "(import std) (graph g (std/name \"A\"))")
-    , ("a local function and an import's apart",   compilesToJSON "(import std) (defn name (x) \"mine\") (graph g (:a (name 1) :b (std/name \"A\")))"
+    , ("std compiles without warnings",            compilesWithoutWarnings "(import std/base) (graph g (base/name \"A\"))")
+    , ("a local function and an import's apart",   compilesToJSON "(import std/base) (defn name (x) \"mine\") (graph g (:a (name 1) :b (base/name \"A\")))"
                                                                   "{\"a\": \"mine\", \"b\": {\"type\": \"Name\", \"content\": \"A\"}}")
     , ("/ and /= are not qualified names",         compilesToJSON "(graph g (:a (/ 6 3) :b (/= 1 2)))"
                                                                   "{\"a\": 2, \"b\": true}")
@@ -72,20 +72,20 @@ imports = Group "Modules: import, export and the bundled std"
     , ("the module must exist",                    failsWith "missingModule = \"nope\""
                                                              "(import nope) (graph g (:r 1))")
     , ("every missing module is reported",         everyMissingModule)
-    , ("a qualifier must be imported",             failsWith "perhaps add (import std)"
-                                                             "(graph g (std/name \"A\"))")
-    , ("an unknown qualifier suggests one",        failsWith "Perhaps you meant 'std'"
-                                                             "(import std) (graph g (stdd/name \"A\"))")
+    , ("a qualifier must be imported",             failsWith "perhaps add (import std/base)"
+                                                             "(graph g (base/name \"A\"))")
+    , ("an unknown qualifier suggests one",        failsWith "Perhaps you meant 'base'"
+                                                             "(import std/base) (graph g (basee/name \"A\"))")
     , ("a name must be exported",                  failsWith "unexportedName = \"nope\""
-                                                             "(import std) (graph g (std/nope 1))")
+                                                             "(import std/base) (graph g (base/nope 1))")
 
       -- Writing imports and exports
     , ("imports come first",                       failsWith "Imports and exports come first"
-                                                             "(defn f () 1) (import std) (graph g (:r 1))")
+                                                             "(defn f () 1) (import std/base) (graph g (:r 1))")
     , ("two imports need two qualifiers",          failsWith "Perhaps name one with as"
-                                                             "(import std) (import std) (graph g (:r 1))")
+                                                             "(import std/base) (import std/base) (graph g (:r 1))")
     , ("an alias is one name",                     failsWith "has a '/' in it"
-                                                             "(import std as a/b) (graph g (:r 1))")
+                                                             "(import std/base as a/b) (graph g (:r 1))")
     , ("an export names a defn of the module",     failsWith "defines no function by that name"
                                                              "(export nope) (graph g (:r 1))")
     , ("and suggests a close one",                 failsWith "Perhaps you meant 'mine'"
@@ -169,11 +169,11 @@ importedModules = Group "Modules: imported modules, in memory"
                                                                    "(import a) (graph g (:r (a/f)))")
 
       -- Imported functions are values like any other
-    , ("an imported function as a value",          compilesToJSON "(import std) (graph g (let ($f std/name) (f \"A\")))"
+    , ("an imported function as a value",          compilesToJSON "(import std/base) (graph g (let ($f base/name) (f \"A\")))"
                                                                   "{\"type\": \"Name\", \"content\": \"A\"}")
-    , ("with a hole",                              compilesToJSON "(import std) (graph g (:r (map (std/name ?) (\"A\" \"B\"))))"
+    , ("with a hole",                              compilesToJSON "(import std/base) (graph g (:r (map (base/name ?) (\"A\" \"B\"))))"
                                                                   "{\"r\": [{\"type\": \"Name\", \"content\": \"A\"}, {\"type\": \"Name\", \"content\": \"B\"}]}")
-    , ("passed to map",                            compilesToJSON "(import std) (graph g (:r (map std/name (\"A\"))))"
+    , ("passed to map",                            compilesToJSON "(import std/base) (graph g (:r (map base/name (\"A\"))))"
                                                                   "{\"r\": [{\"type\": \"Name\", \"content\": \"A\"}]}")
     , ("as a step of ->",                          importsToJSON [helpers] "(import helpers) (graph g (:r (-> \"Ann\" (helpers/greet))))"
                                                                           "{\"r\": \"Hello, Ann\"}")
@@ -181,9 +181,9 @@ importedModules = Group "Modules: imported modules, in memory"
                                                                  "(import checks) (graph g (:r (case 20 ((when (checks/big 20)) \"big\") (otherwise \"small\"))))"
                                                                  "{\"r\": \"big\"}")
     , ("a wrong number of arguments",              failsWith "nameOfFunc = \"name\""
-                                                             "(import std) (graph g (std/name 1 2))")
+                                                             "(import std/base) (graph g (base/name 1 2))")
     , ("a bad argument is blamed at the call",     importsFailIn "inline-test" ["expectedProperty = \"#str\""] []
-                                                                   "(import std) (graph g (std/name 5))")
+                                                                   "(import std/base) (graph g (base/name 5))")
     , ("an error in its body is in its module",    importsFailIn "broken-body.ouro" ["Index"] [("broken-body", "(export bad)\n(defn bad () (get () 5))")]
                                                                    "(import broken-body) (graph g (:r (broken-body/bad)))")
 
@@ -204,7 +204,7 @@ importedModules = Group "Modules: imported modules, in memory"
                                                                     "(import badly-named) (graph g (:r (badly-named/badName)))")
 
       -- Names
-    , ("a binding named like a qualifier",         compilesToJSON "(import std) (graph g (let ($std 1) (:a std :b (std/name \"A\"))))"
+    , ("a binding named like a qualifier",         compilesToJSON "(import std/base) (graph g (let ($base 1) (:a base :b (base/name \"A\"))))"
                                                                   "{\"a\": 1, \"b\": {\"type\": \"Name\", \"content\": \"A\"}}")
     , ("a parameter's name has no /",              failsWith "The parameter 'a/b' has a '/' in it"
                                                              "(defn f (a/b) 1) (graph g (:r (f 1)))")
@@ -215,20 +215,21 @@ importedModules = Group "Modules: imported modules, in memory"
     , ("an import names a module",                 failsWith "An import is written (import path) or (import path as name)"
                                                              "(import) (graph g (:r 1))")
     , ("as needs a name after it",                 failsWith "An import is written (import path) or (import path as name)"
-                                                             "(import std as) (graph g (:r 1))")
+                                                             "(import std/base as) (graph g (:r 1))")
     , ("an import names one module",               failsWith "An import is written (import path) or (import path as name)"
-                                                             "(import std extra) (graph g (:r 1))")
+                                                             "(import std/base extra) (graph g (:r 1))")
     , ("a path has no empty part",                 failsWith "has an empty part"
                                                              "(import a//b) (graph g (:r 1))")
     , ("an export names functions",                failsWith "An export names the module's functions"
                                                              "(export 1) (graph g (:r 1))")
-    , ("an export may come before imports",        compilesToJSON "(export f) (import std) (defn f () 1) (graph g (:r (f)))"
+    , ("an export may come before imports",        compilesToJSON "(export f) (import std/base) (defn f () 1) (graph g (:r (f)))"
                                                                   "{\"r\": 1}")
 
       -- The bundled std
     , ("std exports exactly core and name",        failsWith "exports: core, name"
-                                                             "(import std) (graph g (std/nope 1))")
-    , ("every std function is documented",         stdIsDocumented)
+                                                             "(import std/base) (graph g (base/nope 1))")
+    , ("every bundled function is documented",     stdIsDocumented)
+    , ("bundled modules are named with /",        bundledNamesUseSlash)
     ]
 
     where
@@ -247,18 +248,28 @@ importedModules = Group "Modules: imported modules, in memory"
     unparsed    = ("unparsed", "(export f)\n(defn f)")
 
 
--- Every function std defines has a (doc "..."), since std is where curators look things up
+-- Every function a bundled module defines has a (doc "..."), since the bundled modules are
+-- where curators look things up
 stdIsDocumented :: Property
-stdIsDocumented = withTests 1 . property $
-    case Map.lookup "std" bundled of
-        Nothing
-            -> failure
-        Just (file, source)
-            -> case tokenize file source >>= parseModule of
-                   Left err
-                       -> annotate (show err) >> failure
-                   Right m
-                       -> [ name | M.Function _ name Nothing _ _ <- Map.elems (M._functionRegistry m) ] === []
+stdIsDocumented = withTests 1 . property $ do
+    assert (not (Map.null bundled))
+    undocumented <- fmap concat . traverse undocumentedIn $ Map.elems bundled
+    undocumented === []
+    where
+    undocumentedIn (file, source) =
+        case tokenize file source >>= parseModule of
+            Left err -> annotate (show err) >> failure
+            Right m  -> pure [ (file, name) | M.Function _ name Nothing _ _ <- Map.elems (M._functionRegistry m) ]
+
+
+-- Bundled modules are named with '/' on every platform: file-embed joins a folder's files
+-- with the platform's separator, '\' on Windows, which would make std/base unreachable there
+bundledNamesUseSlash :: Property
+bundledNamesUseSlash = withTests 1 . property $ do
+    annotate (show (Map.keys bundled))
+    assert (Map.member "std/base" bundled)
+    assert (not (any (T.isInfixOf "\\") (Map.keys bundled)))
+    assert (not (any (T.isInfixOf "\\" . T.pack . fst) (Map.elems bundled)))
 
 
 -- Every error modules can raise, each with its code, the file, line and column it is
@@ -267,27 +278,29 @@ moduleErrors :: Group
 moduleErrors = Group "Modules: every error, with its code, place and hint"
     [ -- Imports and exports come first
       ("an import after a defn",                   importsFailAt "SYN0000" ("inline-test", 1, 15) ["Imports and exports come first", "Perhaps move it to the top of the file"] []
-                                                                 "(defn f () 1) (import std) (graph g (:r 1))")
+                                                                 "(defn f () 1) (import std/base) (graph g (:r 1))")
     , ("an export after a graph",                  importsFailAt "SYN0000" ("inline-test", 1, 18) ["Imports and exports come first"] []
                                                                  "(graph g (:r 1)) (export f) (defn f () 1)")
 
       -- Writing an import
     , ("an import with no module",                 importsFailAt "SYN0000" ("inline-test", 1, 8) ["An import is written (import path) or (import path as name)"] []
                                                                  "(import) (graph g (:r 1))")
-    , ("an import with as and no name",            importsFailAt "SYN0000" ("inline-test", 1, 13) ["An import is written (import path) or (import path as name)"] []
-                                                                 "(import std as) (graph g (:r 1))")
-    , ("an import of two modules",                 importsFailAt "SYN0000" ("inline-test", 1, 13) ["An import is written (import path) or (import path as name)"] []
-                                                                 "(import std extra) (graph g (:r 1))")
+    , ("an import with as and no name",            importsFailAt "SYN0000" ("inline-test", 1, 18) ["An import is written (import path) or (import path as name)"] []
+                                                                 "(import std/base as) (graph g (:r 1))")
+    , ("an import of two modules",                 importsFailAt "SYN0000" ("inline-test", 1, 18) ["An import is written (import path) or (import path as name)"] []
+                                                                 "(import std/base extra) (graph g (:r 1))")
     , ("a path with an empty part inside",         importsFailAt "SYN0000" ("inline-test", 1, 1) ["The module path 'a//b' has an empty part", "names joined by '/'"] []
                                                                  "(import a//b) (graph g (:r 1))")
     , ("a path ending in /",                       importsFailAt "SYN0000" ("inline-test", 1, 1) ["The module path 'a/' has an empty part"] []
                                                                  "(import a/) (graph g (:r 1))")
     , ("a path starting with /",                   importsFailAt "SYN0000" ("inline-test", 1, 1) ["The module path '/a' has an empty part"] []
                                                                  "(import /a) (graph g (:r 1))")
-    , ("an alias with a /",                        importsFailAt "SYN0000" ("inline-test", 1, 16) ["The import's name 'a/b' has a '/' in it", "so it is one name"] []
-                                                                 "(import std as a/b) (graph g (:r 1))")
-    , ("one module imported twice",                importsFailAt "SYN0000" ("inline-test", 1, 14) ["Two imports are both qualified 'std': std and std.", "(import std as another-name)"] []
-                                                                 "(import std) (import std) (graph g (:r 1))")
+    , ("a path is written with /, never \\",       importsFailAt "SYN0000" ("inline-test", 1, 12) ["Unexpected token"] []
+                                                                 "(import std\\base) (graph g (:r 1))")
+    , ("an alias with a /",                        importsFailAt "SYN0000" ("inline-test", 1, 21) ["The import's name 'a/b' has a '/' in it", "so it is one name"] []
+                                                                 "(import std/base as a/b) (graph g (:r 1))")
+    , ("one module imported twice",                importsFailAt "SYN0000" ("inline-test", 1, 19) ["Two imports are both qualified 'base': std/base and std/base.", "(import std/base as another-name)"] []
+                                                                 "(import std/base) (import std/base) (graph g (:r 1))")
     , ("two modules with one last part",           importsFailAt "SYN0000" ("inline-test", 1, 19) ["Two imports are both qualified 'people': a/people and b/people."] [peopleA, peopleB]
                                                                  "(import a/people) (import b/people) (graph g (:r 1))")
 
@@ -320,12 +333,14 @@ moduleErrors = Group "Modules: every error, with its code, place and hint"
                                                                  "(defn f ((?a/b)) 1) (graph g (:r 1))")
 
       -- Finding a module
-    , ("a module that does not exist",             importsFailAt "SCP0006" ("inline-test", 1, 1) ["missingModule = \"nope\"", "The bundled modules are: std."] []
+    , ("a module that does not exist",             importsFailAt "SCP0006" ("inline-test", 1, 1) ["missingModule = \"nope\"", "The bundled modules are: std/base."] []
                                                                  "(import nope) (graph g (:r 1))")
-    , ("a module near a bundled one",              importsFailAt "SCP0006" ("inline-test", 1, 1) ["missingModule = \"sdt\"", "Perhaps you meant 'std'"] []
-                                                                 "(import sdt) (graph g (:r 1))")
-    , ("a missing module, imported second",        importsFailAt "SCP0006" ("inline-test", 1, 14) ["missingModule = \"nope\""] []
-                                                                 "(import std) (import nope) (graph g (:r 1))")
+    , ("a module near a bundled one",              importsFailAt "SCP0006" ("inline-test", 1, 1) ["missingModule = \"std/bsae\"", "Perhaps you meant 'std/base'"] []
+                                                                 "(import std/bsae) (graph g (:r 1))")
+    , ("a folder of bundled modules is not one",   importsFailAt "SCP0006" ("inline-test", 1, 1) ["missingModule = \"std\"", "'std' is a folder of modules, not a module: perhaps (import std/base)", "Its modules are: std/base."] []
+                                                                 "(import std) (graph g (:r 1))")
+    , ("a missing module, imported second",        importsFailAt "SCP0006" ("inline-test", 1, 19) ["missingModule = \"nope\""] []
+                                                                 "(import std/base) (import nope) (graph g (:r 1))")
     , ("a missing module, inside a module",        importsFailAt "SCP0006" ("needy.ouro", 2, 1) ["missingModule = \"nope\""] [("needy", "(export f)\n(import nope)\n(defn f () 1)")]
                                                                  "(import needy) (graph g (:r 1))")
 
@@ -349,23 +364,23 @@ moduleErrors = Group "Modules: every error, with its code, place and hint"
                                                                  "(import broken-body) (graph g (:r (broken-body/bad)))")
 
       -- Qualified names
-    , ("a bundled module that is not imported",    importsFailAt "SCP0007" ("inline-test", 1, 11) ["qualifierName = \"std\"", "perhaps add (import std) at the top of the file"] []
-                                                                 "(graph g (std/name \"A\"))")
-    , ("a qualifier near an import",               importsFailAt "SCP0007" ("inline-test", 1, 24) ["qualifierName = \"stdd\"", "Perhaps you meant 'std'"] []
-                                                                 "(import std) (graph g (stdd/name \"A\"))")
+    , ("a bundled module that is not imported",    importsFailAt "SCP0007" ("inline-test", 1, 11) ["qualifierName = \"base\"", "perhaps add (import std/base) at the top of the file"] []
+                                                                 "(graph g (base/name \"A\"))")
+    , ("a qualifier near an import",               importsFailAt "SCP0007" ("inline-test", 1, 29) ["qualifierName = \"basee\"", "Perhaps you meant 'base'"] []
+                                                                 "(import std/base) (graph g (basee/name \"A\"))")
     , ("a qualifier in a file with no imports",    importsFailAt "SCP0007" ("inline-test", 1, 11) ["qualifierName = \"other\"", "This file imports nothing"] []
                                                                  "(graph g (other/f 1))")
-    , ("a qualifier far from every import",        importsFailAt "SCP0007" ("inline-test", 1, 24) ["qualifierName = \"zzz\"", "This file imports: std."] []
-                                                                 "(import std) (graph g (zzz/f 1))")
-    , ("a name the module does not export",        importsFailAt "SCP0008" ("inline-test", 1, 24) ["unexportedName = \"nam\"", "exports: core, name.", "Perhaps you meant 'name'"] []
-                                                                 "(import std) (graph g (std/nam \"A\"))")
-    , ("a name not exported, inside a module",     importsFailAt "SCP0008" ("uses.ouro", 3, 13) ["unexportedName = \"nope\""] [("uses", "(import std)\n(export f)\n(defn f () (std/nope))")]
+    , ("a qualifier far from every import",        importsFailAt "SCP0007" ("inline-test", 1, 29) ["qualifierName = \"zzz\"", "This file imports: base."] []
+                                                                 "(import std/base) (graph g (zzz/f 1))")
+    , ("a name the module does not export",        importsFailAt "SCP0008" ("inline-test", 1, 29) ["unexportedName = \"nam\"", "exports: core, name.", "Perhaps you meant 'name'"] []
+                                                                 "(import std/base) (graph g (base/nam \"A\"))")
+    , ("a name not exported, inside a module",     importsFailAt "SCP0008" ("uses.ouro", 3, 13) ["unexportedName = \"nope\""] [("uses", "(import std/base)\n(export f)\n(defn f () (base/nope))")]
                                                                  "(import uses) (graph g (:r (uses/f)))")
-    , ("a qualifier unknown inside a module",      importsFailAt "SCP0007" ("uses.ouro", 2, 13) ["qualifierName = \"std\"", "perhaps add (import std)"] [("uses", "(export f)\n(defn f () (std/name \"A\"))")]
+    , ("a qualifier unknown inside a module",      importsFailAt "SCP0007" ("uses.ouro", 2, 13) ["qualifierName = \"base\"", "perhaps add (import std/base)"] [("uses", "(export f)\n(defn f () (base/name \"A\"))")]
                                                                  "(import uses) (graph g (:r (uses/f)))")
 
       -- A failed import stops the compile: nothing after it is evaluated, so nothing echoes it
-    , ("a missing module is the only error",       importsFailTimes 1 [] "(import nope) (graph g (:a (nope/f) :b (std/name 1 2)))")
+    , ("a missing module is the only error",       importsFailTimes 1 [] "(import nope) (graph g (:a (nope/f) :b (base/name 1 2)))")
     , ("as is a broken module",                    importsFailTimes 1 [unparsed] "(import unparsed) (graph g (:a (unparsed/f) :b (get () 5)))")
 
       -- Warnings inside a module are reported in its file
@@ -373,11 +388,11 @@ moduleErrors = Group "Modules: every error, with its code, place and hint"
                                                                  "(import badly-named) (graph g (:r (badly-named/badName)))")
 
       -- A module says where it was looked for, and a project's module replaces a bundled one
-    , ("a missing module says where it looked",    importsFailAt "SCP0006" ("inline-test", 1, 1) ["Looked for nope.ouro.", "The bundled modules are: std."] []
+    , ("a missing module says where it looked",    importsFailAt "SCP0006" ("inline-test", 1, 1) ["Looked for nope.ouro.", "The bundled modules are: std/base."] []
                                                                  "(import nope) (graph g (:r 1))")
-    , ("a project module replaces a bundled one",  importsWarnAt "WRN0005" ("inline-test", 1, 1) ["The project's module 'std' replaces the bundled 'std'", "std.ouro replaces the bundled 'std'", "Perhaps rename the file"] [mineStd]
-                                                                 "(import std) (graph g (:r (std/core 1 2 3)))")
-    , ("and is the one imported",                  importsToJSON [mineStd] "(import std) (graph g (:r (std/core 1 2 3)))"
+    , ("a project module replaces a bundled one",  importsWarnAt "WRN0005" ("inline-test", 1, 1) ["The project's module 'std/base' replaces the bundled 'std/base'", "std/base.ouro replaces the bundled 'std/base'", "Perhaps rename the file"] [mineStd]
+                                                                 "(import std/base) (graph g (:r (base/core 1 2 3)))")
+    , ("and is the one imported",                  importsToJSON [mineStd] "(import std/base) (graph g (:r (base/core 1 2 3)))"
                                                                           "{\"r\": \"mine\"}")
     ]
 
@@ -385,7 +400,7 @@ moduleErrors = Group "Modules: every error, with its code, place and hint"
     peopleA  = ("a/people", "(export f)\n(defn f () 1)")
     peopleB  = ("b/people", "(export f)\n(defn f () 2)")
     unparsed = ("unparsed", "(export f)\n(defn f)")
-    mineStd  = ("std", "(export core)\n(defn core (a b c) \"mine\")")
+    mineStd  = ("std/base", "(export core)\n(defn core (a b c) \"mine\")")
 
 
 -- Where a diagnostic is shown: in the file it was reported in, with that file's line. The
@@ -402,7 +417,7 @@ sourceFrames = Group "Modules: each diagnostic is shown in its own file"
     , ("a warning in a module, in that module",    frameOfWarning [("badly-named", "(export badName)\n(defn badName () 1)")] "(import badly-named) (graph g (:r (badly-named/badName)))"
                                                                   (SourceFrame "badly-named.ouro" 2 1 "(defn badName () 1)"))
     , ("a bundled module's line, from the compiler", withTests 1 . property $
-                                                       sourceFrame bundledFile (at "lib/std.ouro" 5 1) === SourceFrame "lib/std.ouro" 5 1 "(defn core #rec (#uri id #str type #str label)")
+                                                       sourceFrame bundledFile (at "lib/std/base.ouro" 5 1) === SourceFrame "lib/std/base.ouro" 5 1 "(defn core #rec (#uri id #str type #str label)")
     , ("a line past the end is empty",             withTests 1 . property $
                                                        sourceFrame (const (Just "one line")) (at "f.ouro" 3 1) === SourceFrame "f.ouro" 3 1 "")
     , ("an unknown file is empty",                 withTests 1 . property $
@@ -442,12 +457,12 @@ modulesOnDisk = Group "Modules: imported from files on disk"
                                                                 "{\"r\": \"hi!\"}")
     , ("a module with CRLF lines and a BOM",       onDiskToJSON "crlf" [("helpers.ouro", "\xEF\xBB\xBF(export greet)\r\n(defn greet (n) (+ \"Hello, \" n))\r\n"), main' "(import helpers)\n(graph g (:r (helpers/greet \"Ann\")))"]
                                                                 "{\"r\": \"Hello, Ann\"}")
-    , ("the bundled std, with nothing beside it",  onDiskToJSON "bundled" [main' "(import std)\n(graph g (std/name \"A\"))"]
+    , ("the bundled std, with nothing beside it",  onDiskToJSON "bundled" [main' "(import std/base)\n(graph g (base/name \"A\"))"]
                                                                 "{\"type\": \"Name\", \"content\": \"A\"}")
-    , ("a project std replaces the bundled one",   onDiskToJSON "replaced" [("std.ouro", "(export core)\n(defn core (a b c) \"mine\")"), main' "(import std)\n(graph g (:r (std/core 1 2 3)))"]
+    , ("a project std replaces the bundled one",   onDiskToJSON "replaced" [("std/base.ouro", "(export core)\n(defn core (a b c) \"mine\")"), main' "(import std/base)\n(graph g (:r (base/core 1 2 3)))"]
                                                                 "{\"r\": \"mine\"}")
-    , ("and says so",                              onDiskWarns "replaced-warns" [("std.ouro", "(export core)\n(defn core (a b c) \"mine\")"), main' "(import std)\n(graph g (:r (std/core 1 2 3)))"]
-                                                               (\_ -> "WRN0005") (\dir -> T.pack (dir </> "std.ouro") <> " replaces the bundled 'std'"))
+    , ("and says so",                              onDiskWarns "replaced-warns" [("std/base.ouro", "(export core)\n(defn core (a b c) \"mine\")"), main' "(import std/base)\n(graph g (:r (base/core 1 2 3)))"]
+                                                               (\_ -> "WRN0005") (\dir -> T.pack (dir </> "std" </> "base.ouro") <> " replaces the bundled 'std/base'"))
     , ("a missing module says where it looked",    onDiskFails "missing" [main' "(import nope)\n(graph g (:r 1))"]
                                                                (\dir -> ("SCP0006", dir </> "main.ouro", 1, 1, ["Looked for " <> T.pack (dir </> "nope.ouro")])))
     , ("an error in a module is in its file",      onDiskFails "broken" [("broken.ouro", "(export bad)\n(defn bad () (get () 5))"), main' "(import broken)\n(graph g (:r (broken/bad)))"]

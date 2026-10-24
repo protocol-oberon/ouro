@@ -81,7 +81,7 @@ checkParams pos params = do
     traverse_ checkPattern [ pattern | Just pattern <- map S.paramPattern params ]
     case filter (isJust . splitQualified) (concatMap bound params) of
         name : _ -> lexicalError ("The parameter '" <> name <> "' has a '/' in it.")
-                    & withBlurb "A '/' qualifies an imported name, as in std/core, so a parameter cannot have one. Perhaps use '-' instead."
+                    & withBlurb "A '/' qualifies an imported name, as in base/core, so a parameter cannot have one. Perhaps use '-' instead."
                     & OuroError pos
                     & Left
         []       -> Right ()
@@ -190,7 +190,7 @@ functionBody name pos body
 --
 --   (defn place #rec (#str slug #str label)
 --     (doc "A Linked Art Place, identified under /place/.")
---     (std/core (example (+ "place/" slug)) "Place" label))
+--     (base/core (example (+ "place/" slug)) "Place" label))
 --
 -- It is taken out of the body and kept with the function, and is never evaluated.
 -- A function has at most one, and it holds a single string. A (doc ...) inside the

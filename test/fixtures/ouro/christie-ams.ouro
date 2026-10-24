@@ -1,15 +1,15 @@
-(import std)
+(import std/base)
 
 (defn example #uri (#str path)
   (+ "https://linked.art/example/" path))
 
 (defn place #rec (#str slug #str label)
-  (std/core (example (+ "place/" slug)) "Place" label))
+  (base/core (example (+ "place/" slug)) "Place" label))
 
 ;; Steps: each takes a record first and returns it extended, so they thread with ->
 (defn named #rec (#rec r #str n)
   (doc "Adds a Name to a record's identified_by.")
-  (with r :identified_by ((std/name n))))
+  (with r :identified_by ((base/name n))))
 
 (defn part-of #rec (#rec r #rec whole)
   (doc "Places a record inside a larger whole.")

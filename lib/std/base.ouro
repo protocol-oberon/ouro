@@ -1,5 +1,5 @@
-;; std: Linked Art's own patterns, the nodes every document repeats. Everything here builds
-;; a Linked Art node, which is what the std/ prefix tells a reader.
+;; std/base: Linked Art's base patterns, the parts of a node every record repeats. Everything
+;; in std builds Linked Art's nodes, which is what importing a std/ module tells a reader.
 (export core name)
 
 (defn core #rec (#uri id #str type #str label)

@@ -50,7 +50,7 @@ build-type:         Simple
 
 -- Extra source files to be distributed with the package, such as examples, or a tutorial module.
 -- The bundled modules, embedded in the compiler when it is built.
-extra-source-files: lib/*.ouro
+extra-source-files: lib/**/*.ouro
 
 common warnings
     ghc-options: -Wall

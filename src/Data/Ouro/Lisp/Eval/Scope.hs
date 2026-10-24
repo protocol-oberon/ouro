@@ -106,7 +106,7 @@ checkBindableName :: Text -> SourcePos -> Either OuroError ()
 checkBindableName key pos
     | Just _ <- M.splitQualified key
         = lexicalError ("The name '" <> key <> "' has a '/' in it.")
-          & withBlurb "A '/' qualifies an imported name, as in std/core, so a binding cannot have one. Perhaps use '-' instead."
+          & withBlurb "A '/' qualifies an imported name, as in base/core, so a binding cannot have one. Perhaps use '-' instead."
           & OuroError pos
           & Left
     | otherwise
@@ -209,7 +209,7 @@ cyclicLookup pos name =
 --
 -- Resolves a name by walking outward through the frames, then function definitions,
 -- then builtins. Every binding is a promise, forced in the environment it was written in.
--- A qualified name, std/core, is an imported function, and skips the frames: no binding
+-- A qualified name, base/core, is an imported function, and skips the frames: no binding
 -- can have a '/'.
 lookupVar
   :: (S.Expr -> EvalM L.Expr)

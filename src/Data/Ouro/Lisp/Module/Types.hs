@@ -53,7 +53,7 @@ qualifierOf :: Import -> Text
 qualifierOf imp = fromMaybe (T.takeWhileEnd (/= '/') (importPath imp)) (importAlias imp)
 
 
--- A qualified name split at its first '/': std/core is ("std", "core"). Both sides must be
+-- A qualified name split at its first '/': base/core is ("base", "core"). Both sides must be
 -- non-empty, so the operators / and /= are not qualified names.
 splitQualified :: Text -> Maybe (Text, Text)
 splitQualified name =

@@ -1,8 +1,8 @@
-(import std)
+(import std/base)
 
 ;; Not yet in std: Linked Art patterns kept here until std grows
 (defn aat #rec (#str id #str label)
-  (std/core #uri (+ "http://vocab.getty.edu/aat/" id) "Type" label))
+  (base/core #uri (+ "http://vocab.getty.edu/aat/" id) "Type" label))
 
 (defn classified #rec (#rec r #rec t)
   (with r :classified_as (list t)))
@@ -11,7 +11,7 @@
   (+ "https://linked.art/example/" path))
 
 (defn place #rec (#str slug #str label)
-  (std/core (example (+ "place/" slug)) "Place" label))
+  (base/core (example (+ "place/" slug)) "Place" label))
 
 (defn brief-text #rec (#str content)
   (:type          "LinguisticObject"
@@ -20,7 +20,7 @@
    :content       content))
 
 ;; Steps: each takes a record first and returns it extended, so they thread with ->
-(defn named     #rec (#rec r #str n)     (with r :identified_by ((std/name n))))
+(defn named     #rec (#rec r #str n)     (with r :identified_by ((base/name n))))
 (defn described #rec (#rec r #str text)  (with r :referred_to_by ((brief-text text))))
 (defn part-of   #rec (#rec r #rec whole) (with r :part_of (list whole)))
 

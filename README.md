@@ -693,14 +693,14 @@ A function is documented with a `(doc "...")` among the direct elements of its b
 ``` clojure
 (defn place #rec (#str slug #str label)
   (doc "A Linked Art Place, under the example namespace.")
-  (std/core (example (+ "place/" slug)) "Place" label))
+  (base/core (example (+ "place/" slug)) "Place" label))
 ```
 
 Names:
 
 - Functions and graphs are named in kebab-case, `make-place`. A name with a capital or an underscore is a warning (`WRN0004`) that suggests the kebab-case spelling. Attribute keys and local bindings are exempt, since keys follow the data's vocabulary (`:_label`).
 - A `defn` may take the name of a built-in, as in Scheme, and replaces it throughout the file, with a warning (`WRN0003`). A special form's name cannot be taken.
-- A `/` qualifies an imported name, `std/core`, so no function, parameter or `let` binding can have one. The operators `/` and `/=` are names like any other.
+- A `/` qualifies an imported name, `base/core`, so no function, parameter or `let` binding can have one. The operators `/` and `/=` are names like any other.
 
 ### Signatures
 
@@ -847,31 +847,33 @@ Ouro uses Scheme style lexical scoping, this means that scope is defined by the 
 A file uses another's functions by importing it, and offers its own by exporting them. Both are written first in the file:
 
 ``` clojure
-(import std)                          ; std/core, std/name
+(import std/base)                     ; base/core, base/name
 (import linked-art/v1/people as la)   ; la/person
 (export place named part-of)
 ```
 
-- An imported function is always written with a qualifier, `qualifier/name`: the path's last part (`std`, `people`), or the name given after `as`. A file's own functions are written without one, so a local `name` and `std/name` are different functions.
+- An imported function is always written with a qualifier, `qualifier/name`: the path's last part (`base`, `people`), or the name given after `as`. A file's own functions are written without one, so a local `name` and `base/name` are different functions.
 - A file has one `(export f g ...)`, naming its own functions. Only functions cross files, never graphs or values, so modules hold no state.
 - `(import a/b)` reads `a/b.ouro` beside the file being compiled. Each module is read, checked and desugared on its own, loaded once however often it is imported, and its functions close over its own module, never the importer.
 - Modules cannot import each other in a circle (`SCP0009`): Ouro has no recursion, across files as within one.
 - An error inside an imported module is reported, and shown, in that module's file and line.
 
-`std` is bundled with the compiler, so it needs no file. It holds Linked Art's own patterns, and its `std/` prefix says that a function builds a Linked Art node: `std/core` (a node's `id`, `type` and `_label`) and `std/name` (a Name). It will grow. A module of the project with a bundled module's name is imported in its place, with a warning (`WRN0005`), so a project can replace `std` on purpose.
+`std` is a folder of modules bundled with the compiler, so they need no file. They hold Linked Art's own patterns, and each mirrors a section of [Linked Art's model](https://linked.art/model/), so `provenance/acquisition` is what linked.art/model/provenance describes. Importing a `std/` module says that its functions build Linked Art's nodes. There is one so far, `std/base`, the base patterns: `base/core` (a node's `id`, `type` and `_label`) and `base/name` (a Name). More will follow (`std/event`, `std/object`, `std/actor`, `std/place`, `std/provenance`, `std/exhibition`, `std/digital`, and the required vocabulary in `std/vocab`). `(import std)` on its own is an error that lists `std`'s modules. A module of the project with a bundled module's name is imported in its place, with a warning (`WRN0005`), so a project can replace one on purpose.
+
+Module paths are written with `/` on every platform, Windows included.
 
 # Canonical Example
 
 *Idea for Manet and Modern Beauty*
 ``` clojure
-(import std)
+(import std/base)
 
 ;; Not yet in std: Linked Art patterns kept here until std grows
 (defn aat #rec (#str id #str label)
-  (std/core #uri (+ "http://vocab.getty.edu/aat/" id) "Type" label))
+  (base/core #uri (+ "http://vocab.getty.edu/aat/" id) "Type" label))
 
 (defn ulan #rec (#str id #str label)
-  (std/core #uri (+ "http://vocab.getty.edu/ulan/" id) "Person" label))
+  (base/core #uri (+ "http://vocab.getty.edu/ulan/" id) "Person" label))
 
 (defn classified #rec (#rec r #rec t)
   (with r :classified_as (list t)))
@@ -880,7 +882,7 @@ A file uses another's functions by importing it, and offers its own by exporting
   (+ "https://linked.art/example/" path))
 
 (defn person #rec (#str slug #str label)
-  (std/core (example (+ "person/" slug)) "Person" label))
+  (base/core (example (+ "person/" slug)) "Person" label))
 
 ;; Steps: each takes a record first and returns it extended, so they thread with ->
 (defn named      #rec (#rec r #str n)
@@ -893,7 +895,7 @@ A file uses another's functions by importing it, and offers its own by exporting
                        :carried_out_by (map (λ ((?slug ?label)) (person slug label)) people))))
 
 (graph idea-for-manet-and-modern-beauty
-  (-> (std/core (example "concept/exhidea/1") "PropositionalObject" "Idea for Manet and Modern Beauty")
+  (-> (base/core (example "concept/exhidea/1") "PropositionalObject" "Idea for Manet and Modern Beauty")
       (with :context "https://linked.art/ns/v1/linked-art.json")
       (classified (aat "300417531" "Exhibition"))
       (named "Manet and Modern Beauty")
@@ -1041,7 +1043,7 @@ Available options:
 
 For compile, if the `-o` path has a file extension then that is the file the compiled JSON will be written to. Otherwise the path is a directory, and the name of the graph expression will be the name of the resulting JSON file in it. Without `-o`, the file is written to the current directory. For example, `ouro compile purchase.ouro -t purchase-of-spring -o out` writes `out/purchase-of-spring.json`.
 
-A file's imports are read from the files beside it: compiling `places/amsterdam.ouro` with `(import people)` reads `places/people.ouro`. The bundled `std` needs no file.
+A file's imports are read from the files beside it: compiling `places/amsterdam.ouro` with `(import people)` reads `places/people.ouro`. The bundled `std` modules need no file.
 
 # Planned
 

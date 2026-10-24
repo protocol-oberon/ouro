@@ -140,12 +140,19 @@ nonExistentGraph = \trgt sug -> Scope $ NonExistentGraph trgt sug
 -- bundled modules' names
 moduleNotFound :: Text -> [FilePath] -> [Text] -> ErrorContext
 moduleNotFound path searched bundledNames =
-    withBlurb ( looked <> "The bundled modules are: " <> T.intercalate ", " bundledNames <> "." <> closest path bundledNames )
-              (Scope (ModuleNotFound { missingModule = path }))
+    withBlurb (looked <> hint) (Scope (ModuleNotFound { missingModule = path }))
     where
     looked = case searched of
                  []    -> ""
                  files -> "Looked for " <> T.intercalate ", " (map T.pack files) <> ". "
+
+    -- A folder of bundled modules, such as std, is not a module itself: name its modules
+    hint = case folder of
+               first : _ -> "'" <> path <> "' is a folder of modules, not a module: perhaps (import " <> first <> "). "
+                         <> "Its modules are: " <> T.intercalate ", " folder <> "."
+               []        -> "The bundled modules are: " <> T.intercalate ", " bundledNames <> "." <> closest path bundledNames
+
+    folder = filter ((path <> "/") `T.isPrefixOf`) bundledNames
 
 
 -- A module whose file exists but cannot be read: its file, and why
@@ -163,12 +170,17 @@ unknownQualifier qualifier known bundledNames =
     blurb
         | not (T.null (closest qualifier known))
             = "A qualified name, module/function, names a function of an imported module." <> closest qualifier known
-        | qualifier `elem` bundledNames
-            = "A qualified name needs its module imported: perhaps add (import " <> qualifier <> ") at the top of the file."
+        | Just path <- bundledWith qualifier
+            = "A qualified name needs its module imported: perhaps add (import " <> path <> ") at the top of the file."
         | null known
             = "A qualified name, module/function, names a function of a module imported at the top of the file with (import ...). This file imports nothing."
         | otherwise
             = "A qualified name, module/function, names a function of an imported module. This file imports: " <> T.intercalate ", " known <> "."
+
+    -- The bundled module this qualifier would name, std/base for base
+    bundledWith q = case filter ((== q) . T.takeWhileEnd (/= '/')) bundledNames of
+                        path : _ -> Just path
+                        []       -> Nothing
 
 
 -- A qualified name the module does not export, given what it does export
