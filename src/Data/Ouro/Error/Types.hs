@@ -322,6 +322,18 @@ data LinterWarning
     | ShadowedBuiltin
       { shadowedName :: Text -- The name of the built-in the function replaces
       }
+
+    -- LINT WARNING: NOT KEBAB CASE
+    -- Occurs when a defn or a graph is named in another case, such as makePlace or
+    -- make_place. Ouro names functions and graphs in kebab-case, as Lisps do: make-place.
+    -- Attribute keys and local bindings are exempt: keys follow the data's vocabulary.
+    --
+    -- * Remediation: Issue warning. Suggest the kebab-case name.
+    | NotKebabCase
+      { declarationKind :: Text -- "function" or "graph"
+      , declarationName :: Text -- The name as written
+      , kebabName       :: Text -- The suggested kebab-case name
+      }
     deriving (Show, Eq, Ord, Generic)
 
 

@@ -264,6 +264,14 @@ parenthesisedResult owner val = Lint $ ParenthesisedResult
 shadowedBuiltin :: Text -> WarningContext
 shadowedBuiltin name = Lint $ ShadowedBuiltin { shadowedName = name }
 
+-- Create a warning for a function or graph name that is not kebab-case
+notKebabCase :: Text -> Text -> Text -> WarningContext
+notKebabCase kind name kebab = Lint $ NotKebabCase
+    { declarationKind = kind
+    , declarationName = name
+    , kebabName       = kebab
+    }
+
 -- Create a compile-time elided property assignment semantic warning
 elidedPropertyAssign :: Text -> Text -> WarningContext
 elidedPropertyAssign key construct = Semantic $ ElidedPropertyAssign
@@ -319,6 +327,11 @@ warningBlurb = \case
         <> "and under any symbol the built-in is also written with (= is eq, ∪ is union).\n\n"
         <> "Perhaps choose another name for the function, unless replacing '" <> name <> "' is intended."
 
+    Lint (NotKebabCase _ _ kebab)
+        -> "Functions and graphs are named in kebab-case, as in other Lisps: lowercase words joined by '-'. "
+        <> "Attribute keys and local bindings may be named as their data needs.\n\n"
+        <> "Perhaps rename it '" <> kebab <> "'."
+
     Semantic (ElidedPropertyAssign key construct)
         -> "The expression assigned to the property attribute '" <> key <> "' evaluates exclusively to a compile-time '"
         <> construct <> "' block. Because elided control structures leave zero footprint in final binary payloads, "
@@ -337,5 +350,6 @@ warningSummary = \case
     Lint (DeprecatedSyntax feature)     -> "Use of deprecated syntactic feature: " <> feature
     Lint (ParenthesisedResult owner _)  -> "The result of '" <> owner <> "' is an array of one value"
     Lint (ShadowedBuiltin name)         -> "The function '" <> name <> "' replaces the built-in '" <> name <> "'"
+    Lint (NotKebabCase kind name _)     -> "The " <> kind <> " '" <> name <> "' is not named in kebab-case"
     Semantic (ElidedPropertyAssign k _) -> "Property assignment '" <> k <> "' binds to an elided value"
     Vocab (UnboundTypeReference t _)    -> "Unbound schema type reference '" <> t <> "'"

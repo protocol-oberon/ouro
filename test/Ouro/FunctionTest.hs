@@ -95,6 +95,15 @@ plainNames = Group "Functions: names are plain symbols, in one namespace"
     , ("it replaces calls and guards alike",       compilesToJSON "(defn eq (a b) true) (graph g (:r (eq 1 2) :s (case 1 ((eq 2) \"guard\") (otherwise \"no\"))))"
                                                                   "{\"r\": true, \"s\": \"guard\"}")
     , ("other names do not warn",                  compilesWithoutWarnings "(defn mine (a b) true) (graph g (:r (mine 1 2)))")
+
+      -- Functions and graphs are named in kebab-case, with a warning otherwise
+    , ("a camelCase defn warns",                   warnsWith "Perhaps rename it 'make-place'"
+                                                             "(defn makePlace () 1) (graph g (:r (makePlace)))")
+    , ("so does a snake_case one",                 warnsWith "Perhaps rename it 'make-place'"
+                                                             "(defn make_place () 1) (graph g (:r (make_place)))")
+    , ("and a graph",                              warnsWith "The graph 'myGraph' is not named in kebab-case"
+                                                             "(graph g (:r 1)) (graph myGraph (:r 2))")
+    , ("keys and local bindings are exempt",       compilesWithoutWarnings "(graph g (let ($myValue 1) (:_label \"x\" :myKey myValue)))")
     ]
 
 

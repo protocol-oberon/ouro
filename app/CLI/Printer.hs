@@ -418,6 +418,11 @@ splitWarningContext ctx =
                , [ labeled "Replaced Built-in: " (highlightDiagnostic name) ]
                , Just blurb
                )
+        Lint (NotKebabCase _ _ kebab)
+            -> ( title
+               , [ labeled "Kebab-case: " (highlightDiagnostic kebab) ]
+               , Just blurb
+               )
         Semantic (ElidedPropertyAssign key construct)
             -> ( title
                , [ labeled "Omitted Attribute: " (highlightDiagnostic key)
