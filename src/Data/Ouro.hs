@@ -4,6 +4,7 @@
 module Data.Ouro
   -- * Core Compilation Pipeline
 ( compile
+, compileWith
 , CompilationResult(..)
 , PrinterOptions(..)
 , Ser.toJSON
@@ -72,7 +73,7 @@ import qualified Data.Ouro.Lisp.Eval.Engine  as EN
 import           Data.Ouro.Lisp.Eval.Types   (Expr (..), freeze)
 import qualified Data.Ouro.Lisp.Eval.Types   as L
 import qualified Data.Ouro.Lisp.Lexer        as LX
-import           Data.Ouro.Lisp.Module.Loader (bundledOnly, loadImports,
+import           Data.Ouro.Lisp.Module.Loader (fromSources, loadImports,
                                               runLoader)
 import           Data.Ouro.Lisp.Module.Types (HigherExpression (..),
                                               graphRegistry)
@@ -92,7 +93,13 @@ data CompilationResult
 
 
 compile :: String -> String -> Text -> CompilationResult
-compile filename trgt content = compilationResult . runWriter . runValidateT $ compile'
+compile = compileWith Map.empty
+
+
+-- Compiles a file that can import the given modules, sources in memory by path, as well as
+-- the bundled ones. Nothing is read from disk, so it is pure: the test suite's fake files.
+compileWith :: Map.Map Text Text -> String -> String -> Text -> CompilationResult
+compileWith sources filename trgt content = compilationResult . runWriter . runValidateT $ compile'
     where
     compile' :: CompilerM (I.Expr 'JLD.Primitive)
     compile' = do
@@ -116,8 +123,8 @@ compile filename trgt content = compilationResult . runWriter . runValidateT $ c
                let desugaredModule = Canon.canonicalModule ouroModule
 
                -- Pass 3.2: Load the modules it imports, each linked into its own root frame.
-               -- Only the bundled modules can be imported so far.
-               imported <- runLoader bundledOnly (loadImports desugaredModule)
+               -- Only the bundled modules and the given sources can be imported so far.
+               imported <- runLoader (fromSources sources) (loadImports desugaredModule)
 
                -- Pass 3.3: Find target graph
                graph <- case Map.lookup (T.pack trgt) (desugaredModule ^. graphRegistry) of

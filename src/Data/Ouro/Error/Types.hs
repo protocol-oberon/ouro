@@ -251,6 +251,11 @@ data ScopeError
       , unexportedName :: Text
       , exportedNames  :: [Text]
       }
+
+    -- Modules that import each other in a circle, as the path of imports that closes it
+    | ImportCycle
+      { cyclePath :: [Text]
+      }
     deriving (Show, Eq, Ord, Generic)
 
 

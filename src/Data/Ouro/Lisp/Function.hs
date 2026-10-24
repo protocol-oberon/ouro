@@ -24,7 +24,7 @@ module Data.Ouro.Lisp.Function
 
 import           Data.Foldable               (traverse_)
 import           Data.Function               ((&))
-import           Data.Maybe                  (listToMaybe, mapMaybe)
+import           Data.Maybe                  (isJust, listToMaybe, mapMaybe)
 import           Data.Ouro.Error.Diagnostics (invalidFunctionName, lexicalError,
                                               withBlurb)
 import           Data.Ouro.Error.Types       (OuroError (..))
@@ -74,10 +74,17 @@ patternParam index tag pattern = S.Param ("%arg" <> T.pack (show index)) tag (Ju
 --
 -- A pattern parameter must bind something, so it is a Record pattern or holds a '?' hole.
 -- Each name a function binds, as a parameter or as a hole in a parameter's pattern, is
--- bound once. Checked when a function is defined.
+-- bound once, and has no '/', which qualifies an imported name. Checked when a function is
+-- defined.
 checkParams :: SourcePos -> [S.Param] -> Either OuroError ()
 checkParams pos params = do
     traverse_ checkPattern [ pattern | Just pattern <- map S.paramPattern params ]
+    case filter (isJust . splitQualified) (concatMap bound params) of
+        name : _ -> lexicalError ("The parameter '" <> name <> "' has a '/' in it.")
+                    & withBlurb "A '/' qualifies an imported name, as in std/core, so a parameter cannot have one. Perhaps use '-' instead."
+                    & OuroError pos
+                    & Left
+        []       -> Right ()
     case repeated (concatMap bound params) of
         Just name -> lexicalError ("The parameter '" <> name <> "' is bound more than once.")
                      & withBlurb "Each parameter, and each hole in a parameter's pattern, names a different value. Perhaps rename one of them."

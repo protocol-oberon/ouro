@@ -4,17 +4,18 @@ module Data.Ouro.Lisp.Module.Loader
 ( LoadEnv (..)
 , LoaderT
 , bundledOnly
+, fromSources
 , loadImports
 , runLoader
 ) where
 
-import           Control.Monad.Reader         (ReaderT, asks, runReaderT)
+import           Control.Monad.Reader         (ReaderT, asks, local, runReaderT)
 import           Control.Monad.State.Strict   (StateT, gets, modify, runStateT)
 import           Control.Monad.Trans          (lift)
 import           Control.Monad.Validate       (refute, runValidateT)
 import           Control.Monad.Writer         (runWriterT, tell)
 import qualified Data.Map.Strict              as Map
-import           Data.Ouro.Error.Diagnostics  (moduleNotFound)
+import           Data.Ouro.Error.Diagnostics  (importCycle, moduleNotFound)
 import qualified Data.Ouro.Error.Linter       as LN
 import           Data.Ouro.Error.Types        (OuroError (..))
 import           Data.Ouro.Internal.Compiler  (CompilerT)
@@ -27,12 +28,16 @@ import           Data.Ouro.Lisp.Module.Types  (Import (..), Module, exports,
 import qualified Data.Ouro.Lisp.Parser        as LP
 import qualified Data.Set                     as Set
 import           Data.Text                    (Text)
+import qualified Data.Text                    as T
 import           Lens.Micro                   ((^.))
 
 
--- Where a module's source comes from: its file name, for positions, and its text
-newtype LoadEnv m = LoadEnv
-    { readModule :: Text -> m (Maybe (FilePath, Text))
+-- Where a module's source comes from: its file name, for positions, and its text. The
+-- import stack is the modules being loaded, innermost first: importing one of them again
+-- would be a cycle.
+data LoadEnv m = LoadEnv
+    { readModule  :: Text -> m (Maybe (FilePath, Text))
+    , importStack :: [Text]
     }
 
 
@@ -56,7 +61,18 @@ runLoader env loader = do
 
 -- Only the modules bundled with the compiler
 bundledOnly :: Monad m => LoadEnv m
-bundledOnly = LoadEnv { readModule = pure . (`Map.lookup` bundled) }
+bundledOnly = fromSources Map.empty
+
+
+-- Modules given as sources in memory, by path, as well as the bundled ones. A module at
+-- path a/b is read as the file a/b.ouro.
+fromSources :: Monad m => Map.Map Text Text -> LoadEnv m
+fromSources sources = LoadEnv
+    { readModule  = \path -> pure $ case Map.lookup path sources of
+                                        Just source -> Just (T.unpack path <> ".ouro", source)
+                                        Nothing     -> Map.lookup path bundled
+    , importStack = []
+    }
 
 
 -- The modules a module imports, by qualifier. The imports are independent, so every one
@@ -65,9 +81,14 @@ loadImports :: Monad m => Module -> LoaderT m (Map.Map Text L.Imported)
 loadImports m = Map.fromList <$> traverse (\imp -> (qualifierOf imp,) <$> loadImport imp) (m ^. imports)
 
 
--- One import: the module, loaded and linked the first time it is imported
+-- One import: the module, loaded and linked the first time it is imported. A module that is
+-- still being loaded is a cycle, since Ouro has no recursion across files either.
 loadImport :: Monad m => Import -> LoaderT m L.Imported
-loadImport imp = gets (Map.lookup (importPath imp)) >>= maybe load pure
+loadImport imp = do
+    stack <- asks importStack
+    if importPath imp `elem` stack
+        then refute (pure (OuroError (importPos imp) (importCycle (reverse (importPath imp : stack)))))
+        else gets (Map.lookup (importPath imp)) >>= maybe load pure
     where
     load = do
         reader <- asks readModule
@@ -83,7 +104,8 @@ loadImport imp = gets (Map.lookup (importPath imp)) >>= maybe load pure
                    parsed <- either (refute . pure) pure (LP.parseModule tokens)
                    tell (LN.lintModule parsed)
                    let canonical = Canon.canonicalModule parsed
-                   dependencies <- loadImports canonical
+                   dependencies <- local (\env -> env { importStack = importPath imp : importStack env })
+                                         (loadImports canonical)
                    let linked = L.Imported
                                     { L.importedRoot    = L.defaultEnv dependencies canonical
                                     , L.importedExports = Set.fromList (map fst (canonical ^. exports))

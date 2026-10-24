@@ -331,6 +331,12 @@ splitErrorContext = \case
            , Nothing
            )
 
+    Scope (ImportCycle path)
+        -> ("Import Cycle"
+           , [ labeled "Cycle: " (pretty $ T.intercalate " → " path) ]
+           , Nothing
+           )
+
     Internal (ErasureValueLeakError block)
         -> ( "Compiler Internal Error"
            , [ labeled "Expected: " "nil (erased)"

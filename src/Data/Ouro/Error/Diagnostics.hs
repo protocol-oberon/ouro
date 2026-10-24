@@ -165,6 +165,15 @@ notExported qualifier name exportNames =
               (Scope (NotExported { fromQualifier = qualifier, unexportedName = name, exportedNames = exportNames }))
 
 
+-- Modules that import each other in a circle: the path of imports, ending where it began
+importCycle :: [Text] -> ErrorContext
+importCycle path =
+    withBlurb ( "Modules cannot import each other in a circle: " <> T.intercalate " → " path <> ". Ouro has no recursion, "
+             <> "across files as within one. Perhaps move what they share into a module of its own, which each imports."
+              )
+              (Scope (ImportCycle { cyclePath = path }))
+
+
 -- " Perhaps you meant 'x'." for the closest candidate, when one is close enough
 closest :: Text -> [Text] -> Text
 closest target candidates =
