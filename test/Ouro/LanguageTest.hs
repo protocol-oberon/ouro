@@ -516,6 +516,26 @@ logicAndCollections = Group "Built-ins: logic, arrays and records"
     , ("a malformed get-or is an error",         failsWith "get-or is written (get-or default record key ...)"
                                                            "(graph g (:r (get-or 1 (:x 1))))")
 
+      -- indexes in paths
+    , ("get takes an index into an Array",       compilesToJSON "(graph g (:r (get (:k ((:a 1) (:a 2))) k 1 a)))"
+                                                                "{\"r\": 2}")
+    , ("a negative index counts from the end",   compilesToJSON "(graph g (:r (get (:k (1 2 3)) k -1)))"
+                                                                "{\"r\": 3}")
+    , ("an index past the end is an error",      failsWith "Index"
+                                                           "(graph g (:r (get (:k (1 2)) k 5)))")
+    , ("an index needs an Array",                failsWith "an Array to take element 0 of"
+                                                           "(graph g (:r (get (:k (:a 1)) k 0)))")
+    , ("an index is a whole number",             failsWith "a whole number to index an Array with"
+                                                           "(graph g (:r (get (:k (1 2)) k 0.5)))")
+    , ("a key on an Array suggests an index",    failsWith "or read 'a' from every element with image"
+                                                           "(graph g (:r (get (:k ((:a 1))) k a)))")
+    , ("has is false past the end",              compilesToJSON "(graph g (:a (has (:k (1 2)) k 1) :b (has (:k (1 2)) k 2)))"
+                                                                "{\"a\": true, \"b\": false}")
+    , ("get-or gives the default past the end",  compilesToJSON "(graph g (:r (get-or 0 (:k ()) k 0)))"
+                                                                "{\"r\": 0}")
+    , ("image takes no index",                   failsWith "a set has no positions"
+                                                           "(graph g (:r (image (:k (1 2)) k 0)))")
+
       -- image reads a path as a set
     , ("image follows a path through Arrays",    compilesToJSON "(graph g (:r (image (:part ((:k (1 2)) (:k (2 3)))) part k)))"
                                                                 "{\"r\": [1, 2, 3]}")

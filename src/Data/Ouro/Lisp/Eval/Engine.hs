@@ -132,14 +132,14 @@ evalExpr expr = do
 
         -- 'get' walks the evaluated value, so it works through functions, inlays and case
         S.Form _ (S.Symbol _ "get" : rootTarget : pathExpressions)
-            -> case validatePathKeys pathExpressions of
+            -> case validatePath pathExpressions of
                    Left  err  -> pure (EvalError err)
                    Right keys -> (`getPath` keys) <$> evalExpr rootTarget
 
-        -- (has record key ...): whether the path of keys reaches a value. A missing key at
-        -- any step is false; anything else that stops the walk is reported as get reports it.
+        -- (has record key ...): whether the path reaches a value. A missing key or an index
+        -- past the end is false; anything else that stops the walk is reported as get reports it.
         S.Form _ (S.Symbol _ "has" : rootTarget : pathExpressions@(_ : _))
-            -> case validatePathKeys pathExpressions of
+            -> case validatePath pathExpressions of
                    Left  err  -> pure (EvalError err)
                    Right keys -> (\root -> case findPath root keys of
                                                Nothing                -> Primitive (I.Boolean False)
@@ -147,10 +147,10 @@ evalExpr expr = do
                                                Just _found            -> Primitive (I.Boolean True))
                                  <$> evalExpr rootTarget
 
-        -- (get-or default record key ...): the value at the path, or the default when a
-        -- record on the way has no such key. The default is evaluated only when it is used.
+        -- (get-or default record key ...): the value at the path, or the default when a record
+        -- on the way has no such key or an Array no such index. The default is evaluated only when it is used.
         S.Form _ (S.Symbol _ "get-or" : defaultExpr : rootTarget : pathExpressions@(_ : _))
-            -> case validatePathKeys pathExpressions of
+            -> case validatePath pathExpressions of
                    Left  err  -> pure (EvalError err)
                    Right keys -> evalExpr rootTarget >>= \root -> case findPath root keys of
                                      Nothing    -> evalExpr defaultExpr
@@ -174,7 +174,7 @@ evalExpr expr = do
         -- reads a property's values. It goes through Arrays, a missing key adds nothing,
         -- and the result has no repeats, kept in the order they are reached.
         S.Form pos (S.Symbol _ "image" : rootTarget : pathExpressions@(_ : _))
-            -> case validatePathKeys pathExpressions of
+            -> case validatePath pathExpressions of
                    Left  err  -> pure (EvalError err)
                    Right keys -> evalExpr rootTarget >>= \root -> case imageOf root keys of
                                      Left  err    -> pure err
@@ -791,15 +791,31 @@ literalMatch env pos target literal =
                         & EvalError
 
 
--- validatePathKeys.
+-- One step of a path: a key into a Record, or an index into an Array
+data PathStep
+    = Key   Text
+    | Index Int
+
+
+-- validatePath.
 --
--- Checks that every path component after the 'get' target is a bare symbol, and
--- returns the keys with their positions. A colon-prefixed attribute or any other
--- form is rejected with a hint.
-validatePathKeys :: [S.Expr] -> Either OuroError [(Text, SourcePos)]
-validatePathKeys = traverse $ \case
+-- Checks that every path component after the 'get' target is a bare symbol or a whole
+-- number, and returns the steps with their positions. A colon-prefixed attribute, a
+-- fraction or any other form is rejected with a hint.
+validatePath :: [S.Expr] -> Either OuroError [(PathStep, SourcePos)]
+validatePath = traverse $ \case
     S.Symbol keyPos k
-        -> Right (k, keyPos)
+        -> Right (Key k, keyPos)
+
+    S.Literal indexPos (S.Num n)
+        | n == fromIntegral (floor n :: Int)
+        -> Right (Index (floor n), indexPos)
+
+        | otherwise
+        -> targetMismatch "a whole number to index an Array with" (T.pack (show n))
+           & withBlurb "An index in a path counts the elements of an Array: (get r part 0) is the first part."
+           & OuroError indexPos
+           & Left
 
     S.Form aPos (S.Symbol _ "%attr" : S.Literal _ (S.Str rawAttr) : _)
         -> targetMismatch "a lookup Symbol path component" (":" <> rawAttr)
@@ -823,23 +839,41 @@ validatePathKeys = traverse $ \case
 
 -- getPath.
 --
--- Walks a path of keys through an evaluated value, one Record at a time. Only a
--- Record's attribute pairs can be reached: a 'define' is private to the block it is written in.
-getPath :: L.Expr -> [(Text, SourcePos)] -> L.Expr
+-- Walks a path through an evaluated value: a key into a Record, an index into an Array.
+-- Only a Record's attribute pairs can be reached: a 'define' is private to the block it is written in.
+getPath :: L.Expr -> [(PathStep, SourcePos)] -> L.Expr
 getPath value = \case
     [] -> value
 
-    (key, keyPos) : rest
-        -> case value of
-               EvalError err        -> EvalError err
-               Record _ pairs       -> lookupKey key keyPos (map fst pairs) (lookup key pairs) rest
-               Primitive I.EmptyRec -> lookupKey key keyPos [] Nothing rest
-               notARecord           -> typeMismatch ("a Record to look up '" <> key <> "' in") (humanReadableType notARecord)
-                                       & withBlurb "Only the attribute pairs of a Record can be reached with 'get'. To index an Array, use (nth index array)."
-                                       & OuroError keyPos
-                                       & EvalError
+    (step, stepPos) : rest
+        -> case (step, value) of
+               (_, EvalError err)                -> EvalError err
+               (Key key, Record _ pairs)         -> lookupKey key stepPos (map fst pairs) (lookup key pairs) rest
+               (Key key, Primitive I.EmptyRec)   -> lookupKey key stepPos [] Nothing rest
+               (Key key, notARecord)             -> typeMismatch ("a Record to look up '" <> key <> "' in") (humanReadableType notARecord)
+                                                    & withBlurb (keyBlurb key notARecord)
+                                                    & OuroError stepPos
+                                                    & EvalError
+               (Index i, other)
+                   | Just xs <- L.asArray other  -> case elementAt i xs of
+                                                        Just x  -> getPath x rest
+                                                        Nothing -> indexOutOfBounds "get" "Array" i (length xs)
+                                                                   & OuroError stepPos
+                                                                   & EvalError
+               (Index i, notAnArray)             -> typeMismatch ("an Array to take element " <> T.pack (show i) <> " of") (humanReadableType notAnArray)
+                                                    & withBlurb "An index in a path counts the elements of an Array. A Record's attribute pairs are reached by their keys."
+                                                    & OuroError stepPos
+                                                    & EvalError
 
     where
+    keyBlurb key = \case
+        Array _              -> arrayBlurb key
+        Primitive I.EmptyArr -> arrayBlurb key
+        _notAnArray          -> "Only the attribute pairs of a Record can be reached by key, and the elements of an Array by index."
+
+    arrayBlurb key = "An Array's elements are reached by index: write one before '" <> key <> "', as in (get r part 0 " <> key <> "), "
+                  <> "or read '" <> key <> "' from every element with image."
+
     lookupKey key keyPos available found rest =
         case found of
             Just attrValue -> getPath attrValue rest
@@ -851,16 +885,23 @@ getPath value = \case
                                & EvalError
 
 
--- The value at a path, or Nothing when a record on the way has no such key. Anything else
--- that stops the walk, an error or a value that is not a record, is the value 'get' would
--- give, so that has and get-or report it as get does.
-findPath :: L.Expr -> [(Text, SourcePos)] -> Maybe L.Expr
+-- The value at a path, or Nothing when a record on the way has no such key or an Array no
+-- such index. Anything else that stops the walk, an error or a value of the wrong kind, is
+-- the value 'get' would give, so that has and get-or report it as get does.
+findPath :: L.Expr -> [(PathStep, SourcePos)] -> Maybe L.Expr
 findPath value = \case
-    []                     -> Just value
-    path@((key, _) : rest) -> case value of
-        Record _ pairs       -> lookup key pairs >>= (`findPath` rest)
-        Primitive I.EmptyRec -> Nothing
-        _notARecord          -> Just (getPath value path)
+    []                      -> Just value
+    path@((step, _) : rest) -> case (step, value) of
+        (Key key, Record _ pairs)        -> lookup key pairs >>= (`findPath` rest)
+        (Key _, Primitive I.EmptyRec)    -> Nothing
+        (Index i, other)
+            | Just xs <- L.asArray other -> elementAt i xs >>= (`findPath` rest)
+        _stopped                         -> Just (getPath value path)
+
+
+-- The element at an index, counting from the end when it is negative, as nth counts
+elementAt :: Int -> [a] -> Maybe a
+elementAt i xs = V.fromList xs V.!? (if i < 0 then length xs + i else i)
 
 
 -- imageOf.
@@ -868,11 +909,18 @@ findPath value = \case
 -- The values a path reaches, read as JSON-LD reads a property's values: an Array is its
 -- elements and any other value is one value. Each key is followed from every value reached
 -- so far, and a Record without the key adds nothing. A value on the way that is not a
--- Record is an error, as it is for get, and so is the first error reached.
-imageOf :: L.Expr -> [(Text, SourcePos)] -> Either L.Expr [L.Expr]
+-- Record is an error, as it is for get, and so is the first error reached. A set has no
+-- positions, so an index is an error too.
+imageOf :: L.Expr -> [(PathStep, SourcePos)] -> Either L.Expr [L.Expr]
 imageOf root = foldM step (valuesOf root)
     where
-    step reached (key, keyPos) = concat <$> traverse (follow key keyPos) reached
+    step reached = \case
+        (Key key, keyPos)  -> concat <$> traverse (follow key keyPos) reached
+        (Index _, indexPos) -> typeMismatch "a key to follow" "an index"
+                               & withBlurb "image reads a path as a set of values, and a set has no positions. To take one element, use get: (get r part 0)."
+                               & OuroError indexPos
+                               & EvalError
+                               & Left
 
     follow key keyPos = \case
         err@(EvalError _)    -> Left err
