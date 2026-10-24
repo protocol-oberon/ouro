@@ -159,7 +159,7 @@ placeholders = Group "Functions: a call with holes is a function of them"
                                                                  "{\"r\": 12}")
     , ("variadic operators take holes",           compilesToJSON "(graph g (let ($f (+ ? 1 2) $between (< ? 10 20)) (:r (f 10) :s (between 15))))"
                                                                  "{\"r\": 13, \"s\": false}")
-    , ("special forms take holes",                compilesToJSON "(graph g (let ($second (nth 1 ?) $a (get ? a)) (:r (second (10 20)) :s (a (:a 5)))))"
+    , ("special forms take holes",                compilesToJSON "(graph g (let ($second (get ? 1) $a (get ? a)) (:r (second (10 20)) :s (a (:a 5)))))"
                                                                  "{\"r\": 20, \"s\": 5}")
     , ("insert, replace-at and list take holes",  compilesToJSON "(graph g (let ($ins (insert 0 ? (1 2)) $rep (replace-at 0 ? (1 2)) $pair (list ? ?)) (:r (ins 0) :s (rep 9) :t (pair 1 2))))"
                                                                  "{\"r\": [0, 1, 2], \"s\": [9, 2], \"t\": [1, 2]}")

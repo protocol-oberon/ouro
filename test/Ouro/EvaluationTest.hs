@@ -46,7 +46,7 @@ tests = Group "Evaluation Tests (Surface to Higher IR)"
     , ("runs a single pass on its own",                prop_single_pass)
 
     , ("returns L.EvalError for the removed attr form", prop_error_removed_attr)
-    , ("returns L.EvalError for out-of-bounds nth",    prop_error_nth_bounds)
+    , ("returns L.EvalError for an index past the end", prop_error_index_bounds)
 
 
     , ("rejects a Duration as a graph value",          prop_reject_duration)
@@ -192,11 +192,11 @@ prop_error_removed_attr = withTests 1 . property $ do
     annotateShow result
     assert (isEvalError result)
 
-prop_error_nth_bounds :: Property
-prop_error_nth_bounds = withTests 1 . property $ do
+prop_error_index_bounds :: Property
+prop_error_index_bounds = withTests 1 . property $ do
     let targetArray = S.Form dummyPos [S.Symbol dummyPos "list", S.Literal dummyPos (S.Num 1)]
     let indexExpr   = S.Literal dummyPos (S.Num 5)
-    let expr = S.Form dummyPos [S.Symbol dummyPos "nth", indexExpr, targetArray]
+    let expr = S.Form dummyPos [S.Symbol dummyPos "get", targetArray, indexExpr]
 
     let result = runEval expr
     annotateShow result

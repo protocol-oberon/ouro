@@ -15,6 +15,7 @@ module Data.Ouro.Lisp.Function
 , removedContextForm
 , removedDefine
 , removedLocalDefn
+, removedNth
 , renamedDefun
 , strayHole
 , typedArgument
@@ -261,6 +262,18 @@ removedAttrForm pos =
     lexicalError "The (attr key value) form has been removed."
     & withBlurb ( "An attribute pair is written :key value, as in (:_label \"Proust\"), and insert takes one the same way: "
                <> "(insert 0 :_label \"Proust\" record). A key can no longer be computed from a value."
+                )
+    & OuroError pos
+
+
+-- '(nth index coll)' was replaced by indexes in get's path: an index is written, never
+-- computed, and indexes only Arrays, since a Record's attribute pairs have no order in JSON-LD
+removedNth :: SourcePos -> OuroError
+removedNth pos =
+    lexicalError "The (nth index array) form has been replaced by get."
+    & withBlurb ( "An index is written in get's path: (get xs 0) is the first element, (get xs -1) the last, "
+               <> "and (get p classified_as 0 _label) reaches through an Array. "
+               <> "A Record's attribute pairs are reached by key, never by position."
                 )
     & OuroError pos
 

@@ -216,7 +216,7 @@ call         = "(" , symbol , { expression | placeholder } , ")" ;
 placeholder  = [ property ] , hole ;     (* a call with placeholders is a function of them *)
 
 (* ---------- Special forms ---------- *)
-special-form = let | fn | case | get | has | get-or | image | nth | map | filter | quantifier
+special-form = let | fn | case | get | has | get-or | image | map | filter | quantifier
              | insert | replace-at | inlay | with | thread | connective | thru ;
 let          = "(" , "let" , "(" , { binding } , ")" , expression , ")" ;
 binding      = "$" , symbol , expression ;
@@ -230,7 +230,6 @@ path-step    = symbol | number ;     (* a key into a record, or a whole number i
 has          = "(" , "has" , expression , path-step , { path-step } , ")" ;
 get-or       = "(" , "get-or" , expression , expression , path-step , { path-step } , ")" ;     (* a default, then a record and its path *)
 image        = "(" , "image" , expression , symbol , { symbol } , ")" ;     (* a record or an array, then its path: keys only *)
-nth          = "(" , "nth" , expression , expression , ")" ;
 map          = "(" , "map" , expression , expression , ")" ;     (* a function, then an array *)
 filter       = "(" , "filter" , expression , expression , ")" ;     (* a function, then an array *)
 quantifier   = "(" , ( "forall" | "exists" | "omits" ) , expression , expression , ")" ;     (* a function, then an array *)
@@ -422,7 +421,7 @@ A call with =?= holes among its arguments is not called: it is a function of its
 - *A named hole is one parameter*, however often it is written: ~(* ?n ?n)~ takes one. Parameters follow the order in which each hole is first written, so ~(+ ?a ?b ?a)~ takes =a= then =b=.
 - *A typed hole is a typed parameter*: ~(node #uri ? "Painting")~ checks, and converts, its argument as a signature would, and a mismatch is reported at the argument where the placeholder is called. An untyped hole passed to a typed parameter of the function is checked by that function, and a mismatch is reported at the hole.
 - *A hole belongs to the call it is an argument of*, so ~(* 2 (+ ? 1))~ multiplies 2 by a function (an error), and ~(f (g ?))~ passes =f= a function.
-- *Any call takes holes*: a =defn=, a =fn=, a built-in, a variadic operator (~(< ? 10 20)~) and the special forms that evaluate their arguments (=get=, =image=, =nth=, =insert=, =replace-at=, =list=, =map=, =->=). The forms with their own structure (=let=, =fn=, =case=, =context=, =inlay=, =thru=) do not.
+- *Any call takes holes*: a =defn=, a =fn=, a built-in, a variadic operator (~(< ? 10 20)~) and the special forms that evaluate their arguments (=get=, =image=, =insert=, =replace-at=, =list=, =map=, =->=). The forms with their own structure (=let=, =fn=, =case=, =context=, =inlay=, =thru=) do not.
 - *A placeholder is a value*: it is a =fn=, closed over the scope it is written in, so it can be bound, passed and returned like one. It is called with exactly as many arguments as it has holes.
 - *A hole anywhere else is an error*: in an array, in a record, or as a binding's value. A rest hole, =?..name=, only matches the rest of an array or record, so it can only be written in a pattern: a =case= pattern or a [[*Destructuring parameters][parameter]].
 
@@ -466,7 +465,6 @@ Special forms are recognised by their head symbol before any name lookup, so the
 | =(get-or default record key ...)=        | the value at the path, or =default= when a key on the way is missing                  |
 | =(image record key ...)=                 | every value the path reaches, as a set, through Arrays                                 |
 | =(satisfies #p x)=                       | =true= when =x= has the property =#p=; =false= when it does not                         |
-| =(nth i coll)=                           | the i-th element of an array, or the value of a record's i-th attribute pair          |
 | =(map f array)=                          | an array of =f= called on each element                                                |
 | =(exists f array)=                       | =true= when =f= answers =true= for some element; stops at the first                   |
 | =(forall f array)=                       | =true= when =f= answers =true= for every element; stops at the first =false=          |
@@ -483,9 +481,9 @@ Special forms are recognised by their head symbol before any name lookup, so the
 | =(thru duration)=                        | extend a duration to the end of its unit (see Built-ins)                              |
 | =:context e=                             | the record's JSON-LD =@context=, a context value (see [[*=@context=][=@context=]])                |
 
-Negative indexes count from the end in =nth=, =insert= and =replace-at=. =insert= puts any value into an array, but not a =:key value= attribute pair. Neither =insert= nor =replace-at= can give a record a key it already has: that is an error, and =replace-at= may keep the replaced attribute pair's own key.
+Negative indexes count from the end in =insert= and =replace-at=, as in a path. =insert= puts any value into an array, but not a =:key value= attribute pair. Neither =insert= nor =replace-at= can give a record a key it already has: that is an error, and =replace-at= may keep the replaced attribute pair's own key.
 
-=get= evaluates its target and walks the resulting records, so it works through function results, =inlay=, =case= and =let= alike. Only a record's attribute pairs can be reached, =let= bindings are private. Path components are bare symbols (=(get p q r)=, not =(get p :q)=) or whole numbers. A number indexes an Array, counting from 0, and a negative one counts from the end: ~(get p classified_as 0 _label)~ is the label of the first classification, and ~(get xs -1)~ is the last element. An index is written, never computed, and indexes only Arrays: a record's attribute pairs are reached by key, never by position, since JSON-LD gives them no order. An index past the end is an error, and so is an index into anything that is not an Array or a key into an Array, which says to write an index or use =image=.
+=get= evaluates its target and walks the resulting records, so it works through function results, =inlay=, =case= and =let= alike. Only a record's attribute pairs can be reached, =let= bindings are private. Path components are bare symbols (=(get p q r)=, not =(get p :q)=) or whole numbers. A number indexes an Array, counting from 0, and a negative one counts from the end: ~(get p classified_as 0 _label)~ is the label of the first classification, and ~(get xs -1)~ is the last element. An index is written, never computed, and indexes only Arrays: a record's attribute pairs are reached by key, never by position, since JSON-LD gives them no order. An index past the end is an error, and so is an index into anything that is not an Array or a key into an Array, which says to write an index or use =image=. A hole can stand for the target, ~(get ? 0)~, but not for a key or an index: a path never depends on the values it is given.
 
 =map=. ~(map f array)~ evaluates =f=, which must be a function (a =fn=, a =defn= name, a built-in or a placeholder), and =array=, which must be an array (=()= and =#arr-empty= are empty arrays). The result is an array of =f= called on each element, in order. Each element is passed as an ordinary call, made in a frame that binds the function and the element to names that cannot be written in Ouro, so arity, signatures and the recursion check apply as they do to any call: =f= must take one argument, a typed parameter checks every element, and a mismatch is reported at the array, since an element has no position of its own. With placeholders, ~(map (+ ? 1) xs)~ needs no =fn=, and ~(map f ?)~ is a function waiting for the array. Elements that are themselves arrays or records are taken apart by a [[*Destructuring parameters][pattern parameter]]: ~(map (fn ((?k ?v)) ...) pairs)~. =map= is a special form only at the head of a form: it cannot name a =defn=, but =:map= and =$map= are ordinary names.
 
@@ -570,7 +568,7 @@ shadows them with its own attribute pairs.
 
 An operator written with the wrong number of operands is an arity error. Ordering (~>~ ~>=~ ~<~ ~<=~) compares numbers only.
 
-=and= and =or= are special forms that combine Booleans, as in every Lisp: ~(and a b ...)~ is =true= when every operand is, and ~(or a b ...)~ when one is. Each evaluates its operands in order and stops at the one that decides the answer, so ~(and false (nth 5 ()))~ is =false=, and each operand it reaches must have the property =#bool=; unlike other Lisps, Ouro has no truthiness, and the result is always =true= or =false=. ~(and)~ is =true= and ~(or)~ is =false=. They are desugared into =case= (see [[*Desugaring (~Canon~)][desugaring]]), take holes like a call, ~(or ? x)~, and cannot name a =defn=; being special forms, they cannot be passed as values, so a hole is how one is made into a function. A chained comparison stops the same way: ~(< 2 1 (nth 5 ()))~ is =false=.
+=and= and =or= are special forms that combine Booleans, as in every Lisp: ~(and a b ...)~ is =true= when every operand is, and ~(or a b ...)~ when one is. Each evaluates its operands in order and stops at the one that decides the answer, so ~(and false (get () 5))~ is =false=, and each operand it reaches must have the property =#bool=; unlike other Lisps, Ouro has no truthiness, and the result is always =true= or =false=. ~(and)~ is =true= and ~(or)~ is =false=. They are desugared into =case= (see [[*Desugaring (~Canon~)][desugaring]]), take holes like a call, ~(or ? x)~, and cannot name a =defn=; being special forms, they cannot be passed as values, so a hole is how one is made into a function. A chained comparison stops the same way: ~(< 2 1 (get () 5))~ is =false=.
 
 =len= takes exactly one argument. An array's elements are counted whatever their types, so ~(len (1 (2 3) (:k 4)))~ is 3, and =()= and =#arr-empty= have length 0. A string is counted in characters (Unicode code points), not bytes, so ~(len "Málaga")~ is 6. Any other value, a record or a URI included, is a type error. Recursion is banned, so a length cannot be written in Ouro itself; =len= is an ordinary built-in otherwise, so ~(map len xs)~ works.
 
@@ -1092,6 +1090,7 @@ Ouro's compiler guarantees structural validity: a compiled graph is well-formed 
 | =quote=, ='=, =eval=, =get'=                       | values: Ouro has no metaprogramming                | none                                                                            |
 | =(context (vocab "..." remote-context "..."))=     | =:context value=, a JSON-LD context value          | =The (context (...)) form has been replaced by ':context value'.=               |
 | =(attr key value)=, a computed key                | =:key value=; keys are never computed              | =The (attr key value) form has been removed.=                                    |
+| =(nth i coll)=                                     | =(get coll i)=; an index is written, and only indexes Arrays | =The (nth index array) form has been replaced by get.= |
 | code-shape =get= (=resolvePath=)                   | value-based =get= (~getPath~)                      | none                                                                            |
 | dynamic scope                                      | lexical scope                                      | none                                                                            |
 | ~Reader Env~ evaluation, ~buildLazyEnv~ knot-tying | ~ReaderT Env (State Store)~ with memoised promises | none                                                                            |

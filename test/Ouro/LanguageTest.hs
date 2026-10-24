@@ -71,8 +71,10 @@ formsAndBuiltins = Group "Special forms and built-ins"
                                                                    "{\"r\": {\"k\": 1, \"a\": 2}}")
     , ("insert counts negative indexes from the end", compilesToJSON "(graph g (:r (insert -1 4 (1 2 3))))"
                                                                    "{\"r\": [1, 2, 4, 3]}")
-    , ("nth indexes arrays and records",            compilesToJSON "(graph g (:r (nth -1 (1 2 3)) :s (nth 0 (:a 9 :b 8))))"
-                                                                   "{\"r\": 3, \"s\": 9}")
+    , ("get indexes an Array",                      compilesToJSON "(graph g (:r (get (1 2 3) -1) :s (get (1 2 3) 0)))"
+                                                                   "{\"r\": 3, \"s\": 1}")
+    , ("nth is replaced by get",                    failsWith "has been replaced by get"
+                                                              "(graph g (:r (nth 0 (1 2))))")
     , ("get walks a path of keys",                  compilesToJSON "(graph g (:p (:q (:r 5)) :v (get p q r)))"
                                                                    "{\"p\": {\"q\": {\"r\": 5}}, \"v\": 5}")
     , ("a record pattern binds the rest",           compilesToJSON "(graph g (:r (case (:a 1 :b 2 :c 3) ((:a ?first ?..others) (:x first :y others)) (otherwise 0))))"
@@ -129,9 +131,9 @@ formsAndBuiltins = Group "Special forms and built-ins"
                                                                    "{\"a\": true, \"b\": false, \"c\": true, \"d\": true}")
     , ("or is true when one operand is",            compilesToJSON "(graph g (:a (or false true) :b (or false false) :c (or)))"
                                                                    "{\"a\": true, \"b\": false, \"c\": false}")
-    , ("and stops at the first false",              compilesToJSON "(graph g (:r (and false (nth 5 ())) :s (and false 1)))"
+    , ("and stops at the first false",              compilesToJSON "(graph g (:r (and false (get () 5)) :s (and false 1)))"
                                                                    "{\"r\": false, \"s\": false}")
-    , ("or stops at the first true",                compilesToJSON "(graph g (:r (or true (nth 5 ()))))"
+    , ("or stops at the first true",                compilesToJSON "(graph g (:r (or true (get () 5))))"
                                                                    "{\"r\": true}")
     , ("an operand must be a #bool",                failsWith "expectedProperty = \"#bool\", actualProperty = \"#num\""
                                                               "(graph g (:r (and true 1)))")
@@ -149,9 +151,9 @@ formsAndBuiltins = Group "Special forms and built-ins"
                                                               "(defn and (x) x) (graph g (:r (and 1)))")
     , ("nor can or",                                failsWith "'or' is a special form"
                                                               "(defn or (x) x) (graph g (:r 1))")
-    , ("and and or guard an index",                 compilesToJSON "(graph g (let ($tags ()) (:featured (and (> (len tags) 0) (eq (nth 0 tags) \"featured\")) :listed (or (eq (len tags) 0) (eq (nth 0 tags) \"listed\")))))"
+    , ("and and or guard an index",                 compilesToJSON "(graph g (let ($tags ()) (:featured (and (> (len tags) 0) (eq (get tags 0) \"featured\")) :listed (or (eq (len tags) 0) (eq (get tags 0) \"listed\")))))"
                                                                    "{\"featured\": false, \"listed\": true}")
-    , ("a chained comparison stops at the first false", compilesToJSON "(graph g (:r (< 2 1 (nth 5 ()))))"
+    , ("a chained comparison stops at the first false", compilesToJSON "(graph g (:r (< 2 1 (get () 5))))"
                                                                        "{\"r\": false}")
     ]
 
@@ -511,7 +513,7 @@ logicAndCollections = Group "Built-ins: logic, arrays and records"
                                                                  "{\"r\": 1}")
     , ("get-or gives the default when it is not", compilesToJSON "(graph g (:a (get-or \"none\" (:x 1) z) :b (get-or 0 (:x (:y 1)) x z)))"
                                                                  "{\"a\": \"none\", \"b\": 0}")
-    , ("get-or evaluates the default only when used", compilesToJSON "(graph g (:r (get-or (nth 5 ()) (:x 1) x)))"
+    , ("get-or evaluates the default only when used", compilesToJSON "(graph g (:r (get-or (get () 5) (:x 1) x)))"
                                                                      "{\"r\": 1}")
     , ("a malformed get-or is an error",         failsWith "get-or is written (get-or default record key ...)"
                                                            "(graph g (:r (get-or 1 (:x 1))))")
@@ -535,6 +537,10 @@ logicAndCollections = Group "Built-ins: logic, arrays and records"
                                                                 "{\"r\": 0}")
     , ("image takes no index",                   failsWith "a set has no positions"
                                                            "(graph g (:r (image (:k (1 2)) k 0)))")
+    , ("a hole cannot stand for an index",       failsWith "a hole cannot stand for a key or an index"
+                                                           "(graph g (let ($at (get (1 2) ?)) (:r (at 0))))")
+    , ("nor a named hole for a key",             failsWith "a hole cannot stand for a key or an index"
+                                                           "(graph g (let ($at (has (:a 1) ?k)) (:r (at 1))))")
 
       -- image reads a path as a set
     , ("image follows a path through Arrays",    compilesToJSON "(graph g (:r (image (:part ((:k (1 2)) (:k (2 3)))) part k)))"
@@ -554,7 +560,7 @@ logicAndCollections = Group "Built-ins: logic, arrays and records"
     , ("image reports a value on the way",       failsWith "a Record to follow 'j' from"
                                                            "(graph g (:r (image (:k 1) k j)))")
     , ("image keeps errors",                     failsWith "Index"
-                                                           "(graph g (:r (image (:p ((:k (nth 5 ())))) p k)))")
+                                                           "(graph g (:r (image (:p ((:k (get () 5)))) p k)))")
     , ("a malformed image is an error",          failsWith "image is written (image record key ...)"
                                                            "(graph g (:r (image (:k 1))))")
     , ("image cannot name a function",           failsWith "'image' is a special form"
@@ -620,14 +626,14 @@ conditions = Group "Case: conditions"
       -- Comparison guards become conditions on the case's target
     , ("a guard compares a computed target",     compilesToJSON "(graph g (:r (case (+ 2 3) ((> 4) \"big\") (otherwise \"small\"))))"
                                                                 "{\"r\": \"big\"}")
-    , ("a chained guard stops at the first false", compilesToJSON "(graph g (:r (case 5 ((< 1 (nth 9 ())) \"x\") (otherwise \"y\"))))"
+    , ("a chained guard stops at the first false", compilesToJSON "(graph g (:r (case 5 ((< 1 (get () 9)) \"x\") (otherwise \"y\"))))"
                                                                   "{\"r\": \"y\"}")
 
       -- satisfies asks a property; in a branch head, of the case's target
     , ("satisfies asks a property",              compilesToJSON "(graph g (:a (satisfies #str \"x\") :b (satisfies #num \"x\") :c (satisfies #uri \"https://a.org/x\") :d (satisfies #uri \"nope\")))"
                                                                 "{\"a\": true, \"b\": false, \"c\": true, \"d\": false}")
     , ("satisfies keeps errors",                 failsWith "Index"
-                                                           "(graph g (:r (satisfies #str (nth 5 ()))))")
+                                                           "(graph g (:r (satisfies #str (get () 5))))")
     , ("satisfies heads a branch",               compilesToJSON "(graph g (:r (map (fn (v) (case v ((satisfies #uri) \"an identifier\") ((satisfies #num) \"a number\") (otherwise \"other\"))) (list #uri \"https://a.org/1\" 3 \"x\"))))"
                                                                 "{\"r\": [\"an identifier\", \"a number\", \"other\"]}")
     , ("\8872 is satisfies",                     compilesToJSON "(graph g (:r (case 3 ((\8872 #num) \"n\") (otherwise \"o\"))))"

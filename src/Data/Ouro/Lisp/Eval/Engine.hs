@@ -41,7 +41,7 @@ import qualified Data.Ouro.Lisp.Eval.Types      as L
 import           Data.Ouro.Lisp.Function        (checkParams, isFunctionKeyword,
                                                  misplacedBinding, patternParam,
                                                  removedAttrForm, removedContextForm,
-                                                 removedDefine, removedLocalDefn,
+                                                 removedDefine, removedLocalDefn, removedNth,
                                                  strayHole, typedResult)
 import           Data.Ouro.Lisp.Module.Types    (Module)
 import qualified Data.Ouro.Lisp.Surface         as S
@@ -398,45 +398,9 @@ evalExpr expr = do
                             & EvalError
                             & pure
 
-        S.Form _ [S.Symbol _ "nth", index, target]
-            -> evalExpr index >>= \case
-                   EvalError err
-                       -> pure $ EvalError err
-
-                   Primitive (I.Number i)
-                       -> evalExpr target >>= \case
-                              Record _ attrs -> do
-                                                let len = (length attrs)
-                                                    idx = case i < 0 of
-                                                              True  -> len + (floor i)
-                                                              False -> floor i
-
-                                                case snd <$> (V.fromList attrs) V.!? idx of
-                                                    Just    val -> pure val
-                                                    Nothing     -> indexOutOfBounds "nth" "Record" (floor i) len
-                                                                   & OuroError (S.exprPos target)
-                                                                   & EvalError
-                                                                   & pure
-                              Array xs -> do
-                                          let len = (length xs)
-                                              idx = case i < 0 of
-                                                        True  -> len + (floor i)
-                                                        False -> floor i
-
-                                          case (V.fromList xs) V.!? idx of
-                                              Just    val  -> pure val
-                                              Nothing      -> indexOutOfBounds "nth" "Array" (floor i) len
-                                                              & OuroError (S.exprPos target)
-                                                              & EvalError
-                                                              & pure
-                              wrongType -> typeMismatch "either a Record or an Array" (humanReadableType wrongType)
-                                           & OuroError (S.exprPos target)
-                                           & EvalError
-                                           & pure
-                   notANum -> typeMismatch "an expression which evaluates to a Number" (humanReadableType notANum)
-                              & OuroError (S.exprPos index)
-                              & EvalError
-                              & pure
+        -- The removed (nth index array) form: an index is written in get's path
+        S.Form pos (S.Symbol _ "nth" : _)
+            -> pure (EvalError (removedNth pos))
 
         S.Form _ [S.Symbol _ opName, posExpr, payloadExpr, structExpr]
             | opName `elem` ["insert", "replace-at"]
@@ -801,9 +765,18 @@ data PathStep
 --
 -- Checks that every path component after the 'get' target is a bare symbol or a whole
 -- number, and returns the steps with their positions. A colon-prefixed attribute, a
--- fraction or any other form is rejected with a hint.
+-- fraction, a hole or any other form is rejected with a hint. A hole reaches here as the
+-- name the placeholders pass gave it, which cannot be written: '%1' for '?', and '?k' for '?k'.
 validatePath :: [S.Expr] -> Either OuroError [(PathStep, SourcePos)]
 validatePath = traverse $ \case
+    S.Symbol holePos k
+        | isHoleName k
+        -> holeInPath holePos
+
+    S.Tagged holePos _ (S.Symbol _ k)
+        | isHoleName k
+        -> holeInPath holePos
+
     S.Symbol keyPos k
         -> Right (Key k, keyPos)
 
@@ -835,6 +808,19 @@ validatePath = traverse $ \case
                        )
            & OuroError (S.exprPos badNode)
            & Left
+
+    where
+    isHoleName k = any (`T.isPrefixOf` k) ["%", "?"]
+
+    -- Paths are written, so a hole cannot stand for a step: that would make a key or an
+    -- index computed, which Ouro never allows
+    holeInPath pos =
+        lexicalError "A path is written: a hole cannot stand for a key or an index."
+        & withBlurb ( "A hole can stand for the target: (get ? 0) is a function that takes the first element. "
+                   <> "Keys and indexes are always written, so a path never depends on the values it is given."
+                    )
+        & OuroError pos
+        & Left
 
 
 -- getPath.
@@ -899,7 +885,7 @@ findPath value = \case
         _stopped                         -> Just (getPath value path)
 
 
--- The element at an index, counting from the end when it is negative, as nth counts
+-- The element at an index, counting from the end when it is negative
 elementAt :: Int -> [a] -> Maybe a
 elementAt i xs = V.fromList xs V.!? (if i < 0 then length xs + i else i)
 
