@@ -10,6 +10,7 @@ module Ouro.LanguageTest
 , dates
 , classification
 , encoding
+, endOfFile
 , strings
 , logicAndCollections
 , conditions
@@ -401,10 +402,34 @@ encoding = Group "Encoding: source files are UTF-8"
     , ("other bytes are an error",           withTests 1 . property $
                                                   assert (either (T.isInfixOf "is not valid UTF-8") (const False)
                                                                  (decodeSource "t.ouro" (BS.pack [0x61, 0xE9]))))
+    , ("a file that does not exist is an error, not an exception", withTests 1 . property $ do
+                                                  content <- evalIO (readSource (fixture "ouro/no-such-file.ouro"))
+                                                  either (T.isInfixOf "cannot be read: it does not exist") (const False) content === True)
     ]
     where
     decodesTo bytes expected = withTests 1 . property $
         decodeSource "t.ouro" (BS.pack bytes) === Right expected
+
+
+-- A file that ends with a delimiter still open is reported at that delimiter, the innermost
+-- one still open, in the file it is in. The token stream has no position past its end, and
+-- once reported this as "unknown-source" 1:1, which the CLI then crashed trying to read.
+endOfFile :: Group
+endOfFile = Group "Unclosed delimiters: a file that ends early"
+    [ ("a graph left open",                  unclosedAt (1, 1)  "')'" "(graph g (:r 1)")
+    , ("the innermost delimiter still open", unclosedAt (1, 10) "')'" "(graph g (:r (list 1 2)")
+    , ("an array left open",                 unclosedAt (1, 14) "']'" "(graph g (:r [1 2")
+    , ("a key with no value",                unclosedAt (1, 10) "')'" "(graph g (:r")
+    , ("a property with no subject",         unclosedAt (1, 10) "')'" "(graph g (:r #str")
+    , ("a defn with no name",                unclosedAt (1, 1)  "')'" "(defn")
+    , ("a parameter list left open",         unclosedAt (1, 9)  "')'" "(defn f (x y")
+    , ("an import left open",                unclosedAt (1, 1)  "')'" "(import std/base")
+    , ("on its line, in a later form",       unclosedAt (3, 3)  "')'" "(graph a (:r 1))\n(graph b\n  (:r (list 1)")
+    , ("in an imported module, in its file", importsFailAt "SYN0001" ("open.ouro", 2, 1) ["')' to close this", "the end of the file"] [("open", "(export f)\n(defn f () 1")]
+                                                           "(import open) (graph g (:r (open/f)))")
+    ]
+    where
+    unclosedAt (line, column) closer = importsFailAt "SYN0001" ("inline-test", line, column) [closer <> " to close this", "the end of the file"] []
 
 
 -- A string is written as a JSON string: quotes, backslashes and control characters are

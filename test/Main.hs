@@ -60,6 +60,7 @@ main = withUtf8Console $ do
         , Language.dates
         , Language.classification
         , Language.encoding
+        , Language.endOfFile
         , Language.strings
         , Language.logicAndCollections
         , Language.conditions

@@ -4,9 +4,9 @@
 module Data.Ouro.Lisp.Parser where
 
 import           Control.Monad               (foldM, foldM_, when)
-import           Control.Monad.State.Strict  (MonadState (get, put),
-                                              MonadTrans (lift),
-                                              StateT (runStateT))
+import           Control.Monad.State.Strict  (MonadTrans (lift),
+                                              StateT (runStateT), gets,
+                                              modify')
 import           Data.Foldable               (traverse_)
 import qualified Data.Function               as F
 import qualified Data.Map                    as Map
@@ -37,10 +37,36 @@ import           Text.Megaparsec             (SourcePos)
 import qualified Text.Megaparsec.Pos         as M
 
 
--- A simple compiler tracking state holding our remaining token stream
-type ParseState = [Tkn.Token]
+-- The parser's state: the tokens still to read, and the innermost delimiter still open, with
+-- the token that closes it. Running out of tokens is reported at that delimiter, since a file
+-- that ends early always leaves one open, and the token stream has no position past its end
+data ParseState = ParseState
+    { remaining :: [Tkn.Token]
+    , opened    :: (SourcePos, Text)
+    }
 
 type Parser a = StateT ParseState (Either OuroError) a
+
+remainingTokens :: Parser [Tkn.Token]
+remainingTokens = gets remaining
+
+consume :: [Tkn.Token] -> Parser ()
+consume ts = modify' (\s -> s { remaining = ts })
+
+-- Parses inside a delimiter opened at a position, which the token given closes
+within :: SourcePos -> Text -> Parser a -> Parser a
+within pos closer p = do
+    outer  <- gets opened
+    modify' (\s -> s { opened = (pos, closer) })
+    result <- p
+    modify' (\s -> s { opened = outer })
+    pure result
+
+-- The file ended inside the innermost delimiter still open
+endOfFile :: Parser a
+endOfFile = do
+    (pos, closer) <- gets opened
+    lift (Left (OuroError pos (unbalancedDelimiter ("'" <> closer <> "' to close this") "the end of the file")))
 
 -- Wraper for type indexed higher expressions
 data ParsedDecl
@@ -53,7 +79,11 @@ data ParsedDecl
 -- Top-level entry point
 parseModule :: [Tkn.Token] -> Either OuroError Module
 parseModule tokens = do
-    (decls, _) <- runStateT (collectHigherExpressions []) tokens
+    -- Nothing is read before the first form opens, so its first token stands in until then
+    let start = case tokens of
+                    t : _ -> Tkn.pos t
+                    []    -> M.initialPos ""
+    (decls, _) <- runStateT (collectHigherExpressions []) (ParseState tokens (start, ")"))
     ouroModule <- buildModuleRegistry decls
     checkExports ouroModule
     pure ouroModule
@@ -145,7 +175,7 @@ checkExports m = foldM_ check Set.empty (m ^. exports)
 
 collectHigherExpressions :: [ParsedDecl] -> Parser [ParsedDecl]
 collectHigherExpressions acc = do
-    tokens <- get
+    tokens <- remainingTokens
     case tokens of
         []         -> pure (reverse acc) -- EOF reached safely
         _hasTokens -> do
@@ -155,10 +185,10 @@ collectHigherExpressions acc = do
 
 pHigherExpression :: Parser ParsedDecl
 pHigherExpression = do
-    startTkn <- popToken "Expected expression declaration starting with '('"
+    startTkn <- popToken
     case Tkn.tokenType startTkn of
-        Tkn.OpenParen -> do
-                         kwTkn <- popToken "Expected higher expression declaration keyword (defn, graph, import, export)"
+        Tkn.OpenParen -> within (Tkn.pos startTkn) ")" $ do
+                         kwTkn <- popToken
                          case Tkn.tokenType kwTkn of
                              Tkn.Defn     -> pDefn (Tkn.pos startTkn)
                              Tkn.Defun    -> lift (Left (renamedDefun (Tkn.pos kwTkn)))
@@ -197,10 +227,10 @@ pDefn pos = do
 -- A type tag between a function's name and its parameters is its return type
 pReturnType :: Parser (Maybe (SourcePos, S.ReaderTag))
 pReturnType = do
-    stream <- get
+    stream <- remainingTokens
     case stream of
         t : ts | Just tag <- typeTag (Tkn.tokenType t)
-            -> put ts >> pure (Just (Tkn.pos t, tag))
+            -> consume ts >> pure (Just (Tkn.pos t, tag))
         _noReturnType
             -> pure Nothing
 
@@ -222,16 +252,16 @@ pImport :: SourcePos -> Parser ParsedDecl
 pImport pos = do
     path   <- expectSymbol importForm
     lift (checkPath path)
-    stream <- get
+    stream <- remainingTokens
     alias  <- case stream of
                   Tkn.Token _ (Tkn.Symbol "as") : Tkn.Token aliasPos (Tkn.Symbol name) : rest
                       -> do
-                         put rest
+                         consume rest
                          lift (checkAlias aliasPos name)
                          pure (Just name)
                   _noAlias
                       -> pure Nothing
-    closing <- popToken importForm
+    closing <- popToken
     case Tkn.tokenType closing of
         Tkn.CloseParen -> pure (PImport (Import pos path alias))
         _somethingElse -> lexicalError importForm
@@ -262,7 +292,7 @@ pExport :: SourcePos -> Parser ParsedDecl
 pExport pos = collectNames []
     where
     collectNames acc = do
-        t <- popToken "Expected ')' to close the export"
+        t <- popToken
         case Tkn.tokenType t of
             Tkn.CloseParen
                 | null acc     -> lexicalError "An export names at least one function: (export f g)."
@@ -277,20 +307,17 @@ pExport pos = collectNames []
                                   F.& lift
 
 
-popToken :: Text -> Parser Tkn.Token
-popToken err = do
-    stream <- get
+popToken :: Parser Tkn.Token
+popToken = do
+    stream <- remainingTokens
     case stream of
-        []     -> lexicalError err
-                  F.& OuroError (M.initialPos "unknown-source")
-                  F.& Left
-                  F.& lift
-        (t:ts) -> put ts >> pure t
+        []     -> endOfFile
+        (t:ts) -> consume ts >> pure t
 
 
 expectSymbol :: Text -> Parser Text
 expectSymbol err = do
-    t <- popToken err
+    t <- popToken
     case Tkn.tokenType t of
         Tkn.Symbol name -> pure name
         _notASymbol     -> lexicalError err
@@ -301,7 +328,7 @@ expectSymbol err = do
 
 expectCloseParen :: Parser ()
 expectCloseParen = do
-    t <- popToken "Expected closing ')'"
+    t <- popToken
     case Tkn.tokenType t of
         Tkn.CloseParen -> pure ()
         _notAParen     -> unbalancedDelimiter "Expected ')'" "Found something else"
@@ -314,9 +341,9 @@ expectCloseParen = do
 -- (#uri id type) or ((?slug ?label))
 pArgs :: Parser [S.Param]
 pArgs = do
-    t <- popToken "Expected '(' for argument list"
+    t <- popToken
     case Tkn.tokenType t of
-        Tkn.OpenParen -> collectArgs []
+        Tkn.OpenParen -> within (Tkn.pos t) ")" (collectArgs [])
         _other        -> lexicalError "Expected argument list starting with '('"
                          F.& OuroError (Tkn.pos t)
                          F.& Left
@@ -324,7 +351,7 @@ pArgs = do
 
     where
     collectArgs acc = do
-        t <- popToken "Expected argument or ')'"
+        t <- popToken
         case Tkn.tokenType t of
             Tkn.CloseParen      -> pure $ reverse acc
             Tkn.Symbol     name -> collectArgs (S.Param name Nothing Nothing : acc)
@@ -333,11 +360,11 @@ pArgs = do
                                    collectArgs (patternParam (length acc + 1) Nothing pattern : acc)
             tkn | Just tag <- typeTag tkn
                                 -> do
-                                   stream <- get
+                                   stream <- remainingTokens
                                    case stream of
                                        next : rest | Tkn.tokenType next == Tkn.OpenParen
                                            -> do
-                                              put rest
+                                              consume rest
                                               pattern <- parseFormContainer (Tkn.pos next)
                                               collectArgs (patternParam (length acc + 1) (Just (Tkn.pos t, tag)) pattern : acc)
                                        _aName
@@ -367,21 +394,15 @@ typeTag = \case
 -- Recursive Expr Router
 pExpr :: Parser S.Expr
 pExpr = do
-        tokens <- get
+        tokens <- remainingTokens
         case tokens of
-            -- For a sudden EOF, we generate an unclosed delimiter payload
-            []     -> let pos     = M.initialPos "unknown-source"
-                          context = Syntax UnbalancedDelimiter
-                                        { expectedDelim = "Expression node layout component"
-                                        , actualDelim   = "EOF (End of File)"
-                                        }
-                      in lift $ Left (OuroError pos context)
-            (t:ts) -> let capture n = put ts >> pure n
+            []     -> endOfFile
+            (t:ts) -> let capture n = consume ts >> pure n
                       in case Tkn.tokenType t of
                              -- Open boundaries push processing down into structural lookahead groups
                              -- Note: We intentionally pop 'ts' here to advance past the open delimiter
-                             Tkn.OpenParen      -> put ts >> parseFormContainer (Tkn.pos t)
-                             Tkn.OpenBracket    -> put ts >> parseBracketContainer (Tkn.pos t)
+                             Tkn.OpenParen      -> consume ts >> parseFormContainer (Tkn.pos t)
+                             Tkn.OpenBracket    -> consume ts >> parseBracketContainer (Tkn.pos t)
 
                              -- Primitive Leaf Node capture (+ source location)
                              Tkn.Let            -> capture (S.Symbol (Tkn.pos t) "let")
@@ -392,7 +413,7 @@ pExpr = do
                              Tkn.Symbol         txt -> capture (S.Symbol (Tkn.pos t) txt)
 
                              -- Attributes (Reader Macro -> `(%attr "key" expr)`)
-                             Tkn.Attr           txt -> put ts >> parseAttrNode (Tkn.pos t) txt
+                             Tkn.Attr           txt -> consume ts >> parseAttrNode (Tkn.pos t) txt
                              Tkn.Binding        txt -> capture (binderNode (Tkn.pos t) txt)
 
                              -- Core Data Literals
@@ -404,7 +425,7 @@ pExpr = do
                              -- Reader Macros & Type Assertions
                              -- Note: We intentionally pop 'ts' here to advance past the macro tag
                              tkn | Just tag <- typeTag tkn
-                                                -> put ts >> parseTaggedNode (Tkn.pos t) tag
+                                                -> consume ts >> parseTaggedNode (Tkn.pos t) tag
 
                              -- Empty Collections instantiate as direct fallback values
                              Tkn.TagRecordEmpty -> capture (S.Literal (Tkn.pos t) S.EmptyRec)
@@ -435,21 +456,21 @@ pExpr = do
 -- Lookahead Container Accumulators
 parseFormContainer :: SourcePos -> Parser S.Expr
 parseFormContainer startPos = do
-                              terms <- collectUntil Tkn.CloseParen
+                              terms <- within startPos ")" (collectUntil Tkn.CloseParen)
                               pure $ S.Form startPos terms
 
 
 -- Consumes tokens until a matching CloseBracket is found
 parseBracketContainer :: SourcePos -> Parser S.Expr
 parseBracketContainer startPos = do
-                                 terms <- collectUntil Tkn.CloseBracket
+                                 terms <- within startPos "]" (collectUntil Tkn.CloseBracket)
                                  pure $ S.Bracket startPos terms
 
 
 -- Reader Tag Helper: Verifies that the evaluated expression is a raw string payload
 parseTaggedNode :: SourcePos -> S.ReaderTag -> Parser S.Expr
 parseTaggedNode tagPos tagType = do
-                                 stream <- get
+                                 stream <- remainingTokens
                                  case stream of
                                      -- A property on its own, at the end of a form: (satisfies #str).
                                      -- Its subject is a hole that cannot be written in Ouro, filled
@@ -488,18 +509,13 @@ binderNode pos name = S.Form pos [S.Symbol pos "%binder", S.Literal pos (S.Str n
 collectUntil :: Tkn.TokenType -> Parser [S.Expr]
 collectUntil targetDelim =
     do
-    stream <- get
+    stream <- remainingTokens
     case stream of
-        -- The token stream ran dry before finding the matching delimiter.
-        [] -> let pos     = M.initialPos "unknown-source" -- Or pass parent context position down
-                  context = Syntax UnbalancedDelimiter
-                              { expectedDelim = T.pack (show targetDelim)
-                              , actualDelim   = "Unexpected EOF (End of File)"
-                              }
-              in lift $ Left (OuroError pos context)
+        -- The token stream ran dry before finding the matching delimiter
+        [] -> endOfFile
 
         (t:ts) | Tkn.tokenType t == targetDelim -> do
-                    put ts  -- Pop the matching closing token out of stream state
+                    consume ts  -- Pop the matching closing token out of stream state
                     pure []
                | otherwise -> do
                     current <- pExpr
