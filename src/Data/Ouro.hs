@@ -35,9 +35,10 @@ module Data.Ouro
 , warningSummary
 ) where
 
-import           Control.Monad.Except        (ExceptT, runExceptT, throwError)
-import           Control.Monad.Writer        (Writer, runWriter, tell)
+import           Control.Monad.Validate      (ValidateT, refute, runValidateT)
+import           Control.Monad.Writer        (WriterT, runWriter, tell)
 import qualified Data.ByteString             as BS
+import           Data.Functor.Identity       (Identity)
 import           Data.Containers.ListUtils   (nubOrd)
 import           Data.Function               ((&))
 import           Data.List                   (sortOn)
@@ -87,19 +88,23 @@ data CompilationResult
     = CompilationSuccess [OuroWarning] (I.Expr   'JLD.Primitive)
     | CompilationFailure [OuroWarning] (NonEmpty OuroError)
 
--- Type alias representing the dual-track compiler sandbox.
--- Errors accumulate in the ExceptT track, Warnings accumulate in the Writer track.
-type CompilerM = ExceptT (NonEmpty OuroError) (Writer [OuroWarning])
+-- The compiler's errors and warnings. Errors accumulate in ValidateT: work that does not
+-- depend on another result (a traverse, <*>) reports every error it finds, while >>= stops
+-- at the first, since the next step needs the value it did not get. So <*> collects errors
+-- where ap would stop at the first. Warnings accumulate in the Writer underneath, so they
+-- survive a failure. The base monad is Identity for compile, and IO for loading modules.
+type CompilerT m = ValidateT (NonEmpty OuroError) (WriterT [OuroWarning] m)
+type CompilerM   = CompilerT Identity
 
 
 compile :: String -> String -> Text -> CompilationResult
-compile filename trgt content = compilationResult . runWriter . runExceptT $ compile'
+compile filename trgt content = compilationResult . runWriter . runValidateT $ compile'
     where
     compile' :: CompilerM (I.Expr 'JLD.Primitive)
     compile' = do
                -- Pass 1: Lexical Tokenization
                tokens <- case LX.tokenize filename  content of
-                             Left  lexErr -> throwError $ pure lexErr
+                             Left  lexErr -> refute $ pure lexErr
                              Right tkns   -> return tkns
 
                -- Pass 2: Linting
@@ -107,7 +112,7 @@ compile filename trgt content = compilationResult . runWriter . runExceptT $ com
 
                -- Pass 3: Synatic Parsing
                ouroModule <- case LP.parseModule tokens of
-                          Left  parseErr  -> throwError $ pure parseErr
+                          Left  parseErr  -> refute $ pure parseErr
                           Right moduleEnv -> return moduleEnv
 
                -- Pass 3.0: Linting the parsed functions and graphs
@@ -128,18 +133,18 @@ compile filename trgt content = compilationResult . runWriter . runExceptT $ com
                                               in nonExistentGraph (T.pack trgt) bestMatch
                                                  & OuroError pos
                                                  & pure
-                                                 & throwError
+                                                 & refute
 
                                        []  -> Scope (NoCompilationTarget (T.pack filename))
                                               & OuroError (M.initialPos filename)
                                               & pure
-                                              & throwError
+                                              & refute
                -- Pass 4: Evaluation
                let (Graph gPos _ gAst)          = graph
                    (evalTree, bindingErrors) = EN.evaluate desugaredModule gAst
 
                case validateAST gPos bindingErrors evalTree of
-                   Just    errs -> throwError errs
+                   Just    errs -> refute errs
                    Nothing      -> return (freeze evalTree)
 
     compilationResult :: (Either(NonEmpty OuroError) (I.Expr 'JLD.Primitive), [OuroWarning]) -> CompilationResult
