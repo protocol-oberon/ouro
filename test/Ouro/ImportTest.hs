@@ -227,7 +227,7 @@ importedModules = Group "Modules: imported modules, in memory"
                                                                   "{\"r\": 1}")
 
       -- The bundled std
-    , ("std/base exports exactly its patterns",    failsWith "exports: aat, description, identifier, language, name, nationality, occupation, shape, statement, statement-kind, style, tgn, timespan, ulan, work-type."
+    , ("std/base exports exactly its patterns",    failsWith "exports: aat, description, identifier, language, name, nationality, occupation, shape, statement, statement-kind, style, tgn, ulan, work-type."
                                                              "(import std/base) (graph g (base/nope 1))")
     , ("every bundled function is documented",     stdIsDocumented)
     , ("bundled modules are named with /",        bundledNamesUseSlash)
@@ -334,11 +334,11 @@ moduleErrors = Group "Modules: every error, with its code, place and hint"
                                                                  "(defn f ((?a/b)) 1) (graph g (:r 1))")
 
       -- Finding a module
-    , ("a module that does not exist",             importsFailAt "SCP0006" ("inline-test", 1, 1) ["missingModule = \"nope\"", "The bundled modules are: std/base, std/vocab."] []
+    , ("a module that does not exist",             importsFailAt "SCP0006" ("inline-test", 1, 1) ["missingModule = \"nope\"", "The bundled modules are: std/base, std/time, std/vocab."] []
                                                                  "(import nope) (graph g (:r 1))")
     , ("a module near a bundled one",              importsFailAt "SCP0006" ("inline-test", 1, 1) ["missingModule = \"std/bsae\"", "Perhaps you meant 'std/base'"] []
                                                                  "(import std/bsae) (graph g (:r 1))")
-    , ("a folder of bundled modules is not one",   importsFailAt "SCP0006" ("inline-test", 1, 1) ["missingModule = \"std\"", "'std' is a folder of modules, not a module: perhaps (import std/base)", "Its modules are: std/base, std/vocab."] []
+    , ("a folder of bundled modules is not one",   importsFailAt "SCP0006" ("inline-test", 1, 1) ["missingModule = \"std\"", "'std' is a folder of modules, not a module: perhaps (import std/base)", "Its modules are: std/base, std/time, std/vocab."] []
                                                                  "(import std) (graph g (:r 1))")
     , ("a missing module, imported second",        importsFailAt "SCP0006" ("inline-test", 1, 19) ["missingModule = \"nope\""] []
                                                                  "(import std/base) (import nope) (graph g (:r 1))")
@@ -389,7 +389,7 @@ moduleErrors = Group "Modules: every error, with its code, place and hint"
                                                                  "(import badly-named) (graph g (:r (badly-named/badName)))")
 
       -- A module says where it was looked for, and a project's module replaces a bundled one
-    , ("a missing module says where it looked",    importsFailAt "SCP0006" ("inline-test", 1, 1) ["Looked for nope.ouro.", "The bundled modules are: std/base, std/vocab."] []
+    , ("a missing module says where it looked",    importsFailAt "SCP0006" ("inline-test", 1, 1) ["Looked for nope.ouro.", "The bundled modules are: std/base, std/time, std/vocab."] []
                                                                  "(import nope) (graph g (:r 1))")
     , ("a project module replaces a bundled one",  importsWarnAt "WRN0005" ("inline-test", 1, 1) ["The project's module 'std/base' replaces the bundled 'std/base'", "std/base.ouro replaces the bundled 'std/base'", "Perhaps rename the file"] [mineStd]
                                                                  "(import std/base) (graph g (:r (base/core 1 2 3)))")

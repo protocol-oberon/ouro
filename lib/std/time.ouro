@@ -1,0 +1,27 @@
+;; std/time: Linked Art's time spans, from linked.art/model/base. A TimeSpan's end is
+;; included, so a day ends at its last second, 23:59:59, a month on its last day, leap years
+;; included, and a year on the 31st of December. Each function takes a date written to its
+;; precision, "1881", "1880-02" or "1832-01-23", and builds a TimeSpan; a date that is not
+;; one is an error. Uncertain dates and display names are written with with.
+(export span day month year year-range)
+
+(defn span #rec (#date begin #date end)
+  (doc "A TimeSpan from the beginning of its beginning to the end of its end, both included: (span \"1881-01-01T00:00:00Z\" \"1881-12-31T23:59:59Z\").")
+  (:type "TimeSpan" :begin_of_the_begin begin :end_of_the_end end))
+
+(defn day #rec (#str date)
+  (doc "A day, from its first second to its last: (day \"1832-01-23\").")
+  (span (+ date "T00:00:00Z") (+ date "T23:59:59Z")))
+
+(defn month #rec (#str date)
+  (doc "A month, to the last second of its last day, leap years included: (month \"1880-02\").")
+  (let ($begin #date (+ date "-01T00:00:00Z"))
+    (span begin (+ begin (thru (months 0))))))
+
+(defn year #rec (#str date)
+  (doc "A year, to the last second of the 31st of December: (year \"1881\").")
+  (span (+ date "-01-01T00:00:00Z") (+ date "-12-31T23:59:59Z")))
+
+(defn year-range #rec (#str from #str to)
+  (doc "The years from one to another, both included: (year-range \"1880\" \"1885\").")
+  (span (+ from "-01-01T00:00:00Z") (+ to "-12-31T23:59:59Z")))

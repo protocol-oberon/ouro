@@ -21,8 +21,7 @@
         name
         identifier
         statement
-        description
-        timespan)
+        description)
 
 ;; Entities from the Getty vocabularies, by their numbers
 
@@ -95,7 +94,3 @@
 (defn description #rec (#str content)
   (doc "The commonest statement: a Description of a record.")
   (statement (statement-kind "300435416" "Description") content))
-
-(defn timespan #rec (#date begin #date end)
-  (doc "A TimeSpan from the beginning of its beginning to the end of its end, both included.")
-  (:type "TimeSpan" :begin_of_the_begin begin :end_of_the_end end))

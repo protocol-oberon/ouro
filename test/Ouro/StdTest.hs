@@ -1,11 +1,13 @@
 module Ouro.StdTest
 ( base
+, time
 , vocab
 ) where
 
 import           Data.Text (Text)
 import           Hedgehog
-import           Utils     (compilesToJSON, failsWith)
+import           Utils     (compilesToJSON, compilesWithoutWarnings, failsWith,
+                            importsFailIn)
 
 
 -- A program that imports std/base and std/vocab
@@ -60,10 +62,6 @@ base = Group "std/base: Linked Art's base patterns"
                                                              "{\"r\": true}")
     , ("description is Linked Art's Description",  stdToJSON "(graph g (base/description \"Amsterdam is a city in the Netherlands\"))"
                                                              "{\"type\": \"LinguisticObject\", \"classified_as\": [{\"id\": \"http://vocab.getty.edu/aat/300435416\", \"type\": \"Type\", \"_label\": \"Description\", \"classified_as\": [{\"id\": \"http://vocab.getty.edu/aat/300418049\", \"type\": \"Type\", \"_label\": \"Brief Text\"}]}], \"content\": \"Amsterdam is a city in the Netherlands\"}")
-    , ("timespan builds a TimeSpan",               stdToJSON "(graph g (base/timespan \"1881-01-01T00:00:00Z\" \"1881-12-31T23:59:59Z\"))"
-                                                             "{\"type\": \"TimeSpan\", \"begin_of_the_begin\": \"1881-01-01T00:00:00Z\", \"end_of_the_end\": \"1881-12-31T23:59:59Z\"}")
-    , ("a timespan's ends are dates",              stdFailsWith "expectedProperty = \"#date\""
-                                                                "(graph g (base/timespan \"soon\" \"later\"))")
 
       -- A record, as a literal or threaded
     , ("a record written as a literal",            stdToJSON (  "(graph g (:id #uri \"https://linked.art/example/person/manet\" :type \"Person\" :_label \"Manet\""
@@ -85,13 +83,50 @@ base = Group "std/base: Linked Art's base patterns"
       -- What std/base offers
     , ("with writes a set as it is given",         stdToJSON "(graph g (with (:type \"Person\") :classified_as (base/nationality \"300111188\" \"French\")))"
                                                              "{\"type\": \"Person\", \"classified_as\": {\"id\": \"http://vocab.getty.edu/aat/300111188\", \"type\": \"Type\", \"_label\": \"French\", \"classified_as\": [{\"id\": \"http://vocab.getty.edu/aat/300379842\", \"type\": \"Type\", \"_label\": \"Nationality\"}]}}")
-    , ("std/base exports its constructors only",   stdFailsWith "exports: aat, description, identifier, language, name, nationality, occupation, shape, statement, statement-kind, style, tgn, timespan, ulan, work-type."
+    , ("std/base exports its constructors only",   stdFailsWith "exports: aat, description, identifier, language, name, nationality, occupation, shape, statement, statement-kind, style, tgn, ulan, work-type."
                                                                 "(graph g (base/nope 1))")
     , ("core is private",                          stdFailsWith "unexportedName = \"core\""
                                                                 "(graph g (base/core #uri \"https://a.org/1\" \"Type\" \"A\"))")
     , ("meta-typed is private",                    stdFailsWith "unexportedName = \"meta-typed\""
                                                                 "(graph g (base/meta-typed vocab/style \"1\" \"x\"))")
     ]
+
+
+-- std/time: Linked Art's time spans. A span's end is included, so each ends at its last second,
+-- leap years included; each takes a date written to its precision.
+time :: Group
+time = Group "std/time: Linked Art's time spans"
+    [ ("span builds a TimeSpan",                   timeToJSON "(time/span \"1881-01-01T00:00:00Z\" \"1881-06-30T23:59:59Z\")"
+                                                              "1881-01-01T00:00:00Z" "1881-06-30T23:59:59Z")
+    , ("a span's ends are dates",                  timeFailsWith "expectedProperty = \"#date\""
+                                                                 "(time/span \"soon\" \"later\")")
+    , ("day is a day, to its last second",         timeToJSON "(time/day \"1832-01-23\")"
+                                                              "1832-01-23T00:00:00Z" "1832-01-23T23:59:59Z")
+    , ("month ends on its last day",               timeToJSON "(time/month \"1881-02\")"
+                                                              "1881-02-01T00:00:00Z" "1881-02-28T23:59:59Z")
+    , ("in a leap year too",                       timeToJSON "(time/month \"1880-02\")"
+                                                              "1880-02-01T00:00:00Z" "1880-02-29T23:59:59Z")
+    , ("year ends on the 31st of December",        timeToJSON "(time/year \"1881\")"
+                                                              "1881-01-01T00:00:00Z" "1881-12-31T23:59:59Z")
+    , ("year-range includes both years",           timeToJSON "(time/year-range \"1880\" \"1885\")"
+                                                              "1880-01-01T00:00:00Z" "1885-12-31T23:59:59Z")
+    , ("in an event",                              compilesToJSON "(import std/time) (graph g (:born (:type \"Birth\" :timespan (time/day \"1832-01-23\"))))"
+                                                                  "{\"born\": {\"type\": \"Birth\", \"timespan\": {\"type\": \"TimeSpan\", \"begin_of_the_begin\": \"1832-01-23T00:00:00Z\", \"end_of_the_end\": \"1832-01-23T23:59:59Z\"}}}")
+    , ("std/time compiles without warnings",       compilesWithoutWarnings "(import std/time) (graph g (time/year \"1881\"))")
+    , ("std/time exports its spans only",          timeFailsWith "exports: day, month, span, year, year-range."
+                                                                 "(time/nope)")
+    , ("a date is written as a string",            timeFailsWith "expectedProperty = \"#str\""
+                                                                 "(time/year 1881)")
+
+      -- Pinned limit: a string that is not a date is reported inside std/time, where it
+      -- becomes one, not at the call
+    , ("a bad date is reported in std/time",       importsFailIn "lib/std/time.ouro" ["expectedProperty = \"#date\""] []
+                                                                 "(import std/time) (graph g (:r (time/day \"1832-13-40\")))")
+    ]
+    where
+    timeToJSON src begin end = compilesToJSON ("(import std/time) (graph g " <> src <> ")")
+                                              ("{\"type\": \"TimeSpan\", \"begin_of_the_begin\": \"" <> begin <> "\", \"end_of_the_end\": \"" <> end <> "\"}")
+    timeFailsWith message src = failsWith message ("(import std/time) (graph g " <> src <> ")")
 
 
 -- std/vocab: the 18 terms Linked Art requires, each a Getty AAT Type

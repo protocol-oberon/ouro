@@ -53,6 +53,7 @@ main = withUtf8Console $ do
         , Import.modulesOnDisk
         -- The bundled std: Linked Art's patterns and required terms
         , Std.base
+        , Std.time
         , Std.vocab
         -- Bindings: let, fn and defn replace define and defun
         , Let.letAndFn
