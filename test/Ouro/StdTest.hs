@@ -107,6 +107,10 @@ time = Group "std/time: Linked Art's time spans"
                                                               "1881-01-01T00:00:00Z" "1881-06-30T23:59:59Z")
     , ("a span's ends are dates",                  timeFailsWith "expectedProperty = \"#date\""
                                                                  "(time/span \"soon\" \"later\")")
+    , ("between is begun in one span, ended in another", timeToJSON4 "(time/between (time/day \"1848-08-01\") (time/span \"1848-09-09T00:00:00Z\" \"1848-09-30T23:59:59Z\"))"
+                                                                  "1848-08-01T00:00:00Z" "1848-08-01T23:59:59Z" "1848-09-09T00:00:00Z" "1848-09-30T23:59:59Z")
+    , ("its spans are records",                    timeFailsWith "expectedProperty = \"#rec\""
+                                                                 "(time/between \"1848-08-01\" (time/year \"1848\"))")
     , ("day is a day, to its last second",         timeToJSON "(time/day \"1832-01-23\")"
                                                               "1832-01-23T00:00:00Z" "1832-01-23T23:59:59Z")
     , ("month ends on its last day",               timeToJSON "(time/month \"1881-02\")"
@@ -120,7 +124,7 @@ time = Group "std/time: Linked Art's time spans"
     , ("in an event",                              compilesToJSON "(import std/time) (graph g (:born (:type \"Birth\" :timespan (time/day \"1832-01-23\"))))"
                                                                   "{\"born\": {\"type\": \"Birth\", \"timespan\": {\"type\": \"TimeSpan\", \"begin_of_the_begin\": \"1832-01-23T00:00:00Z\", \"end_of_the_end\": \"1832-01-23T23:59:59Z\"}}}")
     , ("std/time compiles without warnings",       compilesWithoutWarnings "(import std/time) (graph g (time/year \"1881\"))")
-    , ("std/time exports its spans only",          timeFailsWith "exports: day, month, span, year, year-range."
+    , ("std/time exports its spans only",          timeFailsWith "exports: between, day, month, span, year, year-range."
                                                                  "(time/nope)")
     , ("a date is written as a string",            timeFailsWith "expectedProperty = \"#str\""
                                                                  "(time/year 1881)")
@@ -134,6 +138,9 @@ time = Group "std/time: Linked Art's time spans"
     timeToJSON src begin end = compilesToJSON ("(import std/time) (graph g " <> src <> ")")
                                               ("{\"type\": \"TimeSpan\", \"begin_of_the_begin\": \"" <> begin <> "\", \"end_of_the_end\": \"" <> end <> "\"}")
     timeFailsWith message src = failsWith message ("(import std/time) (graph g " <> src <> ")")
+    timeToJSON4 src bb eb be ee = compilesToJSON ("(import std/time) (graph g " <> src <> ")")
+                                                 (  "{\"type\": \"TimeSpan\", \"begin_of_the_begin\": \"" <> bb <> "\", \"end_of_the_begin\": \"" <> eb
+                                                 <> "\", \"begin_of_the_end\": \"" <> be <> "\", \"end_of_the_end\": \"" <> ee <> "\"}" )
 
 
 -- std/vocab: the 18 terms Linked Art requires, each a Getty AAT Type

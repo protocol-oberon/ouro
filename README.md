@@ -905,7 +905,7 @@ A file uses another's functions by importing it, and offers its own by exporting
 |:-----------------|:----------------------------------------------------------------------------------------------------------------------|
 | `std/vocab`      | the 18 terms Linked Art requires, as constants: `vocab/primary-name`, `vocab/artwork`, ...                             |
 | `std/base`       | Getty entities by number (`aat`, `tgn`, `ulan`, `language`); types with their meta-type (`work-type`, `nationality`, ...); `name`, `identifier`, `statement`, `description` |
-| `std/time`       | time spans, whose end is included: `span`, `day`, `month`, `year`, `year-range`                                        |
+| `std/time`       | time spans, whose end is included: `span`, `between` (an uncertain span), `day`, `month`, `year`, `year-range`        |
 | `std/object`     | dimensions (`height`, `width`, `depth`, `weight`), units, `material`, dimension and material statements, `part-type`  |
 | `std/actor`      | name parts, `gender`, `active` (a professional life), contact points                                                   |
 | `std/provenance` | `purchase` (an Acquisition and a Payment, their roles reversed), `acquisition`, `payment`, `money`, currencies        |
