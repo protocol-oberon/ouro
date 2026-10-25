@@ -888,4 +888,6 @@ knownGaps = Group "Known gaps: current, incorrect behaviour"
                                                                    "{\"u\": \"https://a.org/x\"}")
     , ("gap 23: an unterminated string is reported where the input ends", importsFailAt "SYN0000" ("inline-test", 1, 21) ["Malformed or unrecognized lexical token sequence"] []
                                                                                 "(graph g (:r \"open))")
+    , ("gap 24: #date accepts a year of fewer than four digits", compilesToJSON "(graph g (:d #date \"81-01-01T00:00:00Z\"))"
+                                                                                "{\"d\": \"81-01-01T00:00:00Z\"}")
     ]

@@ -1187,5 +1187,6 @@ Recorded 2026-10-12 and kept up to date since; none were caused by the scoping r
 22. *A URI's empty path segments are dropped:* ~#uri "https://a.org/x//y"~ serialises as ="https://a.org/x/y"=, and ~#uri "https://a.org//x"~ as ="https://a.org/x"=, which changes the IRI's text. A plain string keeps its slashes, and so does a URI's trailing slash. It was found through a stray leading slash, ~(example "/place/...")~, whose =#uri= return type hid the doubled slash. Like gap 17, it comes from how the URI library renders a path.
 
 23. *An unterminated string is reported where the input ends:* ~(:r "open)~ is a lexical error at the end of the file, not at the opening quote, so in a long file the error points far from its cause. Found while testing errors inside imported modules (2026-10-24).
+24. *=#date= accepts a year of fewer than four digits:* ~#date "81-01-01T00:00:00Z"~ is taken as the year 81 and written out as given, =81-01-01T00:00:00Z=, which is not ISO-8601 or =xsd:dateTime= (both need at least four digits; more are allowed). The parser's =%Y= reads any number of digits.
 
 #  LocalWords:  Ouro LD
