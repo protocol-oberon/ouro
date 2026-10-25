@@ -10,6 +10,7 @@ import qualified Ouro.ImportTest     as Import
 import qualified Ouro.LanguageTest   as Language
 import qualified Ouro.LetTest        as Let
 import qualified Ouro.ScopingTest    as Scoping
+import qualified Ouro.StdTest        as Std
 import qualified Ouro.StructuralTest as Structural
 import           System.Exit         (exitFailure, exitSuccess)
 #if defined(mingw32_HOST_OS)
@@ -49,6 +50,9 @@ main = withUtf8Console $ do
         , Import.moduleErrors
         , Import.sourceFrames
         , Import.modulesOnDisk
+        -- The bundled std: Linked Art's patterns and required terms
+        , Std.base
+        , Std.vocab
         -- Bindings: let, fn and defn replace define and defun
         , Let.letAndFn
         -- The language as specified: what reaches the output, special forms and built-ins

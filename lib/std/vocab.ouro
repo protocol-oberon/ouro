@@ -1,0 +1,54 @@
+;; std/vocab: the terms Linked Art requires, from linked.art/model/vocab/required. Every
+;; implementation must use exactly these, so they are written once here. A term that Linked
+;; Art classifies by a meta-type is not: the meta-types are the terms (Nationality, Style),
+;; and std/base's constructors, such as nationality, add one to a term. The bottom of std:
+;; it imports nothing.
+(export primary-name
+        display-name
+        sort-name
+        sort-value
+        brief-text
+        type-of-work
+        style
+        shape
+        nationality
+        occupation
+        color
+        exhibition-activity
+        provenance-activity
+        professional-activity
+        publication-activity
+        promise-activity
+        collection-item
+        artwork)
+
+;; A term of the Getty AAT, by its number
+(defn term #rec (#str id #str label)
+  (doc "A Getty AAT term: a Type identified by its AAT number.")
+  (:id #uri (+ "http://vocab.getty.edu/aat/" id) :type "Type" :_label label))
+
+;; Names and sorting
+(defn primary-name () (doc "Classifies the Name that is a record's main name: every record has one.") (term "300404670" "Primary Name"))
+(defn display-name () (doc "Classifies a Name to show, as a statement's label or in place of structured data.") (term "300404669" "Display Name"))
+(defn sort-name    () (doc "Classifies a Name used to sort lists.") (term "300451544" "Sort Name"))
+(defn sort-value   () (doc "Classifies an Identifier used to sort, never shown.") (term "300456575" "Sort Value"))
+
+;; Meta-types: terms that classify other terms
+(defn brief-text   () (doc "The meta-type of statement kinds, as Description or Material Statement.") (term "300418049" "Brief Text"))
+(defn type-of-work () (doc "The meta-type of work types, as Painting.") (term "300435443" "Type of Work"))
+(defn style        () (doc "The meta-type of styles, as Impressionism.") (term "300015646" "Style"))
+(defn shape        () (doc "The meta-type of shapes, as Oblong.") (term "300056273" "Shape"))
+(defn nationality  () (doc "The meta-type of nationalities, as Dutch.") (term "300379842" "Nationality"))
+(defn occupation   () (doc "The meta-type of occupations, as Artist.") (term "300263369" "Occupation"))
+(defn color        () (doc "Classifies a Dimension that is a colour.") (term "300080438" "Color"))
+
+;; Activities
+(defn exhibition-activity   () (doc "Classifies an Activity that is an exhibition.") (term "300054766" "Exhibition Activity"))
+(defn provenance-activity   () (doc "Classifies the Activity that groups an event of provenance.") (term "300055863" "Provenance Activity"))
+(defn professional-activity () (doc "Classifies the Activity of a person's professional life.") (term "300393177" "Professional Activity"))
+(defn publication-activity  () (doc "Classifies the Activity of publishing a work.") (term "300054686" "Publication Activity"))
+(defn promise-activity      () (doc "Classifies the Activity of promising a future transfer.") (term "300435599" "Promise Activity"))
+
+;; Objects
+(defn collection-item () (doc "Classifies an object as an item of a cultural heritage collection.") (term "300404024" "Collection Item"))
+(defn artwork         () (doc "Classifies an object as a work of art, as opposed to one of its parts.") (term "300133025" "Artwork"))

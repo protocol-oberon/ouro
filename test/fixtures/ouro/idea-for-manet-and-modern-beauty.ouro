@@ -1,12 +1,6 @@
 (import std/base)
 
 ;; Not yet in std: Linked Art patterns kept here until std grows
-(defn aat #rec (#str id #str label)
-  (base/core #uri (+ "http://vocab.getty.edu/aat/" id) "Type" label))
-
-(defn ulan #rec (#str id #str label)
-  (base/core #uri (+ "http://vocab.getty.edu/ulan/" id) "Person" label))
-
 (defn classified #rec (#rec r #rec t)
   (with r :classified_as (list t)))
 
@@ -14,12 +8,12 @@
   (+ "https://linked.art/example/" path))
 
 (defn person #rec (#str slug #str label)
-  (base/core (example (+ "person/" slug)) "Person" label))
+  (:id (example (+ "person/" slug)) :type "Person" :_label label))
 
 ;; Steps: each takes a record first and returns it extended, so they thread with ->
 (defn named      #rec (#rec r #str n)
   (with r :identified_by ((:type          "Name"
-                           :classified_as ((aat "300404670" "Primary Name"))
+                           :classified_as ((base/aat "300404670" "Primary Name"))
                            :content       n))))
 (defn about      #rec (#rec r xs)     (with r :about xs))
 (defn created-by #rec (#rec r people)
@@ -27,12 +21,12 @@
                        :carried_out_by (map (λ ((?slug ?label)) (person slug label)) people))))
 
 (graph idea-for-manet-and-modern-beauty
-  (-> (base/core (example "concept/exhidea/1") "PropositionalObject" "Idea for Manet and Modern Beauty")
+  (-> (:id (example "concept/exhidea/1") :type "PropositionalObject" :_label "Idea for Manet and Modern Beauty")
       (with :context "https://linked.art/ns/v1/linked-art.json")
-      (classified (aat "300417531" "Exhibition"))
+      (classified (base/aat "300417531" "Exhibition"))
       (named "Manet and Modern Beauty")
-      (about ((aat "300055821" "Beauty")
-              (ulan "500010363" "Manet")))
+      (about ((base/aat "300055821" "Beauty")
+              (base/ulan "500010363" "Person" "Manet")))
       (created-by (("allan" "Scott Allan")
                    ("beeny" "Emily Beeny")
                    ("groom" "Gloria Groom")))))

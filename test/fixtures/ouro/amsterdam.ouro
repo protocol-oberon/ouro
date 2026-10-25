@@ -1,9 +1,6 @@
 (import std/base)
 
 ;; Not yet in std: Linked Art patterns kept here until std grows
-(defn aat #rec (#str id #str label)
-  (base/core #uri (+ "http://vocab.getty.edu/aat/" id) "Type" label))
-
 (defn classified #rec (#rec r #rec t)
   (with r :classified_as (list t)))
 
@@ -11,24 +8,24 @@
   (+ "https://linked.art/example/" path))
 
 (defn place #rec (#str slug #str label)
-  (base/core (example (+ "place/" slug)) "Place" label))
+  (:id (example (+ "place/" slug)) :type "Place" :_label label))
 
 (defn brief-text #rec (#str content)
   (:type          "LinguisticObject"
-   :classified_as ((-> (aat "300435416" "Description")
-                       (classified (aat "300418049" "Brief Text"))))
+   :classified_as ((-> (base/aat "300435416" "Description")
+                       (classified (base/aat "300418049" "Brief Text"))))
    :content       content))
 
 ;; Steps: each takes a record first and returns it extended, so they thread with ->
-(defn named     #rec (#rec r #str n)     (with r :identified_by ((base/name n))))
+(defn named     #rec (#rec r #str n)     (with r :identified_by ((:type "Name" :content n))))
 (defn described #rec (#rec r #str text)  (with r :referred_to_by ((brief-text text))))
 (defn part-of   #rec (#rec r #rec whole) (with r :part_of (list whole)))
 
 (graph amsterdam
   (-> (place "amsterdam/1" "Amsterdam")
       (with :context "https://linked.art/ns/v1/linked-art.json")
-      (classified (aat "300008389" "City"))
+      (classified (base/aat "300008389" "City"))
       (named "Amsterdam")
       (described "Amsterdam is a city in the Netherlands")
       (part-of (-> (place "netherlands" "Netherlands")
-                   (classified (aat "300128207" "Nation"))))))
+                   (classified (base/aat "300128207" "Nation"))))))

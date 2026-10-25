@@ -12,6 +12,7 @@ import           Control.Monad                 (forM_, when)
 import qualified Data.ByteString               as BS
 import           Data.Char                     (isSpace)
 import           Data.Foldable                 (toList)
+import           Data.List                     (findIndex)
 import           Data.List.NonEmpty            (NonEmpty (..))
 import qualified Data.Map.Strict               as Map
 import           Data.Ouro                     (CompilationResult (..),
@@ -56,15 +57,15 @@ import           Utils                         (compileG, compileWithModules,
 -- bundled with the compiler, and holds Linked Art's own patterns.
 imports :: Group
 imports = Group "Modules: import, export and the bundled std"
-    [ ("std's core builds a node",                 compilesToJSON "(import std/base) (graph g (base/core #uri \"https://a.org/1\" \"Type\" \"A\"))"
-                                                                  "{\"id\": \"https://a.org/1\", \"type\": \"Type\", \"_label\": \"A\"}")
-    , ("std's name builds a Name",                 compilesToJSON "(import std/base) (graph g (:identified_by ((base/name \"A\"))))"
-                                                                  "{\"identified_by\": [{\"type\": \"Name\", \"content\": \"A\"}]}")
-    , ("an alias qualifies the module",            compilesToJSON "(import std/base as la) (graph g (la/name \"A\"))"
-                                                                  "{\"type\": \"Name\", \"content\": \"A\"}")
-    , ("std compiles without warnings",            compilesWithoutWarnings "(import std/base) (graph g (base/name \"A\"))")
-    , ("a local function and an import's apart",   compilesToJSON "(import std/base) (defn name (x) \"mine\") (graph g (:a (name 1) :b (base/name \"A\")))"
-                                                                  "{\"a\": \"mine\", \"b\": {\"type\": \"Name\", \"content\": \"A\"}}")
+    [ ("std's aat builds a Type",                  compilesToJSON "(import std/base) (graph g (base/aat \"1\" \"A\"))"
+                                                                  "{\"id\": \"http://vocab.getty.edu/aat/1\", \"type\": \"Type\", \"_label\": \"A\"}")
+    , ("std's name builds a Name",                 compilesToJSON "(import std/base) (graph g (:identified_by ((base/name (:type \"T\") \"A\"))))"
+                                                                  "{\"identified_by\": [{\"type\": \"Name\", \"classified_as\": [{\"type\": \"T\"}], \"content\": \"A\"}]}")
+    , ("an alias qualifies the module",            compilesToJSON "(import std/base as la) (graph g (la/aat \"1\" \"A\"))"
+                                                                  "{\"id\": \"http://vocab.getty.edu/aat/1\", \"type\": \"Type\", \"_label\": \"A\"}")
+    , ("std compiles without warnings",            compilesWithoutWarnings "(import std/base) (graph g (base/aat \"1\" \"A\"))")
+    , ("a local function and an import's apart",   compilesToJSON "(import std/base) (defn aat (x) \"mine\") (graph g (:a (aat 1) :b (base/aat \"1\" \"A\")))"
+                                                                  "{\"a\": \"mine\", \"b\": {\"id\": \"http://vocab.getty.edu/aat/1\", \"type\": \"Type\", \"_label\": \"A\"}}")
     , ("/ and /= are not qualified names",         compilesToJSON "(graph g (:a (/ 6 3) :b (/= 1 2)))"
                                                                   "{\"a\": 2, \"b\": true}")
 
@@ -169,21 +170,21 @@ importedModules = Group "Modules: imported modules, in memory"
                                                                    "(import a) (graph g (:r (a/f)))")
 
       -- Imported functions are values like any other
-    , ("an imported function as a value",          compilesToJSON "(import std/base) (graph g (let ($f base/name) (f \"A\")))"
-                                                                  "{\"type\": \"Name\", \"content\": \"A\"}")
-    , ("with a hole",                              compilesToJSON "(import std/base) (graph g (:r (map (base/name ?) (\"A\" \"B\"))))"
-                                                                  "{\"r\": [{\"type\": \"Name\", \"content\": \"A\"}, {\"type\": \"Name\", \"content\": \"B\"}]}")
-    , ("passed to map",                            compilesToJSON "(import std/base) (graph g (:r (map base/name (\"A\"))))"
-                                                                  "{\"r\": [{\"type\": \"Name\", \"content\": \"A\"}]}")
+    , ("an imported function as a value",          compilesToJSON "(import std/base) (graph g (let ($f base/aat) (f \"1\" \"A\")))"
+                                                                  "{\"id\": \"http://vocab.getty.edu/aat/1\", \"type\": \"Type\", \"_label\": \"A\"}")
+    , ("with a hole",                              compilesToJSON "(import std/base) (graph g (:r (map (base/aat ? \"A\") (\"1\" \"2\"))))"
+                                                                  "{\"r\": [{\"id\": \"http://vocab.getty.edu/aat/1\", \"type\": \"Type\", \"_label\": \"A\"}, {\"id\": \"http://vocab.getty.edu/aat/2\", \"type\": \"Type\", \"_label\": \"A\"}]}")
+    , ("passed to map",                            compilesToJSON "(import std/base) (graph g (:r (len (map base/description (\"A\" \"B\")))))"
+                                                                  "{\"r\": 2}")
     , ("as a step of ->",                          importsToJSON [helpers] "(import helpers) (graph g (:r (-> \"Ann\" (helpers/greet))))"
                                                                           "{\"r\": \"Hello, Ann\"}")
     , ("in a case condition",                      importsToJSON [("checks", "(export big)\n(defn big (n) (> n 10))")]
                                                                  "(import checks) (graph g (:r (case 20 ((when (checks/big 20)) \"big\") (otherwise \"small\"))))"
                                                                  "{\"r\": \"big\"}")
-    , ("a wrong number of arguments",              failsWith "nameOfFunc = \"name\""
-                                                             "(import std/base) (graph g (base/name 1 2))")
+    , ("a wrong number of arguments",              failsWith "nameOfFunc = \"aat\""
+                                                             "(import std/base) (graph g (base/aat 1 2 3))")
     , ("a bad argument is blamed at the call",     importsFailIn "inline-test" ["expectedProperty = \"#str\""] []
-                                                                   "(import std/base) (graph g (base/name 5))")
+                                                                   "(import std/base) (graph g (base/aat 5 \"A\"))")
     , ("an error in its body is in its module",    importsFailIn "broken-body.ouro" ["Index"] [("broken-body", "(export bad)\n(defn bad () (get () 5))")]
                                                                    "(import broken-body) (graph g (:r (broken-body/bad)))")
 
@@ -204,8 +205,8 @@ importedModules = Group "Modules: imported modules, in memory"
                                                                     "(import badly-named) (graph g (:r (badly-named/badName)))")
 
       -- Names
-    , ("a binding named like a qualifier",         compilesToJSON "(import std/base) (graph g (let ($base 1) (:a base :b (base/name \"A\"))))"
-                                                                  "{\"a\": 1, \"b\": {\"type\": \"Name\", \"content\": \"A\"}}")
+    , ("a binding named like a qualifier",         compilesToJSON "(import std/base) (graph g (let ($base 1) (:a base :b (base/aat \"1\" \"A\"))))"
+                                                                  "{\"a\": 1, \"b\": {\"id\": \"http://vocab.getty.edu/aat/1\", \"type\": \"Type\", \"_label\": \"A\"}}")
     , ("a parameter's name has no /",              failsWith "The parameter 'a/b' has a '/' in it"
                                                              "(defn f (a/b) 1) (graph g (:r (f 1)))")
     , ("nor a fn's",                               failsWith "The parameter 'a/b' has a '/' in it"
@@ -226,7 +227,7 @@ importedModules = Group "Modules: imported modules, in memory"
                                                                   "{\"r\": 1}")
 
       -- The bundled std
-    , ("std exports exactly core and name",        failsWith "exports: core, name"
+    , ("std/base exports exactly its patterns",    failsWith "exports: aat, description, identifier, language, name, nationality, occupation, shape, statement, statement-kind, style, tgn, timespan, ulan, work-type."
                                                              "(import std/base) (graph g (base/nope 1))")
     , ("every bundled function is documented",     stdIsDocumented)
     , ("bundled modules are named with /",        bundledNamesUseSlash)
@@ -333,11 +334,11 @@ moduleErrors = Group "Modules: every error, with its code, place and hint"
                                                                  "(defn f ((?a/b)) 1) (graph g (:r 1))")
 
       -- Finding a module
-    , ("a module that does not exist",             importsFailAt "SCP0006" ("inline-test", 1, 1) ["missingModule = \"nope\"", "The bundled modules are: std/base."] []
+    , ("a module that does not exist",             importsFailAt "SCP0006" ("inline-test", 1, 1) ["missingModule = \"nope\"", "The bundled modules are: std/base, std/vocab."] []
                                                                  "(import nope) (graph g (:r 1))")
     , ("a module near a bundled one",              importsFailAt "SCP0006" ("inline-test", 1, 1) ["missingModule = \"std/bsae\"", "Perhaps you meant 'std/base'"] []
                                                                  "(import std/bsae) (graph g (:r 1))")
-    , ("a folder of bundled modules is not one",   importsFailAt "SCP0006" ("inline-test", 1, 1) ["missingModule = \"std\"", "'std' is a folder of modules, not a module: perhaps (import std/base)", "Its modules are: std/base."] []
+    , ("a folder of bundled modules is not one",   importsFailAt "SCP0006" ("inline-test", 1, 1) ["missingModule = \"std\"", "'std' is a folder of modules, not a module: perhaps (import std/base)", "Its modules are: std/base, std/vocab."] []
                                                                  "(import std) (graph g (:r 1))")
     , ("a missing module, imported second",        importsFailAt "SCP0006" ("inline-test", 1, 19) ["missingModule = \"nope\""] []
                                                                  "(import std/base) (import nope) (graph g (:r 1))")
@@ -372,7 +373,7 @@ moduleErrors = Group "Modules: every error, with its code, place and hint"
                                                                  "(graph g (other/f 1))")
     , ("a qualifier far from every import",        importsFailAt "SCP0007" ("inline-test", 1, 29) ["qualifierName = \"zzz\"", "This file imports: base."] []
                                                                  "(import std/base) (graph g (zzz/f 1))")
-    , ("a name the module does not export",        importsFailAt "SCP0008" ("inline-test", 1, 29) ["unexportedName = \"nam\"", "exports: core, name.", "Perhaps you meant 'name'"] []
+    , ("a name the module does not export",        importsFailAt "SCP0008" ("inline-test", 1, 29) ["unexportedName = \"nam\"", "exports: aat, description, identifier,", "Perhaps you meant 'name'"] []
                                                                  "(import std/base) (graph g (base/nam \"A\"))")
     , ("a name not exported, inside a module",     importsFailAt "SCP0008" ("uses.ouro", 3, 13) ["unexportedName = \"nope\""] [("uses", "(import std/base)\n(export f)\n(defn f () (base/nope))")]
                                                                  "(import uses) (graph g (:r (uses/f)))")
@@ -388,7 +389,7 @@ moduleErrors = Group "Modules: every error, with its code, place and hint"
                                                                  "(import badly-named) (graph g (:r (badly-named/badName)))")
 
       -- A module says where it was looked for, and a project's module replaces a bundled one
-    , ("a missing module says where it looked",    importsFailAt "SCP0006" ("inline-test", 1, 1) ["Looked for nope.ouro.", "The bundled modules are: std/base."] []
+    , ("a missing module says where it looked",    importsFailAt "SCP0006" ("inline-test", 1, 1) ["Looked for nope.ouro.", "The bundled modules are: std/base, std/vocab."] []
                                                                  "(import nope) (graph g (:r 1))")
     , ("a project module replaces a bundled one",  importsWarnAt "WRN0005" ("inline-test", 1, 1) ["The project's module 'std/base' replaces the bundled 'std/base'", "std/base.ouro replaces the bundled 'std/base'", "Perhaps rename the file"] [mineStd]
                                                                  "(import std/base) (graph g (:r (base/core 1 2 3)))")
@@ -416,8 +417,11 @@ sourceFrames = Group "Modules: each diagnostic is shown in its own file"
                                                                 (SourceFrame "b.ouro" 2 1 "(import a)"))
     , ("a warning in a module, in that module",    frameOfWarning [("badly-named", "(export badName)\n(defn badName () 1)")] "(import badly-named) (graph g (:r (badly-named/badName)))"
                                                                   (SourceFrame "badly-named.ouro" 2 1 "(defn badName () 1)"))
-    , ("a bundled module's line, from the compiler", withTests 1 . property $
-                                                       sourceFrame bundledFile (at "lib/std/base.ouro" 5 1) === SourceFrame "lib/std/base.ouro" 5 1 "(defn core #rec (#uri id #str type #str label)")
+    , ("a bundled module's line, from the compiler", withTests 1 . property $ do
+                                                       -- core's line is found, not written, so reformatting base.ouro keeps the test
+                                                       source <- maybe (fail "std/base is not bundled") pure (bundledFile "lib/std/base.ouro")
+                                                       line   <- maybe (fail "std/base has no core") (pure . (+ 1)) (findIndex ("(defn core " `T.isPrefixOf`) (T.lines source))
+                                                       sourceFrame bundledFile (at "lib/std/base.ouro" line 1) === SourceFrame "lib/std/base.ouro" line 1 "(defn core #rec (#uri id #str type #str label)")
     , ("a line past the end is empty",             withTests 1 . property $
                                                        sourceFrame (const (Just "one line")) (at "f.ouro" 3 1) === SourceFrame "f.ouro" 3 1 "")
     , ("an unknown file is empty",                 withTests 1 . property $
@@ -457,8 +461,8 @@ modulesOnDisk = Group "Modules: imported from files on disk"
                                                                 "{\"r\": \"hi!\"}")
     , ("a module with CRLF lines and a BOM",       onDiskToJSON "crlf" [("helpers.ouro", "\xEF\xBB\xBF(export greet)\r\n(defn greet (n) (+ \"Hello, \" n))\r\n"), main' "(import helpers)\n(graph g (:r (helpers/greet \"Ann\")))"]
                                                                 "{\"r\": \"Hello, Ann\"}")
-    , ("the bundled std, with nothing beside it",  onDiskToJSON "bundled" [main' "(import std/base)\n(graph g (base/name \"A\"))"]
-                                                                "{\"type\": \"Name\", \"content\": \"A\"}")
+    , ("the bundled std, with nothing beside it",  onDiskToJSON "bundled" [main' "(import std/base)\n(graph g (base/aat \"1\" \"A\"))"]
+                                                                "{\"id\": \"http://vocab.getty.edu/aat/1\", \"type\": \"Type\", \"_label\": \"A\"}")
     , ("a project std replaces the bundled one",   onDiskToJSON "replaced" [("std/base.ouro", "(export core)\n(defn core (a b c) \"mine\")"), main' "(import std/base)\n(graph g (:r (base/core 1 2 3)))"]
                                                                 "{\"r\": \"mine\"}")
     , ("and says so",                              onDiskWarns "replaced-warns" [("std/base.ouro", "(export core)\n(defn core (a b c) \"mine\")"), main' "(import std/base)\n(graph g (:r (base/core 1 2 3)))"]

@@ -1,11 +1,101 @@
-;; std/base: Linked Art's base patterns, the parts of a node every record repeats. Everything
-;; in std builds Linked Art's nodes, which is what importing a std/ module tells a reader.
-(export core name)
+;; std/base: Linked Art's base patterns, the parts of a node every record repeats, from
+;; linked.art/model/base. Everything in std builds Linked Art's nodes, which is what
+;; importing a std/ module tells a reader.
+;;
+;; Every function takes values and builds a node; none extends a record. A record is
+;; written as a literal, or threaded with -> through with, which sets a property, and
+;; adjoin, which adds to one. A node without a pattern of its own, as an unclassified Name,
+;; is written as a literal too.
+(import std/vocab)
+
+(export aat
+        tgn
+        ulan
+        language
+        work-type
+        style
+        shape
+        nationality
+        occupation
+        statement-kind
+        name
+        identifier
+        statement
+        description
+        timespan)
+
+;; Entities from the Getty vocabularies, by their numbers
 
 (defn core #rec (#uri id #str type #str label)
-  (doc "A node's core properties: its id, its type and its _label.")
+  (doc "An entity's core properties: its id, its type and its _label.")
   (:id id :type type :_label label))
 
-(defn name #rec (#str content)
-  (doc "A Name: Linked Art's pattern for what something is called.")
-  (:type "Name" :content content))
+(defn aat #rec (#str id #str label)
+  (doc "A Type from the Getty AAT, by its number: (aat \"300033618\" \"Painting\").")
+  (core #uri (+ "http://vocab.getty.edu/aat/" id) "Type" label))
+
+(defn tgn #rec (#str id #str label)
+  (doc "A Place from the Getty TGN, by its number: (tgn \"7006952\" \"Amsterdam\").")
+  (core #uri (+ "http://vocab.getty.edu/tgn/" id) "Place" label))
+
+(defn ulan #rec (#str id #str type #str label)
+  (doc "A Person or Group from the Getty ULAN, by its number: (ulan \"500010363\" \"Person\" \"Manet\").")
+  (core #uri (+ "http://vocab.getty.edu/ulan/" id) type label))
+
+(defn language #rec (#str id #str label)
+  (doc "A Language from the Getty AAT, by its number: (language \"300388277\" \"English\").")
+  (core #uri (+ "http://vocab.getty.edu/aat/" id) "Language" label))
+
+;; Types classified by their meta-type, which Linked Art requires
+
+(defn meta-typed #rec (#rec meta #str id #str label)
+  (doc "A Type from the Getty AAT, classified by its meta-type.")
+  (adjoin (aat id label) :classified_as meta))
+
+(defn work-type #rec (#str id #str label)
+  (doc "A type of work, classified as Type of Work: (work-type \"300033618\" \"Painting\").")
+  (meta-typed (vocab/type-of-work) id label))
+
+(defn style #rec (#str id #str label)
+  (doc "A style, classified as Style: (style \"300021503\" \"Impressionist\").")
+  (meta-typed (vocab/style) id label))
+
+(defn shape #rec (#str id #str label)
+  (doc "A shape, classified as Shape: (shape \"300263817\" \"Oblong\").")
+  (meta-typed (vocab/shape) id label))
+
+(defn nationality #rec (#str id #str label)
+  (doc "A nationality, classified as Nationality: (nationality \"300111188\" \"French\").")
+  (meta-typed (vocab/nationality) id label))
+
+(defn occupation #rec (#str id #str label)
+  (doc "An occupation, classified as Occupation: (occupation \"300025136\" \"Painter\").")
+  (meta-typed (vocab/occupation) id label))
+
+(defn statement-kind #rec (#str id #str label)
+  (doc "A kind of statement, classified as Brief Text: (statement-kind \"300435429\" \"Material Statement\").")
+  (meta-typed (vocab/brief-text) id label))
+
+;; Embedded nodes: they have no id, and exist only inside the record holding them
+
+(defn name #rec (#rec kind #str content)
+  (doc "A Name of a kind, as (name (vocab/primary-name) \"Spring\"). A Name with no kind is a literal, (:type \"Name\" :content \"Spring\").")
+  (:type "Name" :classified_as (list kind) :content content))
+
+(defn identifier #rec (#rec kind #str content)
+  (doc "An Identifier of a kind, as an accession number: (identifier (aat \"300312355\" \"Accession Number\") \"2014.62\").")
+  (:type "Identifier" :classified_as (list kind) :content content))
+
+(defn statement #rec (#rec kind #str content)
+  (doc "A statement: a LinguisticObject of a kind, which is classified as Brief Text whether or not it was built by statement-kind.")
+  (:type          "LinguisticObject"
+   :classified_as (list (adjoin kind :classified_as (vocab/brief-text)))
+   :content       content))
+
+(defn description #rec (#str content)
+  (doc "The commonest statement: a Description of a record.")
+  (statement (statement-kind "300435416" "Description") content))
+
+(defn timespan #rec (#date begin #date end)
+  (doc "A TimeSpan from the beginning of its beginning to the end of its end, both included.")
+  (:type "TimeSpan" :begin_of_the_begin begin :end_of_the_end end))

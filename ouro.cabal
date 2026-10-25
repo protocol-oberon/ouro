@@ -198,6 +198,7 @@ test-suite ouro-test
         Ouro.LanguageTest
         Ouro.LetTest
         Ouro.ScopingTest
+        Ouro.StdTest
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
