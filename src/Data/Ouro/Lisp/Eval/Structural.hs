@@ -204,7 +204,9 @@ emitProps evaluator env attrAddrs expressions = go I.EmptyMeta expressions
                                         otherVal -> let err = typeMismatch
                                                                   "a valid property value (like a Primitive or nested Record)"
                                                                   (humanReadableType otherVal)
-                                                              & withBlurb (humanReadableType otherVal)
+                                                              & withBlurb (maybe (humanReadableType otherVal)
+                                                                                 (\call -> "A function is not a value: perhaps call it, " <> call <> ".")
+                                                                                 (L.callOf otherVal))
                                                               & OuroError (S.exprPos valExpr)
                                                     in Record finalMeta ((key, EvalError err) : nextPairs)
 
@@ -428,6 +430,7 @@ evalFunction evaluator closureEnv pos fnId@(name, _) params bodyExprs actualArgs
     case (parLen == actLen, Set.member fnId callerStack) of
         (False, _)
             -> incorrectArity name parLen actLen
+               & maybe id (\call -> withBlurb ("It is called " <> call <> ".")) (L.callTemplate name params)
                & OuroError pos
                & L.EvalError
                & pure

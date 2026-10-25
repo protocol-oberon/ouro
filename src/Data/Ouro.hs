@@ -221,12 +221,12 @@ unserialisableBlurb :: Text -> L.Expr -> Text
 unserialisableBlurb location = \case
     Duration _ _          -> "The value at " <> location <> " is a Duration, which only has meaning when added to a date."
                           <> "\n\nPerhaps add it to a date, e.g. (+ #date \"1881-01-01T00:00:00Z\" (years 2))."
-    PrimitiveOp _         -> functionHint
-    FunctionClosure _ _ _ _ -> functionHint
+    f@(PrimitiveOp _)     -> functionHint f
+    f@FunctionClosure {}  -> functionHint f
     _compileTimeOnly      -> "The value at " <> location <> " only exists during compilation and has no JSON representation."
     where
-    functionHint = "The value at " <> location <> " is a function, not a value."
-                <> "\n\nPerhaps you meant to call it, e.g. (name! args)."
+    functionHint f = "The value at " <> location <> " is a function, not a value."
+                  <> maybe "\n\nPerhaps call it with its arguments." (\call -> "\n\nPerhaps call it: " <> call <> ".") (L.callOf f)
 
 
 

@@ -276,6 +276,25 @@ data PeriodUnit
     deriving (Show, Eq)
 
 
+-- How a function written where a value belongs is called, with its parameters' names,
+-- (aat id label), or (artwork) for a function of none. A pattern parameter has no name, so
+-- it is shown as (...). Nothing for a value, a built-in, whose parameters have no names, or
+-- an anonymous fn, which has no name to call it by ('fn' is a special form, so no defn has it).
+callOf :: Expr -> Maybe Text
+callOf = \case
+    FunctionClosure _ (name, _) params _ -> callTemplate name params
+    _notAFunctionWithNames               -> Nothing
+
+callTemplate :: Text -> [S.Param] -> Maybe Text
+callTemplate name params
+    | name == "fn" = Nothing
+    | otherwise    = Just ("(" <> T.unwords (name : map shown params) <> ")")
+    where
+    shown param
+        | "%" `T.isPrefixOf` S.paramName param = "(...)"
+        | otherwise                            = S.paramName param
+
+
 humanReadableType :: Expr -> Text
 humanReadableType =
     \case

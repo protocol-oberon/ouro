@@ -287,8 +287,8 @@ splitErrorContext = \case
 
     Scope (IncorrectArity name expr act)
         -> ("Incorrect Arity"
-           , [ labeled (pretty $ "The function '" <> name <> "' expects " <> (T.pack $ show expr) <> " number of arguments.") ""
-             , labeled (pretty $ "Got: " <> (T.pack $ show act) <> " number of arguments instead.") ""
+           , [ labeled "Expected: " (pretty $ "'" <> name <> "' takes " <> arguments expr)
+             , labeled "Got:      " (pretty $ arguments act)
              ]
            , Nothing
            )
@@ -368,6 +368,13 @@ splitErrorContext = \case
 -- Standardized labels without compounding layout padding
 labeled :: Doc OuroStyle -> Doc OuroStyle -> Doc OuroStyle
 labeled label value = label <> value
+
+-- A number of arguments, in words: "no arguments", "1 argument", "2 arguments"
+arguments :: Int -> T.Text
+arguments = \case
+    0 -> "no arguments"
+    1 -> "1 argument"
+    n -> T.pack (show n) <> " arguments"
 
 
 --- Pre-processor for Type Highlighting ---

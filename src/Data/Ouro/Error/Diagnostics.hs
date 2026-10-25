@@ -271,6 +271,7 @@ typeMismatchBlurb value =
            property
                | "#" `T.isPrefixOf` property -> ""
                | otherwise                   -> " This value is " <> property <> ", which has no built-in property."
+    <> maybe "" (\call -> " This value is a function: perhaps call it, " <> call <> ".") (L.callOf value)
 
 
 binaryOpMismatchBlurb :: L.Expr -> L.Expr -> Text

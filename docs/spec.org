@@ -82,7 +82,7 @@ This is not gradual typing in the sense of Siek and Taha, where annotated code i
 
 ** Errors for curators
 
-Errors are part of the design, not an afterthought. Every surface node carries its ~SourcePos~, every error is reported with its position, a short message and a blurb that suggests a fix, and evaluation continues past an error so that one compile reports them all. Removed syntax is recognised and answered with its replacement (for example "'define' has been replaced by let.").
+Errors are part of the design, not an afterthought. Every surface node carries its ~SourcePos~, every error is reported with its position, a short message and a blurb that suggests a fix, and evaluation continues past an error so that one compile reports them all. Removed syntax is recognised and answered with its replacement (for example "'define' has been replaced by let."). A function written where a value belongs, or called with the wrong number of arguments, is shown with how it is called, by its parameters' names: "Perhaps call it: (aat id label)", "It is called (c)." (a built-in or an anonymous =fn=, whose parameters have no names, is told to be called with its arguments). The call uses the function's own name, not the qualifier it was reached through, and a function found inside an array when the output is checked is reported at the graph, with its path (='r[0]'=), since its position is gone by then.
 
 ** Deterministic serialisation
 
@@ -1159,7 +1159,7 @@ Recorded 2026-10-12 and kept up to date since; none were caused by the scoping r
 
 9. *Suggestions miss local names:* "Perhaps you meant" ranks only the root scope.
 
-10. *Stale wording in messages:* the hint for a function used as a value suggests =(name! args)=; =get='s missing-key blurb mentions =define=; subtraction's type error names an internal type, "a Date minus a L.Duration"; a =$= binding named after a special form (=$get=) is rightly rejected, but the message calls it an attribute key ("primative" is also misspelt).
+10. *Stale wording in messages:* =get='s missing-key blurb mentions =define=; subtraction's type error names an internal type, "a Date minus a L.Duration"; a =$= binding named after a special form (=$get=) is rightly rejected, but the message calls it an attribute key ("primative" is also misspelt). (The hint for a function used as a value, which suggested =(name! args)=, was fixed: it now shows how the function is called, with its parameters' names, =Perhaps call it: (aat id label).=)
 
 11. *A parameter named after a special form* (e.g. =fn=) gives a confusing error about =fn= syntax.
 

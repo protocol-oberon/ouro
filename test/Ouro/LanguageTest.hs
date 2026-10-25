@@ -63,6 +63,34 @@ serialisation = Group "Serialisation: only values reach the output"
                                                               "(defn mk () (:f (fn (x) x))) (graph g (:a 1 (inlay (mk))))")
     , ("let bindings are not output",               compilesToJSON "(graph g (let ($hidden 1) (:shown hidden)))"
                                                                    "{\"shown\": 1}")
+
+      -- A function where a value belongs says how it is called, with its parameters' names.
+      -- This fixed the function hint of gap 10, which suggested (name! args).
+    , ("in an array, how to call it",               failsWith "Perhaps call it: (inc x)."
+                                                              "(defn inc (x) (+ x 1)) (graph g (:r (list inc)))")
+    , ("as an attribute value",                     failsWith "A function is not a value: perhaps call it, (inc x)."
+                                                              "(defn inc (x) (+ x 1)) (graph g (:r inc))")
+    , ("as an argument with a property",            failsWith "This value is a function: perhaps call it, (mk x)."
+                                                              "(defn f #rec (#rec r) r) (defn mk (x) (:a x)) (graph g (:r (f mk)))")
+    , ("a pattern parameter is shown as (...)",     failsWith "Perhaps call it: (f (...) c)."
+                                                              "(defn f ((?a ?b) c) a) (graph g (:r (list f)))")
+    , ("a built-in has no names to show",           failsWith "Perhaps call it with its arguments."
+                                                              "(graph g (:r (list len)))")
+    , ("nor has an anonymous fn",                   failsWith "Perhaps call it with its arguments."
+                                                              "(graph g (:r (list (fn (x) x))))")
+    , ("which has no call to show",                 failsWithout "(fn"
+                                                                 "(graph g (:r (fn (x) x)))")
+    , ("the call is shown on a wrong arity",        failsWith "It is called (aat id label)."
+                                                              "(defn aat (id label) 1) (graph g (:r (aat 1)))")
+    , ("and to a function of none",                 failsWith "It is called (c)."
+                                                              "(defn c () 1) (graph g (:r (c 1)))")
+
+      -- Pinned limits: the call is shown by the function's own name, not as it was qualified,
+      -- and a function inside an array is reported at the graph, where its position is lost
+    , ("the name is unqualified",                   failsWith "Perhaps call it: (aat id label)."
+                                                              "(import std/base) (graph g (:r (list base/aat)))")
+    , ("an array's function is placed at the graph", importsFailAt "TYP0000" ("inline-test", 1, 19) ["The value at 'r[0]' is a function"] []
+                                                                   "(import std/base) (graph g (:r (list base/aat)))")
     ]
 
 
@@ -830,8 +858,6 @@ knownGaps :: Group
 knownGaps = Group "Known gaps: current, incorrect behaviour"
     [ ("gap 9: no suggestion for a local name",     failsWithout "Perhaps you meant"
                                                                  "(graph g (let ($artist 1) (:r artst)))")
-    , ("gap 10: the function hint uses old syntax", failsWith "(name! args)"
-                                                              "(defn inc (x) (+ x 1)) (graph g (:r (list inc)))")
     , ("gap 10: get's missing-key hint mentions define", failsWith "'define'"
                                                               "(graph g (:p (:a 1) :r (get p b)))")
     , ("gap 10: subtraction's hint names L.Duration", failsWith "L.Duration"
