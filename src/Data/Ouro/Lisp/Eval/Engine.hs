@@ -117,7 +117,15 @@ evalExpr expr = do
                & pure
 
         S.Tagged _   tag   payload -> assertTag tag payload
-        S.Symbol pos name          -> lookupVar evalExpr pos name env
+        -- A name of a function of no parameters, written as a value, is its result: Ouro has no
+        -- effects, so the function cannot be told from its value. It is called as (name) is,
+        -- so arity, signatures, blame and the recursion check apply. At the head of a call a
+        -- name is the function itself (see applyFunction)
+        S.Symbol pos name          -> lookupVar evalExpr pos name env >>= \case
+                                          FunctionClosure closureEnv fnId [] bodyExprs
+                                              -> evalFunction evalExpr closureEnv pos fnId [] bodyExprs []
+                                          value
+                                              -> pure value
 
         -- Holes left by 'Canon.placeholders': outside a call's arguments and case patterns
         S.Hole   pos hole          -> pure (EvalError (strayHole hole pos))
@@ -620,7 +628,11 @@ applyFunction pos exprs =
     case exprs of
         (operatorExpr : argumentExprs)
             -> do
-               resolvedOp   <- evalExpr operatorExpr
+               -- A name at the head is the function itself, never a constant's value, so
+               -- (c) calls a function of no parameters rather than its result
+               resolvedOp   <- case operatorExpr of
+                                   S.Symbol namePos name -> ask >>= lookupVar evalExpr namePos name
+                                   _notAName             -> evalExpr operatorExpr
 
                case resolvedOp of
                    FunctionClosure closureEnv name params bodyExprs

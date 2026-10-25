@@ -42,13 +42,13 @@ base = Group "std/base: Linked Art's base patterns"
                                                              <> " :nationality (image (base/nationality \"1\" \"x\") classified_as _label) :occupation (image (base/occupation \"1\" \"x\") classified_as _label)"
                                                              <> " :statement-kind (image (base/statement-kind \"1\" \"x\") classified_as _label)))" )
                                                              "{\"style\": [\"Style\"], \"shape\": [\"Shape\"], \"nationality\": [\"Nationality\"], \"occupation\": [\"Occupation\"], \"statement-kind\": [\"Brief Text\"]}")
-    , ("it is the type written out",               stdToJSON "(graph g (:r (eq (base/nationality \"300111188\" \"French\") (adjoin (base/aat \"300111188\" \"French\") :classified_as (vocab/nationality)))))"
+    , ("it is the type written out",               stdToJSON "(graph g (:r (eq (base/nationality \"300111188\" \"French\") (adjoin (base/aat \"300111188\" \"French\") :classified_as vocab/nationality))))"
                                                              "{\"r\": true}")
-    , ("its meta-type is not added twice",         stdToJSON "(graph g (adjoin (base/work-type \"300033618\" \"Painting\") :classified_as (vocab/type-of-work)))"
+    , ("its meta-type is not added twice",         stdToJSON "(graph g (adjoin (base/work-type \"300033618\" \"Painting\") :classified_as vocab/type-of-work))"
                                                              "{\"id\": \"http://vocab.getty.edu/aat/300033618\", \"type\": \"Type\", \"_label\": \"Painting\", \"classified_as\": [{\"id\": \"http://vocab.getty.edu/aat/300435443\", \"type\": \"Type\", \"_label\": \"Type of Work\"}]}")
 
       -- Embedded nodes
-    , ("name takes its kind first",                stdToJSON "(graph g (base/name (vocab/primary-name) \"Spring\"))"
+    , ("name takes its kind first",                stdToJSON "(graph g (base/name vocab/primary-name \"Spring\"))"
                                                              "{\"type\": \"Name\", \"classified_as\": [{\"id\": \"http://vocab.getty.edu/aat/300404670\", \"type\": \"Type\", \"_label\": \"Primary Name\"}], \"content\": \"Spring\"}")
     , ("a name's kind is a record",                stdFailsWith "expectedProperty = \"#rec\""
                                                                 "(graph g (base/name \"Primary\" \"Spring\"))")
@@ -67,17 +67,17 @@ base = Group "std/base: Linked Art's base patterns"
 
       -- A record, as a literal or threaded
     , ("a record written as a literal",            stdToJSON (  "(graph g (:id #uri \"https://linked.art/example/person/manet\" :type \"Person\" :_label \"Manet\""
-                                                             <> " :identified_by (list (base/name (vocab/primary-name) \"Manet\"))"
+                                                             <> " :identified_by (list (base/name vocab/primary-name \"Manet\"))"
                                                              <> " :classified_as (list (base/nationality \"300111188\" \"French\") (base/occupation \"300025136\" \"Painter\"))))" )
                                                              (  "{\"id\": \"https://linked.art/example/person/manet\", \"type\": \"Person\", \"_label\": \"Manet\","
                                                              <> " \"identified_by\": [{\"type\": \"Name\", \"classified_as\": [{\"id\": \"http://vocab.getty.edu/aat/300404670\", \"type\": \"Type\", \"_label\": \"Primary Name\"}], \"content\": \"Manet\"}],"
                                                              <> " \"classified_as\": [{\"id\": \"http://vocab.getty.edu/aat/300111188\", \"type\": \"Type\", \"_label\": \"French\", \"classified_as\": [{\"id\": \"http://vocab.getty.edu/aat/300379842\", \"type\": \"Type\", \"_label\": \"Nationality\"}]},"
                                                              <> " {\"id\": \"http://vocab.getty.edu/aat/300025136\", \"type\": \"Type\", \"_label\": \"Painter\", \"classified_as\": [{\"id\": \"http://vocab.getty.edu/aat/300263369\", \"type\": \"Type\", \"_label\": \"Occupation\"}]}]}" ))
     , ("is the record threaded, with then adjoin", stdToJSON (  "(graph g (:r (eq (:id #uri \"https://linked.art/example/person/manet\" :type \"Person\" :_label \"Manet\""
-                                                             <> " :identified_by (list (base/name (vocab/primary-name) \"Manet\"))"
+                                                             <> " :identified_by (list (base/name vocab/primary-name \"Manet\"))"
                                                              <> " :classified_as (list (base/nationality \"300111188\" \"French\") (base/occupation \"300025136\" \"Painter\")))"
                                                              <> " (-> (:id #uri \"https://linked.art/example/person/manet\" :type \"Person\" :_label \"Manet\")"
-                                                             <> " (with :identified_by (list (base/name (vocab/primary-name) \"Manet\")))"
+                                                             <> " (with :identified_by (list (base/name vocab/primary-name \"Manet\")))"
                                                              <> " (with :classified_as (list (base/nationality \"300111188\" \"French\")))"
                                                              <> " (adjoin :classified_as (base/occupation \"300025136\" \"Painter\"))))))" )
                                                              "{\"r\": true}")
@@ -90,26 +90,26 @@ base = Group "std/base: Linked Art's base patterns"
     , ("core is private",                          stdFailsWith "unexportedName = \"core\""
                                                                 "(graph g (base/core #uri \"https://a.org/1\" \"Type\" \"A\"))")
     , ("meta-typed is private",                    stdFailsWith "unexportedName = \"meta-typed\""
-                                                                "(graph g (base/meta-typed (vocab/style) \"1\" \"x\"))")
+                                                                "(graph g (base/meta-typed vocab/style \"1\" \"x\"))")
     ]
 
 
 -- std/vocab: the 18 terms Linked Art requires, each a Getty AAT Type
 vocab :: Group
 vocab = Group "std/vocab: the terms Linked Art requires"
-    [ ("every required term, by its AAT number",   stdToJSON (  "(graph g (:ids (image (list (vocab/primary-name) (vocab/display-name) (vocab/sort-name) (vocab/sort-value)"
-                                                             <> " (vocab/brief-text) (vocab/type-of-work) (vocab/style) (vocab/shape) (vocab/nationality) (vocab/occupation) (vocab/color)"
-                                                             <> " (vocab/exhibition-activity) (vocab/provenance-activity) (vocab/professional-activity) (vocab/publication-activity)"
-                                                             <> " (vocab/promise-activity) (vocab/collection-item) (vocab/artwork)) id)))" )
+    [ ("every required term, by its AAT number",   stdToJSON (  "(graph g (:ids (image (list vocab/primary-name vocab/display-name vocab/sort-name vocab/sort-value"
+                                                             <> " vocab/brief-text vocab/type-of-work vocab/style vocab/shape vocab/nationality vocab/occupation vocab/color"
+                                                             <> " vocab/exhibition-activity vocab/provenance-activity vocab/professional-activity vocab/publication-activity"
+                                                             <> " vocab/promise-activity vocab/collection-item vocab/artwork) id)))" )
                                                              (  "{\"ids\": [\"http://vocab.getty.edu/aat/300404670\", \"http://vocab.getty.edu/aat/300404669\", \"http://vocab.getty.edu/aat/300451544\", \"http://vocab.getty.edu/aat/300456575\","
                                                              <> " \"http://vocab.getty.edu/aat/300418049\", \"http://vocab.getty.edu/aat/300435443\", \"http://vocab.getty.edu/aat/300015646\", \"http://vocab.getty.edu/aat/300056273\","
                                                              <> " \"http://vocab.getty.edu/aat/300379842\", \"http://vocab.getty.edu/aat/300263369\", \"http://vocab.getty.edu/aat/300080438\", \"http://vocab.getty.edu/aat/300054766\","
                                                              <> " \"http://vocab.getty.edu/aat/300055863\", \"http://vocab.getty.edu/aat/300393177\", \"http://vocab.getty.edu/aat/300054686\", \"http://vocab.getty.edu/aat/300435599\","
                                                              <> " \"http://vocab.getty.edu/aat/300404024\", \"http://vocab.getty.edu/aat/300133025\"]}" ))
-    , ("a term is a Type with its label",          stdToJSON "(graph g (vocab/primary-name))"
+    , ("a term is a Type with its label",          stdToJSON "(graph g vocab/primary-name)"
                                                              "{\"id\": \"http://vocab.getty.edu/aat/300404670\", \"type\": \"Type\", \"_label\": \"Primary Name\"}")
     , ("std/vocab exports the 18 terms only",      stdFailsWith "exports: artwork, brief-text, collection-item, color, display-name, exhibition-activity, nationality, occupation, primary-name, professional-activity, promise-activity, provenance-activity, publication-activity, shape, sort-name, sort-value, style, type-of-work."
-                                                                "(graph g (vocab/nope))")
+                                                                "(graph g vocab/nope)")
     , ("its helper is private",                    stdFailsWith "unexportedName = \"term\""
                                                                 "(graph g (vocab/term \"1\" \"x\"))")
     ]

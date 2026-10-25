@@ -10,6 +10,7 @@ module Ouro.FunctionTest
 , signatures
 , threading
 , adjoining
+, constants
 ) where
 
 import qualified Data.Map.Strict             as Map
@@ -21,6 +22,7 @@ import           Hedgehog
 import           Utils                       (compilesLike, compilesToJSON,
                                               compilesWithoutWarnings,
                                               failsToCompile, failsWith,
+                                              importsFailAt,
                                               warnsWith)
 
 
@@ -441,6 +443,56 @@ adjoining = Group "Functions: adjoin adds to a property's set of values"
                                                             "(graph g (:r (adjoin)))")
     , ("adjoin cannot be a function name",        failsWith "'adjoin' is a special form"
                                                             "(defn adjoin (x) x) (graph g (:r 1))")
+    ]
+
+
+-- A name of a function of no parameters, written as a value, is its result: Ouro has no
+-- effects, so the function cannot be told from its value. At the head of a call it is the
+-- function, so (c) still calls it.
+constants :: Group
+constants = Group "Functions: a function of no parameters, named, is its value"
+    [ ("a constant is its value",                 compilesToJSON "(defn c () 1) (graph g (:r c))"
+                                                                 "{\"r\": 1}")
+    , ("and (c) still calls it",                  compilesToJSON "(defn c () 1) (graph g (:a c :b (c)))"
+                                                                 "{\"a\": 1, \"b\": 1}")
+    , ("in an array",                             compilesToJSON "(defn c () 1) (graph g (:r (list c 2)))"
+                                                                 "{\"r\": [1, 2]}")
+    , ("as an argument",                          compilesToJSON "(defn c () (:a 1)) (defn f #rec (#rec r) (with r :b 2)) (graph g (:r (f c)))"
+                                                                 "{\"r\": {\"a\": 1, \"b\": 2}}")
+    , ("added by adjoin",                         compilesToJSON "(defn c () 1) (graph g (adjoin (:k 0) :k c))"
+                                                                 "{\"k\": [0, 1]}")
+    , ("under a property",                        compilesToJSON "(defn c () 1) (graph g (:r #num c))"
+                                                                 "{\"r\": 1}")
+    , ("a let-bound fn of no parameters",         compilesToJSON "(graph g (let ($c (fn () 2)) (:a c :b (c))))"
+                                                                 "{\"a\": 2, \"b\": 2}")
+    , ("one constant from another",               compilesToJSON "(defn a () 1) (defn b () (+ a 1)) (graph g (:r b))"
+                                                                 "{\"r\": 2}")
+    , ("an imported constant",                    compilesToJSON "(import std/vocab) (graph g (:r vocab/artwork))"
+                                                                 "{\"r\": {\"id\": \"http://vocab.getty.edu/aat/300133025\", \"type\": \"Type\", \"_label\": \"Artwork\"}}")
+    , ("a fn of no parameters not named stays a function", failsWith "an unexecuted function"
+                                                                     "(graph g (:r (case 1 (otherwise (fn () 3)))))")
+
+      -- It is called as (c) is
+    , ("its return type is checked",              failsWith "expectedProperty = \"#str\""
+                                                            "(defn c #str () 1) (graph g (:r c))")
+    , ("an error in its body is reported there",  importsFailAt "TYP0000" ("inline-test", 1, 12) ["a Number + a String"] []
+                                                                 "(defn c () (+ 1 \"a\")) (graph g (:r c))")
+    , ("a constant naming itself is recursion",   failsWith "Recursion is strictly forbidden"
+                                                            "(defn a () a) (graph g (:r a))")
+    , ("as are two naming each other",            failsWith "Recursion is strictly forbidden"
+                                                            "(defn a () b) (defn b () a) (graph g (:r a))")
+
+      -- What it costs: a function of no parameters cannot be passed as a function
+    , ("arguments to a constant are an error",    failsWith "It is called (c)."
+                                                            "(defn c () 1) (graph g (:r (c 1)))")
+    , ("-> calls a constant with the value",      failsWith "It is called (c)."
+                                                            "(defn c () 1) (graph g (:r (-> 5 c)))")
+    , ("map receives its value",                  failsWith "a function to map with"
+                                                            "(defn c () 1) (graph g (:r (map c (1 2))))")
+    , ("a constant is not #fn",                   compilesToJSON "(defn c () 1) (graph g (:a (satisfies #fn c) :b (satisfies #num c)))"
+                                                                 "{\"a\": false, \"b\": true}")
+    , ("passed on, it is its value",              failsWith "is a Record, not a function"
+                                                            "(defn mk () (:v 1)) (defn call (make) (make)) (graph g (:r (call mk)))")
     ]
 
 

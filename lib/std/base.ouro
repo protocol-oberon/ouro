@@ -54,32 +54,32 @@
 
 (defn work-type #rec (#str id #str label)
   (doc "A type of work, classified as Type of Work: (work-type \"300033618\" \"Painting\").")
-  (meta-typed (vocab/type-of-work) id label))
+  (meta-typed vocab/type-of-work id label))
 
 (defn style #rec (#str id #str label)
   (doc "A style, classified as Style: (style \"300021503\" \"Impressionist\").")
-  (meta-typed (vocab/style) id label))
+  (meta-typed vocab/style id label))
 
 (defn shape #rec (#str id #str label)
   (doc "A shape, classified as Shape: (shape \"300263817\" \"Oblong\").")
-  (meta-typed (vocab/shape) id label))
+  (meta-typed vocab/shape id label))
 
 (defn nationality #rec (#str id #str label)
   (doc "A nationality, classified as Nationality: (nationality \"300111188\" \"French\").")
-  (meta-typed (vocab/nationality) id label))
+  (meta-typed vocab/nationality id label))
 
 (defn occupation #rec (#str id #str label)
   (doc "An occupation, classified as Occupation: (occupation \"300025136\" \"Painter\").")
-  (meta-typed (vocab/occupation) id label))
+  (meta-typed vocab/occupation id label))
 
 (defn statement-kind #rec (#str id #str label)
   (doc "A kind of statement, classified as Brief Text: (statement-kind \"300435429\" \"Material Statement\").")
-  (meta-typed (vocab/brief-text) id label))
+  (meta-typed vocab/brief-text id label))
 
 ;; Embedded nodes: they have no id, and exist only inside the record holding them
 
 (defn name #rec (#rec kind #str content)
-  (doc "A Name of a kind, as (name (vocab/primary-name) \"Spring\"). A Name with no kind is a literal, (:type \"Name\" :content \"Spring\").")
+  (doc "A Name of a kind, as (name vocab/primary-name \"Spring\"). A Name with no kind is a literal, (:type \"Name\" :content \"Spring\").")
   (:type "Name" :classified_as (list kind) :content content))
 
 (defn identifier #rec (#rec kind #str content)
@@ -89,7 +89,7 @@
 (defn statement #rec (#rec kind #str content)
   (doc "A statement: a LinguisticObject of a kind, which is classified as Brief Text whether or not it was built by statement-kind.")
   (:type          "LinguisticObject"
-   :classified_as (list (adjoin kind :classified_as (vocab/brief-text)))
+   :classified_as (list (adjoin kind :classified_as vocab/brief-text))
    :content       content))
 
 (defn description #rec (#str content)

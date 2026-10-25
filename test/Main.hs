@@ -43,6 +43,7 @@ main = withUtf8Console $ do
         , Function.destructuring
         , Function.threading
         , Function.adjoining
+        , Function.constants
         , Function.documentation
         -- Modules: import, export and the bundled std
         , Import.imports

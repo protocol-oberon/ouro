@@ -36,8 +36,8 @@ baseline = Group "Scoping: baseline (must keep passing)"
                                                                  , "(graph g (let ($env \"prod\") (:genv env (inlay (sandbox!)))))" ])
                                                                "(graph g (:genv \"prod\" :fenv \"dev\"))")
     , ("functions are first-class values",        compilesLike (T.unlines
-                                                                 [ "(defn mk! () (:v 1))"
-                                                                 , "(defn call! (make) ((inlay (make)) :d 2))"
+                                                                 [ "(defn mk! (v) (:v v))"
+                                                                 , "(defn call! (make) ((inlay (make 1)) :d 2))"
                                                                  , "(graph g (:r (call! mk!)))" ])
                                                                "(graph g (:r (:v 1 :d 2)))")
     , ("arguments from a local call-site scope",  compilesLike "(defn f! (a) (:out a)) (graph g (:rec (:loc \"local\" :res (f! loc))))"
