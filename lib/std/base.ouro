@@ -60,7 +60,7 @@
   (meta-typed vocab/style id label))
 
 (defn shape #rec (#str id #str label)
-  (doc "A shape, classified as Shape: (shape \"300263817\" \"Oblong\").")
+  (doc "A shape, classified as Shape: (shape \"300311843\" \"Oblong\").")
   (meta-typed vocab/shape id label))
 
 (defn nationality #rec (#str id #str label)
@@ -72,7 +72,7 @@
   (meta-typed vocab/occupation id label))
 
 (defn statement-kind #rec (#str id #str label)
-  (doc "A kind of statement, classified as Brief Text: (statement-kind \"300435429\" \"Material Statement\").")
+  (doc "A kind of statement, classified as Brief Text: (statement-kind \"300435429\" \"Materials Statement\").")
   (meta-typed vocab/brief-text id label))
 
 ;; Embedded nodes: they have no id, and exist only inside the record holding them

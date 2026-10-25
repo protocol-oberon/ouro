@@ -1,0 +1,211 @@
+## Name Types
+Alternate Name	300264273	An alternate name, as opposed to the primary name, of an entity
+Given Name	300404651	The given or first name of a Person
+Middle Name	300404654	The middle name of a Person
+Family Name	300404652	The family or sirname of a Person
+Former Name	300435719	A former name, for any reason, of a Person
+## Identifier Types
+Accession Number	300312355	An accession number for the object
+Local Number	300404621	An identifier assigned by the institution but not an accession or system number
+System Number	300435704	An identifier assigned by an automated system, such as a collection management system
+Call Number	300311706	An identifier for where the object is physically in the repository, typically used in libraries
+## Statement Types
+Note	300027200	A general note about the entity
+Description	300435416	A description of the entity
+Access Statement	300133046	A statement about how to get access to the entity
+Bibliography Statement	300026497	A list of citations of the entity, typically in a consistent format
+Condition Statement	300435425	A description of the physical condition of the object
+Credit Line	300026687	A short statement of who should be acknowledged for the object
+Dimensions Statement	300435430	A description of the dimensions of the object
+Exhibition Statement	300435424	A statement or citation list about exhibitions that the object has been in
+Inscription Statement	300435414	A description of inscriptions on the object
+Markings Statement	300435420	A description of non-inscription markings on the object
+Materials Statement	300435429	A description or list of the materials the object is made of
+Production Statement	300435436	A description of the production or creation of the object
+Provenance Statement	300435438	A description or semi-structured value describing the ownership history of the object
+Rights Statement	300435434	A description of copyright or other licenses pertaining to the object
+Signature Statement	300028705	A description of the artist's signature which is on the object, often part of the artwork
+Summary	300026032	A summary of the intellectual content of the object, as opposed to a Description of the object as a whole
+## Object Types
+Architecture	300263552	Structure or part of a structure which is the result of conscious construction
+Armor	300036745	Clothing designed to protect the body in combat
+Book	300028051	Object comprised of a sequence of leaves of paper or other material, typically carrying language or image, and bound together into a codex
+Clothing	300266639	Object made for the purpose of covering the body, excluding jewelry and accessories
+Coin	300037222	Object typically made of metal, used as currency
+Decorative Arts	300411641	Objects that are primarily utilitarian in form or function but have aesthetic value, including ceramics, furniture, textiles, glass, clocks and so on
+Drawing	300033973	Object created by application of lines on a surface
+Frame	300404391	Part of an object which surrounds a generally two dimensional artwork such as a painting
+Furniture	300037680	Objects used for sitting, reclining, or storage, such as a chair or cabinet
+Jewelry	300209286	Objects worn on the body for adornment rather than function typically of precious materials
+Lithograph	300041379	Prints created using the process of lithography
+Manuscript	300265483	Handwritten books, typically decorated and illustrated
+Map	300028094	Flat object which depicts a representation of the Earth's surface, including physical and/or political features
+Miniature	300033936	A painting on a very small scale, often excised from an illuminated Manuscript
+Mosaic	300015342	Objects created by arrangement of small pieces of durable material, such as stone or colored glass
+Musical Instrument	300041620	Object whose primary function is to enable the user to create music
+Painting	300033618	Object created by application of colored liquid onto a surface
+Photograph	300046300	Object produced by chemical action of light on a sensitive film
+Print	300041273	Objects created by transferring an image using a printing process
+Sculpture	300047090	Object created by carving or engraving a hard material or molding a malleable material
+Stained Glass	300263722	Objects made of colored glass, often in the form of a window, meant to be observed through refracted light
+Tapestry	300205002	A woven textile object, typically hung on a wall
+## Place Types
+Continent	300128176	The Place is a continent (Europe, Asia, North America, etc)
+Country	300128207	The Place is a country or Nation (France, Japan, USA, etc)
+State	300000776	The Place is a state (New York, California, etc)
+Province	300000774	The Place is a province or similar region (Ontario, Yorkshire, etc)
+County	300000771	The Place is a county (New Haven county, etc)
+City	300008389	The Place is a city (Paris, Chicago, Tokyo, etc)
+Museum (as Place)	300005768	The Place is a museum location
+Gallery	300240057	The Place is a (museum) gallery room in which art is displayed
+## Group Types
+Company	300160084	The Group is a commercial company or business
+Department	300263534	The Group is a department of another organization
+Family	300055474	The Group is an (extended) family related by blood and/or marriage
+Museum	300312281	The Group is a museum
+Organization	300025948	The Group is an organization or society of some sort
+## Digital Types
+Digital Image	300215302	The Digital Object is an image
+Web Page	300264578	The Digital Object is a web page
+## Set Types
+Archive	300375748	The Set is a top level Archive
+Archival Grouping	300404022	The Set is some grouping within an archive
+Archival Sub-Grouping	300404023	The Set is some grouping within an archival grouping
+Collection	300025976	The Set is a collection of things, typically physical objects and managed by an organization
+## Dimension Types
+Depth	300072633	The Dimension measures the depth of the entity, from the front to the back
+Height	300055644	The Dimension measures the height of the entity, from the top to the bottom
+Unknown Physical Dimension	300055642	The Dimension measures some unknown physical dimension of the entity
+Weight	300056240	The Dimension measures the weight of the entity
+Width	300055647	The Dimension measures the width of the object, from left to right
+## Languages
+ancient greek	300387827	Ancient Greek
+arabic	300387843	Arabic
+chinese	300388113	Chinese
+danish	300388204	Danish
+dutch	300388256	Dutch
+english	300388277	English
+farsi	300388296	Farsi
+finnish	300388299	Finnish
+french	300388306	French
+german	300388344	German
+greek	300388361	Greek
+hebrew	300388401	Hebrew
+hindi	300388412	Hindi
+icelandic	300388449	Icelandic
+irish	300388467	Irish
+italian	300388474	Italian
+japanese	300388486	Japanese
+korean	300388633	Korean
+latin	300388693	Latin
+norwegian	300388992	Norwegian
+polish	300389109	Polish
+portuguese	300389115	Portuguese
+romanian	300389157	Romanian
+russian	300389168	Russian
+spanish	300389311	Spanish
+swedish	300389336	Swedish
+tamil	300389365	Tamil
+thai	300389405	Thai
+turkish	300389470	Turkish
+urdu	300389502	Urdu
+welsh	300389555	Welsh
+## Measurement Units
+bytes	300265869	bytes
+centimeters	300379098	centimeters
+days	300379242	days
+feet	300379101	feet
+gigabytes	300265874	gigabytes
+grams	300379225	grams
+hours	300379241	hours
+inches	300379100	inches
+kilobytes	300265870	kilobytes
+kilograms	300379226	kilograms
+megabytes	300265873	megabytes
+meters	300379099	meters
+minutes	300379240	minutes
+millimeters	300379097	millimeters
+months	300379245	months
+partsUnit	300404159	parts
+percent	300417377	percent
+pounds	300379254	pounds
+seconds	300379239	seconds
+years	300379244	years
+## Materials
+bone	300011798	bone
+bronze	300010957	bronze
+canvas	300014078	canvas
+chalk	300011727	chalk
+clay	300010439	clay
+copper	300011020	copper
+glass	300010797	glass
+gold leaf	300264831	gold leaf
+graphite	300011098	graphite
+ink	300015012	ink
+marble	300011443	marble
+metal	300010900	metal
+oak	300012264	oak
+oil paint	300015050	oil
+paper	300014109	paper
+plaster	300014922	plaster
+silver	300011029	silver
+stone	300011176	stone
+tempera	300015062	tempera
+terracotta	300010669	terracotta
+watercolor	300015045	watercolors
+wood	300011914	wood
+## Currencies
+british pounds	300411998	British Pounds
+canadian dollar	300412000	Canadian Dollars
+euros	300411996	Euros
+Japanese Yen	300411997	Japanese Yen
+swiss franc	300412001	Swiss Francs
+us dollars	300411994	US Dollars
+## Nationalities
+american	300107956	American
+austrian	300111153	Austrian
+australian	300021861	Australian
+belgian	300111156	Belgian
+british	300111159	British
+canadian	300107962	Canadian
+chinese	300018322	Chinese
+czech	300111166	Czech
+danish	300111172	Danish
+dutch	300111175	Dutch
+egyptian	300020251	Egyptian
+flemish	300111184	Flemish
+french	300111188	French
+german	300111192	German
+greek	300264816	Greek
+hungarian	300111195	Hungarian
+indian	300018863	Indian
+irish	300111259	Irish
+italian	300111198	Italian
+japanese	300018519	Japanese
+mexican	300107963	Mexican
+new zealand	300021959	New Zealander
+norwegian	300111201	Norwegian
+polish	300111204	Polish
+portuguese	300111207	Portuguese
+russian	300111276	Russian
+spanish	300111215	Spanish
+swedish	300111218	Swedish
+swiss	300111221	Swiss
+## Occupations
+artist	300025103	Artist
+collector	300025234	Art Collector
+dealer	300025236	Art Dealer
+architect	300024987	Architect
+author	300025492	Author
+composer	300025671	(Music) Composer
+printer	300025732	Printer
+publisher	300025574	Publisher
+## Shapes
+arched	300126995	Arched
+circle	300263827	Circle
+oblong	300311843	Oblong
+octagonal	300263824	Octagonal
+oval	300263817	Oval
+rectangular	300263831	Rectangular
+square	300263832	Square
+upright	300343370	Upright

@@ -187,6 +187,8 @@ object = Group "std/object: physical characteristics"
     , ("the statements are Brief Text",            stdToJSON (  "(graph g (:kinds (image (list (object/dimension-statement \"379.5 cm\") (object/material-statement \"Oil on canvas\")) classified_as id)"
                                                              <> " :meta (image (object/material-statement \"Oil on canvas\") classified_as classified_as _label)))" )
                                                              "{\"kinds\": [\"http://vocab.getty.edu/aat/300435430\", \"http://vocab.getty.edu/aat/300435429\"], \"meta\": [\"Brief Text\"]}")
+    , ("the statements are labelled as Linked Art", stdToJSON "(graph g (image (list (object/dimension-statement \"379.5 cm\") (object/material-statement \"Oil on canvas\")) classified_as _label))"
+                                                             "[\"Dimensions Statement\", \"Materials Statement\"]")
     , ("part-type is classified Part Type",        stdToJSON "(graph g (object/part-type \"300014844\" \"Support\"))"
                                                              "{\"id\": \"http://vocab.getty.edu/aat/300014844\", \"type\": \"Type\", \"_label\": \"Support\", \"classified_as\": [{\"id\": \"http://vocab.getty.edu/aat/300241583\", \"type\": \"Type\", \"_label\": \"Part Type\"}]}")
     , ("std/object exports these only",            stdFailsWith "exports: centimeters, depth, dimension, dimension-statement, feet, grams, height, inches, kilograms, material, material-statement, meters, millimeters, part-type, pounds, unit, weight, width."

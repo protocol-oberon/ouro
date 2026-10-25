@@ -3,6 +3,7 @@
 module Main where
 
 import           Hedgehog
+import qualified Ouro.AatTest        as Aat
 import qualified Ouro.BuildTest      as Build
 import qualified Ouro.CanonicalTest  as Canonical
 import qualified Ouro.EvaluationTest as Evaluation
@@ -66,6 +67,8 @@ main = withUtf8Console $ do
         , Std.exhibition
         , Std.digital
         , Std.everyModule
+        -- The bundled aat: Linked Art's recommended terms, generated from its table
+        , Aat.recommendedTerms
         -- Bindings: let, fn and defn replace define and defun
         , Let.letAndFn
         -- The language as specified: what reaches the output, special forms and built-ins

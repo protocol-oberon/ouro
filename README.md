@@ -933,6 +933,17 @@ A file uses another's functions by importing it, and offers its own by exporting
 
 For example, `(base/name vocab/primary-name "Spring")` is a Primary Name, and `(time/year "1881")` runs from its first second to 23:59:59 on 31 December. `(import std)` on its own is an error that lists `std`'s modules. A module of the project with a bundled module's name is imported in its place, with a warning (`WRN0005`), so a project can replace one on purpose.
 
+`aat` is a second folder of bundled modules: the terms Linked Art [recommends](https://linked.art/model/vocab/recommended/), one module per section of its list, 195 terms in all. Each is a constant, built with `std`'s pattern for its kind, so a nationality is classified as Nationality and an object type as Type of Work, as Linked Art requires:
+
+``` clojure
+(import aat/nationality)   ; nationality/dutch
+(import aat/language)      ; language/dutch
+(import aat/object-type)   ; object-type/painting
+(import aat/unit)          ; unit/centimeters
+```
+
+The modules are `name-type`, `identifier-type`, `statement-type`, `object-type`, `place-type`, `group-type`, `digital-type`, `set-type`, `dimension-type`, `language`, `unit`, `material`, `currency`, `nationality`, `occupation` and `shape`. A term is named as Linked Art names it, and labelled as Linked Art describes it, capitalised: `(occupation/collector)` is "Art Collector". Seven names are taken: the six time units are `unit/year-unit`, `unit/month-unit` and so on, since `years` and its kin are built-ins, and Map is `object-type/map-object`, since `map` is a special form. The modules are generated from Linked Art's list by `scripts/aat/generate.pl`, never written by hand.
+
 Module paths are written with `/` on every platform, Windows included.
 
 # Canonical Example

@@ -354,7 +354,7 @@ moduleErrors = Group "Modules: every error, with its code, place and hint"
                                                                  "(defn f ((?a/b)) 1) (graph g (:r 1))")
 
       -- Finding a module
-    , ("a module that does not exist",             importsFailAt "SCP0006" ("inline-test", 1, 1) ["missingModule = \"nope\"", "The bundled modules are: std/actor, std/base, std/digital, std/exhibition, std/object, std/provenance, std/time, std/vocab."] []
+    , ("a module that does not exist",             importsFailAt "SCP0006" ("inline-test", 1, 1) ["missingModule = \"nope\"", "The bundled modules are in the folders aat and std, and importing a folder, as (import std), lists its modules."] []
                                                                  "(import nope) (graph g (:r 1))")
     , ("a module near a bundled one",              importsFailAt "SCP0006" ("inline-test", 1, 1) ["missingModule = \"std/bsae\"", "Perhaps you meant 'std/base'"] []
                                                                  "(import std/bsae) (graph g (:r 1))")
@@ -409,7 +409,7 @@ moduleErrors = Group "Modules: every error, with its code, place and hint"
                                                                  "(import badly-named) (graph g (:r (badly-named/badName)))")
 
       -- A module says where it was looked for, and a project's module replaces a bundled one
-    , ("a missing module says where it looked",    importsFailAt "SCP0006" ("inline-test", 1, 1) ["Looked for nope.ouro.", "The bundled modules are: std/actor, std/base, std/digital, std/exhibition, std/object, std/provenance, std/time, std/vocab."] []
+    , ("a missing module says where it looked",    importsFailAt "SCP0006" ("inline-test", 1, 1) ["Looked for nope.ouro.", "The bundled modules are in the folders aat and std, and importing a folder, as (import std), lists its modules."] []
                                                                  "(import nope) (graph g (:r 1))")
     , ("a project module replaces a bundled one",  importsWarnAt "WRN0005" ("inline-test", 1, 1) ["The project's module 'std/base' replaces the bundled 'std/base'", "std/base.ouro replaces the bundled 'std/base'", "Perhaps rename the file"] [mineStd]
                                                                  "(import std/base) (graph g (:r (base/core 1 2 3)))")

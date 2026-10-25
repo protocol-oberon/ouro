@@ -68,11 +68,11 @@
 
 (defn dimension-statement #rec (#str content)
   (doc "A statement of an object's dimensions, as text: (dimension-statement \"379.5 cm x 453.5 cm\").")
-  (base/statement (base/statement-kind "300435430" "Dimension Statement") content))
+  (base/statement (base/statement-kind "300435430" "Dimensions Statement") content))
 
 (defn material-statement #rec (#str content)
   (doc "A statement of an object's materials, as text: (material-statement \"Oil on canvas\").")
-  (base/statement (base/statement-kind "300435429" "Material Statement") content))
+  (base/statement (base/statement-kind "300435429" "Materials Statement") content))
 
 (defn part-type #rec (#str id #str label)
   (doc "A type of part, classified as Part Type, for a part of an object: (part-type \"300014844\" \"Support\").")

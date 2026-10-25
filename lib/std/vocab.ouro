@@ -34,7 +34,7 @@
 (defn sort-value   () (doc "Classifies an Identifier used to sort, never shown.") (term "300456575" "Sort Value"))
 
 ;; Meta-types: terms that classify other terms
-(defn brief-text   () (doc "The meta-type of statement kinds, as Description or Material Statement.") (term "300418049" "Brief Text"))
+(defn brief-text   () (doc "The meta-type of statement kinds, as Description or Materials Statement.") (term "300418049" "Brief Text"))
 (defn type-of-work () (doc "The meta-type of work types, as Painting.") (term "300435443" "Type of Work"))
 (defn style        () (doc "The meta-type of styles, as Impressionism.") (term "300015646" "Style"))
 (defn shape        () (doc "The meta-type of shapes, as Oblong.") (term "300056273" "Shape"))

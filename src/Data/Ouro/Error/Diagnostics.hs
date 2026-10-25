@@ -15,6 +15,7 @@ import           Data.Ouro.Error.Types     (BuildError (..), ErrorContext (..),
 import           Data.Ouro.Internal.Utils  (rankBySimilarity)
 import           Data.Ouro.Lisp.Eval.Types (humanReadableType)
 import qualified Data.Ouro.Lisp.Eval.Types as L
+import qualified Data.Set                  as Set
 import           Data.Text                 (Text)
 import qualified Data.Text                 as T
 import           GHC.Generics              (C1, D1, Generic (from), M1 (..),
@@ -151,9 +152,19 @@ moduleNotFound path searched bundledNames =
     hint = case folder of
                first : _ -> "'" <> path <> "' is a folder of modules, not a module: perhaps (import " <> suggested first <> "). "
                          <> "Its modules are: " <> T.intercalate ", " folder <> "."
-               []        -> "The bundled modules are: " <> T.intercalate ", " bundledNames <> "." <> closest path bundledNames
+               []        -> "The bundled modules are in the folders " <> andList roots <> ", and importing a folder, as (import std), "
+                         <> "lists its modules." <> closest path bundledNames
 
     folder = filter ((path <> "/") `T.isPrefixOf`) bundledNames
+
+    -- The folders the bundled modules are in, std and aat, each once: listing every module
+    -- would bury the message
+    roots = Set.toList (Set.fromList [ T.takeWhile (/= '/') name | name <- bundledNames ])
+
+    andList = \case
+        []    -> ""
+        [one] -> one
+        names -> T.intercalate ", " (init names) <> " and " <> last names
 
     suggested first
         | (path <> "/base") `elem` folder = path <> "/base"
