@@ -1,43 +1,37 @@
-(defn core #rec (#str id #str type #str label)
-  (let ($getty      "http://vocab.getty.edu/aat/"
-        $linked-art "https://linked.art/example/"
-        $base       (case id
-                          (("manet" "proust") (+ linked-art "person/"))
-                          ("spring"           (+ linked-art "object/"))
-                          ("manet_proust/1"   (+ linked-art "provenance/"))
-                          (otherwise          getty)))
+(import std/base)
+(import std/vocab)
+(import std/provenance)
 
-    (:id     #uri (+ base id)
-     :type   type
-     :_label label)))
+(defn example #uri (#str path)
+  (+ "https://linked.art/example/" path))
+
+(defn person #rec (#str slug #str label)
+  (:id (example (+ "person/" slug)) :type "Person" :_label label))
 
 (graph purchase-of-spring
- (let ($aat-type (core ? "Type" ?)
-       $person   (core ? "Person" ?))
+ (let ($manet  (person "manet" "Manet")
+       $proust (person "proust" "Proust")
+       $spring (:id (example "object/spring") :type "HumanMadeObject" :_label "Spring"))
 
-  (with (core "manet_proust/1" "Activity" "Purchase of Spring by Proust")
-   :context "https://linked.art/ns/v1/linked-art.json"
-   :classified_as ((aat-type "300055863" "Provenance Activity"))
+  (:context       "https://linked.art/ns/v1/linked-art.json"
 
-   :identified_by ((:type          "Name"
-                    :classified_as ((aat-type "300404670" "Primary Name"))
-                    :content       "Purchase of Spring by Proust from Manet"))
+   :id            (example "provenance/manet_proust/1")
+   :type          "Activity"
+   :_label        "Purchase of Spring by Proust"
+   :classified_as (list vocab/provenance-activity)
+   :identified_by (list (base/name vocab/primary-name "Purchase of Spring by Proust from Manet"))
 
-   :timespan (:type               "TimeSpan"
-              :begin_of_the_begin #date "1881-01-01T00:00:00Z"
-              :end_of_the_end     (+ begin_of_the_begin (thru (years 2))))
+   :timespan      (:type               "TimeSpan"
+                   :begin_of_the_begin #date "1881-01-01T00:00:00Z"
+                   :end_of_the_end     (+ begin_of_the_begin (thru (years 2))))
 
-   ;; A list of records in Ouro is made from nested parens `(())`
-   :part ((:type                   "Acquisition"
-           :_label                 "Ownership of Spring to Proust"
-           :transferred_title_of   ((core "spring" "HumanMadeObject" "Spring"))
-           :transferred_title_from ((person "manet"  "Manet"))
-           :transferred_title_to   ((person "proust" "Proust")))
+   ;; Each part is std's node with Linked Art's _label: written attribute pairs come first
+   ;; and win over an inlay's. Title goes from Manet to Proust, money from Proust to Manet
+   :part          (list (:type   "Acquisition"
+                         :_label "Ownership of Spring to Proust"
+                         (inlay (provenance/acquisition spring manet proust)))
 
-          (:type        "Payment"
-           :_label      "3000 Francs to Manet"
-           :paid_amount (:type     "MonetaryAmount"
-                         :value    3000
-                         :currency (core "300412016" "Currency" "French Francs"))
-           :paid_from   ((person "proust" "Proust"))
-           :paid_to     ((person "manet"  "Manet")))))))
+                        (:type   "Payment"
+                         :_label "3000 Francs to Manet"
+                         (inlay (provenance/payment (provenance/money 3000 (provenance/currency "300412016" "French Francs"))
+                                                    proust manet)))))))

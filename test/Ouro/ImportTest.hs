@@ -281,7 +281,7 @@ bundledNamesUseSlash = withTests 1 . property $ do
 bundledMatchesLib :: Property
 bundledMatchesLib = withTests 1 . property $ do
     onDisk <- evalIO (ouroFiles "lib")
-    annotate "A module in lib/ is not in the build: rebuild with cabal build all --ghc-options=-fforce-recomp"
+    annotate "A module in lib/ is not in the build: run cabal clean, then cabal build all"
     sort onDisk === sort (map fst (Map.elems bundled))
     where
     ouroFiles dir = do

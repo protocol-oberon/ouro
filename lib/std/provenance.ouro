@@ -5,8 +5,17 @@
 (import std/base)
 (import std/vocab)
 
-(export purchase acquisition payment money
-        currency british-pounds canadian-dollars euros japanese-yen swiss-francs us-dollars)
+(export purchase
+        acquisition
+        payment
+        money
+        currency
+        british-pounds
+        canadian-dollars
+        euros
+        japanese-yen
+        swiss-francs
+        us-dollars)
 
 (defn purchase #rec (#rec object #rec seller #rec buyer #rec amount #rec span)
   (doc "A purchase of an object from a seller by a buyer, for an amount, over a span: its Acquisition and its Payment.")
@@ -40,9 +49,9 @@
   (doc "A Currency from the Getty AAT, by its number: (currency \"300412016\" \"French Francs\").")
   (:id #uri (+ "http://vocab.getty.edu/aat/" id) :type "Currency" :_label label))
 
-(defn british-pounds   () (doc "British pounds.")   (currency "300411998" "british pounds"))
-(defn canadian-dollars () (doc "Canadian dollars.") (currency "300412000" "canadian dollar"))
-(defn euros            () (doc "Euros.")            (currency "300411996" "euros"))
-(defn japanese-yen     () (doc "Japanese yen.")     (currency "300411997" "japanese yen"))
-(defn swiss-francs     () (doc "Swiss francs.")     (currency "300412001" "swiss franc"))
-(defn us-dollars       () (doc "US dollars.")       (currency "300411994" "us dollars"))
+(defn british-pounds   () (doc "British pounds.")   (currency "300411998" "British Pounds"))
+(defn canadian-dollars () (doc "Canadian dollars.") (currency "300412000" "Canadian Dollars"))
+(defn euros            () (doc "Euros.")            (currency "300411996" "Euros"))
+(defn japanese-yen     () (doc "Japanese yen.")     (currency "300411997" "Japanese Yen"))
+(defn swiss-francs     () (doc "Swiss francs.")     (currency "300412001" "Swiss Francs"))
+(defn us-dollars       () (doc "US dollars.")       (currency "300411994" "US Dollars"))

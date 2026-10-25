@@ -4,7 +4,14 @@
 (import std/base)
 (import std/vocab)
 
-(export given-name middle-name family-name gender active street-address telephone email)
+(export given-name
+        middle-name
+        family-name
+        gender
+        active
+        street-address
+        telephone
+        email)
 
 ;; The parts of a name, for a Name's part
 

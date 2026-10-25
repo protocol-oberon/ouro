@@ -1,7 +1,8 @@
+(import std/base)
+
 ;; let bindings are elided at compilation
 (graph jeanne-spring
- (let ($getty-uri      "http://vocab.getty.edu/aat/"
-       $linked-art-uri "https://linked.art/example/")
+ (let ($linked-art-uri "https://linked.art/example/")
 
   (:context "https://linked.art/ns/v1/linked-art.json"
 
@@ -9,12 +10,9 @@
    :id             #uri (+ linked-art-uri "object/spring/13")
    :type           "HumanMadeObject"
    :_label         "Jeanne (Spring) by Manet"
-   :classified_as  ((:id             #uri (+ getty-uri "300033618")
-                     :type           "Type"
-                     :_label         "Painting"
-                     :classified_as  ((:id     #uri (+ getty-uri "300435443")
-                                       :type   "Type"
-                                       :_label "Type of Work"))))
+
+   ;; A type of work, classified as Type of Work, as Linked Art requires
+   :classified_as  ((base/work-type "300033618" "Painting"))
 
    :identified_by  ((:type    "Name"
                      :content "Jeanne (Spring)"))

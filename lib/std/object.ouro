@@ -4,9 +4,24 @@
 ;; MeasurementUnit; a material is typed Material, with no meta-type.
 (import std/base)
 
-(export dimension height width depth weight
-        unit centimeters millimeters meters inches feet grams kilograms pounds
-        material dimension-statement material-statement part-type)
+(export dimension
+        height
+        width
+        depth
+        weight
+        unit
+        centimeters
+        millimeters
+        meters
+        inches
+        feet
+        grams
+        kilograms
+        pounds
+        material
+        dimension-statement
+        material-statement
+        part-type)
 
 ;; Dimensions
 

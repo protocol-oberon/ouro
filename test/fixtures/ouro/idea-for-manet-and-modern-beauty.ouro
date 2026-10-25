@@ -1,8 +1,6 @@
 (import std/base)
-
-;; Not yet in std: Linked Art patterns kept here until std grows
-(defn classified #rec (#rec r #rec t)
-  (with r :classified_as (list t)))
+(import std/vocab)
+(import std/exhibition)
 
 (defn example #uri (#str path)
   (+ "https://linked.art/example/" path))
@@ -10,23 +8,16 @@
 (defn person #rec (#str slug #str label)
   (:id (example (+ "person/" slug)) :type "Person" :_label label))
 
-;; Steps: each takes a record first and returns it extended, so they thread with ->
-(defn named      #rec (#rec r #str n)
-  (with r :identified_by ((:type          "Name"
-                           :classified_as ((base/aat "300404670" "Primary Name"))
-                           :content       n))))
-(defn about      #rec (#rec r xs)     (with r :about xs))
-(defn created-by #rec (#rec r people)
-  (with r :created_by (:type           "Creation"
-                       :carried_out_by (map (λ ((?slug ?label)) (person slug label)) people))))
-
+;; std/exhibition builds the concept, classified as an Exhibition; the steps add the rest
 (graph idea-for-manet-and-modern-beauty
-  (-> (:id (example "concept/exhidea/1") :type "PropositionalObject" :_label "Idea for Manet and Modern Beauty")
-      (with :context "https://linked.art/ns/v1/linked-art.json")
-      (classified (base/aat "300417531" "Exhibition"))
-      (named "Manet and Modern Beauty")
-      (about ((base/aat "300055821" "Beauty")
-              (base/ulan "500010363" "Person" "Manet")))
-      (created-by (("allan" "Scott Allan")
-                   ("beeny" "Emily Beeny")
-                   ("groom" "Gloria Groom")))))
+  (-> (exhibition/concept (example "concept/exhidea/1") "Idea for Manet and Modern Beauty")
+      (with :context       "https://linked.art/ns/v1/linked-art.json")
+      (with :identified_by (list (base/name vocab/primary-name "Manet and Modern Beauty")))
+      (with :about         (list (base/aat "300055821" "Beauty")
+                                 (base/ulan "500010363" "Person" "Manet")))
+      ;; A pattern parameter takes each pair apart
+      (with :created_by    (:type           "Creation"
+                            :carried_out_by (map (λ ((?slug ?label)) (person slug label))
+                                                 (("allan" "Scott Allan")
+                                                  ("beeny" "Emily Beeny")
+                                                  ("groom" "Gloria Groom")))))))

@@ -3,7 +3,11 @@
 ;; included, and a year on the 31st of December. Each function takes a date written to its
 ;; precision, "1881", "1880-02" or "1832-01-23", and builds a TimeSpan; a date that is not
 ;; one is an error. Uncertain dates and display names are written with with.
-(export span day month year year-range)
+(export span
+        day
+        month
+        year
+        year-range)
 
 (defn span #rec (#date begin #date end)
   (doc "A TimeSpan from the beginning of its beginning to the end of its end, both included: (span \"1881-01-01T00:00:00Z\" \"1881-12-31T23:59:59Z\").")

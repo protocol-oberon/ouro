@@ -1,8 +1,5 @@
-;; A Getty AAT term, as a record
-(defn aat #rec (#str type #str id #str label)
-  (:id     #uri (+ "http://vocab.getty.edu/aat/" id)
-   :type   type
-   :_label label))
+(import std/base)
+(import std/object)
 
 ;; A JSON-LD graph must be named
 (graph auction-of-stowe-house
@@ -11,13 +8,12 @@
        $auction-restart #date "1848-09-09T00:00:00Z")
 
   (:context       #uri "https://linked.art/ns/v1/linked-art.json"
-
    :id            #uri "https://linked.art/example/event/stowe/1"
    :type          "Activity"
    :_label        "Auction of Stowe House"
+   :classified_as ((base/aat "300054751" "Auction Event"))
 
-   :classified_as ((aat "Type" "300054751" "Auction Event"))
-
+   ;; An uncertain span is written out: std/time builds spans whose ends are known
    :timespan      (:type               "TimeSpan"
                    :identified_by      ((:type    "Name"
                                          :content "40 days in August and September, 1848"))
@@ -30,4 +26,4 @@
 
                    :duration           (:type  "Dimension"
                                         :value 3
-                                        :unit  (aat "MeasurementUnit" "300379242" "days"))))))
+                                        :unit  (object/unit "300379242" "days"))))))

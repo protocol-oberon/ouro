@@ -5,7 +5,9 @@
 (import std/base)
 (import std/vocab)
 
-(export exhibiting concept set)
+(export exhibiting
+        concept
+        set)
 
 (defn exhibiting #rec (#uri id #str label)
   (doc "The Activity of exhibiting, classified as an exhibition activity; its venue and span are added with with.")

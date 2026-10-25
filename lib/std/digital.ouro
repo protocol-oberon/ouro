@@ -4,7 +4,8 @@
 ;; access_point, the file or the page itself rather than a description of it.
 (import std/base)
 
-(export picture web-page)
+(export picture
+        web-page)
 
 (defn picture #rec (#uri url #str format)
   (doc "An image of an object, at a URL in a media type, for representation: (picture \"https://a.org/spring.jpg\" \"image/jpeg\").")

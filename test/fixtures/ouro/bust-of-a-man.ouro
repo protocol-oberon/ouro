@@ -1,21 +1,13 @@
-;; Module wide constants are functions with no arguments
-(defn getty-aat #str ()
-  "http://vocab.getty.edu/aat/")
+(import std/base)
 
-;; A signature: the return type goes before the parameters, each parameter's type before its name
-(defn core #rec (#str id #str type #str label)
-  (let ($getty-ulan "http://vocab.getty.edu/ulan/"
-        $base       (case type
-                          ("Person"  getty-ulan)
-                          (otherwise (getty-aat))))
-
-    (:id     #uri (+ base id)
-     :type   type
-     :_label label)))
+;; A function of no parameters is a constant: named as a value, it is its result. Its
+;; signature, #rec, is the return type, written before the parameters
+(defn sculpting #rec ()
+  (base/aat "300264383" "Sculpting"))
 
 (graph bust-of-a-man
  ;; A call with ? holes is a function of its holes
- (let ($aat-type (core ? "Type" ?))
+ (let ($person (base/ulan ? "Person" ?))
 
   (:context "https://linked.art/ns/v1/linked-art.json"
 
@@ -23,10 +15,8 @@
    :type   "HumanMadeObject"
    :_label "Bust of a Man"
 
-   ;; with writes attribute pairs over a record
-   :classified_as ((with (aat-type "300047090" "Sculpture")
-                     :classified_as ((aat-type "300435443" "Type of Work"))))
+   :classified_as ((base/work-type "300047090" "Sculpture"))
 
    :produced_by   (:type           "Production"
-                   :technique      ((aat-type "300264383" "Sculpting"))
-                   :carried_out_by ((core "500015886" "Person" "Francis Harwood"))))))
+                   :technique      (list sculpting)
+                   :carried_out_by ((person "500015886" "Francis Harwood"))))))

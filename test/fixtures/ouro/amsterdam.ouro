@@ -1,31 +1,18 @@
 (import std/base)
 
-;; Not yet in std: Linked Art patterns kept here until std grows
-(defn classified #rec (#rec r #rec t)
-  (with r :classified_as (list t)))
-
+;; A project's own URIs stay in the project: std builds Linked Art's nodes, not their ids
 (defn example #uri (#str path)
   (+ "https://linked.art/example/" path))
 
 (defn place #rec (#str slug #str label)
   (:id (example (+ "place/" slug)) :type "Place" :_label label))
 
-(defn brief-text #rec (#str content)
-  (:type          "LinguisticObject"
-   :classified_as ((-> (base/aat "300435416" "Description")
-                       (classified (base/aat "300418049" "Brief Text"))))
-   :content       content))
-
-;; Steps: each takes a record first and returns it extended, so they thread with ->
-(defn named     #rec (#rec r #str n)     (with r :identified_by ((:type "Name" :content n))))
-(defn described #rec (#rec r #str text)  (with r :referred_to_by ((brief-text text))))
-(defn part-of   #rec (#rec r #rec whole) (with r :part_of (list whole)))
-
+;; -> threads the place through its steps; with sets each property, a set written as a list
 (graph amsterdam
   (-> (place "amsterdam/1" "Amsterdam")
-      (with :context "https://linked.art/ns/v1/linked-art.json")
-      (classified (base/aat "300008389" "City"))
-      (named "Amsterdam")
-      (described "Amsterdam is a city in the Netherlands")
-      (part-of (-> (place "netherlands" "Netherlands")
-                   (classified (base/aat "300128207" "Nation"))))))
+      (with :context        "https://linked.art/ns/v1/linked-art.json")
+      (with :classified_as  ((base/aat "300008389" "City")))
+      (with :identified_by  ((:type "Name" :content "Amsterdam")))
+      (with :referred_to_by ((base/description "Amsterdam is a city in the Netherlands")))
+      (with :part_of        ((-> (place "netherlands" "Netherlands")
+                                 (with :classified_as ((base/aat "300128207" "Nation"))))))))

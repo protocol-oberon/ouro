@@ -447,20 +447,13 @@ An inlaid record's `@context` is layered in too. The record ends up with the inl
 `(with base :key value ...)` is `base` with the attribute pairs written over it, exactly as `((inlay base) :key value ...)`: a written attribute pair wins over the base's own. `(-> x step ...)` threads a value through steps, each receiving the value before it as its first argument. Together they build a record step by step:
 
 ```clojure
-(defn core (id type label)
-  (:id #uri id :type type :_label label))
-
-(defn aat (id label)
-  (core (+ "http://vocab.getty.edu/aat/" id) "Type" label))
-
-(defn classified (r t) (with r :classified_as (list t)))
-(defn named      (r n) (with r :identified_by (list (:type "Name" :content n))))
+(import std/base)
 
 (graph amsterdam
-  (-> (core "https://linked.art/example/place/amsterdam/1" "Place" "Amsterdam")
-      (with :context "https://linked.art/ns/v1/linked-art.json")
-      (classified (aat "300008389" "City"))
-      (named "Amsterdam")))
+  (-> (:id #uri "https://linked.art/example/place/amsterdam/1" :type "Place" :_label "Amsterdam")
+      (with :context       "https://linked.art/ns/v1/linked-art.json")
+      (with :classified_as (list (base/aat "300008389" "City")))
+      (with :identified_by (list (:type "Name" :content "Amsterdam")))))
 ```
 
 ...compiles to:
@@ -490,6 +483,52 @@ An inlaid record's `@context` is layered in too. The record ends up with the inl
 - A step's value goes in as its first argument, or where a hole marks it: `(-> 1 (- 10))` is `-9`, and `(-> 1 (- 10 ?))` is `9`. A bare name is called with the value, and so is a `fn`.
 - `(-> ? step ...)` is a function of the value, so a pipeline can be mapped: `(map (-> ? (with :seen true)) records)`.
 - `with` extends an Array too: `(with (1 2) 3 4)` is `(1 2 3 4)`.
+- `with` writes a value as it is given, so a property that holds a set is written as a list, `(list (base/aat ...))`, as Linked Art writes it.
+
+### Adjoin
+
+`(adjoin base :key value ...)` is `with`'s dual: the same shape, in `->` and under placeholders alike, but where `with` sets a key, `adjoin` adds to the key's set of values, as JSON-LD reads a property. So `with` suits a property that holds one value (`_label`, `produced_by`), and `adjoin` one that holds a set (`classified_as`, `identified_by`). Use `with` for a property's first value, and `adjoin` to add to it:
+
+```clojure
+(import std/base)
+(import std/vocab)
+
+(graph spring
+  (-> (:type "HumanMadeObject" :classified_as (list vocab/artwork))
+      (adjoin :classified_as (base/work-type "300033618" "Painting"))
+      (adjoin :classified_as vocab/artwork)))
+```
+
+...compiles to:
+
+``` json
+{
+  "type": "HumanMadeObject",
+  "classified_as": [
+    {
+      "id": "http://vocab.getty.edu/aat/300133025",
+      "type": "Type",
+      "_label": "Artwork"
+    },
+    {
+      "id": "http://vocab.getty.edu/aat/300033618",
+      "type": "Type",
+      "_label": "Painting",
+      "classified_as": [
+        {
+          "id": "http://vocab.getty.edu/aat/300435443",
+          "type": "Type",
+          "_label": "Type of Work"
+        }
+      ]
+    }
+  ]
+}
+```
+
+- A value already there is not added again, compared as `eq` compares, by value; the values already there are kept as they are. A key that is added to always holds an Array.
+- A list adds its elements: `(adjoin r :k (list a b))`. An Array base adds the elements not there: `(adjoin (1 2) 2 3)` is `(1 2 3)`.
+- `with` after `adjoin` sets the key; `adjoin` after `with` adds to it.
 
 ### Insert
 
@@ -693,14 +732,16 @@ A function is documented with a `(doc "...")` among the direct elements of its b
 ``` clojure
 (defn place #rec (#str slug #str label)
   (doc "A Linked Art Place, under the example namespace.")
-  (base/core (example (+ "place/" slug)) "Place" label))
+  (:id (example (+ "place/" slug)) :type "Place" :_label label))
 ```
+
+A function of no parameters is a constant: named as a value, it is its result, so `vocab/artwork` is `(vocab/artwork)`. Ouro has no effects, so such a function cannot be told from its value; `(c)` still calls it. A constant cannot be passed on as a function, and an error in it is reported where it is defined.
 
 Names:
 
 - Functions and graphs are named in kebab-case, `make-place`. A name with a capital or an underscore is a warning (`WRN0004`) that suggests the kebab-case spelling. Attribute keys and local bindings are exempt, since keys follow the data's vocabulary (`:_label`).
 - A `defn` may take the name of a built-in, as in Scheme, and replaces it throughout the file, with a warning (`WRN0003`). A special form's name cannot be taken.
-- A `/` qualifies an imported name, `base/core`, so no function, parameter or `let` binding can have one. The operators `/` and `/=` are names like any other.
+- A `/` qualifies an imported name, `base/aat`, so no function, parameter or `let` binding can have one. The operators `/` and `/=` are names like any other.
 
 ### Signatures
 
@@ -847,7 +888,7 @@ Ouro uses Scheme style lexical scoping, this means that scope is defined by the 
 A file uses another's functions by importing it, and offers its own by exporting them. Both are written first in the file:
 
 ``` clojure
-(import std/base)                     ; base/core, base/name
+(import std/base)                     ; base/aat, base/name, ...
 (import linked-art/v1/people as la)   ; la/person
 (export place named part-of)
 ```
@@ -858,7 +899,20 @@ A file uses another's functions by importing it, and offers its own by exporting
 - Modules cannot import each other in a circle (`SCP0009`): Ouro has no recursion, across files as within one.
 - An error inside an imported module is reported, and shown, in that module's file and line.
 
-`std` is a folder of modules bundled with the compiler, so they need no file. They hold Linked Art's own patterns, and each mirrors a section of [Linked Art's model](https://linked.art/model/), so `provenance/acquisition` is what linked.art/model/provenance describes. Importing a `std/` module says that its functions build Linked Art's nodes. There is one so far, `std/base`, the base patterns: `base/core` (a node's `id`, `type` and `_label`) and `base/name` (a Name). More will follow (`std/event`, `std/object`, `std/actor`, `std/place`, `std/provenance`, `std/exhibition`, `std/digital`, and the required vocabulary in `std/vocab`). `(import std)` on its own is an error that lists `std`'s modules. A module of the project with a bundled module's name is imported in its place, with a warning (`WRN0005`), so a project can replace one on purpose.
+`std` is a folder of modules bundled with the compiler, so they need no file. They hold Linked Art's own patterns, and each mirrors a section of [Linked Art's model](https://linked.art/model/), so `provenance/acquisition` is what linked.art/model/provenance describes. Importing a `std/` module says that its functions build Linked Art's nodes. Each function takes values and builds a node; none extends a record, which is written as a literal or threaded through `with` and `adjoin`:
+
+| Module           | Holds                                                                                                                 |
+|:-----------------|:----------------------------------------------------------------------------------------------------------------------|
+| `std/vocab`      | the 18 terms Linked Art requires, as constants: `vocab/primary-name`, `vocab/artwork`, ...                             |
+| `std/base`       | Getty entities by number (`aat`, `tgn`, `ulan`, `language`); types with their meta-type (`work-type`, `nationality`, ...); `name`, `identifier`, `statement`, `description` |
+| `std/time`       | time spans, whose end is included: `span`, `day`, `month`, `year`, `year-range`                                        |
+| `std/object`     | dimensions (`height`, `width`, `depth`, `weight`), units, `material`, dimension and material statements, `part-type`  |
+| `std/actor`      | name parts, `gender`, `active` (a professional life), contact points                                                   |
+| `std/provenance` | `purchase` (an Acquisition and a Payment, their roles reversed), `acquisition`, `payment`, `money`, currencies        |
+| `std/exhibition` | `exhibiting`, `concept` and `set`                                                                                      |
+| `std/digital`    | `picture`, an image for `representation`, and `web-page`, for `subject_of`                                             |
+
+For example, `(base/name vocab/primary-name "Spring")` is a Primary Name, and `(time/year "1881")` runs from its first second to 23:59:59 on 31 December. `(import std)` on its own is an error that lists `std`'s modules. A module of the project with a bundled module's name is imported in its place, with a warning (`WRN0005`), so a project can replace one on purpose.
 
 Module paths are written with `/` on every platform, Windows included.
 
@@ -867,43 +921,28 @@ Module paths are written with `/` on every platform, Windows included.
 *Idea for Manet and Modern Beauty*
 ``` clojure
 (import std/base)
-
-;; Not yet in std: Linked Art patterns kept here until std grows
-(defn aat #rec (#str id #str label)
-  (base/core #uri (+ "http://vocab.getty.edu/aat/" id) "Type" label))
-
-(defn ulan #rec (#str id #str label)
-  (base/core #uri (+ "http://vocab.getty.edu/ulan/" id) "Person" label))
-
-(defn classified #rec (#rec r #rec t)
-  (with r :classified_as (list t)))
+(import std/vocab)
+(import std/exhibition)
 
 (defn example #uri (#str path)
   (+ "https://linked.art/example/" path))
 
 (defn person #rec (#str slug #str label)
-  (base/core (example (+ "person/" slug)) "Person" label))
+  (:id (example (+ "person/" slug)) :type "Person" :_label label))
 
-;; Steps: each takes a record first and returns it extended, so they thread with ->
-(defn named      #rec (#rec r #str n)
-  (with r :identified_by ((:type          "Name"
-                           :classified_as ((aat "300404670" "Primary Name"))
-                           :content       n))))
-(defn about      #rec (#rec r xs)     (with r :about xs))
-(defn created-by #rec (#rec r people)
-  (with r :created_by (:type           "Creation"
-                       :carried_out_by (map (λ ((?slug ?label)) (person slug label)) people))))
-
+;; std/exhibition builds the concept, classified as an Exhibition; the steps add the rest
 (graph idea-for-manet-and-modern-beauty
-  (-> (base/core (example "concept/exhidea/1") "PropositionalObject" "Idea for Manet and Modern Beauty")
-      (with :context "https://linked.art/ns/v1/linked-art.json")
-      (classified (aat "300417531" "Exhibition"))
-      (named "Manet and Modern Beauty")
-      (about ((aat "300055821" "Beauty")
-              (ulan "500010363" "Manet")))
-      (created-by (("allan" "Scott Allan")
-                   ("beeny" "Emily Beeny")
-                   ("groom" "Gloria Groom")))))
+  (-> (exhibition/concept (example "concept/exhidea/1") "Idea for Manet and Modern Beauty")
+      (with :context       "https://linked.art/ns/v1/linked-art.json")
+      (with :identified_by (list (base/name vocab/primary-name "Manet and Modern Beauty")))
+      (with :about         (list (base/aat "300055821" "Beauty")
+                                 (base/ulan "500010363" "Person" "Manet")))
+      ;; A pattern parameter takes each pair apart
+      (with :created_by    (:type           "Creation"
+                            :carried_out_by (map (λ ((?slug ?label)) (person slug label))
+                                                 (("allan" "Scott Allan")
+                                                  ("beeny" "Emily Beeny")
+                                                  ("groom" "Gloria Groom")))))))
 ```
 
 Which compiles into the following JSON-LD:
@@ -1061,5 +1100,6 @@ These are agreed directions for Ouro, roughly in the order they will be built. N
 - **Builds:** `ouro build`, described by an optional `build.ouro`, which holds a single graph and nothing else: the source folders, where the output goes, and dependencies pinned to commits, as Nix pins them. A file compiles on its own without one.
 - **A REPL and a language server,** bundled with the compiler, as `std` is, so that they run the same parser and evaluator as `compile`.
 - **Search:** an Ouro Hoogle, finding functions by name, by signature and by their documentation.
+- **Geometry** (on hold): a `#wkt` property for the WKT string of a place's `defined_by`, and functions that build it from numbers, `(place/point 4.9 52.37)`, which first need a way to turn a number into a string.
 - **Error codes:** codes generated from what each error is, so that a code alone says what happened, and the same mistake is always worded the same way.
 

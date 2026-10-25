@@ -4,19 +4,11 @@
   (+ "https://linked.art/example/" path))
 
 (defn place #rec (#str slug #str label)
+  (doc "A place among Linked Art's examples, by its slug.")
   (:id (example (+ "place/" slug)) :type "Place" :_label label))
-
-;; Steps: each takes a record first and returns it extended, so they thread with ->
-(defn named #rec (#rec r #str n)
-  (doc "Adds a Name to a record's identified_by.")
-  (with r :identified_by ((:type "Name" :content n))))
-
-(defn part-of #rec (#rec r #rec whole)
-  (doc "Places a record inside a larger whole.")
-  (with r :part_of (list whole)))
 
 (graph christie-ams
   (-> (place "amsterdam_auction_house/1" "Christie's AMS")
-      (with :context "https://linked.art/ns/v1/linked-art.json")
-      (named "Christie's Amsterdam Location")
-      (part-of (place "amsterdam/1" "Amsterdam"))))
+      (with :context       "https://linked.art/ns/v1/linked-art.json")
+      (with :identified_by (list (:type "Name" :content "Christie's Amsterdam Location")))
+      (with :part_of       (list (place "amsterdam/1" "Amsterdam")))))
