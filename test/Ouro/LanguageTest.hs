@@ -21,8 +21,12 @@ module Ouro.LanguageTest
 
 import qualified Data.ByteString           as BS
 import           Data.Maybe                (fromJust)
-import           Data.Ouro                 (decodeSource, defaultOptions,
-                                            readSource, validate)
+import           Data.Ouro                 (LinterWarning (..),
+                                            SemanticWarning (..),
+                                            VocabularyWarning (..),
+                                            WarningContext (..), decodeSource,
+                                            defaultOptions, readSource,
+                                            smartWarningCode, validate)
 import qualified Data.Ouro.Internal.Expr   as I
 import qualified Data.Ouro.Internal.Kinds  as JLD
 import           Data.Ouro.Internal.Schema (ContextEntry (..), ContextValue (..),
@@ -890,4 +894,9 @@ knownGaps = Group "Known gaps: current, incorrect behaviour"
                                                                                 "(graph g (:r \"open))")
     , ("gap 24: #date accepts a year of fewer than four digits", compilesToJSON "(graph g (:d #date \"81-01-01T00:00:00Z\"))"
                                                                                 "{\"d\": \"81-01-01T00:00:00Z\"}")
+    , ("gap 25: warning codes collide across categories", withTests 1 . property $
+                                                    map smartWarningCode [ Lint (UnanchoredLiteral "a" "b")
+                                                                         , Semantic (ElidedPropertyAssign "k" "define")
+                                                                         , Vocab (UnboundTypeReference "T" "r") ]
+                                                    === ["WRN0000", "WRN0000", "WRN0000"])
     ]

@@ -1,6 +1,8 @@
 # Ouro
 
-Ouro is a domain-specific language (DSL) engineered for the ergonomic construction, validation, and serialisation of CIDOC-CRM knowledge graphs. It is designed to bridge the gap between human-readable data-modelling and strict Semantic Web standards. Ouro's compiler mathematically guarantees that compiled Ouro code produces well-formed JSON-LD.
+Ouro is a domain-specific language for writing JSON-LD knowledge graphs, such as CIDOC-CRM's in Linked Art. Its source has the shape of the JSON it produces, so a record reads like the record it compiles to, and its standard library, `std`, holds Linked Art's own patterns: the required terms, time spans, provenance, and more.
+
+Compiled Ouro is always well-formed JSON. A graph compiles only when every value in it has a JSON form and no error is left anywhere in it. URIs and dates are checked wherever they are marked, and a record's `@context` is read as a JSON-LD context. The same source always compiles to the same output. Ouro does not check a record's terms against a vocabulary; that is for properties. `std`'s functions write Linked Art's terms for you, and because a compile is deterministic, a record that is right once stays right.
 
 # Syntax
 
@@ -1115,7 +1117,7 @@ These are agreed directions for Ouro, roughly in the order they will be built. N
   ```
 
 - **Builds:** `ouro build`, described by an optional `build.ouro`, which holds a single graph and nothing else: the source folders, where the output goes, and dependencies pinned to commits, as Nix pins them. A file compiles on its own without one.
-- **A REPL and a language server,** bundled with the compiler, as `std` is, so that they run the same parser and evaluator as `compile`.
+- **A REPL and a language server,** bundled with the compiler, as `std` is, so that they run the same parser and evaluator as `compile`. The language server is where spelling belongs: a key or class that is not a term of the record's context can be underlined as it is written, with the nearest term offered, without ever stopping a compile.
 - **Search:** an Ouro Hoogle, finding functions by name, by signature and by their documentation.
 - **Geometry** (on hold): a `#wkt` property for the WKT string of a place's `defined_by`, and functions that build it from numbers, `(place/point 4.9 52.37)`, which first need a way to turn a number into a string.
 - **Error codes:** codes generated from what each error is, so that a code alone says what happened, and the same mistake is always worded the same way.
