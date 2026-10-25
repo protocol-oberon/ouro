@@ -83,7 +83,8 @@ import           Data.Ouro.Lisp.Module.Bundled (bundledFile)
 import           Data.Ouro.Lisp.Module.Loader (LoadEnv, fromDirectory,
                                               fromSources, loadImports,
                                               runLoader)
-import           Data.Ouro.Lisp.Module.Types (HigherExpression (..),
+import           Data.Ouro.Lisp.Module.Types (Declaration (..),
+                                              HigherExpression (..), Module,
                                               graphRegistry)
 import qualified Data.Ouro.Lisp.Parser       as LP
 import           Data.Text                   (Text)
@@ -164,17 +165,20 @@ compileUsing loader filename trgt content = compilationResult <$> runWriterT (ru
                                               & pure
                                               & refute
                -- Pass 4: Evaluation
-               let (Graph gPos _ gAst)          = graph
-                   (evalTree, bindingErrors) = EN.evaluate imported desugaredModule gAst
-
-               case validateAST gPos bindingErrors evalTree of
-                   Just    errs -> refute errs
-                   Nothing      -> return (freeze evalTree)
+               either refute (pure . freeze) (evaluateGraph imported desugaredModule graph)
 
     compilationResult :: (Either(NonEmpty OuroError) (I.Expr 'JLD.Primitive), [OuroWarning]) -> CompilationResult
     compilationResult = \case
                          (Right ast, warnings) -> CompilationSuccess warnings ast
                          (Left errs, warnings) -> CompilationFailure warnings errs
+
+
+-- A graph of a module, evaluated with the modules it imports: its value, which has a JSON
+-- form, or every error left in it
+evaluateGraph :: Map.Map Text L.Imported -> Module -> HigherExpression 'GraphExpr -> Either (NonEmpty OuroError) L.Expr
+evaluateGraph imported ouroModule (Graph gPos _ gAst) =
+    let (evalTree, bindingErrors) = EN.evaluate imported ouroModule gAst
+    in maybe (Right evalTree) Left (validateAST gPos bindingErrors evalTree)
 
 
 -- Errors in the graph's value, plus those found in bindings the output never used.

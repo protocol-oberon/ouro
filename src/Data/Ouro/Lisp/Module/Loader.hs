@@ -2,6 +2,7 @@
 -- its own, loaded once however often it is imported, and linked into its own root frame.
 module Data.Ouro.Lisp.Module.Loader
 ( LoadEnv (..)
+, Linked (..)
 , LoaderT
 , Lookup (..)
 , Origin (..)
@@ -9,6 +10,7 @@ module Data.Ouro.Lisp.Module.Loader
 , fromDirectory
 , fromSources
 , loadImports
+, loadModules
 , runLoader
 ) where
 
@@ -39,6 +41,7 @@ import qualified Data.Text                    as T
 import           Lens.Micro                   ((^.))
 import           System.Directory             (doesFileExist)
 import           System.FilePath              (normalise, (<.>), (</>))
+import           Text.Megaparsec              (SourcePos)
 
 
 -- Where a module was found: in the project, or bundled with the compiler
@@ -64,8 +67,17 @@ data LoadEnv m = LoadEnv
     }
 
 
+-- A loaded module: its canonical form, the modules it imports by qualifier, and the module
+-- linked into its own root frame, which is what importing it gives
+data Linked = Linked
+    { linkedModule  :: Module
+    , linkedImports :: Map.Map Text L.Imported
+    , linkedRoot    :: L.Imported
+    }
+
+
 -- The modules loaded so far, by path
-type Loaded = Map.Map Text L.Imported
+type Loaded = Map.Map Text Linked
 
 -- The cache of loaded modules is a State *under* ValidateT. A StateT above it would build
 -- its <*> from >>=, and stop at the first error, so two missing imports would report one
@@ -127,6 +139,14 @@ loadImports :: Monad m => Module -> LoaderT m (Map.Map Text L.Imported)
 loadImports m = Map.fromList <$> traverse (\imp -> (qualifierOf imp,) <$> loadImport imp) (m ^. imports)
 
 
+-- Modules loaded by path, each with what it imports, as a build loads every module of a
+-- project: through the one cache, so a module imported by many is still loaded once. A
+-- module that cannot be loaded is reported at the position given with it. The modules are
+-- independent, so every one that fails is reported.
+loadModules :: Monad m => [(SourcePos, Text)] -> LoaderT m [Linked]
+loadModules = traverse (uncurry loadPath)
+
+
 -- One import: the module, loaded and linked the first time it is imported. A module that is
 -- still being loaded is a cycle, since Ouro has no recursion across files either.
 loadImport :: Monad m => Import -> LoaderT m L.Imported
@@ -134,35 +154,45 @@ loadImport imp = do
     stack <- asks importStack
     if importPath imp `elem` stack
         then refute (pure (OuroError (importPos imp) (importCycle (reverse (importPath imp : stack)))))
-        else gets (Map.lookup (importPath imp)) >>= maybe load pure
+        else linkedRoot <$> loadPath (importPos imp) (importPath imp)
+
+
+-- The module at a path, loaded and linked the first time it is asked for. Anything wrong
+-- with finding it is reported at the given position, its import's.
+loadPath :: Monad m => SourcePos -> Text -> LoaderT m Linked
+loadPath pos path = gets (Map.lookup path) >>= maybe load pure
     where
     load = do
         reader <- asks readModule
-        found  <- fromBase (reader (importPath imp))
+        found  <- fromBase (reader path)
         case found of
             Missing searched
-                -> refute (pure (OuroError (importPos imp) (moduleNotFound (importPath imp) searched (Map.keys bundled))))
+                -> refute (pure (OuroError pos (moduleNotFound path searched (Map.keys bundled))))
 
             Unreadable file reason
-                -> refute (pure (OuroError (importPos imp) (moduleUnreadable (importPath imp) (T.pack file) reason)))
+                -> refute (pure (OuroError pos (moduleUnreadable path (T.pack file) reason)))
 
             Found file source origin
                 -> do
                    -- A module of the project may take a bundled module's name, and replaces it
-                   when (origin == Project && Map.member (importPath imp) bundled) $
-                       tell [OuroWarning (importPos imp) (shadowedBundledModule (importPath imp) (T.pack file))]
+                   when (origin == Project && Map.member path bundled) $
+                       tell [OuroWarning pos (shadowedBundledModule path (T.pack file))]
                    tokens <- either (refute . pure) pure (LX.tokenize file source)
                    tell (LN.lintExpression tokens)
                    parsed <- either (refute . pure) pure (LP.parseModule tokens)
                    tell (LN.lintModule parsed)
                    let canonical = Canon.canonicalModule parsed
-                   dependencies <- local (\env -> env { importStack = importPath imp : importStack env })
+                   dependencies <- local (\env -> env { importStack = path : importStack env })
                                          (loadImports canonical)
-                   let linked = L.Imported
-                                    { L.importedRoot    = L.defaultEnv dependencies canonical
-                                    , L.importedExports = Set.fromList (map fst (canonical ^. exports))
+                   let linked = Linked
+                                    { linkedModule  = canonical
+                                    , linkedImports = dependencies
+                                    , linkedRoot    = L.Imported
+                                                          { L.importedRoot    = L.defaultEnv dependencies canonical
+                                                          , L.importedExports = Set.fromList (map fst (canonical ^. exports))
+                                                          }
                                     }
-                   modify (Map.insert (importPath imp) linked)
+                   modify (Map.insert path linked)
                    pure linked
 
     -- A read in the base monad: disk in the CLI, a map in the tests
