@@ -37,8 +37,10 @@ import           Hedgehog
 import qualified Hedgehog.Gen              as Gen
 import qualified Hedgehog.Range            as Range
 import qualified Text.URI                  as URI
-import           Utils                     (compilesToJSON, emitsExactly,
-                                            failsWith, failsWithout, fixture,
+import           Utils                     (compilesToJSON,
+                                            compilesWithoutWarnings,
+                                            emitsExactly, failsWith,
+                                            failsWithout, fixture,
                                             importsFailAt,
                                             shouldCompileTo)
 
@@ -901,4 +903,11 @@ knownGaps = Group "Known gaps: current, incorrect behaviour"
                                                     === ["WRN0000", "WRN0000", "WRN0000"])
     , ("gap 26: an unknown export is a lexical error", importsFailAt "SYN0000" ("inline-test", 1, 9) ["The module exports 'f', but defines no function by that name"] []
                                                                     "(export f)\n(graph g (:r 1))")
+    , ("gap 28: a compact IRI key is read as two keys", compilesToJSON "(graph g (:crm:P2_has_type \"x\" :y 2))"
+                                                                       "{\"y\": 2}")
+    , ("gap 29: a key followed by a key drops both", compilesToJSON "(graph g (:a :b 1 :y 2))"
+                                                                    "{\"y\": 2}")
+    , ("gap 29: and says nothing",                   compilesWithoutWarnings "(graph g (:a :b 1 :y 2))")
+    , ("gap 30: a key with no value is an unbalanced delimiter", importsFailAt "SYN0001" ("inline-test", 1, 16) ["UnbalancedDelimiter"] []
+                                                                               "(graph g (:a :b))")
     ]

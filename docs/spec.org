@@ -1215,4 +1215,10 @@ Recorded 2026-10-12 and kept up to date since; none were caused by the scoping r
 
 27. *A build leaves stale outputs:* renaming or removing a graph, or a module, leaves the JSON an earlier build wrote for it in =:out=, so =:out= can hold graphs the source no longer has. The planned fix is a manifest of what the last build wrote, removing only those files. Not pinned by a test, since writing is done by the CLI, which has none (gap 13).
 
+28. *A compact IRI key is read as two keys:* a key is read as letters, digits, =-= and =_=, so ~:crm:P2_has_type~ is the two keys =:crm= and =:P2_has_type=, and the attribute pair is lost (gap 29): ~(:crm:P2_has_type "x" :y 2)~ compiles to ={"y": 2}=. A compact IRI cannot be written as a key, though a local context can define one (=ex:condition=). Found while checking the README's context example (2026-10-25).
+
+29. *A key followed by a key drops both, silently:* ~(:a :b 1 :y 2)~ compiles to ={"y": 2}=, with no error or warning, losing =:a= and =:b 1=. Found with gap 28 (2026-10-25).
+
+30. *A key with no value is reported as an unbalanced delimiter:* ~(:a :b)~ is =SYN0001= at the closing parenthesis, "Orphaned Closing Parenthesis", though the parentheses balance. Found with gap 28 (2026-10-25).
+
 #  LocalWords:  Ouro LD
