@@ -7,7 +7,7 @@
 (defn place #rec (#str slug #str label)
   (:id (example (+ "place/" slug)) :type "Place" :_label label))
 
-;; -> threads the place through its steps; with sets each property, a set written as a list
+;; -> threads the place through its steps; with sets each property, a set written as an array
 (graph amsterdam
   (-> (place "amsterdam/1" "Amsterdam")
       (with :context        "https://linked.art/ns/v1/linked-art.json")

@@ -452,8 +452,8 @@ An inlaid record's `@context` is layered in too. The record ends up with the inl
 (graph amsterdam
   (-> (:id #uri "https://linked.art/example/place/amsterdam/1" :type "Place" :_label "Amsterdam")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as (list (base/aat "300008389" "City")))
-      (with :identified_by (list (:type "Name" :content "Amsterdam")))))
+      (with :classified_as ((base/aat "300008389" "City")))
+      (with :identified_by ((:type "Name" :content "Amsterdam")))))
 ```
 
 ...compiles to:
@@ -483,7 +483,7 @@ An inlaid record's `@context` is layered in too. The record ends up with the inl
 - A step's value goes in as its first argument, or where a hole marks it: `(-> 1 (- 10))` is `-9`, and `(-> 1 (- 10 ?))` is `9`. A bare name is called with the value, and so is a `fn`.
 - `(-> ? step ...)` is a function of the value, so a pipeline can be mapped: `(map (-> ? (with :seen true)) records)`.
 - `with` extends an Array too: `(with (1 2) 3 4)` is `(1 2 3 4)`.
-- `with` writes a value as it is given, so a property that holds a set is written as a list, `(list (base/aat ...))`, as Linked Art writes it.
+- `with` writes a value as it is given, so a property that holds a set is written as an array, `((base/aat ...))`, as Linked Art writes it.
 
 ### Adjoin
 
@@ -951,9 +951,9 @@ Module paths are written with `/` on every platform, Windows included.
 (graph idea-for-manet-and-modern-beauty
   (-> (exhibition/concept (example "concept/exhidea/1") "Idea for Manet and Modern Beauty")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :identified_by (list (base/name vocab/primary-name "Manet and Modern Beauty")))
-      (with :about         (list (base/aat "300055821" "Beauty")
-                                 (base/ulan "500010363" "Person" "Manet")))
+      (with :identified_by ((base/name vocab/primary-name "Manet and Modern Beauty")))
+      (with :about         ((base/aat "300055821" "Beauty")
+                            (base/ulan "500010363" "Person" "Manet")))
       ;; A pattern parameter takes each pair apart
       (with :created_by    (:type           "Creation"
                             :carried_out_by (map (λ ((?slug ?label)) (person slug label))

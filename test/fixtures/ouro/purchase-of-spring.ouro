@@ -19,7 +19,7 @@
    :type          "Activity"
    :_label        "Purchase of Spring by Proust"
    :classified_as (list vocab/provenance-activity)
-   :identified_by (list (base/name vocab/primary-name "Purchase of Spring by Proust from Manet"))
+   :identified_by ((base/name vocab/primary-name "Purchase of Spring by Proust from Manet"))
    :timespan      (time/year-range "1881" "1883")
 
    ;; Each part is std's node with Linked Art's _label: written attribute pairs come first

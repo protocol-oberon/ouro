@@ -10,7 +10,7 @@
 
 ;; std/exhibition builds the concept, classified as an Exhibition; the steps add the rest
 (graph idea-for-manet-and-modern-beauty
-  (-> (exhibition/concept  (example "concept/exhidea/1") "Idea for Manet and Modern Beauty")
+  (-> (exhibition/concept (example "concept/exhidea/1") "Idea for Manet and Modern Beauty")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :identified_by ((base/name vocab/primary-name "Manet and Modern Beauty")))
       (with :about         ((base/aat "300055821" "Beauty")
