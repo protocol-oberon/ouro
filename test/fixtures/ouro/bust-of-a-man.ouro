@@ -16,4 +16,4 @@
    :classified_as (list object-type/sculpture)
    :produced_by   (:type           "Production"
                    :technique      (list sculpting)
-                   :carried_out_by ((person "500015886" "Francis Harwood"))))))
+                   :carried_out_by (list (person "500015886" "Francis Harwood"))))))

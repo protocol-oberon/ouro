@@ -8,7 +8,7 @@
    :id            #uri "https://linked.art/example/event/stowe/1"
    :type          "Activity"
    :_label        "Auction of Stowe House"
-   :classified_as ((base/aat "300054751" "Auction Event"))
+   :classified_as (list (base/aat "300054751" "Auction Event"))
    :timespan      (:type          "TimeSpan"
                    :identified_by ((:type    "Name"
                                     :content "40 days in August and September, 1848"))
