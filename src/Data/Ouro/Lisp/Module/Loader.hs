@@ -7,21 +7,23 @@ module Data.Ouro.Lisp.Module.Loader
 , Lookup (..)
 , Origin (..)
 , bundledOnly
-, fromDirectory
+, fromRoots
 , fromSources
 , loadImports
 , loadModules
 , runLoader
 ) where
 
-import           Control.Monad                (when)
+import           Control.Monad                (filterM, when)
 import           Control.Monad.Reader         (ReaderT, asks, local, runReaderT)
 import           Control.Monad.State.Strict   (StateT, gets, modify, runStateT)
 import           Control.Monad.Trans          (lift)
 import           Control.Monad.Validate       (refute, runValidateT)
 import           Control.Monad.Writer         (runWriterT, tell)
 import qualified Data.Map.Strict              as Map
-import           Data.Ouro.Error.Diagnostics  (importCycle, moduleNotFound,
+import           Data.List                    (nub)
+import           Data.Ouro.Error.Diagnostics  (ambiguousModule, importCycle,
+                                               moduleNotFound,
                                                moduleUnreadable,
                                                shadowedBundledModule)
 import qualified Data.Ouro.Error.Linter       as LN
@@ -52,11 +54,12 @@ data Origin
 
 
 -- What looking for a module found: its file and source, the files looked for when there was
--- none, or a file that could not be read, and why
+-- none, a file that could not be read, and why, or the files of a module in more than one root
 data Lookup
     = Found FilePath Text Origin
     | Missing [FilePath]
     | Unreadable FilePath Text
+    | Ambiguous [FilePath]
 
 
 -- Where a module's source comes from. The import stack is the modules being loaded,
@@ -110,17 +113,19 @@ fromSources sources = LoadEnv
     }
 
 
--- Modules in files under a directory, the importing file's: (import a/b) reads root/a/b.ouro,
--- which replaces a bundled module of the same name. A path is normalised, so one written with
--- / on Windows is shown with one kind of separator.
-fromDirectory :: FilePath -> LoadEnv IO
-fromDirectory root = LoadEnv
+-- Modules in files under source roots, the importing file's directory or a build's :sources:
+-- (import a/b) reads root/a/b.ouro, which replaces a bundled module of the same name. A module
+-- in more than one root is ambiguous, never the first root's. A path is normalised, so one
+-- written with / on Windows is shown with one kind of separator.
+fromRoots :: [FilePath] -> LoadEnv IO
+fromRoots roots = LoadEnv
     { readModule  = \path -> do
-                        let file = normalise (root </> T.unpack path <.> "ouro")
-                        exists <- doesFileExist file
-                        if exists
-                            then either (Unreadable file) (\source -> Found file source Project) <$> readSource file
-                            else pure (fromBundled path [file])
+                        let files = nub [ normalise (root </> T.unpack path <.> "ouro") | root <- roots ]
+                        found <- filterM doesFileExist files
+                        case found of
+                            [file] -> either (Unreadable file) (\source -> Found file source Project) <$> readSource file
+                            []     -> pure (fromBundled path files)
+                            _many  -> pure (Ambiguous found)
     , importStack = []
     }
 
@@ -171,6 +176,9 @@ loadPath pos path = gets (Map.lookup path) >>= maybe load pure
 
             Unreadable file reason
                 -> refute (pure (OuroError pos (moduleUnreadable path (T.pack file) reason)))
+
+            Ambiguous files
+                -> refute (pure (OuroError pos (ambiguousModule path (map T.pack files))))
 
             Found file source origin
                 -> do

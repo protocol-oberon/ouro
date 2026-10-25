@@ -5,7 +5,9 @@ module Data.Ouro
   -- * Core Compilation Pipeline
 ( compile
 , compileFile
+, compileUsing
 , compileWith
+, evaluateGraph
 , CompilationResult(..)
 , PrinterOptions(..)
 , Ser.toJSON
@@ -18,6 +20,7 @@ module Data.Ouro
 , readSource
 
 -- * Core Execution Error Types
+, BuildError(..)
 , ErrorContext(..)
 , InternalError(..)
 , OuroError(..)
@@ -56,7 +59,7 @@ import           Data.Ouro.Error.Diagnostics (SourceFrame (..), nonExistentGraph
                                               warningBlurb, warningSummary,
                                               withBlurb)
 import qualified Data.Ouro.Error.Linter      as LN
-import           Data.Ouro.Error.Types       (ErrorContext (..),
+import           Data.Ouro.Error.Types       (BuildError (..), ErrorContext (..),
                                               InternalError (..),
                                               LinterWarning (..),
                                               OuroError (..), OuroWarning (..),
@@ -80,7 +83,7 @@ import           Data.Ouro.Lisp.Eval.Types   (Expr (..), freeze)
 import qualified Data.Ouro.Lisp.Eval.Types   as L
 import qualified Data.Ouro.Lisp.Lexer        as LX
 import           Data.Ouro.Lisp.Module.Bundled (bundledFile)
-import           Data.Ouro.Lisp.Module.Loader (LoadEnv, fromDirectory,
+import           Data.Ouro.Lisp.Module.Loader (LoadEnv, fromRoots,
                                               fromSources, loadImports,
                                               runLoader)
 import           Data.Ouro.Lisp.Module.Types (Declaration (..),
@@ -114,7 +117,7 @@ compileWith sources filename trgt content = runIdentity (compileUsing (fromSourc
 -- Compiles a file on disk: it imports the modules in files beside it, a/b.ouro for (import a/b),
 -- and the bundled ones. A module in the project replaces a bundled one of the same name.
 compileFile :: FilePath -> String -> Text -> IO CompilationResult
-compileFile path = compileUsing (fromDirectory (takeDirectory path)) path
+compileFile path = compileUsing (fromRoots [takeDirectory path]) path
 
 
 -- Compiles a file whose imports are read through the given loader: from memory, or from disk

@@ -21,9 +21,18 @@ import           System.FilePath     (takeExtension)
 -- Main Parser directly returns a Command
 pCommand :: Parser Command
 pCommand = subparser
-         (  command "compile"  (info pCompile  (progDesc "Compile Ouro to JSON-LD"))
-         <> command "validate" (info pValidate (progDesc "Validate JSON-LD"))
+         (  command "compile"  (info (pCompile  <**> helper) (progDesc "Compile Ouro to JSON-LD"))
+         <> command "build"    (info (pBuild    <**> helper) (progDesc "Build every graph of the project described by build.ouro"))
+         <> command "validate" (info (pValidate <**> helper) (progDesc "Validate JSON-LD"))
          )
+
+
+-- The directory to look for build.ouro in, and above it: the current one when not given
+pBuild :: Parser Command
+pBuild = Build <$> argument str ( metavar "DIR"
+                               <> help "Where to look for build.ouro, and in the folders above it"
+                               <> value "."
+                                )
 
 
 pCompile :: Parser Command

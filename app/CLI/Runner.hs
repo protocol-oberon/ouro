@@ -12,12 +12,15 @@ import           Data.List         (nub)
 import           Data.Ouro         (OuroError (..), OuroWarning (..),
                                     PrinterOptions (..), defaultOptions)
 import qualified Data.Ouro         as O
+import           Data.Ouro.Build   (BuildResult (..), buildProject,
+                                    compileInProject)
 import qualified Data.Text         as T
 import qualified Data.Text.IO      as TIO
 import qualified Data.Text.Lazy    as TL
 import qualified Data.Text.Lazy.IO as TLIO
+import           System.Directory  (createDirectoryIfMissing)
 import           System.Exit       (exitFailure)
-import           System.FilePath   (hasExtension, (</>))
+import           System.FilePath   (hasExtension, takeDirectory, (</>))
 import           System.IO         (IOMode (..), hSetEncoding, hSetNewlineMode,
                                     noNewlineTranslation, stderr, utf8,
                                     withFile)
@@ -27,6 +30,7 @@ import           Text.Megaparsec   (SourcePos, sourceName)
 runCommand :: Command -> IO ()
 runCommand = \case
               Compile  ifp trgt ofp -> runCompile  ifp trgt ofp
+              Build    dir          -> runBuild    dir
               Validate c            -> runValidate c
 
 
@@ -43,30 +47,60 @@ runCompile ifp trgt mOutDir = do
     -- Read and process the input file
     content <- readSourceOrExit ifp
 
-    result <- O.compileFile ifp trgt content
+    -- Its imports are read from the :sources of a build.ouro in its folder or above it
+    result <- compileInProject ifp trgt content >>= either (\err -> TIO.hPutStrLn stderr err >> exitFailure) pure
 
     case result of
         O.CompilationSuccess warnings code
             -> do
                -- Print all accumulated diagnostics (both warnings and non-fatal/harvested errors) up front
-               sourceOf <- sourcesFor ifp content (map warnPos warnings)
+               sourceOf <- sourcesFor [(ifp, content)] (map warnPos warnings)
                mapM_ (pintDiagnostic sourceOf . Left) warnings
 
                -- Proceed with serialization
                let opts = defaultOptions
                putStrLn $ "Compilation Success: " ++ ifp ++ " [" ++ trgt ++ "] -> " ++ ofp
+               -- An output directory that does not exist yet is made
+               createDirectoryIfMissing True (takeDirectory ofp)
                writeJSON ofp (O.toJSON opts code)
 
         O.CompilationFailure warnings errors
             -> do
                -- Even in failure, print the warnings gathered up to the crash point
-               sourceOf <- sourcesFor ifp content (map warnPos warnings <> map errPos (toList errors))
+               sourceOf <- sourcesFor [(ifp, content)] (map warnPos warnings <> map errPos (toList errors))
                mapM_ (pintDiagnostic sourceOf . Left) warnings
 
                -- Print the full harvest of architectural errors
                mapM_ (pintDiagnostic sourceOf . Right) errors
 
                putStrLn $ "Compilation Failed: " ++ ifp ++ " due to compiler errors."
+               exitFailure
+
+
+-- Builds the project whose build.ouro is in the directory or above it: every graph of every
+-- module is written to out/<module>/<graph>.json, or, if anything fails, nothing is
+runBuild :: FilePath -> IO ()
+runBuild dir = do
+    putStrLn $ "Building:            " <> dir <> " ..."
+    result <- buildProject dir >>= either (\err -> TIO.hPutStrLn stderr err >> exitFailure) pure
+    case result of
+        BuildSuccess warnings outputs
+            -> do
+               sourceOf <- sourcesFor [] (map warnPos warnings)
+               mapM_ (pintDiagnostic sourceOf . Left) warnings
+               mapM_ (\(file, code) -> do
+                          createDirectoryIfMissing True (takeDirectory file)
+                          writeJSON file (O.toJSON defaultOptions code)
+                          putStrLn $ "Wrote:               " <> file)
+                     outputs
+               putStrLn $ "Build Success:       " <> show (length outputs) <> " graphs"
+
+        BuildFailure warnings errors
+            -> do
+               sourceOf <- sourcesFor [] (map warnPos warnings <> map errPos (toList errors))
+               mapM_ (pintDiagnostic sourceOf . Left) warnings
+               mapM_ (pintDiagnostic sourceOf . Right) errors
+               putStrLn "Build Failed: nothing was written, due to compiler errors."
                exitFailure
 
 
@@ -126,12 +160,13 @@ writeJSON path json = withFile path WriteMode $ \h -> do
     TLIO.hPutStr    h json
 
 
--- The sources of every file a diagnostic is reported in, each read once: the file compiled,
--- a module of the project, or a bundled module, whose source is in the compiler itself
-sourcesFor :: FilePath -> T.Text -> [SourcePos] -> IO (FilePath -> Maybe T.Text)
-sourcesFor ifp content positions = do
-    others <- traverse (\file -> (file,) <$> readOther file) (nub [ sourceName pos | pos <- positions, sourceName pos /= ifp ])
-    pure $ \file -> if file == ifp then Just content else join (lookup file others)
+-- The sources of every file a diagnostic is reported in, each read once: those already read,
+-- such as the file compiled, a module of the project, or a bundled module, whose source is in
+-- the compiler itself
+sourcesFor :: [(FilePath, T.Text)] -> [SourcePos] -> IO (FilePath -> Maybe T.Text)
+sourcesFor known positions = do
+    others <- traverse (\file -> (file,) <$> readOther file) (nub [ sourceName pos | pos <- positions, sourceName pos `notElem` map fst known ])
+    pure $ \file -> maybe (join (lookup file others)) Just (lookup file known)
     where
     readOther file = case O.bundledFile file of
                          Just source -> pure (Just source)

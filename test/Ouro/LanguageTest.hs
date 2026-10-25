@@ -899,4 +899,6 @@ knownGaps = Group "Known gaps: current, incorrect behaviour"
                                                                          , Semantic (ElidedPropertyAssign "k" "define")
                                                                          , Vocab (UnboundTypeReference "T" "r") ]
                                                     === ["WRN0000", "WRN0000", "WRN0000"])
+    , ("gap 26: an unknown export is a lexical error", importsFailAt "SYN0000" ("inline-test", 1, 9) ["The module exports 'f', but defines no function by that name"] []
+                                                                    "(export f)\n(graph g (:r 1))")
     ]

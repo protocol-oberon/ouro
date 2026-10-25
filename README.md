@@ -914,7 +914,7 @@ A file uses another's functions by importing it, and offers its own by exporting
 
 - An imported function is always written with a qualifier, `qualifier/name`: the path's last part (`base`, `people`), or the name given after `as`. A file's own functions are written without one, so a local `name` and `base/name` are different functions.
 - A file has one `(export f g ...)`, naming its own functions. Only functions cross files, never graphs or values, so modules hold no state.
-- `(import a/b)` reads `a/b.ouro` beside the file being compiled. Each module is read, checked and desugared on its own, loaded once however often it is imported, and its functions close over its own module, never the importer.
+- `(import a/b)` reads `a/b.ouro` under the project's source folders, the `:sources` of its `build.ouro` (see [Builds](#builds)), or beside the file being compiled when there is none. Each module is read, checked and desugared on its own, loaded once however often it is imported, and its functions close over its own module, never the importer.
 - Modules cannot import each other in a circle (`SCP0009`): Ouro has no recursion, across files as within one.
 - An error inside an imported module is reported, and shown, in that module's file and line.
 
@@ -1084,10 +1084,12 @@ Available options:
 
 Available commands:
   compile                  Compile Ouro to JSON-LD
+  build                    Build every graph of the project described by
+                           build.ouro
   validate                 Validate JSON-LD
 ```
 
-The sub commands for both `compile` and `validate` can be found by using the `-h` flag once more (`ouro compile -h`):
+The options of each command are shown with the `-h` flag once more (`ouro compile -h`):
 
 ``` bash
 Usage: ouro compile SOURCE_FILE (-t|--trgt STRING) [-o|--output DIR]
@@ -1097,11 +1099,31 @@ Usage: ouro compile SOURCE_FILE (-t|--trgt STRING) [-o|--output DIR]
 Available options:
   -t,--trgt STRING         Target graph name within the module
   -o,--output DIR          Output directory
+  -h,--help                Show this help text
 ```
 
-For compile, if the `-o` path has a file extension then that is the file the compiled JSON will be written to. Otherwise the path is a directory, and the name of the graph expression will be the name of the resulting JSON file in it. Without `-o`, the file is written to the current directory. For example, `ouro compile purchase.ouro -t purchase-of-spring -o out` writes `out/purchase-of-spring.json`.
+For compile, if the `-o` path has a file extension then that is the file the compiled JSON will be written to. Otherwise the path is a directory, made if it does not exist, and the name of the graph expression will be the name of the resulting JSON file in it. Without `-o`, the file is written to the current directory. For example, `ouro compile purchase.ouro -t purchase-of-spring -o out` writes `out/purchase-of-spring.json`.
 
-A file's imports are read from the files beside it: compiling `places/amsterdam.ouro` with `(import people)` reads `places/people.ouro`. The bundled `std` modules need no file.
+A file's imports are read from the files beside it: compiling `places/amsterdam.ouro` with `(import people)` reads `places/people.ouro`. In a project, they are read from its source folders instead. The bundled `std` modules need no file.
+
+## Builds
+
+A project is described by a `build.ouro`, which holds one graph, named `build`, and nothing else:
+
+``` clojure
+(graph build
+  (:name    "christies"
+   :sources ("src" "lib")
+   :out     "out"))
+```
+
+`ouro build` finds the `build.ouro` in the current directory, or the nearest one above it, and builds every graph of every module under its `:sources` to `out/<module>/<graph>.json`: the graph `purchase-of-spring` in `src/provenance/spring.ouro` is written to `out/provenance/spring/purchase-of-spring.json`. If any graph fails, nothing is written, and every error is reported.
+
+- `:name` is required. `:sources` is the build file's own folder, and `:out` is `"out"`, when they are not given.
+- A build file is data: its settings are Ouro values, but it cannot import, define functions, or hold another graph. A setting it does not have is an error that suggests the nearest, `:sources` for `:sorces`.
+- A module's name is its path under its source folder, and it must be in only one of them.
+- `ouro compile`, run on a file inside a project, reads its imports from the project's `:sources` too, so a module compiles as it would in the build.
+- Hidden folders (`.git`, `.jj`) and the `:out` folder are skipped, but every other `.ouro` file is built, so a scratch file under a source folder is built too.
 
 # Planned
 
@@ -1116,7 +1138,7 @@ These are agreed directions for Ouro, roughly in the order they will be built. N
   (defn exhibit #rec (#titled r) ...)
   ```
 
-- **Builds:** `ouro build`, described by an optional `build.ouro`, which holds a single graph and nothing else: the source folders, where the output goes, and dependencies pinned to commits, as Nix pins them. A file compiles on its own without one.
+- **Dependencies:** `:depends` in `build.ouro`, pinned to commits, as Nix pins them, each dependency's modules named after it, `(import la-people/people)`; and `:graphs`, choosing which graphs a build writes.
 - **A REPL and a language server,** bundled with the compiler, as `std` is, so that they run the same parser and evaluator as `compile`. The language server is where spelling belongs: a key or class that is not a term of the record's context can be underlined as it is written, with the nearest term offered, without ever stopping a compile.
 - **Search:** an Ouro Hoogle, finding functions by name, by signature and by their documentation.
 - **Geometry** (on hold): a `#wkt` property for the WKT string of a place's `defined_by`, and functions that build it from numbers, `(place/point 4.9 52.37)`, which first need a way to turn a number into a string.

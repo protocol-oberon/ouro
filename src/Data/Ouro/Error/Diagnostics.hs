@@ -4,7 +4,7 @@
 module Data.Ouro.Error.Diagnostics where
 
 import           Data.Data                 (Proxy (..))
-import           Data.Ouro.Error.Types     (ErrorContext (..),
+import           Data.Ouro.Error.Types     (BuildError (..), ErrorContext (..),
                                             InternalError (..),
                                             LinterWarning (..), PathError (..),
                                             ScopeError (..),
@@ -204,6 +204,81 @@ importCycle path =
               (Scope (ImportCycle { cyclePath = path }))
 
 
+-- A module found in more than one source root
+ambiguousModule :: Text -> [Text] -> ErrorContext
+ambiguousModule path files =
+    withBlurb ( "The module '" <> path <> "' is in more than one source root: " <> T.intercalate " and " files <> ". "
+             <> "A module's name must name one file: perhaps rename or move one of them."
+              )
+              (Scope (AmbiguousModule { ambiguousPath = path, ambiguousFiles = files }))
+
+
+-- Build file errors
+
+-- The settings a build file can have, in the order they are listed
+buildSettings :: [Text]
+buildSettings = ["name", "sources", "out", "graphs", "depends"]
+
+
+-- A build file's setting that is not one of its schema's
+unknownBuildSetting :: Text -> ErrorContext
+unknownBuildSetting setting =
+    withBlurb ( "A build file's settings are " <> T.intercalate ", " (map (":" <>) buildSettings) <> "."
+             <> closest (":" <> setting) (map (":" <>) buildSettings)
+              )
+              (Build (UnknownBuildSetting { unknownSetting = setting }))
+
+
+-- A setting every build needs, missing from the build file
+missingBuildSetting :: Text -> ErrorContext
+missingBuildSetting setting =
+    withBlurb ( "Every build file gives its project a :" <> setting <> ", "
+             <> "as in (graph build (:name \"my-project\"))."
+              )
+              (Build (MissingBuildSetting { missingSetting = setting }))
+
+
+-- A setting of the schema that this version of Ouro does not act on
+unsupportedBuildSetting :: Text -> ErrorContext
+unsupportedBuildSetting setting =
+    withBlurb ( ":" <> setting <> " is a setting of the build file, but this version of Ouro does not act on it yet. "
+             <> explanation
+              )
+              (Build (UnsupportedBuildSetting { unsupportedSetting = setting }))
+    where
+    explanation = case setting of
+                      "graphs"  -> "Until it does, every graph of every module is built: perhaps remove it."
+                      "depends" -> "Until it does, a library is used by copying it under one of the :sources."
+                      _other    -> "Perhaps remove it."
+
+
+-- A declaration a build file cannot hold, such as "an import"
+notBuildData :: Text -> ErrorContext
+notBuildData declaration =
+    withBlurb ( "A build file is data: it holds one graph, (graph build ...), and nothing else, so it cannot have "
+             <> declaration <> ". Perhaps move it into a module under one of the :sources."
+              )
+              (Build (NotBuildData { buildDeclaration = declaration }))
+
+
+-- A build file without a graph named build: the name of the graph it has instead, if any
+noBuildGraph :: Maybe Text -> ErrorContext
+noBuildGraph found =
+    withBlurb ( "A build file holds one graph, named build, as in (graph build (:name \"my-project\"))."
+             <> maybe "" (\name -> " Its graph is named '" <> name <> "': perhaps rename it to build.") found
+              )
+              (Build (NoBuildGraph { foundGraph = found }))
+
+
+-- A folder of :sources that does not exist, as written and as it was looked for
+missingSourceFolder :: Text -> Text -> ErrorContext
+missingSourceFolder folder looked =
+    withBlurb ( "The source folder '" <> folder <> "' does not exist: looked for " <> looked <> ". "
+             <> "A build file's :sources are folders beside it, such as (\"src\")."
+              )
+              (Build (MissingSourceFolder { sourceFolder = folder }))
+
+
 -- " Perhaps you meant 'x'." for the closest candidate, when one is close enough
 closest :: Text -> [Text] -> Text
 closest target candidates =
@@ -234,6 +309,7 @@ smartErrorCode = \case
                   Path            sub     -> "PTH" <> renderIndex sub
                   Scope           sub     -> "SCP" <> renderIndex sub
                   Internal        sub     -> "INT" <> renderIndex sub
+                  Build           sub     -> "BLD" <> renderIndex sub
                   AnnotatedContext _  ctx -> smartErrorCode ctx
 
     where

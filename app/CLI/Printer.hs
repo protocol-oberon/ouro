@@ -6,7 +6,9 @@
 module CLI.Printer (pintDiagnostic) where
 
 import           Data.Char                     (isAlphaNum, isLetter)
-import           Data.Ouro                     (ErrorContext (..),
+import           Data.Maybe                    (fromMaybe)
+import           Data.Ouro                     (BuildError (..),
+                                                ErrorContext (..),
                                                 InternalError (..),
                                                 LinterWarning (..),
                                                 OuroError (..),
@@ -344,6 +346,50 @@ splitErrorContext = \case
            , [ labeled "Module: " (pretty name)
              , labeled "File:   " (pretty file)
              ]
+           , Nothing
+           )
+
+    Scope (AmbiguousModule name files)
+        -> ("Ambiguous Module"
+           , [ labeled "Module: " (pretty name)
+             , labeled "Files:  " (pretty (T.intercalate ", " files))
+             ]
+           , Nothing
+           )
+
+    Build (UnknownBuildSetting setting)
+        -> ("Unknown Build Setting"
+           , [ labeled "Setting: " (pretty (":" <> setting)) ]
+           , Nothing
+           )
+
+    Build (MissingBuildSetting setting)
+        -> ("Missing Build Setting"
+           , [ labeled "Setting: " (pretty (":" <> setting)) ]
+           , Nothing
+           )
+
+    Build (UnsupportedBuildSetting setting)
+        -> ("Unsupported Build Setting"
+           , [ labeled "Setting: " (pretty (":" <> setting)) ]
+           , Nothing
+           )
+
+    Build (NotBuildData declaration)
+        -> ("Not Build Data"
+           , [ labeled "Found: " (pretty declaration) ]
+           , Nothing
+           )
+
+    Build (NoBuildGraph found)
+        -> ("No Build Graph"
+           , [ labeled "Graph: " (pretty (fromMaybe "none" found)) ]
+           , Nothing
+           )
+
+    Build (MissingSourceFolder folder)
+        -> ("Missing Source Folder"
+           , [ labeled "Folder: " (pretty folder) ]
            , Nothing
            )
 

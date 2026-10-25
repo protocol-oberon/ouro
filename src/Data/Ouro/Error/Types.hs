@@ -42,6 +42,7 @@ data ErrorContext
     | Path     PathError
     | Scope    ScopeError
     | Internal InternalError
+    | Build    BuildError
     | AnnotatedContext Text ErrorContext -- The Structural Decorator Middleware
     deriving (Show, Eq, Ord, Generic)
 
@@ -263,6 +264,12 @@ data ScopeError
       , unreadableFile   :: Text
       , unreadableReason :: Text
       }
+
+    -- A module found in more than one source root, so its name does not name one file
+    | AmbiguousModule
+      { ambiguousPath  :: Text
+      , ambiguousFiles :: [Text]
+      }
     deriving (Show, Eq, Ord, Generic)
 
 
@@ -283,6 +290,42 @@ data InternalError
     | ASTCorruptionError
       { activeSymbol  :: Text
       , foundASTShape :: Text
+      }
+    deriving (Show, Eq, Ord, Generic)
+
+
+--- BUILD FILE VIOLATIONS ---
+-- What is wrong with a build.ouro, the data that describes a build. A setting of the wrong
+-- type is a TypeMismatch.
+data BuildError
+    -- A setting the build file's schema does not have, such as :sorces
+    = UnknownBuildSetting
+      { unknownSetting :: Text
+      }
+
+    -- A setting every build needs that the build file does not give
+    | MissingBuildSetting
+      { missingSetting :: Text
+      }
+
+    -- A setting of the schema that this version of Ouro does not act on yet
+    | UnsupportedBuildSetting
+      { unsupportedSetting :: Text
+      }
+
+    -- A declaration a build file cannot hold: an import, an export, a function or a second graph
+    | NotBuildData
+      { buildDeclaration :: Text
+      }
+
+    -- The build file's graph is not named build, or the file has no graph
+    | NoBuildGraph
+      { foundGraph :: Maybe Text
+      }
+
+    -- A folder of :sources that does not exist
+    | MissingSourceFolder
+      { sourceFolder :: Text
       }
     deriving (Show, Eq, Ord, Generic)
 

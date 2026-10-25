@@ -9,6 +9,7 @@ module CLI.Types
 -- Configuration
 data Command
     = Compile  FilePath String (Maybe FilePath)
+    | Build    FilePath
     | Validate ValidateCommand
     deriving (Show)
 

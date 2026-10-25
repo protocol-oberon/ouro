@@ -3,6 +3,7 @@
 module Main where
 
 import           Hedgehog
+import qualified Ouro.BuildTest      as Build
 import qualified Ouro.CanonicalTest  as Canonical
 import qualified Ouro.EvaluationTest as Evaluation
 import qualified Ouro.FunctionTest   as Function
@@ -51,6 +52,10 @@ main = withUtf8Console $ do
         , Import.moduleErrors
         , Import.sourceFrames
         , Import.modulesOnDisk
+        -- Builds: build.ouro, its source roots, and every graph of every module
+        , Build.buildFiles
+        , Build.builds
+        , Build.projectsOnDisk
         -- The bundled std: Linked Art's patterns and required terms
         , Std.base
         , Std.time
