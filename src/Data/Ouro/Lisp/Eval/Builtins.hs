@@ -57,6 +57,8 @@ builtinRegistry = Map.fromList
                       , ("setminus",    handleSetminus)
                       , ("subset",      handleSubset)
                       , ("unions",        handleUnions)
+                      -- (adjoin base item ...), from Canon.Adjoin: '%' cannot be written in Ouro
+                      , ("%adjoin",     handleAdjoin)
                       , ("intersections", handleIntersections)
                       , ("years",       handleYearsModifier)
                       , ("months",      handleMonthsModifier)
@@ -698,6 +700,89 @@ uncomparable pos name f =
     & OuroError pos
     & L.EvalError
     & pure
+
+
+-- handleAdjoin.
+--
+-- (%adjoin base addition ...), which (adjoin base item ...) becomes (see 'Canon.Adjoin'), adds
+-- each addition to base in turn: a record's attribute pairs to a record, each value to its
+-- key's set of values, and an array's elements to an array. A value is added unless it is
+-- already there, compared as eq compares; the values already there are kept as they are,
+-- repeats included, and a key that is added to always holds an Array:
+--
+--   (adjoin (:k 1) :k 2)              {"k": [1, 2]}
+--   (adjoin (:k (1 1)) :k (1 3))      {"k": [1, 1, 3]}
+--   (adjoin (1 2) 2 3)                (1 2 3)
+--
+-- A key keeps its place in the record, and a new key goes after the others. The base's
+-- context is layered under an addition's, as an inlay's is under the record's.
+handleAdjoin :: SourcePos -> [L.Expr] -> Reader Env L.Expr
+handleAdjoin pos = pure . \case
+    base : additions -> foldl adjoinTo base additions
+    []               -> mismatch "a value to adjoin to" "nothing"
+    where
+    adjoinTo acc addition = case (acc, addition) of
+        (L.EvalError _, _)               -> acc
+        (_, L.EvalError _)               -> addition
+        (L.Record m pairs, L.Record m' added)
+            -> foldl addPair (L.Record (m <> m') pairs) added
+        (L.Array xs, L.Array ys)
+            -> withComparable (xs <> ys) (L.Array (xs <> newAmong xs ys))
+        (L.Record _ _, other)
+            -> mismatch "attribute pairs, written :key value, to adjoin to a Record" (described other)
+        (L.Array _, other)
+            -> mismatch "elements to adjoin to an Array" (described other)
+        (other, _)
+            -> mismatch "a Record or an Array to adjoin to" (humanReadableType other)
+
+    -- A value is added to its key's values; an error, or a pair that is not a key's, is kept
+    addPair acc (key, value) = case acc of
+        L.Record m pairs
+            | key `elem` ["*err*", "@context"] -> L.Record m (pairs <> [(key, value)])
+            | otherwise
+                -> let existing = maybe [] valuesOf (lookup key pairs)
+                       adjoined = case value of
+                                      L.EvalError _ -> value
+                                      _aValue       -> withComparable (existing <> valuesOf value)
+                                                                      (L.Array (existing <> newAmong existing (valuesOf value)))
+                   in L.Record m (placed key adjoined pairs)
+        other
+            -> other
+
+    -- An Array is its elements, any other value is one value
+    valuesOf = \case
+        L.Array xs -> xs
+        other      -> [other]
+
+    -- The values not already there, each once, in the order written
+    newAmong existing = nub . filter (`notElem` existing)
+
+    -- A key already there keeps its place; a new one goes after the others
+    placed key value pairs
+        | any ((== key) . fst) pairs = [ (k, if k == key then value else v) | (k, v) <- pairs ]
+        | otherwise                  = pairs <> [(key, value)]
+
+    -- A function cannot be compared, so it cannot be looked for among a key's values
+    withComparable values result = case find isFunction values of
+        Just f     -> uncomparableValue f
+        Nothing    -> result
+
+    uncomparableValue f =
+        Data.Ouro.Error.Diagnostics.typeMismatch "values adjoin can compare (functions cannot be compared)" (humanReadableType f)
+        & Data.Ouro.Error.Diagnostics.withBlurb "adjoin adds a value unless it is already there, and functions have no meaningful equality."
+        & OuroError pos
+        & L.EvalError
+
+    described = \case
+        L.Array _    -> "elements, which adjoin adds to an Array"
+        L.Record _ _ -> "attribute pairs, which adjoin adds to a Record"
+        other        -> humanReadableType other
+
+    mismatch expected got =
+        Data.Ouro.Error.Diagnostics.typeMismatch expected got
+        & Data.Ouro.Error.Diagnostics.withBlurb "adjoin adds attribute pairs to a Record, (adjoin r :classified_as t), and elements to an Array, (adjoin (1 2) 3)."
+        & OuroError pos
+        & L.EvalError
 
 
 -- Shared helper for duration modifiers to ensure consistent error handling.

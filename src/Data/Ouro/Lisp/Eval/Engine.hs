@@ -290,7 +290,7 @@ evalExpr expr = do
                                     local (const frame) $
                                         applyFunction pos [S.Symbol (S.exprPos fnExpr) "%apply-fn", argExpr]
 
-        -- '->' and 'with' are rewritten before evaluation, so what reaches here has no value
+        -- '->', 'with' and 'adjoin' are rewritten before evaluation, so what reaches here has no value
         S.Form pos [S.Symbol _ "->"]
             -> lexicalError "-> is written (-> value step ...): a value, then the steps it is threaded through."
                & withBlurb "Each step receives the value before it as its first argument: (-> (base) (with :_label \"Name\") (f arg))."
@@ -301,6 +301,13 @@ evalExpr expr = do
         S.Form pos [S.Symbol _ "with"]
             -> lexicalError "with is written (with value :key value ...): a value, then what to write over it."
                & withBlurb "Written attribute pairs win over the value's own, as in an inlay: (with (base) :_label \"Name\")."
+               & OuroError pos
+               & EvalError
+               & pure
+
+        S.Form pos [S.Symbol _ "adjoin"]
+            -> lexicalError "adjoin is written (adjoin value :key value ...): a value, then what to add to it."
+               & withBlurb "Each value is added to its key's values unless it is already there: (adjoin (base) :classified_as (painting))."
                & OuroError pos
                & EvalError
                & pure

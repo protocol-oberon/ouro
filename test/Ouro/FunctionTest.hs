@@ -9,6 +9,7 @@ module Ouro.FunctionTest
 , plainNames
 , signatures
 , threading
+, adjoining
 ) where
 
 import qualified Data.Map.Strict             as Map
@@ -371,6 +372,76 @@ threading = Group "Functions: with and -> build a value step by step"
     ]
     where
     base = "(defn base () (:id \"1\" :type \"T\")) "
+
+
+-- (adjoin base item ...) is with's dual: where with sets a key, adjoin adds to the key's set
+-- of values, a value unless it is already there. Rewritten by Canon into %adjoin, which
+-- decides by the evaluated base whether it adds attribute pairs to a record or elements to
+-- an array.
+adjoining :: Group
+adjoining = Group "Functions: adjoin adds to a property's set of values"
+    [ ("a key not there holds the value",         compilesToJSON "(graph g (:r (adjoin (:t \"X\") :k 1)))"
+                                                                 "{\"r\": {\"t\": \"X\", \"k\": [1]}}")
+    , ("a single value becomes a set",            compilesToJSON "(graph g (:r (adjoin (:k 1) :k 2)))"
+                                                                 "{\"r\": {\"k\": [1, 2]}}")
+    , ("a list adds its elements",                compilesToJSON "(graph g (:r (adjoin (:k (1)) :k (list 2 3))))"
+                                                                 "{\"r\": {\"k\": [1, 2, 3]}}")
+    , ("a value already there is not added",      compilesToJSON "(graph g (:r (adjoin (:k (1 2)) :k 2)))"
+                                                                 "{\"r\": {\"k\": [1, 2]}}")
+    , ("the values there are kept as they are",   compilesToJSON "(graph g (:r (adjoin (:k (1 1)) :k (1 3))))"
+                                                                 "{\"r\": {\"k\": [1, 1, 3]}}")
+    , ("a key keeps its place, a new one is last", compilesToJSON "(graph g (:r (adjoin (:a 1 :k 2 :z 3) :k 4 :new 5)))"
+                                                                 "{\"r\": {\"a\": 1, \"k\": [2, 4], \"z\": 3, \"new\": [5]}}")
+    , ("records are compared by value",           compilesToJSON "(graph g (:r (adjoin (:k ((:id \"a\"))) :k (:id \"a\") :k2 1)))"
+                                                                 "{\"r\": {\"k\": [{\"id\": \"a\"}], \"k2\": [1]}}")
+    , ("an array adds elements not there",        compilesToJSON "(graph g (:r (adjoin (1 2) 2 3)))"
+                                                                 "{\"r\": [1, 2, 3]}")
+    , ("an inlay's attribute pairs are adjoined", compilesToJSON "(graph g (:r (adjoin (:k (1)) (inlay (:k 2 :j 3)))))"
+                                                                 "{\"r\": {\"k\": [1, 2], \"j\": [3]}}")
+    , ("a context is layered, as with's",         compilesToJSON "(graph g (adjoin (:k 1 :context \"https://linked.art/ns/v1/linked-art.json\") :k 2 :context \"https://e.org/c.json\"))"
+                                                                 "{\"@context\": [\"https://linked.art/ns/v1/linked-art.json\", \"https://e.org/c.json\"], \"k\": [1, 2]}")
+    , ("adjoin with nothing to add is the value", compilesToJSON "(graph g (:r (adjoin (:k 1))))"
+                                                                 "{\"r\": {\"k\": 1}}")
+    , ("adjoining twice is adjoining once",       compilesToJSON "(graph g (:r (adjoin (adjoin (:k 1) :k 2) :k 2)))"
+                                                                 "{\"r\": {\"k\": [1, 2]}}")
+    , ("with after adjoin sets the key",          compilesToJSON "(graph g (:r (with (adjoin (:k 1) :k 2) :k 3)))"
+                                                                 "{\"r\": {\"k\": 3}}")
+    , ("adjoin after with adds to it",            compilesToJSON "(graph g (:r (adjoin (with (:k 0) :k 1) :k 2)))"
+                                                                 "{\"r\": {\"k\": [1, 2]}}")
+
+    -- A step, and a function by the placeholder rule
+    , ("-> threads adjoin with with",             compilesToJSON "(graph g (:r (-> (:t \"X\") (with :_label \"L\") (adjoin :k 1) (adjoin :k 1 :k2 2))))"
+                                                                 "{\"r\": {\"t\": \"X\", \"_label\": \"L\", \"k\": [1], \"k2\": [2]}}")
+    , ("(-> ? (adjoin ...)) can be mapped",       compilesToJSON "(graph g (:r (map (-> ? (adjoin :k 9)) ((:k 1) (:j 2)))))"
+                                                                 "{\"r\": [{\"k\": [1, 9]}, {\"j\": 2, \"k\": [9]}]}")
+    , ("a pipeline builds a Linked Art record",   compilesToJSON ( "(defn aat (id label) (:id #uri (+ \"http://vocab.getty.edu/aat/\" id) :type \"Type\" :_label label)) "
+                                                                <> "(graph g (-> (:id #uri \"https://linked.art/example/place/amsterdam/1\" :type \"Place\" :_label \"Amsterdam\") "
+                                                                <> "(adjoin :classified_as (aat \"300008389\" \"City\")) "
+                                                                <> "(adjoin :classified_as (list (aat \"300008389\" \"City\") (aat \"300008375\" \"Town\"))) "
+                                                                <> "(adjoin :identified_by (:type \"Name\" :content \"Amsterdam\"))))" )
+                                                                 ( "{\"id\": \"https://linked.art/example/place/amsterdam/1\", \"type\": \"Place\", \"_label\": \"Amsterdam\", "
+                                                                <> "\"classified_as\": [{\"id\": \"http://vocab.getty.edu/aat/300008389\", \"type\": \"Type\", \"_label\": \"City\"}, "
+                                                                <> "{\"id\": \"http://vocab.getty.edu/aat/300008375\", \"type\": \"Type\", \"_label\": \"Town\"}], "
+                                                                <> "\"identified_by\": [{\"type\": \"Name\", \"content\": \"Amsterdam\"}]}" ))
+
+    -- Errors
+    , ("an element cannot be adjoined to a record", failsWith "attribute pairs, written :key value, to adjoin to a Record"
+                                                              "(graph g (:r (adjoin (:k 1) 5)))")
+    , ("attribute pairs cannot be adjoined to an array", failsWith "elements to adjoin to an Array"
+                                                                   "(graph g (:r (adjoin (1 2) :k 5)))")
+    , ("the base is a record or an array",        failsWith "a Record or an Array to adjoin to"
+                                                            "(graph g (:r (adjoin 5 :k 1)))")
+    , ("a function cannot be compared",           failsWith "values adjoin can compare"
+                                                            "(graph g (:r (len (adjoin (list (fn (x) x)) 1))))")
+    , ("an error in a value is reported",         failsWith "a Number + a String"
+                                                            "(graph g (:r (adjoin (:k 1) :k (+ 1 \"a\"))))")
+    , ("a key is written once, as in with",       failsWith "The key 'k' is written twice"
+                                                            "(graph g (:r (adjoin (:k 1) :k 2 :k 3)))")
+    , ("adjoin needs a value",                    failsWith "adjoin is written (adjoin value :key value ...)"
+                                                            "(graph g (:r (adjoin)))")
+    , ("adjoin cannot be a function name",        failsWith "'adjoin' is a special form"
+                                                            "(defn adjoin (x) x) (graph g (:r 1))")
+    ]
 
 
 -- A function is documented with one (doc "...") among the direct elements of its body,

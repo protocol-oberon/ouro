@@ -155,7 +155,7 @@ prop_pass_order :: Property
 prop_pass_order = withTests 1 . property $
     map Canon.passName Canon.passes
         === [ "placeholders", "threading", "connectives", "bindings", "guards", "contexts"
-            , "with", "thru", "comparisons", "operators", "alternatives" ]
+            , "adjoin", "with", "thru", "comparisons", "operators", "alternatives" ]
 
 -- A parameter pattern skips placeholders, threading and connectives
 prop_pattern_passes :: Property

@@ -415,7 +415,7 @@ duplicateFunction name pos =
 
 -- Forms the evaluator recognises by their head symbol, before any name lookup
 specialForms :: [Text]
-specialForms = [ "->", "and", "attr", "case", "context", "define", "defn", "defun", "doc", "exists"
+specialForms = [ "->", "adjoin", "and", "attr", "case", "context", "define", "defn", "defun", "doc", "exists"
                , "filter", "fn", "forall", "get", "get-or", "graph", "has", "image", "inlay", "insert", "let"
                , "list", "map", "nth", "omits", "or", "replace-at", "satisfies", "thru", "when", "with" ]
 

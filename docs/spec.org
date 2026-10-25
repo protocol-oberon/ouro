@@ -236,7 +236,7 @@ placeholder  = [ property ] , hole ;     (* a call with placeholders is a functi
 
 (* ---------- Special forms ---------- *)
 special-form = let | fn | case | get | has | get-or | image | map | filter | quantifier
-             | insert | replace-at | inlay | with | thread | connective | thru ;
+             | insert | replace-at | inlay | with | adjoin | thread | connective | thru ;
 let          = "(" , "let" , "(" , { binding } , ")" , expression , ")" ;
 binding      = "$" , symbol , expression ;
 fn           = "(" , "fn" , [ property ] , params , expression , ")" ;
@@ -255,6 +255,7 @@ quantifier   = "(" , ( "forall" | "exists" | "omits" ) , expression , expression
 connective   = "(" , ( "and" | "or" ) , { expression } , ")" ;
 thru         = "(" , "thru" , expression , ")" ;     (* a duration *)
 with         = "(" , "with" , expression , { record-item | expression } , ")" ;
+adjoin       = "(" , "adjoin" , expression , { record-item | expression } , ")" ;     (* with's dual: adds to a key's values *)
 thread       = "(" , "->" , ( expression | placeholder ) , { expression } , ")" ;     (* a value, then its steps *)
 insert       = "(" , "insert" , expression , ( expression | attribute-pair ) , expression , ")" ;
 replace-at   = "(" , "replace-at" , expression , ( expression | attribute-pair ) , expression , ")" ;
@@ -493,6 +494,7 @@ Special forms are recognised by their head symbol before any name lookup, so the
 | =(replace-at i x coll)=                  | replace the element or attribute pair at index =i=                                    |
 | =(inlay expr)=                           | splice a record's attribute pairs into a record, or an array's elements into an array |
 | =(with base item ...)=                   | =base= with =item=s written over it, as ~((inlay base) item ...)~                     |
+| =(adjoin base item ...)=                 | =base= with =item=s added to it: each value to its key's set of values, unless already there |
 | =(-> x step ...)=                        | =x= threaded through the steps, each receiving the value before it                    |
 | =(and b ...)=                            | =true= when every operand is; stops at the first =false=                              |
 | =(or b ...)=                             | =true= when one operand is; stops at the first =true=                                 |
@@ -529,6 +531,23 @@ Negative indexes count from the end in =insert= and =replace-at=, as in a path. 
 - *A step* is called with the value as its first argument; a bare name is called with the value; a step that is a function, such as a placeholder ~(- 10 ?)~ or a =fn=, is called with the value. A step receives exactly one value, so ~(+ ? ?)~ is an arity error, and a step that is not a function is a type error.
 - *=(-> ? step ...)=* is a function of the value, by the placeholder rule: ~(map (-> ? (with :seen true)) records)~.
 - ~(-> x)~ is =x=. =with= and =->= are rewritten before evaluation (see /Canon-Desugaring/), so they cannot name a =defn=.
+
+=adjoin=. ~(adjoin base item ...)~ is =with='s dual: the same shape, the same place in =->= and under placeholders, but where =with= sets a key, =adjoin= adds to the key's set of values, as JSON-LD reads a property. So =with= suits a property that holds one value (=_label=, =produced_by=) and =adjoin= one that holds a set (=classified_as=, =identified_by=):
+
+#+BEGIN_SRC clojure
+(adjoin (:k 1) :k 2)                  ; {"k": [1, 2]}: a single value becomes a set
+(adjoin (:k (1 2)) :k 2)              ; {"k": [1, 2]}: a value already there is not added
+(adjoin (:k (1)) :k (list 2 3))       ; {"k": [1, 2, 3]}: a list adds its elements
+(adjoin (:k (1 1)) :k (1 3))          ; {"k": [1, 1, 3]}: the values there are kept as they are
+(adjoin (1 2) 2 3)                    ; (1 2 3): an array adds the elements not there
+(-> (:type "Place") (with :_label "Amsterdam") (adjoin :classified_as (city)))
+#+END_SRC
+
+- *A value is added unless it is already there*, compared as =eq= compares, by value: two records are the same value when their attribute pairs are, so one entity written with two labels is two values. A key that is added to always holds an Array, even of one value. The values already there are not touched, repeats included.
+- *A key keeps its place* in the record, and a new key goes after the others. (=with= puts a key it writes after the base's.)
+- *Items* are as =with='s: attribute pairs, a context, which is layered as =with= layers it, and =(inlay x)=, whose attribute pairs (or elements) are adjoined. A key written twice in one =adjoin= is an error, as in a record.
+- *The base* decides: a record takes attribute pairs, an array takes elements, and anything else is a type error, as are attribute pairs adjoined to an array and an element adjoined to a record. A function among the values cannot be compared, so it is an error, as in =union=.
+- ~(adjoin base)~ is =base=, and adjoining the same values twice is adjoining them once. =with= after =adjoin= sets the key; =adjoin= after =with= adds to it. =adjoin= is rewritten before evaluation, so it cannot name a =defn=.
 
 ** =case= and patterns
 
@@ -676,17 +695,18 @@ Before evaluation, ~Canon.canonicalModule~ rewrites every function body and grap
 | 4. bindings      | top-down  | =$name value= in a =let='s bindings into ~(%bind "name" value)~                             |
 | 5. guards        | top-down  | a condition, =(when c)= or a guard ~((< 10) e)~, into a ~(%when c)~ head; a guard names the target, bound once |
 | 6. contexts      | bottom-up | =:context e= into ~(%context e)~                                                            |
-| 7. with          | bottom-up | ~(with base item ...)~ into ~((inlay base) item ...)~                                       |
-| 8. thru          | siblings  | ~(thru (days n))~ into the durations it stands for                                          |
-| 9. comparisons   | bottom-up | ~(< a b c)~ into ~(and (< a b) (< b c))~, desugared as connectives (3) desugars =and=      |
-| 10. operators    | bottom-up | ~(+ a b c)~ into ~(+ (+ a b) c)~                                                            |
-| 11. alternatives | bottom-up | a =case= branch ~(("a" "b") e)~ into one branch per literal                                 |
+| 7. adjoin        | bottom-up | ~(adjoin base item ...)~ into ~(%adjoin base addition ...)~, its attribute pairs grouped into records |
+| 8. with          | bottom-up | ~(with base item ...)~ into ~((inlay base) item ...)~                                       |
+| 9. thru          | siblings  | ~(thru (days n))~ into the durations it stands for                                          |
+| 10. comparisons  | bottom-up | ~(< a b c)~ into ~(and (< a b) (< b c))~, desugared as connectives (3) desugars =and=      |
+| 11. operators    | bottom-up | ~(+ a b c)~ into ~(+ (+ a b) c)~                                                            |
+| 12. alternatives | bottom-up | a =case= branch ~(("a" "b") e)~ into one branch per literal                                 |
 
 A pass walks the tree in one of three ways (~Canon.Traverse~): top-down, rewriting a form before its parts, when the rule depends on the form's own shape; bottom-up, rewriting a form's parts first; or over lists of siblings, for a rule that turns one element into several. An expression that stands on its own, such as a graph's body or the payload of a property, is a list of one: a =thru= there has no meaning and is left for the evaluator to report.
 
-The order matters in five places. Threading runs before =with=, so in ~(-> x (with :k v))~ =with= receives =x= as its base. Bindings run before =thru=, so a value that expands into several elements stays inside its binding. Guards run before comparisons and alternatives, which leave a marked guard alone, so a guard's operands are not unrolled as a comparison of their own. Connectives run after threading, so a step =(and y)= receives the threaded value as its first operand. Comparisons run after connectives, so the =and= a chain becomes is desugared by the comparisons pass itself, into the same chain of cases. Only =thru= walks siblings.
+The order matters in six places. Threading runs before =adjoin= and =with=, so in ~(-> x (with :k v))~ =with= receives =x= as its base. Contexts run before =adjoin=, so a context written among its attribute pairs is grouped with them. Bindings run before =thru=, so a value that expands into several elements stays inside its binding. Guards run before comparisons and alternatives, which leave a marked guard alone, so a guard's operands are not unrolled as a comparison of their own. Connectives run after threading, so a step =(and y)= receives the threaded value as its first operand. Comparisons run after connectives, so the =and= a chain becomes is desugared by the comparisons pass itself, into the same chain of cases. Only =thru= walks siblings.
 
-Each pass is a module of its own under =Lisp/Canon/= (=Placeholders.hs=, =Threading.hs=, =Connectives.hs=, =Bindings.hs=, =Guards.hs=, =Context.hs=, =With.hs=, =Thru.hs=, =Comparisons.hs=, =Operators.hs=, =Alternatives.hs=, with the walks in =Traverse.hs=), and =Lisp/Canon.hs= is the single entry point: it lists the passes, in order, and runs them (~Canon.runPasses~ runs any selection of them). A =defn='s parameter patterns go through ~Canon.patternPasses~, every pass but placeholders, threading and connectives, since a pattern is matched, not evaluated.
+Each pass is a module of its own under =Lisp/Canon/= (=Placeholders.hs=, =Threading.hs=, =Connectives.hs=, =Bindings.hs=, =Guards.hs=, =Context.hs=, =Adjoin.hs=, =With.hs=, =Thru.hs=, =Comparisons.hs=, =Operators.hs=, =Alternatives.hs=, with the walks in =Traverse.hs=), and =Lisp/Canon.hs= is the single entry point: it lists the passes, in order, and runs them (~Canon.runPasses~ runs any selection of them). A =defn='s parameter patterns go through ~Canon.patternPasses~, every pass but placeholders, threading and connectives, since a pattern is matched, not evaluated.
 
 | Sugar                                   | Core                                                          |
 |-----------------------------------------+---------------------------------------------------------------|
@@ -694,6 +714,7 @@ Each pass is a module of its own under =Lisp/Canon/= (=Placeholders.hs=, =Thread
 | ~(-> x (f a) g)~                        | ~(g (f x a))~                                                 |
 | a function step ~(-> x (h b ?))~        | ~(%apply (fn (%1) (h b %1)) x)~                               |
 | ~(with base item ...)~                  | ~((inlay base) item ...)~; ~(with base)~ is ~base~            |
+| ~(adjoin base :k v (inlay x) e)~        | ~(%adjoin base (:k v) x (list e))~; ~(adjoin base)~ is ~base~ |
 | =:context e=, =:@context e=             | ~(%context e)~: the record's metadata, not an attribute pair  |
 | ~(+ a b c)~ (also =- * /=)              | ~(+ (+ a b) c)~                                               |
 | ~(< a b c)~ (also ~eq > >= <=~)         | ~(and (< a b) (< b c))~, then its chain of cases               |
@@ -705,7 +726,7 @@ Each pass is a module of its own under =Lisp/Canon/= (=Placeholders.hs=, =Thread
 | a property ~((satisfies #p) e)~         | ~((%when (satisfies #p %target)) e)~, the case bound as for a guard |
 | =$name value= in a =let='s bindings     | ~(%bind "name" value)~                                        |
 
-A =$name= with no value becomes ~(%bind "name")~ and is reported as having no value; a =$name= anywhere outside a =let='s bindings stays ~(%binder "name")~ and is reported where it is evaluated. The =%= heads cannot be written by users. =%apply= exists because a form headed by a =fn= is an array, not a call: the evaluator binds the function to a name that cannot be written and calls it with the threaded value, as =map= does for each element. Nor can a placeholder's parameter names: =%1= cannot be lexed, and =?n= is read as a hole, so a placeholder never captures a name its call refers to. A hole left after ~Canon.Placeholders.placeholders~, outside a call's arguments and =case= patterns, is reported where it is evaluated.
+=%adjoin= is a built-in, not a rewrite into =with=, because only the evaluated base says whether it adds attribute pairs to a record or elements to an array. A =$name= with no value becomes ~(%bind "name")~ and is reported as having no value; a =$name= anywhere outside a =let='s bindings stays ~(%binder "name")~ and is reported where it is evaluated. The =%= heads cannot be written by users. =%apply= exists because a form headed by a =fn= is an array, not a call: the evaluator binds the function to a name that cannot be written and calls it with the threaded value, as =map= does for each element. Nor can a placeholder's parameter names: =%1= cannot be lexed, and =?n= is read as a hole, so a placeholder never captures a name its call refers to. A hole left after ~Canon.Placeholders.placeholders~, outside a call's arguments and =case= patterns, is reported where it is evaluated.
 
 ** Structural classification
 

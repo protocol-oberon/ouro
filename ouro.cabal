@@ -74,6 +74,7 @@ library
         Data.Ouro.Json.Parser
         Data.Ouro.Json.Serializer
         Data.Ouro.Lisp.Canon
+        Data.Ouro.Lisp.Canon.Adjoin
         Data.Ouro.Lisp.Canon.Alternatives
         Data.Ouro.Lisp.Canon.Bindings
         Data.Ouro.Lisp.Canon.Comparisons
