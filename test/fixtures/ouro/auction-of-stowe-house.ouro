@@ -1,5 +1,5 @@
 (import std/base)
-(import std/object)
+(import aat/unit)
 (import std/time)
 
 ;; A JSON-LD graph must be named
@@ -19,4 +19,4 @@
 
                    :duration      (:type  "Dimension"
                                    :value 3
-                                   :unit  (object/unit "300379242" "days")))))
+                                   :unit  unit/day-unit))))

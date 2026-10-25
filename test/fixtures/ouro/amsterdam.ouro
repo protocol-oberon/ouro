@@ -1,4 +1,5 @@
 (import std/base)
+(import aat/place-type)
 
 ;; A project's own URIs stay in the project: std builds Linked Art's nodes, not their ids
 (defn example #uri (#str path)
@@ -11,8 +12,8 @@
 (graph amsterdam
   (-> (place "amsterdam/1" "Amsterdam")
       (with :context        "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as  ((base/aat "300008389" "City")))
+      (with :classified_as  (list place-type/city))
       (with :identified_by  ((:type "Name" :content "Amsterdam")))
       (with :referred_to_by ((base/description "Amsterdam is a city in the Netherlands")))
       (with :part_of        ((-> (place "netherlands" "Netherlands")
-                                 (with :classified_as ((base/aat "300128207" "Nation"))))))))
+                                 (with :classified_as (list place-type/country)))))))

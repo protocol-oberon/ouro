@@ -28,7 +28,7 @@
       "unit": {
         "id": "http://vocab.getty.edu/aat/300379242",
         "type": "MeasurementUnit",
-        "_label": "days"
+        "_label": "Days"
       }
     }
   }

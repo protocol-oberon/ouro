@@ -1,4 +1,4 @@
-(import std/base)
+(import aat/object-type)
 
 ;; let bindings are elided at compilation
 (graph jeanne-spring
@@ -9,7 +9,7 @@
    :type           "HumanMadeObject"
    :_label         "Jeanne (Spring) by Manet"
    ;; A type of work, classified as Type of Work, as Linked Art requires
-   :classified_as  ((base/work-type "300033618" "Painting"))
+   :classified_as  (list object-type/painting)
    :identified_by  ((:type    "Name"
                      :content "Jeanne (Spring)"))
    :member_of      ((:id   #uri (+ linked-art-uri "set/exhset")
