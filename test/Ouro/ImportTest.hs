@@ -12,7 +12,7 @@ import           Control.Monad                 (forM_, when)
 import qualified Data.ByteString               as BS
 import           Data.Char                     (isSpace)
 import           Data.Foldable                 (toList)
-import           Data.List                     (findIndex)
+import           Data.List                     (findIndex, isSuffixOf, sort)
 import           Data.List.NonEmpty            (NonEmpty (..))
 import qualified Data.Map.Strict               as Map
 import           Data.Ouro                     (CompilationResult (..),
@@ -34,6 +34,7 @@ import           Hedgehog
 import           System.Directory              (createDirectoryIfMissing,
                                                 doesDirectoryExist,
                                                 getTemporaryDirectory,
+                                                listDirectory,
                                                 removeDirectoryRecursive)
 import           System.FilePath               (normalise, takeDirectory, (</>))
 import           Text.Megaparsec               (SourcePos (..), mkPos,
@@ -231,6 +232,7 @@ importedModules = Group "Modules: imported modules, in memory"
                                                              "(import std/base) (graph g (base/nope 1))")
     , ("every bundled function is documented",     stdIsDocumented)
     , ("bundled modules are named with /",        bundledNamesUseSlash)
+    , ("every file in lib/ is bundled",            bundledMatchesLib)
     ]
 
     where
@@ -271,6 +273,24 @@ bundledNamesUseSlash = withTests 1 . property $ do
     assert (Map.member "std/base" bundled)
     assert (not (any (T.isInfixOf "\\") (Map.keys bundled)))
     assert (not (any (T.isInfixOf "\\" . T.pack . fst) (Map.elems bundled)))
+
+
+-- The bundled modules are exactly the files in lib/. A file added there is not noticed by the
+-- build: file-embed tracks the files it embedded, and neither GHC nor cabal watches the folder,
+-- so a stale build would leave a new module out without a word. This test says which.
+bundledMatchesLib :: Property
+bundledMatchesLib = withTests 1 . property $ do
+    onDisk <- evalIO (ouroFiles "lib")
+    annotate "A module in lib/ is not in the build: rebuild with cabal build all --ghc-options=-fforce-recomp"
+    sort onDisk === sort (map fst (Map.elems bundled))
+    where
+    ouroFiles dir = do
+        entries <- listDirectory dir
+        concat <$> traverse (inside dir) entries
+    inside dir entry = do
+        let path = dir <> "/" <> entry
+        isFolder <- doesDirectoryExist path
+        if isFolder then ouroFiles path else pure [ path | ".ouro" `isSuffixOf` entry ]
 
 
 -- Every error modules can raise, each with its code, the file, line and column it is
@@ -334,11 +354,11 @@ moduleErrors = Group "Modules: every error, with its code, place and hint"
                                                                  "(defn f ((?a/b)) 1) (graph g (:r 1))")
 
       -- Finding a module
-    , ("a module that does not exist",             importsFailAt "SCP0006" ("inline-test", 1, 1) ["missingModule = \"nope\"", "The bundled modules are: std/base, std/time, std/vocab."] []
+    , ("a module that does not exist",             importsFailAt "SCP0006" ("inline-test", 1, 1) ["missingModule = \"nope\"", "The bundled modules are: std/actor, std/base, std/digital, std/exhibition, std/object, std/provenance, std/time, std/vocab."] []
                                                                  "(import nope) (graph g (:r 1))")
     , ("a module near a bundled one",              importsFailAt "SCP0006" ("inline-test", 1, 1) ["missingModule = \"std/bsae\"", "Perhaps you meant 'std/base'"] []
                                                                  "(import std/bsae) (graph g (:r 1))")
-    , ("a folder of bundled modules is not one",   importsFailAt "SCP0006" ("inline-test", 1, 1) ["missingModule = \"std\"", "'std' is a folder of modules, not a module: perhaps (import std/base)", "Its modules are: std/base, std/time, std/vocab."] []
+    , ("a folder of bundled modules is not one",   importsFailAt "SCP0006" ("inline-test", 1, 1) ["missingModule = \"std\"", "'std' is a folder of modules, not a module: perhaps (import std/base)", "Its modules are: std/actor, std/base, std/digital, std/exhibition, std/object, std/provenance, std/time, std/vocab."] []
                                                                  "(import std) (graph g (:r 1))")
     , ("a missing module, imported second",        importsFailAt "SCP0006" ("inline-test", 1, 19) ["missingModule = \"nope\""] []
                                                                  "(import std/base) (import nope) (graph g (:r 1))")
@@ -389,7 +409,7 @@ moduleErrors = Group "Modules: every error, with its code, place and hint"
                                                                  "(import badly-named) (graph g (:r (badly-named/badName)))")
 
       -- A module says where it was looked for, and a project's module replaces a bundled one
-    , ("a missing module says where it looked",    importsFailAt "SCP0006" ("inline-test", 1, 1) ["Looked for nope.ouro.", "The bundled modules are: std/base, std/time, std/vocab."] []
+    , ("a missing module says where it looked",    importsFailAt "SCP0006" ("inline-test", 1, 1) ["Looked for nope.ouro.", "The bundled modules are: std/actor, std/base, std/digital, std/exhibition, std/object, std/provenance, std/time, std/vocab."] []
                                                                  "(import nope) (graph g (:r 1))")
     , ("a project module replaces a bundled one",  importsWarnAt "WRN0005" ("inline-test", 1, 1) ["The project's module 'std/base' replaces the bundled 'std/base'", "std/base.ouro replaces the bundled 'std/base'", "Perhaps rename the file"] [mineStd]
                                                                  "(import std/base) (graph g (:r (base/core 1 2 3)))")

@@ -1,0 +1,48 @@
+;; std/provenance: changes of ownership, from linked.art/model/provenance. A purchase is a
+;; provenance Activity with two parts, an Acquisition of title and a Payment, whose roles
+;; run opposite ways: title goes from the seller to the buyer, money from the buyer to the
+;; seller. A record that is a purchase writes its own id and _label beside one.
+(import std/base)
+(import std/vocab)
+
+(export purchase acquisition payment money
+        currency british-pounds canadian-dollars euros japanese-yen swiss-francs us-dollars)
+
+(defn purchase #rec (#rec object #rec seller #rec buyer #rec amount #rec span)
+  (doc "A purchase of an object from a seller by a buyer, for an amount, over a span: its Acquisition and its Payment.")
+  (:type          "Activity"
+   :classified_as (list vocab/provenance-activity)
+   :timespan      span
+   :part          (list (acquisition object seller buyer)
+                        (payment amount buyer seller))))
+
+(defn acquisition #rec (#rec object #rec from #rec to)
+  (doc "An Acquisition: the title of an object passes from one owner to another.")
+  (:type                   "Acquisition"
+   :transferred_title_of   (list object)
+   :transferred_title_from (list from)
+   :transferred_title_to   (list to)))
+
+(defn payment #rec (#rec amount #rec from #rec to)
+  (doc "A Payment of an amount from one party to another.")
+  (:type        "Payment"
+   :paid_amount amount
+   :paid_from   (list from)
+   :paid_to     (list to)))
+
+(defn money #rec (#num value #rec currency)
+  (doc "A MonetaryAmount: (money 3000 euros).")
+  (:type "MonetaryAmount" :value value :currency currency))
+
+;; Currencies
+
+(defn currency #rec (#str id #str label)
+  (doc "A Currency from the Getty AAT, by its number: (currency \"300412016\" \"French Francs\").")
+  (:id #uri (+ "http://vocab.getty.edu/aat/" id) :type "Currency" :_label label))
+
+(defn british-pounds   () (doc "British pounds.")   (currency "300411998" "british pounds"))
+(defn canadian-dollars () (doc "Canadian dollars.") (currency "300412000" "canadian dollar"))
+(defn euros            () (doc "Euros.")            (currency "300411996" "euros"))
+(defn japanese-yen     () (doc "Japanese yen.")     (currency "300411997" "japanese yen"))
+(defn swiss-francs     () (doc "Swiss francs.")     (currency "300412001" "swiss franc"))
+(defn us-dollars       () (doc "US dollars.")       (currency "300411994" "us dollars"))

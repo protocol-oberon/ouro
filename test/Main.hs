@@ -55,6 +55,12 @@ main = withUtf8Console $ do
         , Std.base
         , Std.time
         , Std.vocab
+        , Std.object
+        , Std.actor
+        , Std.provenance
+        , Std.exhibition
+        , Std.digital
+        , Std.everyModule
         -- Bindings: let, fn and defn replace define and defun
         , Let.letAndFn
         -- The language as specified: what reaches the output, special forms and built-ins

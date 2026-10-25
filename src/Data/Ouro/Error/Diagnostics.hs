@@ -146,13 +146,18 @@ moduleNotFound path searched bundledNames =
                  []    -> ""
                  files -> "Looked for " <> T.intercalate ", " (map T.pack files) <> ". "
 
-    -- A folder of bundled modules, such as std, is not a module itself: name its modules
+    -- A folder of bundled modules, such as std, is not a module itself: name its modules,
+    -- suggesting its base module, which the others build on, when it has one
     hint = case folder of
-               first : _ -> "'" <> path <> "' is a folder of modules, not a module: perhaps (import " <> first <> "). "
+               first : _ -> "'" <> path <> "' is a folder of modules, not a module: perhaps (import " <> suggested first <> "). "
                          <> "Its modules are: " <> T.intercalate ", " folder <> "."
                []        -> "The bundled modules are: " <> T.intercalate ", " bundledNames <> "." <> closest path bundledNames
 
     folder = filter ((path <> "/") `T.isPrefixOf`) bundledNames
+
+    suggested first
+        | (path <> "/base") `elem` folder = path <> "/base"
+        | otherwise                       = first
 
 
 -- A module whose file exists but cannot be read: its file, and why

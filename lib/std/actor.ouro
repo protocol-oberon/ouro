@@ -1,0 +1,45 @@
+;; std/actor: people and groups, from linked.art/model/actor: the parts of a name, gender,
+;; a professional life, and contact points. A person's nationality and occupation are in
+;; std/base, beside the other types classified by their meta-type.
+(import std/base)
+(import std/vocab)
+
+(export given-name middle-name family-name gender active street-address telephone email)
+
+;; The parts of a name, for a Name's part
+
+(defn given-name #rec (#str content)
+  (doc "A given name, as a part of a Name: (given-name \"Rembrandt\").")
+  (base/name (base/aat "300404651" "Given Name") content))
+
+(defn middle-name #rec (#str content)
+  (doc "A middle name, as a part of a Name: (middle-name \"Harmenszoon\").")
+  (base/name (base/aat "300404654" "Middle Name") content))
+
+(defn family-name #rec (#str content)
+  (doc "A family name, as a part of a Name: (family-name \"van Rijn\").")
+  (base/name (base/aat "300404652" "Family Name") content))
+
+;; Gender and professional life
+
+(defn gender #rec (#str id #str label)
+  (doc "A gender, classified as Gender: (gender \"300189559\" \"Male\").")
+  (adjoin (base/aat id label) :classified_as (base/aat "300055147" "Gender")))
+
+(defn active #rec (#rec span)
+  (doc "A professional life over a span, for carried_out: (active (time/year-range \"1625\" \"1669\")).")
+  (:type "Activity" :classified_as (list vocab/professional-activity) :timespan span))
+
+;; Contact points: identifiers, for contact_point, shared by those who use them
+
+(defn street-address #rec (#str content)
+  (doc "A street address: (street-address \"Jodenbreestraat 4, 1011 NK Amsterdam\").")
+  (base/identifier (base/aat "300386983" "Street Address") content))
+
+(defn telephone #rec (#str content)
+  (doc "A telephone number: (telephone \"+31-20-520-0400\").")
+  (base/identifier (base/aat "300435688" "Telephone Number") content))
+
+(defn email #rec (#str content)
+  (doc "An email address: (email \"museum@rembrandthuis.nl\").")
+  (base/identifier (base/aat "300435686" "Email Address") content))

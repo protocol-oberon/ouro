@@ -1,0 +1,23 @@
+;; std/digital: digital content about an object, from linked.art/model/digital. An image
+;; is a VisualItem shown by a DigitalObject, for representation; a web page is a
+;; LinguisticObject carried by one, for subject_of. Each DigitalObject has its URL as an
+;; access_point, the file or the page itself rather than a description of it.
+(import std/base)
+
+(export picture web-page)
+
+(defn picture #rec (#uri url #str format)
+  (doc "An image of an object, at a URL in a media type, for representation: (picture \"https://a.org/spring.jpg\" \"image/jpeg\").")
+  (:type               "VisualItem"
+   :digitally_shown_by (list (:type          "DigitalObject"
+                              :classified_as (list (base/aat "300215302" "Digital Image"))
+                              :format        format
+                              :access_point  (list (:id url :type "DigitalObject"))))))
+
+(defn web-page #rec (#uri url)
+  (doc "A web page about an object, at a URL, for subject_of: (web-page \"https://a.org/spring\").")
+  (:type                 "LinguisticObject"
+   :digitally_carried_by (list (:type          "DigitalObject"
+                                :classified_as (list (base/aat "300264578" "Web Page"))
+                                :format        "text/html"
+                                :access_point  (list (:id url :type "DigitalObject"))))))

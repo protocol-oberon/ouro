@@ -1,0 +1,64 @@
+;; std/object: an object's physical characteristics, from linked.art/model/object/physical:
+;; its dimensions, the units they are measured in, its materials, and the statements and
+;; part types that describe them. Units are Linked Art's recommended ones, typed
+;; MeasurementUnit; a material is typed Material, with no meta-type.
+(import std/base)
+
+(export dimension height width depth weight
+        unit centimeters millimeters meters inches feet grams kilograms pounds
+        material dimension-statement material-statement part-type)
+
+;; Dimensions
+
+(defn dimension #rec (#rec kind #num value #rec unit)
+  (doc "A Dimension of a kind, with its value and unit: (dimension (base/aat \"300055642\" \"Unknown Physical Dimension\") 12 centimeters).")
+  (:type "Dimension" :classified_as (list kind) :value value :unit unit))
+
+(defn height #rec (#num value #rec unit)
+  (doc "A height: (height 379.5 centimeters).")
+  (dimension (base/aat "300055644" "Height") value unit))
+
+(defn width #rec (#num value #rec unit)
+  (doc "A width: (width 453.5 centimeters).")
+  (dimension (base/aat "300055647" "Width") value unit))
+
+(defn depth #rec (#num value #rec unit)
+  (doc "A depth: (depth 3 centimeters).")
+  (dimension (base/aat "300072633" "Depth") value unit))
+
+(defn weight #rec (#num value #rec unit)
+  (doc "A weight: (weight 337 kilograms).")
+  (dimension (base/aat "300056240" "Weight") value unit))
+
+;; Units of measurement
+
+(defn unit #rec (#str id #str label)
+  (doc "A MeasurementUnit from the Getty AAT, by its number: (unit \"300379098\" \"centimeters\").")
+  (:id #uri (+ "http://vocab.getty.edu/aat/" id) :type "MeasurementUnit" :_label label))
+
+(defn centimeters () (doc "Centimeters, a unit of length.") (unit "300379098" "centimeters"))
+(defn millimeters () (doc "Millimeters, a unit of length.") (unit "300379097" "millimeters"))
+(defn meters      () (doc "Meters, a unit of length.")      (unit "300379099" "meters"))
+(defn inches      () (doc "Inches, a unit of length.")      (unit "300379100" "inches"))
+(defn feet        () (doc "Feet, a unit of length.")        (unit "300379101" "feet"))
+(defn grams       () (doc "Grams, a unit of weight.")       (unit "300379225" "grams"))
+(defn kilograms   () (doc "Kilograms, a unit of weight.")   (unit "300379226" "kilograms"))
+(defn pounds      () (doc "Pounds, a unit of weight.")      (unit "300379254" "pounds"))
+
+;; Materials, statements and parts
+
+(defn material #rec (#str id #str label)
+  (doc "A Material from the Getty AAT, by its number, for made_of: (material \"300014078\" \"canvas\").")
+  (:id #uri (+ "http://vocab.getty.edu/aat/" id) :type "Material" :_label label))
+
+(defn dimension-statement #rec (#str content)
+  (doc "A statement of an object's dimensions, as text: (dimension-statement \"379.5 cm x 453.5 cm\").")
+  (base/statement (base/statement-kind "300435430" "Dimension Statement") content))
+
+(defn material-statement #rec (#str content)
+  (doc "A statement of an object's materials, as text: (material-statement \"Oil on canvas\").")
+  (base/statement (base/statement-kind "300435429" "Material Statement") content))
+
+(defn part-type #rec (#str id #str label)
+  (doc "A type of part, classified as Part Type, for a part of an object: (part-type \"300014844\" \"Support\").")
+  (adjoin (base/aat id label) :classified_as (base/aat "300241583" "Part Type")))

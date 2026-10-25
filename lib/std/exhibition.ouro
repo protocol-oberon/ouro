@@ -1,0 +1,20 @@
+;; std/exhibition: exhibitions, from linked.art/model/exhibition. An exhibition is three
+;; records: the Activity of exhibiting, the concept it carries out, and the set of objects
+;; shown. The exhibiting links them, with used_specific_object for the set and
+;; influenced_by for the concept, and each object is a member_of the set.
+(import std/base)
+(import std/vocab)
+
+(export exhibiting concept set)
+
+(defn exhibiting #rec (#uri id #str label)
+  (doc "The Activity of exhibiting, classified as an exhibition activity; its venue and span are added with with.")
+  (:id id :type "Activity" :_label label :classified_as (list vocab/exhibition-activity)))
+
+(defn concept #rec (#uri id #str label)
+  (doc "An exhibition as an idea: a PropositionalObject classified as Exhibition, which an exhibiting is influenced_by.")
+  (:id id :type "PropositionalObject" :_label label :classified_as (list (base/aat "300417531" "Exhibition"))))
+
+(defn set #rec (#uri id #str label)
+  (doc "The objects an exhibition shows: a Set classified as Exhibition Collection, which each object is a member_of.")
+  (:id id :type "Set" :_label label :classified_as (list (base/aat "300378926" "Exhibition Collection"))))
