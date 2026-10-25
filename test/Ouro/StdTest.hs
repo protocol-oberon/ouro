@@ -113,6 +113,8 @@ time = Group "std/time: Linked Art's time spans"
                                                                  "(time/between \"1848-08-01\" (time/year \"1848\"))")
     , ("day is a day, to its last second",         timeToJSON "(time/day \"1832-01-23\")"
                                                               "1832-01-23T00:00:00Z" "1832-01-23T23:59:59Z")
+    , ("day-range includes both days",           timeToJSON "(time/day-range \"1848-08-01\" \"1848-08-20\")"
+                                                              "1848-08-01T00:00:00Z" "1848-08-20T23:59:59Z")
     , ("month ends on its last day",               timeToJSON "(time/month \"1881-02\")"
                                                               "1881-02-01T00:00:00Z" "1881-02-28T23:59:59Z")
     , ("in a leap year too",                       timeToJSON "(time/month \"1880-02\")"
@@ -124,7 +126,7 @@ time = Group "std/time: Linked Art's time spans"
     , ("in an event",                              compilesToJSON "(import std/time) (graph g (:born (:type \"Birth\" :timespan (time/day \"1832-01-23\"))))"
                                                                   "{\"born\": {\"type\": \"Birth\", \"timespan\": {\"type\": \"TimeSpan\", \"begin_of_the_begin\": \"1832-01-23T00:00:00Z\", \"end_of_the_end\": \"1832-01-23T23:59:59Z\"}}}")
     , ("std/time compiles without warnings",       compilesWithoutWarnings "(import std/time) (graph g (time/year \"1881\"))")
-    , ("std/time exports its spans only",          timeFailsWith "exports: between, day, month, span, year, year-range."
+    , ("std/time exports its spans only",          timeFailsWith "exports: between, day, day-range, month, span, year, year-range."
                                                                  "(time/nope)")
     , ("a date is written as a string",            timeFailsWith "expectedProperty = \"#str\""
                                                                  "(time/year 1881)")

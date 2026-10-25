@@ -10,5 +10,6 @@
 (graph christie-ams
   (-> (place "amsterdam_auction_house/1" "Christie's AMS")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :identified_by (list (:type "Name" :content "Christie's Amsterdam Location")))
-      (with :part_of       (list (place "amsterdam/1" "Amsterdam")))))
+      (with :identified_by ((:type "Name"
+                             :content "Christie's Amsterdam Location")))
+      (with :part_of       ((place "amsterdam/1" "Amsterdam")))))

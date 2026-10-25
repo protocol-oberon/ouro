@@ -4,25 +4,19 @@
 
 ;; A JSON-LD graph must be named
 (graph auction-of-stowe-house
- ;; Private values, bound around the record that uses them
- (let ($auction-start   #date "1848-08-01T00:00:00Z"
-       $auction-restart #date "1848-09-09T00:00:00Z")
-
   (:context       #uri "https://linked.art/ns/v1/linked-art.json"
    :id            #uri "https://linked.art/example/event/stowe/1"
    :type          "Activity"
    :_label        "Auction of Stowe House"
    :classified_as ((base/aat "300054751" "Auction Event"))
-
    :timespan      (:type          "TimeSpan"
                    :identified_by ((:type    "Name"
                                     :content "40 days in August and September, 1848"))
 
-                   ;; An uncertain span: begun within its first 20 days, ended within its last 22.
-                   ;; Date arithmetic: a duration added to a date, extended to the end of its unit
-                   (inlay (time/between (time/span auction-start   (+ auction-start   (thru (days 19))))
-                                        (time/span auction-restart (+ auction-restart (thru (days 21))))))
+                   ;; An uncertain span: begun within its first 20 days, ended within its last 22
+                   (inlay (time/between (time/day-range "1848-08-01" "1848-08-20")
+                                        (time/day-range "1848-09-09" "1848-09-30")))
 
                    :duration      (:type  "Dimension"
                                    :value 3
-                                   :unit  (object/unit "300379242" "days"))))))
+                                   :unit  (object/unit "300379242" "days")))))

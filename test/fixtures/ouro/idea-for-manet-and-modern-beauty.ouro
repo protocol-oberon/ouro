@@ -10,11 +10,11 @@
 
 ;; std/exhibition builds the concept, classified as an Exhibition; the steps add the rest
 (graph idea-for-manet-and-modern-beauty
-  (-> (exhibition/concept (example "concept/exhidea/1") "Idea for Manet and Modern Beauty")
+  (-> (exhibition/concept  (example "concept/exhidea/1") "Idea for Manet and Modern Beauty")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :identified_by (list (base/name vocab/primary-name "Manet and Modern Beauty")))
-      (with :about         (list (base/aat "300055821" "Beauty")
-                                 (base/ulan "500010363" "Person" "Manet")))
+      (with :identified_by ((base/name vocab/primary-name "Manet and Modern Beauty")))
+      (with :about         ((base/aat "300055821" "Beauty")
+                            (base/ulan "500010363" "Person" "Manet")))
       ;; A pattern parameter takes each pair apart
       (with :created_by    (:type           "Creation"
                             :carried_out_by (map (λ ((?slug ?label)) (person slug label))

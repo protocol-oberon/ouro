@@ -866,6 +866,23 @@ Ouro offers some syntax sugar to make common Linked Art JSON-LD patterns a bit m
                :end_of_the_end     #date (+ begin_of_the_begin (thru (years 2))))))
 ```
 
+## Time spans
+
+`std/time` builds Linked Art's time spans from a date written to the precision it is known at, so the last second, the length of a month and leap years are worked out for you:
+
+```clojure
+(import std/time)
+
+(graph time-spans
+  (:year      (time/year "1881")
+   :years     (time/year-range "1881" "1883")
+   :day       (time/day "1832-01-23")
+   :uncertain (time/between (time/day-range "1848-08-01" "1848-08-20")
+                            (time/day-range "1848-09-09" "1848-09-30"))))
+```
+
+`(time/year-range "1881" "1883")` runs from "1881-01-01T00:00:00Z" to "1883-12-31T23:59:59Z", and the uncertain span began some time between the 1st and the 20th of August and ended between the 9th and the 30th of September, setting all four of a TimeSpan's ends.
+
 # Lexical Scoping
 
 Ouro uses Scheme style lexical scoping, this means that scope is defined by the structure of the source code, and not where it is located on the runtime callstack (Ouro does not have a runtime). When a function is evaluated, it looks up variables based on where its was defined, never where it was called.  If you want know what a variable evaluates to, you simply read outward through the nested blocks `()` in the source code. 
@@ -905,7 +922,7 @@ A file uses another's functions by importing it, and offers its own by exporting
 |:-----------------|:----------------------------------------------------------------------------------------------------------------------|
 | `std/vocab`      | the 18 terms Linked Art requires, as constants: `vocab/primary-name`, `vocab/artwork`, ...                             |
 | `std/base`       | Getty entities by number (`aat`, `tgn`, `ulan`, `language`); types with their meta-type (`work-type`, `nationality`, ...); `name`, `identifier`, `statement`, `description` |
-| `std/time`       | time spans, whose end is included: `span`, `between` (an uncertain span), `day`, `month`, `year`, `year-range`        |
+| `std/time`       | time spans, whose end is included: `span`, `between` (an uncertain span), `day`, `day-range`, `month`, `year`, `year-range` |
 | `std/object`     | dimensions (`height`, `width`, `depth`, `weight`), units, `material`, dimension and material statements, `part-type`  |
 | `std/actor`      | name parts, `gender`, `active` (a professional life), contact points                                                   |
 | `std/provenance` | `purchase` (an Acquisition and a Payment, their roles reversed), `acquisition`, `payment`, `money`, currencies        |

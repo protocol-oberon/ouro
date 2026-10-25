@@ -1,6 +1,7 @@
 (import std/base)
 (import std/vocab)
 (import std/provenance)
+(import std/time)
 
 (defn example #uri (#str path)
   (+ "https://linked.art/example/" path))
@@ -14,24 +15,19 @@
        $spring (:id (example "object/spring") :type "HumanMadeObject" :_label "Spring"))
 
   (:context       "https://linked.art/ns/v1/linked-art.json"
-
    :id            (example "provenance/manet_proust/1")
    :type          "Activity"
    :_label        "Purchase of Spring by Proust"
    :classified_as (list vocab/provenance-activity)
    :identified_by (list (base/name vocab/primary-name "Purchase of Spring by Proust from Manet"))
-
-   :timespan      (:type               "TimeSpan"
-                   :begin_of_the_begin #date "1881-01-01T00:00:00Z"
-                   :end_of_the_end     (+ begin_of_the_begin (thru (years 2))))
+   :timespan      (time/year-range "1881" "1883")
 
    ;; Each part is std's node with Linked Art's _label: written attribute pairs come first
    ;; and win over an inlay's. Title goes from Manet to Proust, money from Proust to Manet
-   :part          (list (:type   "Acquisition"
-                         :_label "Ownership of Spring to Proust"
-                         (inlay (provenance/acquisition spring manet proust)))
-
-                        (:type   "Payment"
-                         :_label "3000 Francs to Manet"
-                         (inlay (provenance/payment (provenance/money 3000 (provenance/currency "300412016" "French Francs"))
-                                                    proust manet)))))))
+   :part ((:type   "Acquisition"
+           :_label "Ownership of Spring to Proust"
+           (inlay (provenance/acquisition spring manet proust)))
+          (:type   "Payment"
+           :_label "3000 Francs to Manet"
+           (inlay (provenance/payment (provenance/money 3000 (provenance/currency "300412016" "French Francs"))
+                                      proust manet)))))))

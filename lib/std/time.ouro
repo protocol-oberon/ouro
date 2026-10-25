@@ -7,6 +7,7 @@
 (export span
         between
         day
+        day-range
         month
         year
         year-range)
@@ -26,6 +27,10 @@
 (defn day #rec (#str date)
   (doc "A day, from its first second to its last: (day \"1832-01-23\").")
   (span (+ date "T00:00:00Z") (+ date "T23:59:59Z")))
+
+(defn day-range #rec (#str from #str to)
+  (doc "The days from one to another, both included: (day-range \"1848-08-01\" \"1848-08-20\").")
+  (span (+ from "T00:00:00Z") (+ to "T23:59:59Z")))
 
 (defn month #rec (#str date)
   (doc "A month, to the last second of its last day, leap years included: (month \"1880-02\").")

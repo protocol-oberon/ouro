@@ -8,15 +8,11 @@
 (graph bust-of-a-man
  ;; A call with ? holes is a function of its holes
  (let ($person (base/ulan ? "Person" ?))
-
   (:context "https://linked.art/ns/v1/linked-art.json"
-
    :id     #uri "https://linked.art/example/object/bust/1"
    :type   "HumanMadeObject"
    :_label "Bust of a Man"
-
    :classified_as ((base/work-type "300047090" "Sculpture"))
-
    :produced_by   (:type           "Production"
                    :technique      (list sculpting)
                    :carried_out_by ((person "500015886" "Francis Harwood"))))))
