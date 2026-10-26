@@ -70,13 +70,17 @@ pCoreKeywords = lexeme . withPos . try $ choice
 
 
 -- Attribute keys, ':key'. A key may start with '@', so JSON-LD's keywords can be written as
--- keys, as a local context's are: (:@vocab "https://example.org/").
+-- keys, as a local context's are: (:@vocab "https://example.org/"). After its first character
+-- a key may hold ':', so a compact IRI is one key: :crm:P2_has_type.
 pAttributes :: Parser Tkn.Token
 pAttributes = lexeme . withPos $ do
                                  _       <- char ':'
                                  keyword <- option "" (string "@")
-                                 rawName <- T.pack <$> some (alphaNumChar <|> oneOf ("-_" :: String))
-                                 pure (Tkn.Attr (keyword <> rawName))
+                                 first   <- keyChar
+                                 rest    <- many (keyChar <|> char ':')
+                                 pure (Tkn.Attr (keyword <> T.pack (first : rest)))
+    where
+    keyChar = alphaNumChar <|> oneOf ("-_" :: String)
 
 
 -- Reader Macros starting with '#'
@@ -164,11 +168,12 @@ pBinding = lexeme . withPos $ Tkn.Binding <$> (char '$' *> symbolName)
 -- The characters of a symbol. 'λ' on its own is read as 'fn', so it is fn everywhere: as
 -- the head of a function, and as a name that cannot be used for anything else. A longer
 -- name that begins with it, such as 'λx', is an ordinary symbol. The symbols of logic and
--- of sets are read the same way, as the names they stand for, so messages use the names.
+-- of sets are read the same way, as the names they stand for, so messages use the names. After
+-- its first character a symbol may hold ':', so a path can name a compact IRI key: (get r crm:P2).
 symbolName :: Parser Text
 symbolName = do
              first <- letterChar <|> oneOf ("_+-*/<>=!&|~" :: String) <|> oneOf mathSymbols
-             rest  <- many (alphaNumChar <|> oneOf ("_-+*/<>=!?&|~'" :: String))
+             rest  <- many (alphaNumChar <|> oneOf ("_-+*/<>=!?&|~':" :: String))
              pure $ case first : rest of
                         "λ"   -> "fn"
                         "="   -> "eq"

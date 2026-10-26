@@ -154,6 +154,12 @@ data SyntaxError
     -- IRI, null or an expanded definition.
     | MalformedContext
       { contextProblem :: Text }
+
+    -- A key with no value: followed by another key, or by the end of its form
+    | MissingAttributeValue
+      { valuelessKey :: Text
+      , followedBy   :: Text
+      }
     deriving (Show, Eq, Ord, Generic)
 
 

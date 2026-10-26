@@ -199,8 +199,8 @@ A project is described by a =build.ouro=, which holds one graph, named =build=, 
 | String         | ="text"=                                 | Haskell-style character escapes                                     |
 | Number         | =42=, =-3.5=, =1e3=                      | a Double: integers are exact up to 2^53                             |
 | Boolean / null | =true=, =false=, =null=                  |                                                                     |
-| Symbol         | =artist=, =type-node=, =+=, =∧=, =legacy!= | starts with a letter, an operator character or a symbol of logic or sets (see below the table) |
-| Attribute      | =:key=, =:@vocab=                        | letters, digits, =-= and =_=, after an optional =@=; a pair's key   |
+| Symbol         | =artist=, =type-node=, =+=, =∧=, =legacy!= | starts with a letter, an operator character or a symbol of logic or sets (see below the table); may hold =:= after its first character |
+| Attribute      | =:key=, =:@vocab=, =:crm:P2_has_type=    | letters, digits, =-= and =_=, after an optional =@=, and =:= after the first, so a compact IRI is one key; a pair's key |
 | Binding        | =$name=                                  | any symbol; a private binding, only inside a =let=                  |
 | Property       | =#uri=, =#date=, =#str=, =#num=, =#bool= | a built-in property of what follows; also =#rec=, =#arr=, =#fn=     |
 | Empty values   | =#rec-empty=, =#arr-empty=, =()=         | ={}=, =[]= and =[]=                                                 |
@@ -311,7 +311,7 @@ Durations and functions are values during compilation, but have no JSON form: th
 
 ** Records and arrays
 
-A record is a form containing =:key value= attribute pairs (or a context). Its attribute pairs are output in source order, and they are also bindings: inside the record, an attribute pair's name refers to its value, in any order. Each key appears once: writing a key twice in the same record (or two contexts) is an error.
+A record is a form containing =:key value= attribute pairs (or a context). Its attribute pairs are output in source order, and they are also bindings: inside the record, an attribute pair's name refers to its value, in any order. Each key appears once: writing a key twice in the same record (or two contexts) is an error. A key always has a value: a key followed by another key, or by the end of its form, is =SYN0011= at the key, ~(:type :_label "x")~, since read as a value the next key would take its pair into itself. A key can be a compact IRI, ~(:crm:P2_has_type ...)~, and a path names one the same way, ~(get r crm:P2_has_type)~.
 
 #+BEGIN_SRC clojure
 (:begin_of_the_begin #date "1848-08-01T00:00:00Z"
@@ -1215,10 +1215,12 @@ Recorded 2026-10-12 and kept up to date since; none were caused by the scoping r
 
 27. *A build leaves stale outputs:* renaming or removing a graph, or a module, leaves the JSON an earlier build wrote for it in =:out=, so =:out= can hold graphs the source no longer has. The planned fix is a manifest of what the last build wrote, removing only those files. Not pinned by a test, since writing is done by the CLI, which has none (gap 13).
 
-28. *A compact IRI key is read as two keys:* a key is read as letters, digits, =-= and =_=, so ~:crm:P2_has_type~ is the two keys =:crm= and =:P2_has_type=, and the attribute pair is lost (gap 29): ~(:crm:P2_has_type "x" :y 2)~ compiles to ={"y": 2}=. A compact IRI cannot be written as a key, though a local context can define one (=ex:condition=). Found while checking the README's context example (2026-10-25).
+28. /Fixed:/ a compact IRI key was read as two keys, so ~:crm:P2_has_type~ was =:crm= and =:P2_has_type=, and through gap 29 the pair was lost. A key, and a symbol, may now hold =:= after their first character, so a compact IRI is one key and a path can name it.
 
-29. *A key followed by a key drops both, silently:* ~(:a :b 1 :y 2)~ compiles to ={"y": 2}=, with no error or warning, losing =:a= and =:b 1=. Found with gap 28 (2026-10-25).
+29. /Fixed:/ a key followed by a key dropped both, silently: ~(:a :b 1 :y 2)~ compiled to ={"y": 2}=. A key with no value is now =SYN0011= at the key.
 
-30. *A key with no value is reported as an unbalanced delimiter:* ~(:a :b)~ is =SYN0001= at the closing parenthesis, "Orphaned Closing Parenthesis", though the parentheses balance. Found with gap 28 (2026-10-25).
+30. /Fixed:/ a key with no value, ~(:a :b)~, was reported as =SYN0001=, an orphaned closing parenthesis. It is now =SYN0011=, which names the key and what follows it.
+
+31. *A key cannot hold =.=, =/= or =#=:* a key is letters, digits, =-=, =_= and =:=, so a term or compact IRI with any other character, such as =ex:a.b=, =ex:a/b= or =ex:a#b=, or a full IRI, cannot be written as a key, though JSON-LD allows almost any character in a term. Each is an error, but not one that says so: =.= is =SYN0000= "Unexpected token", =/= ends the key and is read as the symbol =/b= (=SCP0000=, unbound), and =#= is read as a property, =#b= (=SYN0000=, "Unknown property"). Compact IRIs whose suffix is a name, as =crm:P2_has_type= and =dc:title=, are unaffected. Found while fixing gap 28 (2026-10-26).
 
 #  LocalWords:  Ouro LD

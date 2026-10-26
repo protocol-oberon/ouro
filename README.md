@@ -28,6 +28,8 @@ Ouro is 100% declarative, and lazily evaluated. This allows for the values of re
 
 Each key can appear once in a record: writing a key twice is an error. An attribute pair never sees itself, so in `(:label label)` the `label` being looked up is the one from the enclosing scope. This is what lets a template simply write `(defn node (id type) (:id id :type type))`.
 
+A key always has a value: in `(:type :_label "Spring")`, `:type` has none, and the compile stops there (`SYN0011`) rather than lose the pair. A key can be a compact IRI, `(:crm:P2_has_type "x")`, and is referred to the same way, `crm:P2_has_type`.
+
 Source files are UTF-8 on every platform, so strings, names and keys can hold any text: `(:_label "Édouard Manet")` compiles to `"_label": "Édouard Manet"` on Windows as well as Linux. A file saved in another encoding is reported, not garbled.
 
 ## Built-in properties

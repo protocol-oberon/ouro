@@ -37,10 +37,8 @@ import           Hedgehog
 import qualified Hedgehog.Gen              as Gen
 import qualified Hedgehog.Range            as Range
 import qualified Text.URI                  as URI
-import           Utils                     (compilesToJSON,
-                                            compilesWithoutWarnings,
-                                            emitsExactly, failsWith,
-                                            failsWithout, fixture,
+import           Utils                     (compilesToJSON, emitsExactly,
+                                            failsWith, failsWithout, fixture,
                                             importsFailAt,
                                             shouldCompileTo)
 
@@ -238,6 +236,22 @@ recordKeys = Group "Records: each key once"
                                                                    "{\"r\": {\"a\": 9, \"b\": 2}}")
     , ("replace-at cannot duplicate another key",   failsWith "already has an attribute"
                                                               "(graph g (:r (replace-at 0 :b 9 (:a 1 :b 2))))")
+
+      -- A key is its value's: a key with none is an error, and a compact IRI is one key
+    , ("a key followed by a key has no value",      importsFailAt "SYN0011" ("inline-test", 1, 11) ["valuelessKey = \"a\"", "followedBy = \"the key ':b'\"", "The key ':a' has no value"] []
+                                                                  "(graph g (:a :b 1 :y 2))")
+    , ("so does a key at the end of its form",      importsFailAt "SYN0011" ("inline-test", 1, 16) ["valuelessKey = \"b\"", "the end of its form"] []
+                                                                  "(graph g (:a 1 :b))")
+    , ("a key alone in its form",                   importsFailAt "SYN0011" ("inline-test", 1, 11) ["valuelessKey = \"a\"", "the end of its form"] []
+                                                                  "(graph g (:a))")
+    , ("a compact IRI is one key",                  compilesToJSON "(graph g (:crm:P2_has_type \"x\" :y 2))"
+                                                                   "{\"crm:P2_has_type\": \"x\", \"y\": 2}")
+    , ("a compact IRI key is a binding too",        compilesToJSON "(graph g (:crm:P2_has_type \"x\" :v crm:P2_has_type))"
+                                                                   "{\"crm:P2_has_type\": \"x\", \"v\": \"x\"}")
+    , ("a path can name a compact IRI key",         compilesToJSON "(graph g (let ($r (:crm:P2_has_type \"x\")) (:v (get r crm:P2_has_type))))"
+                                                                   "{\"v\": \"x\"}")
+    , ("a keyword key still starts with @",         compilesToJSON "(graph g (:context (:@vocab \"https://example.org/\") :a 1))"
+                                                                   "{\"@context\": {\"@vocab\": \"https://example.org/\"}, \"a\": 1}")
     ]
 
     where
@@ -903,11 +917,10 @@ knownGaps = Group "Known gaps: current, incorrect behaviour"
                                                     === ["WRN0000", "WRN0000", "WRN0000"])
     , ("gap 26: an unknown export is a lexical error", importsFailAt "SYN0000" ("inline-test", 1, 9) ["The module exports 'f', but defines no function by that name"] []
                                                                     "(export f)\n(graph g (:r 1))")
-    , ("gap 28: a compact IRI key is read as two keys", compilesToJSON "(graph g (:crm:P2_has_type \"x\" :y 2))"
-                                                                       "{\"y\": 2}")
-    , ("gap 29: a key followed by a key drops both", compilesToJSON "(graph g (:a :b 1 :y 2))"
-                                                                    "{\"y\": 2}")
-    , ("gap 29: and says nothing",                   compilesWithoutWarnings "(graph g (:a :b 1 :y 2))")
-    , ("gap 30: a key with no value is an unbalanced delimiter", importsFailAt "SYN0001" ("inline-test", 1, 16) ["UnbalancedDelimiter"] []
-                                                                               "(graph g (:a :b))")
+    , ("gap 31: a key cannot hold a '.'",            importsFailAt "SYN0000" ("inline-test", 1, 16) ["Unexpected token: '.'"] []
+                                                                     "(graph g (:ex:a.b 1 :y 2))")
+    , ("gap 31: a '/' ends a key",                   importsFailAt "SCP0000" ("inline-test", 1, 16) ["variableName = \"/b\""] []
+                                                                     "(graph g (:ex:a/b 1 :y 2))")
+    , ("gap 31: a '#' ends a key",                   importsFailAt "SYN0000" ("inline-test", 1, 16) ["Unknown property: #b"] []
+                                                                     "(graph g (:ex:a#b 1 :y 2))")
     ]

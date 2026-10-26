@@ -263,6 +263,14 @@ splitErrorContext = \case
            , Nothing
            )
 
+    Syntax (MissingAttributeValue key next)
+        -> ( "Missing Attribute Value"
+           , [ labeled "Key:         " (pretty (":" <> key))
+             , labeled "Followed by: " (pretty next)
+             ]
+           , Nothing
+           )
+
     Path (MissingPathKey key keys)
         -> ( "Missing Path Key"
            , [ labeled "Missing:   " (pretty key)

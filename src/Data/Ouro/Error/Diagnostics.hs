@@ -81,6 +81,15 @@ malformedContext :: Text -> ErrorContext
 malformedContext = Syntax . MalformedContext
 
 
+-- A key with no value, and what follows it instead: another key, or the end of its form
+missingAttributeValue :: Text -> Text -> ErrorContext
+missingAttributeValue key next =
+    withBlurb ( "The key ':" <> key <> "' has no value: it is followed by " <> next <> ". An attribute pair is a key and its value, "
+             <> ":key value. Perhaps a value is missing, or the key should be removed."
+              )
+              (Syntax (MissingAttributeValue { valuelessKey = key, followedBy = next }))
+
+
 missingOtherwise :: ErrorContext
 missingOtherwise = Syntax $ MissingOtherwiseFallback
 

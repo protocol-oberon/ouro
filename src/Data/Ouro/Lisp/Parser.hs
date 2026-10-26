@@ -10,8 +10,8 @@ import           Control.Monad.State.Strict  (MonadTrans (lift),
 import           Data.Foldable               (traverse_)
 import qualified Data.Function               as F
 import qualified Data.Map                    as Map
-import           Data.Ouro.Error.Diagnostics (lexicalError, unbalancedDelimiter,
-                                              withBlurb)
+import           Data.Ouro.Error.Diagnostics (lexicalError, missingAttributeValue,
+                                              unbalancedDelimiter, withBlurb)
 import           Data.Ouro.Error.Types       (ErrorContext (..), OuroError (..),
                                               SyntaxError (..))
 import           Data.Ouro.Internal.Utils    (rankBySimilarity)
@@ -484,15 +484,25 @@ parseTaggedNode tagPos tagType = do
 
 
 -- Reader Macro Helper: Desugars attributes into `(%attr "name" expr)`. '%' cannot be
--- lexed, so the form cannot be written: an attribute pair is always written :key value
+-- lexed, so the form cannot be written: an attribute pair is always written :key value. A key
+-- followed by another key, or by the end of its form, has no value, and is an error at the key:
+-- read as a value, the next key would take the pair into itself, and both would be lost.
 parseAttrNode :: SourcePos -> Text -> Parser S.Expr
 parseAttrNode pos attrName = do
-                             -- Eagerly consume the next expression to bind to the attribute
-                             nextExpr <- pExpr
-                             pure $ S.Form pos [ S.Symbol pos "%attr"
-                                               , S.Literal pos (S.Str attrName)
-                                               , nextExpr
-                                               ]
+                             stream <- remainingTokens
+                             case map Tkn.tokenType (take 1 stream) of
+                                 [Tkn.Attr next]    -> noValue ("the key ':" <> next <> "'")
+                                 [Tkn.CloseParen]   -> noValue "the end of its form"
+                                 [Tkn.CloseBracket] -> noValue "the end of its form"
+                                 _aValue            -> do
+                                                       -- Eagerly consume the next expression to bind to the attribute
+                                                       nextExpr <- pExpr
+                                                       pure $ S.Form pos [ S.Symbol pos "%attr"
+                                                                         , S.Literal pos (S.Str attrName)
+                                                                         , nextExpr
+                                                                         ]
+    where
+    noValue followedBy = lift (Left (OuroError pos (missingAttributeValue attrName followedBy)))
 
 
 -- A private binding's name, '$name', read on its own as (%binder "name"). It never takes
