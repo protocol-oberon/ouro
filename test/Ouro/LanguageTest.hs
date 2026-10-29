@@ -954,4 +954,6 @@ knownGaps = Group "Known gaps: current, incorrect behaviour"
                                                     dir   <- evalIO (writeProject "gap-36" [ ("build.ouro", "(graph build (:name \"p\"))") ])
                                                     found <- evalIO (findBuildFile (dir </> "typo"))
                                                     fmap takeDirectory found === Just dir)
+    , ("gap 39: insert floors a fractional index",   compilesToJSON "(graph g (:r (insert 1.5 \"x\" (1 2))))"
+                                                                   "{\"r\": [1, \"x\", 2]}")
     ]

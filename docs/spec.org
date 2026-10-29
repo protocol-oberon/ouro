@@ -1237,4 +1237,6 @@ Recorded 2026-10-12 and kept up to date since; none were caused by the scoping r
 
 38. *=ouro validate= reports its errors on stdout:* invalid JSON ("Compilation Error:") and the unimplemented =merge= are written to stdout, with nothing on stderr, while =compile= and =build= write their diagnostics to stderr. Found while writing the CLI's tests (2026-10-29).
 
+39. *=insert= floors a fractional index:* ~(insert 1.5 "x" (1 2))~ is ~(1 "x" 2)~, the index rounded down without a word, while =get= rejects one, "Expected: a whole number to index an Array with". Found while weighing an =#integer= property (2026-10-29).
+
 #  LocalWords:  Ouro LD
