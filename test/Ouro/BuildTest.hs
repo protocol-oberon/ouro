@@ -4,6 +4,10 @@ module Ouro.BuildTest
 ( buildFiles
 , builds
 , projectsOnDisk
+, buildsTo
+, projectBuildsTo
+, projectFailsWith
+, writeProject
 ) where
 
 import           Control.Monad                (forM_, when)
