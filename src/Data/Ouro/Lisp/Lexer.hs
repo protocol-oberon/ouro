@@ -92,17 +92,17 @@ pReaderTags = lexeme . withPos $ do
                                  _      <- try (char '#')
                                  rawTag <- some (alphaNumChar <|> char '-')
                                  case rawTag of
-                                     "uri"       -> pure Tkn.TagUri
-                                     "date"      -> pure Tkn.TagDate
-                                     "str"       -> pure Tkn.TagStr
-                                     "num"       -> pure Tkn.TagNum
-                                     "bool"      -> pure Tkn.TagBool
-                                     "rec"       -> pure Tkn.TagRec
-                                     "arr"       -> pure Tkn.TagArr
-                                     "fn"        -> pure Tkn.TagFn
-                                     "rec-empty" -> pure Tkn.TagRecordEmpty
-                                     "arr-empty" -> pure Tkn.TagArrEmpty
-                                     other       -> M.region (\err -> M.setErrorOffset startOffset err)
+                                     "uri"          -> pure Tkn.TagUri
+                                     "date"         -> pure Tkn.TagDate
+                                     "string"       -> pure Tkn.TagString
+                                     "number"       -> pure Tkn.TagNumber
+                                     "boolean"      -> pure Tkn.TagBoolean
+                                     "record"       -> pure Tkn.TagRecord
+                                     "array"        -> pure Tkn.TagArray
+                                     "function"     -> pure Tkn.TagFunction
+                                     "record-empty" -> pure Tkn.TagRecordEmpty
+                                     "array-empty"  -> pure Tkn.TagArrayEmpty
+                                     other          -> M.region (\err -> M.setErrorOffset startOffset err)
                                                              (fail ("Unknown property: #" ++ other))
 
 -- Structural Holes for Pattern Matching (? or ?name)

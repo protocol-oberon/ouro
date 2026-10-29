@@ -25,72 +25,72 @@
 
 ;; Entities from the Getty vocabularies, by their numbers
 
-(defn core #rec (#uri id #str type #str label)
+(defn core #record (#uri id #string type #string label)
   (doc "An entity's core properties: its id, its type and its _label.")
   (:id id :type type :_label label))
 
-(defn aat #rec (#str id #str label)
+(defn aat #record (#string id #string label)
   (doc "A Type from the Getty AAT, by its number: (aat \"300033618\" \"Painting\").")
   (core #uri (+ "http://vocab.getty.edu/aat/" id) "Type" label))
 
-(defn tgn #rec (#str id #str label)
+(defn tgn #record (#string id #string label)
   (doc "A Place from the Getty TGN, by its number: (tgn \"7006952\" \"Amsterdam\").")
   (core #uri (+ "http://vocab.getty.edu/tgn/" id) "Place" label))
 
-(defn ulan #rec (#str id #str type #str label)
+(defn ulan #record (#string id #string type #string label)
   (doc "A Person or Group from the Getty ULAN, by its number: (ulan \"500010363\" \"Person\" \"Manet\").")
   (core #uri (+ "http://vocab.getty.edu/ulan/" id) type label))
 
-(defn language #rec (#str id #str label)
+(defn language #record (#string id #string label)
   (doc "A Language from the Getty AAT, by its number: (language \"300388277\" \"English\").")
   (core #uri (+ "http://vocab.getty.edu/aat/" id) "Language" label))
 
 ;; Types classified by their meta-type, which Linked Art requires
 
-(defn meta-typed #rec (#rec meta #str id #str label)
+(defn meta-typed #record (#record meta #string id #string label)
   (doc "A Type from the Getty AAT, classified by its meta-type.")
   (adjoin (aat id label) :classified_as meta))
 
-(defn work-type #rec (#str id #str label)
+(defn work-type #record (#string id #string label)
   (doc "A type of work, classified as Type of Work: (work-type \"300033618\" \"Painting\").")
   (meta-typed vocab/type-of-work id label))
 
-(defn style #rec (#str id #str label)
+(defn style #record (#string id #string label)
   (doc "A style, classified as Style: (style \"300021503\" \"Impressionist\").")
   (meta-typed vocab/style id label))
 
-(defn shape #rec (#str id #str label)
+(defn shape #record (#string id #string label)
   (doc "A shape, classified as Shape: (shape \"300311843\" \"Oblong\").")
   (meta-typed vocab/shape id label))
 
-(defn nationality #rec (#str id #str label)
+(defn nationality #record (#string id #string label)
   (doc "A nationality, classified as Nationality: (nationality \"300111188\" \"French\").")
   (meta-typed vocab/nationality id label))
 
-(defn occupation #rec (#str id #str label)
+(defn occupation #record (#string id #string label)
   (doc "An occupation, classified as Occupation: (occupation \"300025136\" \"Painter\").")
   (meta-typed vocab/occupation id label))
 
-(defn statement-kind #rec (#str id #str label)
+(defn statement-kind #record (#string id #string label)
   (doc "A kind of statement, classified as Brief Text: (statement-kind \"300435429\" \"Materials Statement\").")
   (meta-typed vocab/brief-text id label))
 
 ;; Embedded nodes: they have no id, and exist only inside the record holding them
 
-(defn name #rec (#rec kind #str content)
+(defn name #record (#record kind #string content)
   (doc "A Name of a kind, as (name vocab/primary-name \"Spring\"). A Name with no kind is a literal, (:type \"Name\" :content \"Spring\").")
   (:type "Name" :classified_as (list kind) :content content))
 
-(defn identifier #rec (#rec kind #str content)
+(defn identifier #record (#record kind #string content)
   (doc "An Identifier of a kind, as an accession number: (identifier (aat \"300312355\" \"Accession Number\") \"2014.62\").")
   (:type "Identifier" :classified_as (list kind) :content content))
 
-(defn statement #rec (#rec kind #str content)
+(defn statement #record (#record kind #string content)
   (doc "A statement: a LinguisticObject of a kind, which is classified as Brief Text whether or not it was built by statement-kind.")
   (:type          "LinguisticObject"
    :classified_as (list (adjoin kind :classified_as vocab/brief-text))
    :content       content))
 
-(defn description #rec (#str content)
+(defn description #record (#string content)
   (doc "The commonest statement: a Description of a record.")
   (statement (statement-kind "300435416" "Description") content))

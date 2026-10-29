@@ -383,7 +383,7 @@ handleNot pos =
          -> pure $ L.Primitive (I.Boolean (not b))
 
      [other]
-         -> Data.Ouro.Error.Diagnostics.propertyMismatch "#bool" (L.propertyOf other)
+         -> Data.Ouro.Error.Diagnostics.propertyMismatch "#boolean" (L.propertyOf other)
             & OuroError pos
             & L.EvalError
             & pure

@@ -437,7 +437,7 @@ arguments = \case
 data DiagnosticToken
     = PlainText Text
     | TypeKeyword Text  -- For capitalized types like "String", "Number"
-    | TagKeyword  Text  -- For "#str", "#date", etc.
+    | TagKeyword  Text  -- For "#string", "#date", etc.
 
 
 -- Strips characters chunk-by-chunk using simple guards and recursion.

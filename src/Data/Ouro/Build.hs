@@ -189,7 +189,7 @@ settings pos = \case
 
     text key = \case
         L.Primitive (I.String t) -> Right t
-        other                    -> Left (pure (mismatch "#str" other ("The build setting :" <> key <> " is a String.")))
+        other                    -> Left (pure (mismatch "#string" other ("The build setting :" <> key <> " is a String.")))
 
     -- :sources is an Array of folders, even when it names one
     folders = \case
@@ -199,7 +199,7 @@ settings pos = \case
                       Just errs -> Left errs
                       Nothing   -> map T.unpack <$> sequence checked
         other
-            -> Left (pure (mismatch "an Array of #str" other
+            -> Left (pure (mismatch "an Array of #string" other
                              "The build setting :sources is an Array of folders, as in (\"src\"), even when it names one."))
 
     mismatch expected actual blurb = typeMismatch expected (L.humanReadableType actual) & withBlurb blurb & at

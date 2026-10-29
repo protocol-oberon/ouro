@@ -34,29 +34,29 @@ Source files are UTF-8 on every platform, so strings, names and keys can hold an
 
 ## Built-in properties
 
-In JSON-LD, there are many datatypes which can look similar to a compiler. To ensure that the compiled JSON from Ouro code is always well formed, we can give an expression a property, which tells the compiler how to treat it. A property is written before the expression, as in `#str (expr)`.
+In JSON-LD, there are many datatypes which can look similar to a compiler. To ensure that the compiled JSON from Ouro code is always well formed, we can give an expression a property, which tells the compiler how to treat it. A property is written before the expression, as in `#string (expr)`.
 
 There are 8 built-in properties:
 
-| Property     | Description                                                                              |
-|:-------------|:-----------------------------------------------------------------------------------------|
-| `#uri`       | Ensures that any expression that evaluates to a URI is properly formed.                  |
-| `#date`      | Ensures valid ISO 8601 date-time formats and enables temporal desugaring (e.g., `thru`). |
-| `#num`       | Asserts that the evaluated result is a numeric primitive.                                |
-| `#str`       | Asserts that the evaluated result is a string.                                           |
-| `#bool`      | Asserts that the evaluated result is a boolean primitive.                                |
-| `#rec`       | Asserts that the evaluated result is a Record.                                           |
-| `#arr`       | Asserts that the evaluated result is an Array.                                           |
-| `#fn`        | Asserts that the evaluated result is a function (a `fn`, a `defn` name or a built-in).   |
+| Property        | Description                                                                              |
+|:----------------|:-----------------------------------------------------------------------------------------|
+| `#uri`          | Ensures that any expression that evaluates to a URI is properly formed.                  |
+| `#date`         | Ensures valid ISO 8601 date-time formats and enables temporal desugaring (e.g., `thru`). |
+| `#number`       | Asserts that the evaluated result is a numeric primitive.                                |
+| `#string`       | Asserts that the evaluated result is a string.                                           |
+| `#boolean`      | Asserts that the evaluated result is a boolean primitive.                                |
+| `#record`       | Asserts that the evaluated result is a Record.                                           |
+| `#array`        | Asserts that the evaluated result is an Array.                                           |
+| `#function`     | Asserts that the evaluated result is a function (a `fn`, a `defn` name or a built-in).   |
 
-A value without the property it is given is an error, such as `Expected data to have the property #num, got #str instead.` The same properties type a function's parameters and result (see [Functions](#functions)).
+A value without the property it is given is an error, such as `Expected data to have the property #number, got #string instead.` The same properties type a function's parameters and result (see [Functions](#functions)).
 
 Two further `#` forms are values rather than properties, written in place of an empty collection:
 
-| Value        | Description                                                                              |
-|:-------------|:-----------------------------------------------------------------------------------------|
-| `#arr-empty` | An empty Array, `[]` (the same as `()`).                                                 |
-| `#rec-empty` | An empty Record, `{}`.                                                                   |
+| Value           | Description                                                                              |
+|:----------------|:-----------------------------------------------------------------------------------------|
+| `#array-empty`  | An empty Array, `[]` (the same as `()`).                                                 |
+| `#record-empty` | An empty Record, `{}`.                                                                   |
 
 ## Special forms
 
@@ -246,10 +246,10 @@ A branch can also test a condition instead of a shape. `(when cond)` takes the b
 
 ``` clojure
 (map (fn (v) (case v
-                   ((when (eq v 0))  "zero")
-                   ((satisfies #num) "a number")
-                   ((⊨ #str)         "a string")
-                   (otherwise        "other")))
+                   ((when (eq v 0))     "zero")
+                   ((satisfies #number) "a number")
+                   ((⊨ #string)         "a string")
+                   (otherwise           "other")))
      (0 7 "x" true))
 ```
 
@@ -578,7 +578,7 @@ A record can't end up with a key twice, so inserting an attribute pair whose key
      :listed   (or  (eq (len tags) 0) (eq (get tags 0) "listed")))))  ; true
 ```
 
-- Each operand that is reached must be a Boolean: `(and true 1)` is an error, `Expected data to have the property #bool, got #num instead.` Ouro has no truthiness.
+- Each operand that is reached must be a Boolean: `(and true 1)` is an error, `Expected data to have the property #boolean, got #number instead.` Ouro has no truthiness.
 - `(and)` is `true`, and `(or)` is `false`.
 - They take holes like a call, `(map (or ? false) (true false))`, and are threading steps, `(-> true (and false))`.
 
@@ -610,7 +610,7 @@ The connectives, the quantifiers and the set operations can be written with the 
 | `λ`    | `fn`           | `/=`   | `neq`           |
 
 ``` clojure
-(defn consistent #bool (#rec book)
+(defn consistent #boolean (#record book)
   (∄ (contains (absent book) ?) (present book)))
 ```
 
@@ -734,7 +734,7 @@ A `defn` body is checked when the file is parsed: it must be one expression and 
 A function is documented with a `(doc "...")` among the direct elements of its body, before or after its result. It is never evaluated and is not part of the result:
 
 ``` clojure
-(defn place #rec (#str slug #str label)
+(defn place #record (#string slug #string label)
   (doc "A Linked Art Place, under the example namespace.")
   (:id (example (+ "place/" slug)) :type "Place" :_label label))
 ```
@@ -752,11 +752,11 @@ Names:
 A function's types are written as built-in properties in its header. One between the name and the parameters is the return type, and one before a parameter is that parameter's type. Any of them can be left out.
 
 ``` clojure
-(defn node #rec (#uri id type)
+(defn node #record (#uri id type)
   (:id id :type type))
 
 (graph typed
-  (let ($double (fn #num (#num n) (* n 2)))
+  (let ($double (fn #number (#number n) (* n 2)))
     (:r (double 21)
      :n (node "https://linked.art/example/object/spring" "HumanMadeObject"))))
 ```
@@ -765,7 +765,7 @@ A function's types are written as built-in properties in its header. One between
 - Each argument is checked where the call is written, so a mismatch is reported at the argument, in the call. The result is checked where the body is.
 - An argument is checked even if the function never uses it.
 - Nothing is inferred: an untyped parameter or result is not checked.
-- A return type of `#arr` says that a one-value Array is intended, so `(defn f #arr () ("x"))` does not warn.
+- A return type of `#array` says that a one-value Array is intended, so `(defn f #array () ("x"))` does not warn.
 
 ### When signatures are checked
 
@@ -855,7 +855,7 @@ A parameter can be a pattern, written as a `case` pattern is. It takes one argum
 - A pattern is one parameter: `(fn ((?a ?b)) ...)` takes one argument. Names and patterns can be mixed, as in `(defn sum (base (?a ?b)) ...)`.
 - Any `case` pattern can be written: Array and Record patterns, `?..rest` holes, and values compared by value, as in `(fn (("Person" ?l)) l)`. A pattern must bind something.
 - The argument is matched when the function is called, even if the body uses none of its holes. An argument that does not match is reported at the argument, or at the Array in `map`.
-- A property before a pattern checks the argument first: `(fn (#arr (?a ?b)) ...)`.
+- A property before a pattern checks the argument first: `(fn (#array (?a ?b)) ...)`.
 - Each name is bound once: two parameters, two holes, or a hole and a parameter with the same name are an error.
 
 ## Syntax Sugar
@@ -956,10 +956,10 @@ Module paths are written with `/` on every platform, Windows included.
 (import std/vocab)
 (import std/exhibition)
 
-(defn example #uri (#str path)
+(defn example #uri (#string path)
   (+ "https://linked.art/example/" path))
 
-(defn person #rec (#str slug #str label)
+(defn person #record (#string slug #string label)
   (:id (example (+ "person/" slug)) :type "Person" :_label label))
 
 ;; std/exhibition builds the concept, classified as an Exhibition; the steps add the rest
@@ -1142,13 +1142,13 @@ A project is described by a `build.ouro`, which holds one graph, named `build`, 
 
 These are agreed directions for Ouro, roughly in the order they will be built. None of them is implemented yet.
 
-- **Properties:** user-defined properties, with the same standing as `#str`. A property is a function marked `#property` whose body is any Boolean expression. Called, it answers `true` or `false`; written before a value, `#titled x`, it asserts; and in a signature it is a requirement, whose failure is reported with blame, naming who broke it, as Racket's contracts do:
+- **Properties:** user-defined properties, with the same standing as `#string`. A property is a function marked `#property` whose body is any Boolean expression. Called, it answers `true` or `false`; written before a value, `#titled x`, it asserts; and in a signature it is a requirement, whose failure is reported with blame, naming who broke it, as Racket's contracts do:
 
   ``` clojure
-  (defn titled #property (#rec r)
+  (defn titled #property (#record r)
     (has r _label))
 
-  (defn exhibit #rec (#titled r) ...)
+  (defn exhibit #record (#titled r) ...)
   ```
 
 - **Dependencies:** `:depends` in `build.ouro`, pinned to commits, as Nix pins them, each dependency's modules named after it, `(import la-people/people)`; and `:graphs`, choosing which graphs a build writes.

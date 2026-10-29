@@ -69,12 +69,12 @@ data LiteralValue
 data ReaderTag
     = Uri
     | Date
-    | StrTag   -- For explicit string enforcement (#str variable)
-    | NumTag   -- For numeric assertion (#num variable)
-    | BoolTag  -- For boolean assertion (#bool variable)
-    | RecTag   -- For record assertion (#rec variable)
-    | ArrTag   -- For array assertion (#arr variable)
-    | FnTag    -- For function assertion (#fn variable)
+    | StringTag   -- For explicit string enforcement (#string variable)
+    | NumberTag   -- For numeric assertion (#number variable)
+    | BooleanTag  -- For boolean assertion (#boolean variable)
+    | RecordTag   -- For record assertion (#record variable)
+    | ArrayTag    -- For array assertion (#array variable)
+    | FunctionTag -- For function assertion (#function variable)
     | RecEmpty
     | ArrEmpty
     deriving (Show, Eq)

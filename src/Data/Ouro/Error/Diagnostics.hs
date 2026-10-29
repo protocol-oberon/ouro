@@ -367,7 +367,7 @@ instance GConstructorCount (C1 c a) where
 -- Type Error
 typeMismatchBlurb :: L.Expr -> Text
 typeMismatchBlurb value =
-    "Ouro's built-in properties are #str, #num, #bool, #uri, #date, #rec, #arr and #fn."
+    "Ouro's built-in properties are #string, #number, #boolean, #uri, #date, #record, #array and #function."
     <> case L.propertyOf value of
            property
                | "#" `T.isPrefixOf` property -> ""

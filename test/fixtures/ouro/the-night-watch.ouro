@@ -3,7 +3,7 @@
 (graph the-night-watch
  (let ($linked-art "https://linked.art/example/"
        ;; A local function is a fn bound by let; it closes over linked-art
-       $node       (fn #rec (#str path #str type #str label)
+       $node       (fn #record (#string path #string type #string label)
                      (:id     #uri (+ linked-art path)
                       :type   type
                       :_label label)))

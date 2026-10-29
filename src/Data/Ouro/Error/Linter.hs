@@ -27,8 +27,8 @@ lintExpression =
          -> OuroWarning pos (unanchoredLiteral "#obj-empty" val) : lintExpression rest
 
      -- MATCH: UNANCHORED ARRAY LITERALS
-     (Tkn.Token pos Tkn.TagArrEmpty : Tkn.Token _ (Tkn.String val) : rest)
-         -> OuroWarning pos (unanchoredLiteral "#arr-empty" val) : lintExpression rest
+     (Tkn.Token pos Tkn.TagArrayEmpty : Tkn.Token _ (Tkn.String val) : rest)
+         -> OuroWarning pos (unanchoredLiteral "#array-empty" val) : lintExpression rest
 
      -- Structural recursion to keep scanning down the token stream
      (_ : rest) -> lintExpression rest

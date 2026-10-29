@@ -40,8 +40,8 @@ import           Text.Megaparsec             (SourcePos)
 -- A function's types are written as tags in its header: one between the name and the
 -- parameters for the result, and one before a parameter for that parameter:
 --
---   (defn node #rec (#uri id type) (:id id :type type))
---   (fn #num (n) (* n 2))
+--   (defn node #record (#uri id type) (:id id :type type))
+--   (fn #number (n) (* n 2))
 --
 -- A signature's tag checks a value just as the same tag would anywhere else, and
 -- converts to a URI or a Date in the same way. The result is the body under the return
@@ -188,7 +188,7 @@ functionBody name pos body
 -- A function is documented with a (doc "text") among the direct elements of its body,
 -- before or after its result:
 --
---   (defn place #rec (#str slug #str label)
+--   (defn place #record (#string slug #string label)
 --     (doc "A Linked Art Place, identified under /place/.")
 --     (base/core (example (+ "place/" slug)) "Place" label))
 --

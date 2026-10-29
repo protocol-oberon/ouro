@@ -417,7 +417,7 @@ evalFunction
     -> Env                            -- The function's closure: the frame it is defined in
     -> SourcePos                      -- Callsite position
     -> L.FunctionId                   -- The function's name and definition position
-    -> [S.Param]                      -- The function's formal parameters (e.g., (name #num year))
+    -> [S.Param]                      -- The function's formal parameters (e.g., (name #number year))
     -> [S.Expr]                       -- The un-evaluated body expressions of the function
     -> [S.Expr]                       -- The actual arguments passed at the call site
     -> EvalM L.Expr                   -- The returned evaluated expr

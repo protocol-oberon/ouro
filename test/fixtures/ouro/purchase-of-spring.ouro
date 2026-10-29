@@ -3,10 +3,10 @@
 (import std/provenance)
 (import std/time)
 
-(defn example #uri (#str path)
+(defn example #uri (#string path)
   (+ "https://linked.art/example/" path))
 
-(defn person #rec (#str slug #str label)
+(defn person #record (#string slug #string label)
   (:id (example (+ "person/" slug)) :type "Person" :_label label))
 
 (graph purchase-of-spring

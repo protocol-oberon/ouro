@@ -2,10 +2,10 @@
 (import aat/place-type)
 
 ;; A project's own URIs stay in the project: std builds Linked Art's nodes, not their ids
-(defn example #uri (#str path)
+(defn example #uri (#string path)
   (+ "https://linked.art/example/" path))
 
-(defn place #rec (#str slug #str label)
+(defn place #record (#string slug #string label)
   (:id (example (+ "place/" slug)) :type "Place" :_label label))
 
 ;; -> threads the place through its steps; with sets each property, a set written as an array

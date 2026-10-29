@@ -23,7 +23,7 @@
         artwork)
 
 ;; A term of the Getty AAT, by its number
-(defn term #rec (#str id #str label)
+(defn term #record (#string id #string label)
   (doc "A Getty AAT term: a Type identified by its AAT number.")
   (:id #uri (+ "http://vocab.getty.edu/aat/" id) :type "Type" :_label label))
 

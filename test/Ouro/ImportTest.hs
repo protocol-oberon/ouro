@@ -184,7 +184,7 @@ importedModules = Group "Modules: imported modules, in memory"
                                                                  "{\"r\": \"big\"}")
     , ("a wrong number of arguments",              failsWith "nameOfFunc = \"aat\""
                                                              "(import std/base) (graph g (base/aat 1 2 3))")
-    , ("a bad argument is blamed at the call",     importsFailIn "inline-test" ["expectedProperty = \"#str\""] []
+    , ("a bad argument is blamed at the call",     importsFailIn "inline-test" ["expectedProperty = \"#string\""] []
                                                                    "(import std/base) (graph g (base/aat 5 \"A\"))")
     , ("an error in its body is in its module",    importsFailIn "broken-body.ouro" ["Index"] [("broken-body", "(export bad)\n(defn bad () (get () 5))")]
                                                                    "(import broken-body) (graph g (:r (broken-body/bad)))")
@@ -441,7 +441,7 @@ sourceFrames = Group "Modules: each diagnostic is shown in its own file"
                                                        -- core's line is found, not written, so reformatting base.ouro keeps the test
                                                        source <- maybe (fail "std/base is not bundled") pure (bundledFile "lib/std/base.ouro")
                                                        line   <- maybe (fail "std/base has no core") (pure . (+ 1)) (findIndex ("(defn core " `T.isPrefixOf`) (T.lines source))
-                                                       sourceFrame bundledFile (at "lib/std/base.ouro" line 1) === SourceFrame "lib/std/base.ouro" line 1 "(defn core #rec (#uri id #str type #str label)")
+                                                       sourceFrame bundledFile (at "lib/std/base.ouro" line 1) === SourceFrame "lib/std/base.ouro" line 1 "(defn core #record (#uri id #string type #string label)")
     , ("a line past the end is empty",             withTests 1 . property $
                                                        sourceFrame (const (Just "one line")) (at "f.ouro" 3 1) === SourceFrame "f.ouro" 3 1 "")
     , ("an unknown file is empty",                 withTests 1 . property $

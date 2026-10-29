@@ -20,7 +20,7 @@ import           Text.Megaparsec        (SourcePos)
 --   (+ ? 1)          (fn (%1) (+ %1 1))
 --   (node ? "Type")  (fn (%1) (node %1 "Type"))
 --   (* ?n ?n)        (fn (?n) (* ?n ?n))       a named hole is one parameter, however often it is written
---   (f #num ? x)     (fn (#num %1) (f %1 x))   a tagged hole is a typed parameter
+--   (f #number ? x)  (fn (#number %1) (f %1 x)) a tagged hole is a typed parameter
 --
 -- A hole belongs to the call it is an argument of, so (f (g ?)) passes f a function. The
 -- parameters are the holes in the order they are first written. Their names cannot be

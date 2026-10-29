@@ -222,7 +222,7 @@ instance Show Expr where
     EvalError err -> showString "EvalError " . showsPrec 11 err
 
 
--- The elements of an array value. An array literal and '#arr-empty' are both arrays;
+-- The elements of an array value. An array literal and '#array-empty' are both arrays;
 -- like JSON arrays, their elements can be of any type.
 asArray :: Expr -> Maybe [Expr]
 asArray = \case
@@ -346,28 +346,28 @@ describePrimitive =
      I.Array     _    -> "Array"
 
 
--- The built-in property a value has, written as in Ouro, for messages: "#str", "#rec". A
+-- The built-in property a value has, written as in Ouro, for messages: "#string", "#record". A
 -- value with no built-in property, such as null or a Duration, is described instead.
 propertyOf :: Expr -> Text
 propertyOf =
     \case
      Primitive p
          -> case p of
-                I.String    _    -> "#str"
-                I.Number    _    -> "#num"
-                I.Boolean   _    -> "#bool"
+                I.String    _    -> "#string"
+                I.Number    _    -> "#number"
+                I.Boolean   _    -> "#boolean"
                 I.URI       _    -> "#uri"
                 I.Date      _    -> "#date"
-                I.EmptyRec       -> "#rec"
-                I.Record    _ _  -> "#rec"
-                I.EmptyArr       -> "#arr"
-                I.Array     _    -> "#arr"
+                I.EmptyRec       -> "#record"
+                I.Record    _ _  -> "#record"
+                I.EmptyArr       -> "#array"
+                I.Array     _    -> "#array"
                 I.Null           -> "null"
                 I.BlankNode _    -> "a blank node"
-     Record      _ _        -> "#rec"
-     Array       _          -> "#arr"
-     FunctionClosure _ _ _ _ -> "#fn"
-     PrimitiveOp _          -> "#fn"
+     Record      _ _        -> "#record"
+     Array       _          -> "#array"
+     FunctionClosure _ _ _ _ -> "#function"
+     PrimitiveOp _          -> "#function"
      Duration    _ _        -> "a Duration"
      Attr        _ _        -> "an attribute pair"
      EvalError   _          -> "an error"

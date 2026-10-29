@@ -124,7 +124,7 @@ Every body is exactly one expression: a function's body is its result, and a gra
 (defn getty-aat ()
   "http://vocab.getty.edu/aat/")
 
-(defn type-node #rec (#str aat-id label)
+(defn type-node #record (#string aat-id label)
   (let ($prefix "Type: ")
     (:id     #uri (+ (getty-aat) aat-id)
      :type   "Type"
@@ -202,8 +202,8 @@ A project is described by a =build.ouro=, which holds one graph, named =build=, 
 | Symbol         | =artist=, =type-node=, =+=, =∧=, =legacy!= | starts with a letter, an operator character or a symbol of logic or sets (see below the table); may hold =:= after its first character |
 | Attribute      | =:key=, =:@vocab=, =:crm:P2_has_type=    | letters, digits, =-= and =_=, after an optional =@=, and =:= after the first, so a compact IRI is one key; a pair's key |
 | Binding        | =$name=                                  | any symbol; a private binding, only inside a =let=                  |
-| Property       | =#uri=, =#date=, =#str=, =#num=, =#bool= | a built-in property of what follows; also =#rec=, =#arr=, =#fn=     |
-| Empty values   | =#rec-empty=, =#arr-empty=, =()=         | ={}=, =[]= and =[]=                                                 |
+| Property       | =#uri=, =#date=, =#string=, =#number=, =#boolean= | a built-in property of what follows; also =#record=, =#array=, =#function= |
+| Empty values   | =#record-empty=, =#array-empty=, =()=    | ={}=, =[]= and =[]=                                                 |
 | Hole           | =?=, =?name=, =?..name=                  | a placeholder in a call, or part of a pattern                       |
 | Delimiters     | =( )=                                    | =[ ]= is reserved: it parses, but has no meaning yet                |
 | Keywords       | =defn=, =graph=, =import=, =export=      | a keyword that only begins a longer name (=defnode=) is a symbol |
@@ -235,9 +235,9 @@ param-pattern = record-pattern | array-pattern ;     (* binds the parts of one a
 expression   = literal | asserted | symbol | record | array | call | special-form ;
 
 literal      = string | number | "true" | "false" | "null"
-             | "#rec-empty" | "#arr-empty" | "(" , ")" ;
+             | "#record-empty" | "#array-empty" | "(" , ")" ;
 asserted     = property , expression ;
-property     = "#uri" | "#date" | "#str" | "#num" | "#bool" | "#rec" | "#arr" | "#fn" ;
+property     = "#uri" | "#date" | "#string" | "#number" | "#boolean" | "#record" | "#array" | "#function" ;
 
 (* A record: at least one attribute pair or context *)
 record       = "(" , { record-item } , ")" ;
@@ -294,20 +294,20 @@ sub-pattern  = hole | record-pattern | array-pattern | expression ;
 
 | Value    | Written as                                     | JSON    |
 |----------+------------------------------------------------+---------|
-| String   | ="Manet"=, =#str expr=                         | string  |
-| Number   | =3000=, =#num expr=                            | number  |
-| Boolean  | =true=, =#bool expr=                           | boolean |
+| String   | ="Manet"=, =#string expr=                      | string  |
+| Number   | =3000=, =#number expr=                         | number  |
+| Boolean  | =true=, =#boolean expr=                        | boolean |
 | Null     | =null=                                         | null    |
 | URI      | =#uri "https://..."=                           | string  |
 | Date     | =#date "1881-01-01T00:00:00Z"=                 | string  |
-| Record   | =(:key value ...)=, =#rec expr=                | object  |
-| Array    | =(a b c)=, =(list a b c)=, =#arr expr=         | array   |
+| Record   | =(:key value ...)=, =#record expr=             | object  |
+| Array    | =(a b c)=, =(list a b c)=, =#array expr=       | array   |
 | Duration | =(years 2)=, =(days 19)=                       | none    |
-| Function | =(fn (x) ...)=, a =defn= name, =+=, =#fn expr= | none    |
+| Function | =(fn (x) ...)=, a =defn= name, =+=, =#function expr= | none    |
 
 Durations and functions are values during compilation, but have no JSON form: they must be consumed (added to a date, called) before they reach the output.
 
-*Built-in properties.* =#uri= checks that a string is a URI with a scheme; =#date= checks that a string is an ISO-8601 timestamp (=YYYY-MM-DDTHH:mm:ssZ=); =#str=, =#num=, =#bool=, =#rec=, =#arr= and =#fn= check the type of any expression (=#fn= accepts a =fn=, a =defn= name or a built-in). An assertion on a value that is already a URI or a Date passes it through. Assertions are how URIs and dates, which look like strings in JSON, keep their meaning inside Ouro. A value without the property it is typed with is reported as "Expected data to have the property =#num=, got =#str= instead", naming both properties as they are written; for =#uri= and =#date= the reason is given too, "got a =#str= without a URI scheme" or "got a =#str= that is not a date", with the expected form in the blurb.
+*Built-in properties.* =#uri= checks that a string is a URI with a scheme; =#date= checks that a string is an ISO-8601 timestamp (=YYYY-MM-DDTHH:mm:ssZ=); =#string=, =#number=, =#boolean=, =#record=, =#array= and =#function= check the type of any expression (=#function= accepts a =fn=, a =defn= name or a built-in). An assertion on a value that is already a URI or a Date passes it through. Assertions are how URIs and dates, which look like strings in JSON, keep their meaning inside Ouro. A value without the property it is typed with is reported as "Expected data to have the property =#number=, got =#string= instead", naming both properties as they are written; for =#uri= and =#date= the reason is given too, "got a =#string= without a URI scheme" or "got a =#string= that is not a date", with the expected form in the blurb.
 
 ** Records and arrays
 
@@ -392,14 +392,14 @@ A local function is a =let=-bound =fn=:
   (:attributed (attribute (attribute "Manet"))))
 #+END_SRC
 
-*The body.* A function's body is one expression, written exactly as it would be anywhere else, and its value is the result. A body can be a =let=, so a function binds its private values the same way a graph does. Because parentheses around values make an array, ~(fn () ("hello"))~ returns ~["hello"]~; the compiler warns (=WRN0002=) when a result is a single plain value in parentheses, unless a return type of =#arr= says the array is intended.
+*The body.* A function's body is one expression, written exactly as it would be anywhere else, and its value is the result. A body can be a =let=, so a function binds its private values the same way a graph does. Because parentheses around values make an array, ~(fn () ("hello"))~ returns ~["hello"]~; the compiler warns (=WRN0002=) when a result is a single plain value in parentheses, unless a return type of =#array= says the array is intended.
 
-*Documentation.* A =defn= is documented with a =(doc "...")= among the direct elements of its body, before or after its result: ~(defn place #rec (#str slug #str label) (doc "A Linked Art Place.") (base/tgn ...))~. The parser takes it out of the body and keeps it with the function; it is never evaluated, and it is not part of the result. A function has at most one, holding a single string. A =doc= anywhere else (inside a result, in a =fn= or in a graph) is an error, reported when the file is parsed, so it is found even in a function that is never called; =doc= cannot name a function.
+*Documentation.* A =defn= is documented with a =(doc "...")= among the direct elements of its body, before or after its result: ~(defn place #record (#string slug #string label) (doc "A Linked Art Place.") (base/tgn ...))~. The parser takes it out of the body and keeps it with the function; it is never evaluated, and it is not part of the result. A function has at most one, holding a single string. A =doc= anywhere else (inside a result, in a =fn= or in a graph) is an error, reported when the file is parsed, so it is found even in a function that is never called; =doc= cannot name a function.
 
 Semantics of a call:
 
 - *Arity* is checked: a call with the wrong number of arguments is an error. Functions are not curried.
-- *A function of no parameters, named, is its value* (a constant): =vocab/artwork= written as a value is =(vocab/artwork)=, whether it is a =defn=, an imported one or a =let=-bound =(fn () …)=. Ouro has no effects, so such a function cannot be told from its value; this is Haskell's reading of a definition of no arguments, where other Lisps keep a constant (=def=) apart from a procedure. It is evaluated as the call is, so its return type, the blame for an error in its body and the recursion check apply, and =(defn a () a)= is recursion. At the head of a call a name is the function itself, so =(c)= still calls it, and =(c 1)= and =(-> x c)= are arity errors. A function of no parameters cannot be passed as a function: =(map c xs)= receives its value, and =(satisfies #fn c)= is =false=. An expression that evaluates to such a function without naming it, as a =case= that returns =(fn () 3)=, is not called. Each reference evaluates it again; evaluation is deterministic, so this costs time, never a different value.
+- *A function of no parameters, named, is its value* (a constant): =vocab/artwork= written as a value is =(vocab/artwork)=, whether it is a =defn=, an imported one or a =let=-bound =(fn () …)=. Ouro has no effects, so such a function cannot be told from its value; this is Haskell's reading of a definition of no arguments, where other Lisps keep a constant (=def=) apart from a procedure. It is evaluated as the call is, so its return type, the blame for an error in its body and the recursion check apply, and =(defn a () a)= is recursion. At the head of a call a name is the function itself, so =(c)= still calls it, and =(c 1)= and =(-> x c)= are arity errors. A function of no parameters cannot be passed as a function: =(map c xs)= receives its value, and =(satisfies #function c)= is =false=. An expression that evaluates to such a function without naming it, as a =case= that returns =(fn () 3)=, is not called. Each reference evaluates it again; evaluation is deterministic, so this costs time, never a different value.
 
 - *Arguments are call-by-need:* each argument becomes a promise over the caller's scope. It is evaluated at most once, when the function first uses it, and always means what it meant at the call site, so a function's own bindings can never capture it. An argument the function never uses is still evaluated when the graph is finished, so its errors are reported.
 
@@ -426,14 +426,14 @@ A =defn= body is checked when the file is parsed: apart from its =doc=, it must 
 *Signatures.* A function's types are built-in properties in its header: one between the name and the parameters is the return type, and one before a parameter is that parameter's type. Either can be left out, and so can any parameter's.
 
 #+BEGIN_SRC clojure
-(defn node #rec (#uri id type)
+(defn node #record (#uri id type)
   (:id id :type type))
 
-(let ($double (fn #num (#num n) (* n 2)))
+(let ($double (fn #number (#number n) (* n 2)))
   (:r (double 21)))               ; {"r": 42}
 #+END_SRC
 
-- The types are the built-in properties: =#str=, =#num=, =#bool=, =#uri=, =#date=, =#rec=, =#arr= and =#fn=. There is one sigil for types: =#= always names a property, and its position says what it applies to.
+- The types are the built-in properties: =#string=, =#number=, =#boolean=, =#uri=, =#date=, =#record=, =#array= and =#function=. There is one sigil for types: =#= always names a property, and its position says what it applies to.
 - A property in a signature behaves exactly as it would anywhere else: it checks the value, and =#uri= and =#date= convert a string. In =node= above, =id= arrives as a URI.
 - Each argument is checked where the call is written, so a mismatch is reported at the argument, in the call. The result is checked where the body is, and a mismatch is reported there.
 - An argument is checked even if the function never uses it.
@@ -486,7 +486,7 @@ A parameter can be a pattern, written as a =case= pattern is. It takes one argum
 - *Any pattern* can be written: array patterns, record patterns (open, as in =case=), =?..rest= holes, and values compared by value, as in ~(fn (("Person" ?l)) l)~. A pattern must bind something, so it is a record pattern or holds a hole.
 - *It is matched when the function is called*, even if the body uses none of its holes, as a typed argument is checked. The holes are bound in a frame around the body.
 - *A mismatch is the caller's*: it is reported at the argument in the call, or at the array in =map=.
-- *A property before a pattern* checks the argument first: ~(fn (#arr (?a ?b)) ...)~.
+- *A property before a pattern* checks the argument first: ~(fn (#array (?a ?b)) ...)~.
 - *Each name is bound once*: two parameters, two holes, or a hole and a parameter with the same name are an error, reported where the function is defined.
 - *A pattern's values are evaluated where the function is defined*: a =defn='s pattern sees the module's functions, and a =fn='s sees the scope it is written in, but neither sees the function's other parameters. A check against another parameter is written in the body, with =case=.
 - *Placeholders leave parameters alone*: a =fn='s parameter list is not read as calls, so a hole in it is always a pattern's.
@@ -526,9 +526,9 @@ Negative indexes count from the end in =insert= and =replace-at=, as in a path. 
 
 =get= evaluates its target and walks the resulting records, so it works through function results, =inlay=, =case= and =let= alike. Only a record's attribute pairs can be reached, =let= bindings are private. Path components are bare symbols (=(get p q r)=, not =(get p :q)=) or whole numbers. A number indexes an Array, counting from 0, and a negative one counts from the end: ~(get p classified_as 0 _label)~ is the label of the first classification, and ~(get xs -1)~ is the last element. An index is written, never computed, and indexes only Arrays: a record's attribute pairs are reached by key, never by position, since JSON-LD gives them no order. An index past the end is an error, and so is an index into anything that is not an Array or a key into an Array, which says to write an index or use =image=. A hole can stand for the target, ~(get ? 0)~, but not for a key or an index: a path never depends on the values it is given.
 
-=map=. ~(map f array)~ evaluates =f=, which must be a function (a =fn=, a =defn= name, a built-in or a placeholder), and =array=, which must be an array (=()= and =#arr-empty= are empty arrays). The result is an array of =f= called on each element, in order. Each element is passed as an ordinary call, made in a frame that binds the function and the element to names that cannot be written in Ouro, so arity, signatures and the recursion check apply as they do to any call: =f= must take one argument, a typed parameter checks every element, and a mismatch is reported at the array, since an element has no position of its own. With placeholders, ~(map (+ ? 1) xs)~ needs no =fn=, and ~(map f ?)~ is a function waiting for the array. Elements that are themselves arrays or records are taken apart by a [[*Destructuring parameters][pattern parameter]]: ~(map (fn ((?k ?v)) ...) pairs)~. =map= is a special form only at the head of a form: it cannot name a =defn=, but =:map= and =$map= are ordinary names.
+=map=. ~(map f array)~ evaluates =f=, which must be a function (a =fn=, a =defn= name, a built-in or a placeholder), and =array=, which must be an array (=()= and =#array-empty= are empty arrays). The result is an array of =f= called on each element, in order. Each element is passed as an ordinary call, made in a frame that binds the function and the element to names that cannot be written in Ouro, so arity, signatures and the recursion check apply as they do to any call: =f= must take one argument, a typed parameter checks every element, and a mismatch is reported at the array, since an element has no position of its own. With placeholders, ~(map (+ ? 1) xs)~ needs no =fn=, and ~(map f ?)~ is a function waiting for the array. Elements that are themselves arrays or records are taken apart by a [[*Destructuring parameters][pattern parameter]]: ~(map (fn ((?k ?v)) ...) pairs)~. =map= is a special form only at the head of a form: it cannot name a =defn=, but =:map= and =$map= are ordinary names.
 
-=exists=, =forall=, =omits= and =filter=. Each calls =f= on the elements of an array exactly as =map= does, with the same arity, signature and recursion rules, and =f= must answer =#bool=; an answer that is not a Boolean is reported at the array. =exists=, =forall= and =omits= stop at the element that decides the answer, as =or= and =and= stop at an operand, so ~(exists (> ? 0) (1 "x"))~ is =true= without calling =f= on ="x"=. ~(exists f ())~ is =false=, ~(forall f ())~ and ~(omits f ())~ are =true=, and ~(filter f ())~ is =()=. They take holes, ~(exists (> ? 2) ?)~, and cannot name a =defn=.
+=exists=, =forall=, =omits= and =filter=. Each calls =f= on the elements of an array exactly as =map= does, with the same arity, signature and recursion rules, and =f= must answer =#boolean=; an answer that is not a Boolean is reported at the array. =exists=, =forall= and =omits= stop at the element that decides the answer, as =or= and =and= stop at an operand, so ~(exists (> ? 0) (1 "x"))~ is =true= without calling =f= on ="x"=. ~(exists f ())~ is =false=, ~(forall f ())~ and ~(omits f ())~ are =true=, and ~(filter f ())~ is =()=. They take holes, ~(exists (> ? 2) ?)~, and cannot name a =defn=.
 
 ~(omits f xs)~ is ~(not (exists f xs))~, the quantifier =∄=. It is named for what the data omits, not for what does not exist: a document's silence is not a complete observation, so =omits= says only that the array has no such element, never that no such thing exists. A contradiction check reads ~(omits (contains (get-or () book ntp46) ?) (get-or () book tp46))~: no type is recorded as both present and absent.
 
@@ -587,7 +587,7 @@ A branch head is:
 
 - *A guard*, a form headed by a comparison (~>~, ~>=~, ~<~, ~<=~, =eq=, =neq=): the target is inserted as the comparison's first argument, so ~((< 10 20) e)~ tests ~(< target 10 20)~, chained like any comparison and stopping at the first false pair.
 
-- *A condition*, ~(when cond)~: =cond= must have the property =#bool=; =true= takes the branch and =false= tries the next. It can use any value in scope, not only the target, but not the names a pattern binds. =when= is only a branch head, and cannot name a =defn=.
+- *A condition*, ~(when cond)~: =cond= must have the property =#boolean=; =true= takes the branch and =false= tries the next. It can use any value in scope, not only the target, but not the names a pattern binds. =when= is only a branch head, and cannot name a =defn=.
 
 - *A property*, ~(satisfies #p)~ or ~(⊨ #p)~: the target satisfies the property =#p=, as ~(satisfies #p target)~ asks.
 
@@ -626,11 +626,11 @@ shadows them with its own attribute pairs.
 
 An operator written with the wrong number of operands is an arity error. Ordering (~>~ ~>=~ ~<~ ~<=~) compares numbers only.
 
-=and= and =or= are special forms that combine Booleans, as in every Lisp: ~(and a b ...)~ is =true= when every operand is, and ~(or a b ...)~ when one is. Each evaluates its operands in order and stops at the one that decides the answer, so ~(and false (get () 5))~ is =false=, and each operand it reaches must have the property =#bool=; unlike other Lisps, Ouro has no truthiness, and the result is always =true= or =false=. ~(and)~ is =true= and ~(or)~ is =false=. They are desugared into =case= (see [[*Desugaring (~Canon~)][desugaring]]), take holes like a call, ~(or ? x)~, and cannot name a =defn=; being special forms, they cannot be passed as values, so a hole is how one is made into a function. A chained comparison stops the same way: ~(< 2 1 (get () 5))~ is =false=.
+=and= and =or= are special forms that combine Booleans, as in every Lisp: ~(and a b ...)~ is =true= when every operand is, and ~(or a b ...)~ when one is. Each evaluates its operands in order and stops at the one that decides the answer, so ~(and false (get () 5))~ is =false=, and each operand it reaches must have the property =#boolean=; unlike other Lisps, Ouro has no truthiness, and the result is always =true= or =false=. ~(and)~ is =true= and ~(or)~ is =false=. They are desugared into =case= (see [[*Desugaring (~Canon~)][desugaring]]), take holes like a call, ~(or ? x)~, and cannot name a =defn=; being special forms, they cannot be passed as values, so a hole is how one is made into a function. A chained comparison stops the same way: ~(< 2 1 (get () 5))~ is =false=.
 
-=len= takes exactly one argument. An array's elements are counted whatever their types, so ~(len (1 (2 3) (:k 4)))~ is 3, and =()= and =#arr-empty= have length 0. A string is counted in characters (Unicode code points), not bytes, so ~(len "Málaga")~ is 6. Any other value, a record or a URI included, is a type error. Recursion is banned, so a length cannot be written in Ouro itself; =len= is an ordinary built-in otherwise, so ~(map len xs)~ works.
+=len= takes exactly one argument. An array's elements are counted whatever their types, so ~(len (1 (2 3) (:k 4)))~ is 3, and =()= and =#array-empty= have length 0. A string is counted in characters (Unicode code points), not bytes, so ~(len "Málaga")~ is 6. Any other value, a record or a URI included, is a type error. Recursion is banned, so a length cannot be written in Ouro itself; =len= is an ordinary built-in otherwise, so ~(map len xs)~ works.
 
-=contains= takes two arguments: ~(contains (1 2 3) 2)~ is =true= when the array has the value as an element, compared as =eq= compares, so records and arrays are compared by value; ~(contains "Amsterdam" "dam")~ is =true= when the string has the other as a substring. =distinct= takes one array and keeps the first of each value, in order: ~(distinct (1 2 1 3))~ is ~(1 2 3)~. An array holding a function is a type error for both, since functions cannot be compared. =not= takes one =#bool=.
+=contains= takes two arguments: ~(contains (1 2 3) 2)~ is =true= when the array has the value as an element, compared as =eq= compares, so records and arrays are compared by value; ~(contains "Amsterdam" "dam")~ is =true= when the string has the other as a substring. =distinct= takes one array and keeps the first of each value, in order: ~(distinct (1 2 1 3))~ is ~(1 2 3)~. An array holding a function is a type error for both, since functions cannot be compared. =not= takes one =#boolean=.
 
 =union=, =intersect= and =setminus= treat arrays as sets, as JSON-LD reads a property's values. Elements are compared as =eq= compares them, so records and arrays are compared by value, and a result has no repeats: the first of each is kept, in the order it is first written, so the output is always the same. Each takes one or more arrays. ~(union a b ...)~ is every value in any of them; ~(intersect a b ...)~ the values in all of them, in =a='s order; ~(setminus a b ...)~ the values of =a= in none of the rest, so ~(setminus a b c)~ is a ∖ (b ∪ c). An argument that is not an array, or an array holding a function, is a type error. They are ordinary built-ins, so they can be passed as values and take holes: ~(map (setminus ? excluded) groups)~. ~(subset a b)~ takes exactly two arrays and is =true= when every value of =a= is in =b=, that is when ~(setminus a b)~ is empty: ~(subset required (ids obj))~ checks that an object has every one of several classifications.
 
@@ -675,7 +675,7 @@ data Expr
     = Symbol      SourcePos Text            -- names, functions and special-form heads
     | DefunSymbol SourcePos Text            -- function identifiers (unused by the parser)
     | Literal     SourcePos LiteralValue    -- String, Number, Boolean, Null, empty Array/Record
-    | Tagged      SourcePos ReaderTag Expr  -- #uri "...", #date "...", #rec (...)
+    | Tagged      SourcePos ReaderTag Expr  -- #uri "...", #date "...", #record (...)
     | Hole        SourcePos Text            -- ?, ?name or ?..name: a placeholder, or in a case pattern
     | Form        SourcePos [Expr]          -- (...)
     | Bracket     SourcePos [Expr]          -- [...], reserved
@@ -699,7 +699,7 @@ data HigherExpression (t :: Declaration) where
     Graph    :: SourcePos -> Text -> Expr            -> HigherExpression 'GraphExpr
 #+END_SRC
 
-A =defn='s return type is applied when it is parsed: its body is stored under the return property, as ~Tagged~. A =fn= is an ordinary form until it is evaluated, where a return property is read from its parameter list, ~(fn #num (n) ...)~.
+A =defn='s return type is applied when it is parsed: its body is stored under the return property, as ~Tagged~. A =fn= is an ordinary form until it is evaluated, where a return property is read from its parameter list, ~(fn #number (n) ...)~.
 
 The parser also enforces the module-level rules: imports and the export come first, an export names functions of the module, two imports cannot share a qualifier, a function name cannot be a special form or qualified, a function cannot be defined twice, a body must be one expression, and the removed keywords (=defun=, =define=, a nested =defn=) are reported with their replacements.
 
@@ -711,7 +711,7 @@ Before evaluation, ~Canon.canonicalModule~ rewrites every function body and grap
 |------------------+-----------+--------------------------------------------------------------------------------------------|
 | 1. placeholders  | top-down  | a call with =?= holes into a function of them, leaving =case= and =fn= patterns as they are |
 | 2. threading     | top-down  | ~(-> x step ...)~ into nested calls; a step with a hole is already a function (1)           |
-| 3. connectives   | top-down  | ~(and a b)~ into ~(case #bool a (true (and b)) (otherwise false))~, and =or= alike          |
+| 3. connectives   | top-down  | ~(and a b)~ into ~(case #boolean a (true (and b)) (otherwise false))~, and =or= alike      |
 | 4. bindings      | top-down  | =$name value= in a =let='s bindings into ~(%bind "name" value)~                             |
 | 5. guards        | top-down  | a condition, =(when c)= or a guard ~((< 10) e)~, into a ~(%when c)~ head; a guard names the target, bound once |
 | 6. contexts      | bottom-up | =:context e= into ~(%context e)~                                                            |
@@ -730,7 +730,7 @@ Each pass is a module of its own under =Lisp/Canon/= (=Placeholders.hs=, =Thread
 
 | Sugar                                   | Core                                                          |
 |-----------------------------------------+---------------------------------------------------------------|
-| a placeholder ~(f ? x ?n #num ?)~       | ~(fn (%1 ?n #num %2) (f %1 x ?n %2))~                         |
+| a placeholder ~(f ? x ?n #number ?)~    | ~(fn (%1 ?n #number %2) (f %1 x ?n %2))~                      |
 | ~(-> x (f a) g)~                        | ~(g (f x a))~                                                 |
 | a function step ~(-> x (h b ?))~        | ~(%apply (fn (%1) (h b %1)) x)~                               |
 | ~(with base item ...)~                  | ~((inlay base) item ...)~; ~(with base)~ is ~base~            |
@@ -1039,7 +1039,7 @@ data Expr (t :: JLD.Type) where
 | IRI                     | =#uri "..."=        | ~URI~                   | ~Text.URI.URI~ | Primitive |
 | xsd:dateTime            | =#date "..."=       | ~Date~                  | ~UTCTime~      | Primitive |
 | blank node              | not yet written     | ~BlankNode~             | ~Text~         | Primitive |
-| ={}= / =[]=             | =#rec-empty= / =()= | ~EmptyRec~ / ~EmptyArr~ | none           | Primitive |
+| ={}= / =[]=             | =#record-empty= / =()= | ~EmptyRec~ / ~EmptyArr~ | none           | Primitive |
 | node object             | =(:k v ...)=        | ~Record~                | meta + list    | Primitive |
 | array                   | =(a b ...)=         | ~Array~                 | list           | Primitive |
 | =@context=              | =:context ...=      | ~Context~ / ~EmptyMeta~ | ~Schema~       | Meta      |

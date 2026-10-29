@@ -38,7 +38,7 @@ import           Data.Text                         (Text)
 --                                hole is already a function (1), and a step is rewritten
 --                                before 'adjoin' (7) and 'with' (8) are, so (-> x (with :k v))
 --                                gives with x
---    3. connectives   top-down   (and a b) and (or a b) become chains of cases on #bool a,
+--    3. connectives   top-down   (and a b) and (or a b) become chains of cases on #boolean a,
 --                                so an operand is only evaluated when it can decide the answer
 --    4. bindings      top-down   '$name value' in a let becomes (%bind "name" value), before a
 --                                value can expand into several elements (9)

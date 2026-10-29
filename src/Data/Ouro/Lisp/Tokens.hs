@@ -37,16 +37,16 @@ data TokenType
     | Boolean !Bool    -- true, false
     | Null             -- null
     -- Type Assertions
-    | TagUri           -- '#uri'       (asserts or enforces a valid URI string layout)
-    | TagDate          -- '#date'      (asserts or enforces a valid UTC timestamp layout)
-    | TagStr           -- '#str'       (enforces expression resolves to a String)
-    | TagNum           -- '#num'       (enforces expression resolves to a Number)
-    | TagBool          -- '#bool'      (enforces expression resolves to a Boolean)
-    | TagRec           -- '#rec'       (enforces expression resolves to a Record)
-    | TagArr           -- '#arr'       (enforces expression resolves to an Array)
-    | TagFn            -- '#fn'        (enforces expression resolves to a function)
-    | TagRecordEmpty   -- '#rec-empty' (instantiates Record Nil Nil)
-    | TagArrEmpty      -- '#arr-empty' (instantiates Array Nil)
+    | TagUri           -- '#uri'          (asserts or enforces a valid URI string layout)
+    | TagDate          -- '#date'         (asserts or enforces a valid UTC timestamp layout)
+    | TagString        -- '#string'       (enforces expression resolves to a String)
+    | TagNumber        -- '#number'       (enforces expression resolves to a Number)
+    | TagBoolean       -- '#boolean'      (enforces expression resolves to a Boolean)
+    | TagRecord        -- '#record'       (enforces expression resolves to a Record)
+    | TagArray         -- '#array'        (enforces expression resolves to an Array)
+    | TagFunction      -- '#function'     (enforces expression resolves to a function)
+    | TagRecordEmpty   -- '#record-empty' (instantiates Record Nil Nil)
+    | TagArrayEmpty    -- '#array-empty'  (instantiates Array Nil)
     -- Hole
     | Hole !Text
     deriving (Show, Eq, Generic)

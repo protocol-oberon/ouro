@@ -10,11 +10,11 @@ import           Text.Megaparsec        (SourcePos)
 --
 -- (and a ...) is true when every operand is, and (or a ...) when at least one is. Each
 -- becomes a chain of cases, so an operand is only evaluated when the ones before it have
--- not already decided the answer, and each operand is checked as a #bool:
+-- not already decided the answer, and each operand is checked as a #boolean:
 --
---   (and a b c)    (case #bool a (true (and b c)) (otherwise false))
---   (or a b c)     (case #bool a (true true) (otherwise (or b c)))
---   (and a)        #bool a
+--   (and a b c)    (case #boolean a (true (and b c)) (otherwise false))
+--   (or a b c)     (case #boolean a (true true) (otherwise (or b c)))
+--   (and a)        #boolean a
 --   (and)          true, and (or) is false
 --
 -- Top-down, so the rest of a chain is rewritten in turn. Runs after 'threading', so in
@@ -67,4 +67,4 @@ chain pos isAll = \case
 
     where
     -- Each operand is checked where it is written
-    asBool operand = S.Tagged (S.exprPos operand) S.BoolTag operand
+    asBool operand = S.Tagged (S.exprPos operand) S.BooleanTag operand

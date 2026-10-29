@@ -166,7 +166,7 @@ data SyntaxError
 --- TYPE VIOLATIONS ---
 data TypeError
     -- TYPE VIOLATION: VALUE DOMAIN MISMATCH
-    -- Occurs during the explicit tag modification evaluation phase (e.g., @#uri@, @#date@, @#str@)
+    -- Occurs during the explicit tag modification evaluation phase (e.g., @#uri@, @#date@, @#string@)
     -- or during backend GADT conversion when an expression resolves to a primitive literal
     -- or structure that contradicts the declared domain constraint.
     --
@@ -178,13 +178,13 @@ data TypeError
       }
 
     -- TYPE VIOLATION: A VALUE WITHOUT THE PROPERTY IT IS TYPED WITH
-    -- Occurs when a signature, (#num n), or an assertion, #str x, names a built-in property
+    -- Occurs when a signature, (#number n), or an assertion, #string x, names a built-in property
     -- the value does not have.
     --
     -- * Remediation: Name both properties as they are written in Ouro, and say why when the
     --   value's own property is not reason enough (a String that is not a URI).
     | PropertyMismatch
-      { expectedProperty :: Text  -- The property the value is typed with, as written: "#num"
+      { expectedProperty :: Text  -- The property the value is typed with, as written: "#number"
       , actualProperty   :: Text  -- The property the value has, with a reason where needed
       }
     deriving (Show, Eq, Ord, Generic)

@@ -107,11 +107,11 @@ evalExpr expr = do
         S.Literal _ S.EmptyArr  -> pure $ Primitive I.EmptyArr
         S.Literal _ S.EmptyRec  -> pure $ Primitive I.EmptyRec
 
-        -- A property on its own, #str with nothing after it, is the subject-less form of
-        -- (satisfies #str), which only a case branch head fills in
+        -- A property on its own, #string with nothing after it, is the subject-less form of
+        -- (satisfies #string), which only a case branch head fills in
         S.Tagged pos _ (S.Hole _ "%subject")
-            -> lexicalError "A property on its own has nothing to check: a property is written before the value it applies to, as in #str x."
-               & withBlurb "In a case branch head, (satisfies #str) asks it of the case's target: (case x ((satisfies #str) \"text\") (otherwise \"other\"))."
+            -> lexicalError "A property on its own has nothing to check: a property is written before the value it applies to, as in #string x."
+               & withBlurb "In a case branch head, (satisfies #string) asks it of the case's target: (case x ((satisfies #string) \"text\") (otherwise \"other\"))."
                & OuroError pos
                & EvalError
                & pure
@@ -365,7 +365,7 @@ evalExpr expr = do
 
         S.Form pos (S.Symbol _ "satisfies" : _)
             -> lexicalError "satisfies is written (satisfies #property value), or as the head of a case branch, ((satisfies #property) result)."
-               & withBlurb "Perhaps write (satisfies #str x), or (case x ((satisfies #str) \"text\") (otherwise \"other\"))."
+               & withBlurb "Perhaps write (satisfies #string x), or (case x ((satisfies #string) \"text\") (otherwise \"other\"))."
                & OuroError pos
                & EvalError
                & pure
@@ -379,7 +379,7 @@ evalExpr expr = do
             -> pure (EvalError (misplacedBinding name pos))
 
         -- (fn (args) expr): an anonymous function, closed over the scope it is written in.
-        -- A return type is read as a tag on the parameter list: (fn #num (n) expr).
+        -- A return type is read as a tag on the parameter list: (fn #number (n) expr).
         S.Form pos [S.Symbol _ "fn", S.Form _ params, body]
             | Just typed <- traverse param (zip [1 ..] params)
             -> pure (either EvalError (const (FunctionClosure env ("fn", pos) typed [body])) (checkParams pos typed))
@@ -390,7 +390,7 @@ evalExpr expr = do
 
         S.Form pos (S.Symbol _ "fn" : _)
             -> lexicalError "A fn is written (fn (args) expr): argument names or patterns, each with an optional type, then exactly one result expression."
-               & withBlurb "A signature's types are properties: (fn #num (#num n) (* n 2))."
+               & withBlurb "A signature's types are properties: (fn #number (#number n) (* n 2))."
                & OuroError pos
                & EvalError
                & pure
@@ -516,7 +516,7 @@ evalExpr expr = do
 
 -- assertTag.
 --
--- Checks a value against a built-in property, as a signature or an assertion such as #str x
+-- Checks a value against a built-in property, as a signature or an assertion such as #string x
 -- names it. Only #uri and #date convert: a String that passes them becomes a URI or a Date.
 assertTag :: S.ReaderTag -> S.Expr -> EvalM L.Expr
 assertTag tag payload = do
@@ -530,46 +530,46 @@ assertTag tag payload = do
 -- #date, or a PropertyMismatch error at the position given
 checkProperty :: S.ReaderTag -> SourcePos -> L.Expr -> EvalM L.Expr
 checkProperty tag pos evaluatedVal = case tag of
-                                 S.Uri     -> assertUri  pos evaluatedVal
-                                 S.Date    -> assertDate pos evaluatedVal
-                                 S.StrTag  -> isString   pos evaluatedVal
-                                 S.NumTag  -> isNumber   pos evaluatedVal
-                                 S.BoolTag -> isBoolean  pos evaluatedVal
-                                 S.RecTag  -> isRecord   pos evaluatedVal
-                                 S.ArrTag  -> isArray    pos evaluatedVal
-                                 S.FnTag   -> isFn       pos evaluatedVal
-                                 _badTag   -> malformedTag (T.pack (show tag)) "#rec-empty and #arr-empty are values, not properties, so nothing can be asserted with them"
-                                              & OuroError pos
-                                              & EvalError
-                                              & pure
+                                 S.Uri         -> assertUri  pos evaluatedVal
+                                 S.Date        -> assertDate pos evaluatedVal
+                                 S.StringTag   -> isString   pos evaluatedVal
+                                 S.NumberTag   -> isNumber   pos evaluatedVal
+                                 S.BooleanTag  -> isBoolean  pos evaluatedVal
+                                 S.RecordTag   -> isRecord   pos evaluatedVal
+                                 S.ArrayTag    -> isArray    pos evaluatedVal
+                                 S.FunctionTag -> isFn       pos evaluatedVal
+                                 _badTag       -> malformedTag (T.pack (show tag)) "#record-empty and #array-empty are values, not properties, so nothing can be asserted with them"
+                                                  & OuroError pos
+                                                  & EvalError
+                                                  & pure
 
     where
     -- Typed Primitive Helpers
     isString pos v = case v of
                          Primitive (I.String _) -> pure v
-                         other                  -> failProperty pos "#str" (propertyOf other) (typeMismatchBlurb other)
+                         other                  -> failProperty pos "#string" (propertyOf other) (typeMismatchBlurb other)
 
     isNumber pos v = case v of
                          Primitive (I.Number _) -> pure v
-                         other                  -> failProperty pos "#num" (propertyOf other) (typeMismatchBlurb other)
+                         other                  -> failProperty pos "#number" (propertyOf other) (typeMismatchBlurb other)
 
     isRecord pos v = case v of
                          Record _ _           -> pure v
                          Primitive I.EmptyRec -> pure v
-                         other                -> failProperty pos "#rec" (propertyOf other) (typeMismatchBlurb other)
+                         other                -> failProperty pos "#record" (propertyOf other) (typeMismatchBlurb other)
 
     isArray pos v = case L.asArray v of
                         Just _  -> pure v
-                        Nothing -> failProperty pos "#arr" (propertyOf v) (typeMismatchBlurb v)
+                        Nothing -> failProperty pos "#array" (propertyOf v) (typeMismatchBlurb v)
 
     isFn pos v = case v of
                      FunctionClosure _ _ _ _ -> pure v
                      PrimitiveOp _           -> pure v
-                     other                   -> failProperty pos "#fn" (propertyOf other) (typeMismatchBlurb other)
+                     other                   -> failProperty pos "#function" (propertyOf other) (typeMismatchBlurb other)
 
     isBoolean pos v = case v of
                           Primitive (I.Boolean _) -> pure v
-                          other                   -> failProperty pos "#bool" (propertyOf other) (typeMismatchBlurb other)
+                          other                   -> failProperty pos "#boolean" (propertyOf other) (typeMismatchBlurb other)
 
     -- Complex Parsers
     assertUri :: SourcePos -> L.Expr -> EvalM L.Expr
@@ -577,14 +577,14 @@ checkProperty tag pos evaluatedVal = case tag of
         Primitive (I.String rawText)
             -> case URI.mkURI rawText of
                    Left _
-                       -> failProperty pos "#uri" "a #str that is not a URI" uriBlurb
+                       -> failProperty pos "#uri" "a #string that is not a URI" uriBlurb
 
                    Right uri
                        -> case URI.uriScheme uri of
                               Just _
                                   -> pure $ Primitive (I.URI uri)
                               Nothing
-                                  -> failProperty pos "#uri" "a #str without a URI scheme" uriBlurb
+                                  -> failProperty pos "#uri" "a #string without a URI scheme" uriBlurb
 
         Primitive (I.URI uri)
             -> pure $ Primitive (I.URI uri)
@@ -598,7 +598,7 @@ checkProperty tag pos evaluatedVal = case tag of
          Primitive (I.String rawText)
              -> case parseISO8601 (T.unpack rawText) of
                     Just    utcTime -> pure $ Primitive (I.Date utcTime)
-                    Nothing         -> failProperty pos "#date" "a #str that is not a date" dateBlurb
+                    Nothing         -> failProperty pos "#date" "a #string that is not a date" dateBlurb
 
          Primitive (I.Date date)
              -> pure $ Primitive (I.Date date)
@@ -606,8 +606,8 @@ checkProperty tag pos evaluatedVal = case tag of
          otherVal
              -> failProperty pos "#date" (propertyOf otherVal) dateBlurb
 
-    uriBlurb  = "A #uri is a #str with a scheme, such as \"https://linked.art/example/1\"."
-    dateBlurb = "A #date is a #str in ISO-8601 form, YYYY-MM-DDTHH:mm:ssZ, such as \"1642-01-01T00:00:00Z\"."
+    uriBlurb  = "A #uri is a #string with a scheme, such as \"https://linked.art/example/1\"."
+    dateBlurb = "A #date is a #string in ISO-8601 form, YYYY-MM-DDTHH:mm:ssZ, such as \"1642-01-01T00:00:00Z\"."
 
     -- A value without the built-in property it is typed with
     failProperty :: SourcePos -> Text -> Text -> Text -> EvalM L.Expr
@@ -695,7 +695,7 @@ evaluateGuards eval env pos target attempts branches =
                                Primitive (I.Boolean True)  -> eval body
                                Primitive (I.Boolean False) -> evaluateGuards eval env pos target (attempts + 1) rest
                                err@(EvalError _)           -> pure err
-                               other                       -> propertyMismatch "#bool" (propertyOf other)
+                               other                       -> propertyMismatch "#boolean" (propertyOf other)
                                                               & withBlurb "A case condition answers true or false: ((when cond) result), or a comparison such as ((< 10) result)."
                                                               & OuroError (S.exprPos cond)
                                                               & EvalError
@@ -976,7 +976,7 @@ predicateVerdict :: Text -> SourcePos -> L.Expr -> Either L.Expr Bool
 predicateVerdict form arrPos = \case
     Primitive (I.Boolean b) -> Right b
     err@(EvalError _)       -> Left err
-    other                   -> propertyMismatch "#bool" (propertyOf other)
+    other                   -> propertyMismatch "#boolean" (propertyOf other)
                                & withBlurb (form <> "'s function must answer true or false for each element.")
                                & OuroError arrPos
                                & EvalError
@@ -1027,7 +1027,7 @@ notAField = \case
 
 
 -- A function parameter is a name or a pattern, optionally typed by the tag before it:
--- n, #num n, (?a ?b) or #arr (?a ?b). A pattern is named by its position among the parameters.
+-- n, #number n, (?a ?b) or #array (?a ?b). A pattern is named by its position among the parameters.
 -- A '$name' is read as (%binder "name"), which is a binding, not a pattern.
 param :: (Int, S.Expr) -> Maybe S.Param
 param (index, expr) = case expr of

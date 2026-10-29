@@ -369,27 +369,27 @@ pArgs = do
                                               collectArgs (patternParam (length acc + 1) (Just (Tkn.pos t, tag)) pattern : acc)
                                        _aName
                                            -> do
-                                              name <- expectSymbol "A parameter's type is written before its name, as in (#num n)"
+                                              name <- expectSymbol "A parameter's type is written before its name, as in (#number n)"
                                               collectArgs (S.Param name (Just (Tkn.pos t, tag)) Nothing : acc)
-            _notAParameter      -> lexicalError "A parameter is a name, or a pattern in parentheses, each optionally typed: (#num n) or ((?a ?b))"
+            _notAParameter      -> lexicalError "A parameter is a name, or a pattern in parentheses, each optionally typed: (#number n) or ((?a ?b))"
                                    F.& OuroError (Tkn.pos t)
                                    F.& Left
                                    F.& lift
 
 
--- The tags that name a type, in an expression or a signature. '#rec-empty' and
--- '#arr-empty' are values, not types.
+-- The tags that name a type, in an expression or a signature. '#record-empty' and
+-- '#array-empty' are values, not types.
 typeTag :: Tkn.TokenType -> Maybe S.ReaderTag
 typeTag = \case
-    Tkn.TagUri  -> Just S.Uri
-    Tkn.TagDate -> Just S.Date
-    Tkn.TagStr  -> Just S.StrTag
-    Tkn.TagNum  -> Just S.NumTag
-    Tkn.TagBool -> Just S.BoolTag
-    Tkn.TagRec  -> Just S.RecTag
-    Tkn.TagArr  -> Just S.ArrTag
-    Tkn.TagFn   -> Just S.FnTag
-    _notAType   -> Nothing
+    Tkn.TagUri      -> Just S.Uri
+    Tkn.TagDate     -> Just S.Date
+    Tkn.TagString   -> Just S.StringTag
+    Tkn.TagNumber   -> Just S.NumberTag
+    Tkn.TagBoolean  -> Just S.BooleanTag
+    Tkn.TagRecord   -> Just S.RecordTag
+    Tkn.TagArray    -> Just S.ArrayTag
+    Tkn.TagFunction -> Just S.FunctionTag
+    _notAType       -> Nothing
 
 -- Recursive Expr Router
 pExpr :: Parser S.Expr
@@ -429,7 +429,7 @@ pExpr = do
 
                              -- Empty Collections instantiate as direct fallback values
                              Tkn.TagRecordEmpty -> capture (S.Literal (Tkn.pos t) S.EmptyRec)
-                             Tkn.TagArrEmpty    -> capture (S.Literal (Tkn.pos t) S.EmptyArr)
+                             Tkn.TagArrayEmpty  -> capture (S.Literal (Tkn.pos t) S.EmptyArr)
 
                              -- Hole Type
                              Tkn.Hole txt       -> capture (S.Hole (Tkn.pos t) txt)
@@ -472,7 +472,7 @@ parseTaggedNode :: SourcePos -> S.ReaderTag -> Parser S.Expr
 parseTaggedNode tagPos tagType = do
                                  stream <- remainingTokens
                                  case stream of
-                                     -- A property on its own, at the end of a form: (satisfies #str).
+                                     -- A property on its own, at the end of a form: (satisfies #string).
                                      -- Its subject is a hole that cannot be written in Ouro, filled
                                      -- in by the case it heads, and reported anywhere else
                                      t : _ | Tkn.CloseParen <- Tkn.tokenType t

@@ -79,7 +79,7 @@ serialisation = Group "Serialisation: only values reach the output"
     , ("as an attribute value",                     failsWith "A function is not a value: perhaps call it, (inc x)."
                                                               "(defn inc (x) (+ x 1)) (graph g (:r inc))")
     , ("as an argument with a property",            failsWith "This value is a function: perhaps call it, (mk x)."
-                                                              "(defn f #rec (#rec r) r) (defn mk (x) (:a x)) (graph g (:r (f mk)))")
+                                                              "(defn f #record (#record r) r) (defn mk (x) (:a x)) (graph g (:r (f mk)))")
     , ("a pattern parameter is shown as (...)",     failsWith "Perhaps call it: (f (...) c)."
                                                               "(defn f ((?a ?b) c) a) (graph g (:r (list f)))")
     , ("a built-in has no names to show",           failsWith "Perhaps call it with its arguments."
@@ -117,7 +117,7 @@ formsAndBuiltins = Group "Special forms and built-ins"
                                                                    "{\"p\": {\"q\": {\"r\": 5}}, \"v\": 5}")
     , ("a record pattern binds the rest",           compilesToJSON "(graph g (:r (case (:a 1 :b 2 :c 3) ((:a ?first ?..others) (:x first :y others)) (otherwise 0))))"
                                                                    "{\"r\": {\"x\": 1, \"y\": {\"b\": 2, \"c\": 3}}}")
-    , ("empty records and arrays",                  compilesToJSON "(graph g (:r #rec-empty :s #arr-empty :t ()))"
+    , ("empty records and arrays",                  compilesToJSON "(graph g (:r #record-empty :s #array-empty :t ()))"
                                                                    "{\"r\": {}, \"s\": [], \"t\": []}")
     , ("list makes an array headed by a variable",  compilesToJSON "(graph g (let ($x 1) (:r (list x x))))"
                                                                    "{\"r\": [1, 1]}")
@@ -131,7 +131,7 @@ formsAndBuiltins = Group "Special forms and built-ins"
                                                                    "{\"end\": \"2020-01-02T23:59:59Z\"}")
     , ("thru (years 0) ends the current year",      compilesToJSON "(graph g (let ($start #date \"2020-03-01T00:00:00Z\") (:end (+ start (thru (years 0))))))"
                                                                    "{\"end\": \"2020-12-31T23:59:59Z\"}")
-    , ("len counts an array's elements",            compilesToJSON "(graph g (:a (len (1 (2 3) (:k 4))) :b (len ()) :c (len #arr-empty)))"
+    , ("len counts an array's elements",            compilesToJSON "(graph g (:a (len (1 (2 3) (:k 4))) :b (len ()) :c (len #array-empty)))"
                                                                    "{\"a\": 3, \"b\": 0, \"c\": 0}")
     , ("and a string's characters",                 compilesToJSON "(graph g (:a (len \"Amsterdam\") :b (len \"Málaga\") :c (len \"\")))"
                                                                    "{\"a\": 9, \"b\": 6, \"c\": 0}")
@@ -145,8 +145,8 @@ formsAndBuiltins = Group "Special forms and built-ins"
                                                                    "{\"r\": [2, 3]}")
     , ("comparisons chain, and null is a value",    compilesToJSON "(graph g (:a (eq 1 1 1) :b (neq 1 2) :c null))"
                                                                    "{\"a\": true, \"b\": true, \"c\": null}")
-    , ("#str asserts a string",                     failsWith "expectedProperty = \"#str\", actualProperty = \"#num\""
-                                                              "(graph g (:a #str 1))")
+    , ("#string asserts a string",                  failsWith "expectedProperty = \"#string\", actualProperty = \"#number\""
+                                                              "(graph g (:a #string 1))")
     , ("recursion is an error",                     failsWith "a recursive function call"
                                                               "(defn f (n) (f n)) (graph g (:r (f 1)))")
     , ("brackets are reserved",                     failsWith "an unrecognized compiler macro token shape"
@@ -164,7 +164,7 @@ formsAndBuiltins = Group "Special forms and built-ins"
                                                                    "{\"r\": {\"id\": \"1\", \"type\": \"Person\", \"_label\": \"Proust\"}}")
 
     -- (and a ...) is true when every operand is, and (or a ...) when one is. Each stops
-    -- at the operand that decides it, and checks every operand it reaches as a #bool
+    -- at the operand that decides it, and checks every operand it reaches as a #boolean
     , ("and is true when every operand is",         compilesToJSON "(graph g (:a (and true true) :b (and true false) :c (and true) :d (and)))"
                                                                    "{\"a\": true, \"b\": false, \"c\": true, \"d\": true}")
     , ("or is true when one operand is",            compilesToJSON "(graph g (:a (or false true) :b (or false false) :c (or)))"
@@ -173,11 +173,11 @@ formsAndBuiltins = Group "Special forms and built-ins"
                                                                    "{\"r\": false, \"s\": false}")
     , ("or stops at the first true",                compilesToJSON "(graph g (:r (or true (get () 5))))"
                                                                    "{\"r\": true}")
-    , ("an operand must be a #bool",                failsWith "expectedProperty = \"#bool\", actualProperty = \"#num\""
+    , ("an operand must be a #boolean",             failsWith "expectedProperty = \"#boolean\", actualProperty = \"#number\""
                                                               "(graph g (:r (and true 1)))")
-    , ("so must a lone operand",                    failsWith "expectedProperty = \"#bool\", actualProperty = \"#num\""
+    , ("so must a lone operand",                    failsWith "expectedProperty = \"#boolean\", actualProperty = \"#number\""
                                                               "(graph g (:r (and 1)))")
-    , ("or checks its operands too",                failsWith "expectedProperty = \"#bool\", actualProperty = \"#num\""
+    , ("or checks its operands too",                failsWith "expectedProperty = \"#boolean\", actualProperty = \"#number\""
                                                               "(graph g (:r (or 1 true)))")
     , ("and and or combine comparisons",            compilesToJSON "(graph g (:r (and (> 2 1) (or (eq \"a\" \"b\") (eq \"a\" \"a\")))))"
                                                                    "{\"r\": true}")
@@ -268,14 +268,25 @@ recordKeys = Group "Records: each key once"
 -- a change to one flips its test.
 types :: Group
 types = Group "Types: the rules as they are"
-    [ -- Arrays
-      ("an array may mix types",                    compilesToJSON "(graph g (:r (1 \"a\" true)))"
+    [ -- The built-in properties, by their full names
+      ("every built-in property, by its full name", compilesToJSON "(defn twice #number (#function f #number n) (f (f n))) (graph g (:s #string \"a\" :n (twice (fn (#number x) (* x 2)) 1) :b #boolean true :r #record (:a 1) :a #array (1) :e #array-empty :o #record-empty))"
+                                                                   "{\"s\": \"a\", \"n\": 4, \"b\": true, \"r\": {\"a\": 1}, \"a\": [1], \"e\": [], \"o\": {}}")
+    , ("#str is not a property: #string is",        failsWith "Unknown property: #str"       "(graph g (:r #str \"a\"))")
+    , ("#num is not a property: #number is",        failsWith "Unknown property: #num"       "(graph g (:r #num 1))")
+    , ("#bool is not a property: #boolean is",      failsWith "Unknown property: #bool"      "(graph g (:r #bool true))")
+    , ("#rec is not a property: #record is",        failsWith "Unknown property: #rec"       "(graph g (:r #rec (:a 1)))")
+    , ("#arr is not a property: #array is",         failsWith "Unknown property: #arr"       "(graph g (:r #arr (1)))")
+    , ("#fn is not a property: #function is",       failsWith "Unknown property: #fn"        "(graph g (:r #fn 1))")
+    , ("#rec-empty is not a value: #record-empty is", failsWith "Unknown property: #rec-empty" "(graph g (:r #rec-empty))")
+    , ("#arr-empty is not a value: #array-empty is", failsWith "Unknown property: #arr-empty" "(graph g (:r #arr-empty))")
+      -- Arrays
+    , ("an array may mix types",                    compilesToJSON "(graph g (:r (1 \"a\" true)))"
                                                                    "{\"r\": [1, \"a\", true]}")
     , ("+ joins any two arrays",                    compilesToJSON "(graph g (:r (+ (1 \"a\") (2 3)) :s (+ (1 2) (\"a\"))))"
                                                                    "{\"r\": [1, \"a\", 2, 3], \"s\": [1, 2, \"a\"]}")
-    , ("+ joins empty arrays",                      compilesToJSON "(graph g (:r (+ () (1)) :s (+ () ()) :t (+ #arr-empty (1))))"
+    , ("+ joins empty arrays",                      compilesToJSON "(graph g (:r (+ () (1)) :s (+ () ()) :t (+ #array-empty (1))))"
                                                                    "{\"r\": [1], \"s\": [], \"t\": [1]}")
-    , ("insert takes any value into an array",      compilesToJSON "(graph g (:r (insert 0 \"x\" (1 2)) :s (insert 0 1 #arr-empty)))"
+    , ("insert takes any value into an array",      compilesToJSON "(graph g (:r (insert 0 \"x\" (1 2)) :s (insert 0 1 #array-empty)))"
                                                                    "{\"r\": [\"x\", 1, 2], \"s\": [1]}")
     , ("an attribute pair cannot be inserted into an array", failsWith "a datatype for insertion matching"
                                                               "(graph g (:r (insert 0 :k 1 (1 2))))")
@@ -307,18 +318,18 @@ types = Group "Types: the rules as they are"
                                                               "(graph g (:r (+ null 1)))")
 
       -- Assertions check, and only #uri and #date convert a String
-    , ("#num does not convert a string",            failsWith "expectedProperty = \"#num\", actualProperty = \"#str\""
-                                                              "(graph g (:r #num \"5\"))")
+    , ("#number does not convert a string",         failsWith "expectedProperty = \"#number\", actualProperty = \"#string\""
+                                                              "(graph g (:r #number \"5\"))")
     , ("#uri does not accept a date",               failsWith "expectedProperty = \"#uri\", actualProperty = \"#date\""
                                                               ("(graph g (:r #uri " <> date <> "))"))
 
       -- A failed property names both properties, and says why when the value's own is not enough
-    , ("a URI needs a scheme",                      failsWith "actualProperty = \"a #str without a URI scheme\""
+    , ("a URI needs a scheme",                      failsWith "actualProperty = \"a #string without a URI scheme\""
                                                               "(graph g (:r #uri \"nope\"))")
-    , ("a date needs ISO-8601 form",                failsWith "actualProperty = \"a #str that is not a date\""
+    , ("a date needs ISO-8601 form",                failsWith "actualProperty = \"a #string that is not a date\""
                                                               "(graph g (:r #date \"1642\"))")
-    , ("null has no built-in property",             failsWith "expectedProperty = \"#str\", actualProperty = \"null\""
-                                                              "(graph g (:r #str null))")
+    , ("null has no built-in property",             failsWith "expectedProperty = \"#string\", actualProperty = \"null\""
+                                                              "(graph g (:r #string null))")
 
       -- A URI keeps the slashes of its path; gaps 17 and 22 are the exceptions
     , ("#uri keeps a trailing slash",               compilesToJSON "(graph g (:u #uri \"https://a.org/x/\"))"
@@ -341,7 +352,7 @@ operators = Group "Operators: operands and desugaring"
                                                                    "{\"u\": \"https://a.org/b/c\"}")
     , ("thru under a built-in property",            compilesToJSON "(graph g (:d #date (+ #date \"2020-01-01T00:00:00Z\" (thru (days 1)))))"
                                                                    "{\"d\": \"2020-01-02T23:59:59Z\"}")
-    , ("a chained comparison under a property",     compilesToJSON "(graph g (:r #bool (< 1 2 3) :s #num (* 2 3 4)))"
+    , ("a chained comparison under a property",     compilesToJSON "(graph g (:r #boolean (< 1 2 3) :s #number (* 2 3 4)))"
                                                                    "{\"r\": true, \"s\": 24}")
     , ("a typed function body",                     compilesToJSON "(defn f () #uri (+ \"https://a.org/\" \"b/\" \"c\")) (graph g (:r (f)))"
                                                                    "{\"r\": \"https://a.org/b/c\"}")
@@ -425,7 +436,7 @@ encoding = Group "Encoding: source files are UTF-8"
                                                                  "{\"r\": \"x\", \"na\239ve\": 1}")
     , ("\955 is fn",                         compilesToJSON "(graph g (let ($inc (\955 (x) (+ x 1))) (:r (inc 1))))"
                                                                  "{\"r\": 2}")
-    , ("with a signature and a pattern",     compilesToJSON "(graph g (:r (map (\955 #num ((?a ?b)) (+ a b)) ((1 2) (3 4)))))"
+    , ("with a signature and a pattern",     compilesToJSON "(graph g (:r (map (\955 #number ((?a ?b)) (+ a b)) ((1 2) (3 4)))))"
                                                                  "{\"r\": [3, 7]}")
     , ("\955 cannot name a function",        failsWith "'fn' is a special form"
                                                             "(defn \955 (x) x) (graph g (:r 1))")
@@ -472,7 +483,7 @@ endOfFile = Group "Unclosed delimiters: a file that ends early"
     , ("the innermost delimiter still open", unclosedAt (1, 10) "')'" "(graph g (:r (list 1 2)")
     , ("an array left open",                 unclosedAt (1, 14) "']'" "(graph g (:r [1 2")
     , ("a key with no value",                unclosedAt (1, 10) "')'" "(graph g (:r")
-    , ("a property with no subject",         unclosedAt (1, 10) "')'" "(graph g (:r #str")
+    , ("a property with no subject",         unclosedAt (1, 10) "')'" "(graph g (:r #string")
     , ("a defn with no name",                unclosedAt (1, 1)  "')'" "(defn")
     , ("a parameter list left open",         unclosedAt (1, 9)  "')'" "(defn f (x y")
     , ("an import left open",                unclosedAt (1, 1)  "')'" "(import std/base")
@@ -515,7 +526,7 @@ logicAndCollections :: Group
 logicAndCollections = Group "Built-ins: logic, arrays and records"
     [ ("not negates",                            compilesToJSON "(graph g (:a (not true) :b (not false)))"
                                                                 "{\"a\": false, \"b\": true}")
-    , ("not needs a Boolean",                    failsWith "expectedProperty = \"#bool\""
+    , ("not needs a Boolean",                    failsWith "expectedProperty = \"#boolean\""
                                                            "(graph g (:r (not 1)))")
     , ("not takes one operand",                  failsWith "nameOfFunc = \"not\""
                                                            "(graph g (:r (not true false)))")
@@ -553,7 +564,7 @@ logicAndCollections = Group "Built-ins: logic, arrays and records"
                                                                 "{\"r\": [{\"name\": \"a\"}]}")
     , ("a hole for the array",                   compilesToJSON "(graph g (let ($big (exists (> ? 2) ?)) (:r (big (1 5)))))"
                                                                 "{\"r\": true}")
-    , ("the answer must be a Boolean",           failsWith "expectedProperty = \"#bool\""
+    , ("the answer must be a Boolean",           failsWith "expectedProperty = \"#boolean\""
                                                            "(graph g (:r (exists (+ ? 1) (1 2))))")
     , ("exists needs a function",                failsWith "a function for exists to call"
                                                            "(graph g (:r (exists 1 (1 2))))")
@@ -694,7 +705,7 @@ conditions = Group "Case: conditions"
                                                                 "{\"r\": \"in\"}")
     , ("when sits beside patterns and literals", compilesToJSON "(graph g (:r (case (:k 1) (2 \"two\") ((when false) \"no\") ((:k ?v) v) (otherwise \"other\"))))"
                                                                 "{\"r\": 1}")
-    , ("a condition must be a Boolean",          failsWith "expectedProperty = \"#bool\""
+    , ("a condition must be a Boolean",          failsWith "expectedProperty = \"#boolean\""
                                                            "(graph g (:r (case 5 ((when 1) \"a\") (otherwise \"b\"))))")
     , ("when outside a case is an error",        failsWith "when is written as the head of a case branch"
                                                            "(graph g (:r (when true)))")
@@ -708,18 +719,18 @@ conditions = Group "Case: conditions"
                                                                   "{\"r\": \"y\"}")
 
       -- satisfies asks a property; in a branch head, of the case's target
-    , ("satisfies asks a property",              compilesToJSON "(graph g (:a (satisfies #str \"x\") :b (satisfies #num \"x\") :c (satisfies #uri \"https://a.org/x\") :d (satisfies #uri \"nope\")))"
+    , ("satisfies asks a property",              compilesToJSON "(graph g (:a (satisfies #string \"x\") :b (satisfies #number \"x\") :c (satisfies #uri \"https://a.org/x\") :d (satisfies #uri \"nope\")))"
                                                                 "{\"a\": true, \"b\": false, \"c\": true, \"d\": false}")
     , ("satisfies keeps errors",                 failsWith "Index"
-                                                           "(graph g (:r (satisfies #str (get () 5))))")
-    , ("satisfies heads a branch",               compilesToJSON "(graph g (:r (map (fn (v) (case v ((satisfies #uri) \"an identifier\") ((satisfies #num) \"a number\") (otherwise \"other\"))) (list #uri \"https://a.org/1\" 3 \"x\"))))"
+                                                           "(graph g (:r (satisfies #string (get () 5))))")
+    , ("satisfies heads a branch",               compilesToJSON "(graph g (:r (map (fn (v) (case v ((satisfies #uri) \"an identifier\") ((satisfies #number) \"a number\") (otherwise \"other\"))) (list #uri \"https://a.org/1\" 3 \"x\"))))"
                                                                 "{\"r\": [\"an identifier\", \"a number\", \"other\"]}")
-    , ("\8872 is satisfies",                     compilesToJSON "(graph g (:r (case 3 ((\8872 #num) \"n\") (otherwise \"o\"))))"
+    , ("\8872 is satisfies",                     compilesToJSON "(graph g (:r (case 3 ((\8872 #number) \"n\") (otherwise \"o\"))))"
                                                                 "{\"r\": \"n\"}")
     , ("a subject-less satisfies needs a case",  failsWith "satisfies is written"
-                                                           "(graph g (:r (map (satisfies #str) (list 1))))")
+                                                           "(graph g (:r (map (satisfies #string) (list 1))))")
     , ("a property on its own is misplaced",     failsWith "A property on its own"
-                                                           "(graph g (:r (list #str)))")
+                                                           "(graph g (:r (list #string)))")
     , ("satisfies cannot name a function",       failsWith "'satisfies' is a special form"
                                                            "(defn satisfies (x) x) (graph g (:r 1))")
     ]
