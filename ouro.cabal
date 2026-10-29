@@ -195,6 +195,7 @@ test-suite ouro-test
         Ouro.AatTest
         Ouro.BuildTest
         Ouro.CanonicalTest
+        Ouro.CliTest
         Ouro.StructuralTest
         Ouro.EvaluationTest
         Ouro.FunctionTest
@@ -230,8 +231,13 @@ test-suite ouro-test
         megaparsec  >= 9.2 && < 10.0,
         modern-uri ^>= 0.3.6.1,
         mtl        ^>= 2.3.1,
+        process    ^>= 1.6,
         text        >= 2.0,
         ouro
+
+    -- The CLI's tests run ouro itself, which this puts on the PATH
+    build-tool-depends:
+        ouro:ouro
 
     -- The console's code page is set to UTF-8 while the tests run on Windows
     if os(windows)

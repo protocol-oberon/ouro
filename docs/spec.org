@@ -1159,7 +1159,7 @@ Why quoting went: curators compose and restructure records; they do not manipula
 
 * Appendix B: Known gaps
 
-Recorded 2026-10-12 and kept up to date since; none were caused by the scoping redesign. Each open gap is pinned in =Language.knownGaps= (=test/Ouro/LanguageTest.hs=) by its current, incorrect behaviour, in a test named "gap N: …"; the change that fixes a gap flips its test.
+Recorded 2026-10-12 and kept up to date since; none were caused by the scoping redesign. Each open gap is pinned in =Language.knownGaps= (=test/Ouro/LanguageTest.hs=), or, when only running =ouro= shows it, in the CLI's tests (=test/Ouro/CliTest.hs=), by its current, incorrect behaviour, in a test named "gap N: …"; the change that fixes a gap flips its test.
 
 1. /Fixed:/ =@context= handling was incomplete: only four directives could be written, with no term definitions or =null=, and a remote context with local directives serialised as a nested =@context= object, which is invalid JSON-LD. A context is now a value written as JSON-LD writes it, and several contexts are an array (see [[*=@context=][=@context=]]).
 
@@ -1185,7 +1185,7 @@ Recorded 2026-10-12 and kept up to date since; none were caused by the scoping r
 
 12. *Zero-argument functions re-evaluate* on every call; as pure constants they could be shared.
 
-13. *Code health:* the =[ ]= bracket syntax parses but has no meaning; =validate= without =-o= overwrites its input; there are no tests for the CLI; and no test checks an error message as a user sees it. The ~failsWith~ checks search the Haskell =show= of an error, but the rendered diagnostic (title, code, source line and caret, blurb) is built in =app/CLI/Printer.hs=, which writes ANSI straight to stderr and cannot be imported by the tests. The planned fix: move the rendering into the library as a pure document, leaving the CLI to colour and print it, and add golden tests (=test/fixtures/errors/=, one =.ouro= and its expected =.txt= per error kind).
+13. *Code health:* the =[ ]= bracket syntax parses but has no meaning; =validate= without =-o= overwrites its input; the CLI is tested only from outside, by running =ouro= (=test/Ouro/CliTest.hs=), for its exit codes, the files it writes and what it prints; and no test checks an error message's rendering. The ~failsWith~ checks search the Haskell =show= of an error, but the rendered diagnostic (title, code, source line and caret, blurb) is built in =app/CLI/Printer.hs=, which writes ANSI straight to stderr and cannot be imported by the tests. The planned fix: move the rendering into the library as a pure document, leaving the CLI to colour and print it, and add golden tests (=test/fixtures/errors/=, one =.ouro= and its expected =.txt= per error kind).
 
 14. *A record made only of inlays is read as an array:* ~((inlay (a)) (inlay (b)))~ has no written attribute pair, so structural classification makes it an array, and each =inlay= then expects an array. Workaround: write at least one attribute pair.
 
@@ -1199,7 +1199,7 @@ Recorded 2026-10-12 and kept up to date since; none were caused by the scoping r
 
 19. /Fixed:/ strings were not escaped in the output, so ~"say \"hi\""~ became ="say "hi""=, which is invalid JSON, and =ouro validate= turned ="a\"b"= into ="a"b"=. Quotes, backslashes and control characters are now escaped (see [[*The Emission Engine][The Emission Engine]]).
 
-20. /Fixed:/ =compile -o= needed an existing directory: compiling into one that did not exist reported "Compilation Success" and then crashed with ~withFile: does not exist~. The directory is now made, as =ouro build= makes its folders. Checked by hand, since the CLI has no tests (gap 13).
+20. /Fixed:/ =compile -o= needed an existing directory: compiling into one that did not exist reported "Compilation Success" and then crashed with ~withFile: does not exist~. The directory is now made, as =ouro build= makes its folders.
 
 21. *=ouro validate= reads strings with Haskell's escapes, not JSON's:* it rejects the valid JSON escapes =\u00e9= and =\/=, and accepts the invalid =\x41= and =\65= (both read as =A=). The JSON parser reads string characters with Megaparsec's ~charLiteral~, which follows Haskell's rules.
 
@@ -1213,7 +1213,7 @@ Recorded 2026-10-12 and kept up to date since; none were caused by the scoping r
 
 26. *An unknown export is a lexical error:* ~(export f)~ without a ~(defn f ...)~ is reported as =SYN0000=, a =LexicalError=, though the export was lexed and parsed; the message is right ("The module exports 'f', but defines no function by that name"), its code and kind are not. Found while testing the build file (2026-10-25).
 
-27. *A build leaves stale outputs:* renaming or removing a graph, or a module, leaves the JSON an earlier build wrote for it in =:out=, so =:out= can hold graphs the source no longer has. The planned fix is a manifest of what the last build wrote, removing only those files. Not pinned by a test, since writing is done by the CLI, which has none (gap 13).
+27. *A build leaves stale outputs:* renaming or removing a graph, or a module, leaves the JSON an earlier build wrote for it in =:out=, so =:out= can hold graphs the source no longer has. The planned fix is a manifest of what the last build wrote, removing only those files.
 
 28. /Fixed:/ a compact IRI key was read as two keys, so ~:crm:P2_has_type~ was =:crm= and =:P2_has_type=, and through gap 29 the pair was lost. A key, and a symbol, may now hold =:= after their first character, so a compact IRI is one key and a path can name it.
 
@@ -1229,8 +1229,12 @@ Recorded 2026-10-12 and kept up to date since; none were caused by the scoping r
 
 34. *A graph's name is not checked as a file name:* a graph is written to =<out>/<module>/<graph>.json= whatever its name. On Windows, =a?= cannot be written (=withFile: invalid argument=), =con= is a device (=withFile: does not exist=), and =ex:g=, a name gap 28 allows, is written to the alternate data stream =g.json= of a file =ex=, so the build reports it written and no file shows it. Graphs named apart only by case, =G= and =g=, share one file on Windows and macOS: the second overwrites the first, under the first's name. Found while vetting =build.ouro= (2026-10-29).
 
-35. *A build writes until a write fails:* all or nothing covers compiling; the CLI then writes each graph in turn, so a write that fails (gap 34, a full disk, a file held open) leaves the graphs before it written, and ends the build with a Haskell exception and its backtrace, not a diagnostic. Not pinned by a test, since writing is done by the CLI, which has none (gap 13). Found while vetting =build.ouro= (2026-10-29).
+35. *A build writes until a write fails:* all or nothing covers compiling; the CLI then writes each graph in turn, so a write that fails (gap 34, a full disk, a file held open) leaves the graphs before it written, and ends the build with a Haskell exception and its backtrace, not a diagnostic, and neither "Build Success" nor "Build Failed". Found while vetting =build.ouro= (2026-10-29).
 
 36. *=ouro build DIR= with a folder that does not exist builds the project above it:* the build file is looked for from =DIR= upwards without checking =DIR=, so a mistyped =ouro build typo= builds the enclosing project and succeeds. Found while vetting =build.ouro= (2026-10-29).
+
+37. *Colours are written when the output is not a terminal:* diagnostics carry their ANSI colour codes when stderr is redirected to a file or a pipe, so a log or a CI report shows =ESC[0;91;1m= among the words. Neither a terminal check nor =NO_COLOR= is consulted. Found while writing the CLI's tests (2026-10-29).
+
+38. *=ouro validate= reports its errors on stdout:* invalid JSON ("Compilation Error:") and the unimplemented =merge= are written to stdout, with nothing on stderr, while =compile= and =build= write their diagnostics to stderr. Found while writing the CLI's tests (2026-10-29).
 
 #  LocalWords:  Ouro LD

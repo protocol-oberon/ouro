@@ -6,6 +6,7 @@ import           Hedgehog
 import qualified Ouro.AatTest        as Aat
 import qualified Ouro.BuildTest      as Build
 import qualified Ouro.CanonicalTest  as Canonical
+import qualified Ouro.CliTest        as Cli
 import qualified Ouro.EvaluationTest as Evaluation
 import qualified Ouro.FunctionTest   as Function
 import qualified Ouro.ImportTest     as Import
@@ -57,6 +58,10 @@ main = withUtf8Console $ do
         , Build.buildFiles
         , Build.builds
         , Build.projectsOnDisk
+        -- The command line: ouro itself, run as a user runs it
+        , Cli.builds
+        , Cli.compiles
+        , Cli.validates
         -- The bundled std: Linked Art's patterns and required terms
         , Std.base
         , Std.time
