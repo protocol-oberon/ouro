@@ -137,19 +137,54 @@ library
     -- Base language which the package is written in.
     default-language: GHC2021
 
+-- The command line: the project (its files and folders), the arguments, and the printed
+-- diagnostics. Internal, so the tests can reach it; the compiler itself is the ouro library.
+library ouro-cli
+    -- Import common warning flags.
+    import:           warnings
+
+    -- Modules exported by the library.
+    exposed-modules:
+        CLI.Parser
+        CLI.Printer
+        CLI.Runner
+        CLI.Types
+
+    -- The package's version, for ouro --version
+    other-modules:
+        Paths_ouro
+    autogen-modules:
+        Paths_ouro
+
+    -- LANGUAGE extensions used by modules in this package.
+    default-extensions:
+        LambdaCase,
+        OverloadedStrings
+
+    -- Other library packages from which modules are imported.
+    build-depends:
+        base                        ^>=4.20.2.0,
+        directory                   ^>= 1.3,
+        filepath                    ^>=1.5.4.0,
+        megaparsec                   >= 9.2 && < 10.0,
+        optparse-applicative        ^>= 0.19,
+        prettyprinter                >= 1.7.0,
+        prettyprinter-ansi-terminal  >= 1.1.2,
+        text                        ^>=2.1.3,
+        ouro
+
+    -- Directories containing source files.
+    hs-source-dirs:   cli
+
+    -- Base language which the package is written in.
+    default-language: GHC2021
+
 executable ouro
     -- Import common warning flags.
     import:           warnings
 
     -- .hs or .lhs file containing the Main module.
     main-is:          Main.hs
-
-    -- Modules included in this executable, other than Main.
-    other-modules:
-        CLI.Parser
-        CLI.Printer
-        CLI.Runner
-        CLI.Types
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
@@ -160,16 +195,8 @@ executable ouro
 
     -- Other library packages from which modules are imported.
     build-depends:
-        ansi-terminal               ^>= 1.1,
         base                        ^>=4.20.2.0,
-        directory                   ^>= 1.3,
-        filepath                    ^>=1.5.4.0,
-        megaparsec                   >= 9.2 && < 10.0,
-        optparse-applicative        ^>= 0.19,
-        prettyprinter                >= 1.7.0,
-        prettyprinter-ansi-terminal  >= 1.1.2,
-        text                        ^>=2.1.3,
-        ouro
+        ouro-cli
 
     -- The console's code page is set to UTF-8 while Ouro runs on Windows
     if os(windows)
