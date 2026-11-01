@@ -20,7 +20,7 @@ import           Data.Ouro                    (CompilationResult (..),
                                                defaultOptions, readSource,
                                                smartErrorCode, toJSON)
 import           Data.Ouro.Build              (BuildFile (..), BuildResult (..),
-                                               buildModules, buildProject,
+                                               buildModules, buildProject, outputFile,
                                                compileInProject, findBuildFile,
                                                readBuildFile)
 import           Data.Ouro.Lisp.Module.Loader (fromSources)
@@ -142,9 +142,11 @@ buildFileFailsTimes times source = withTests 1 . property $
         (_, Right b)   -> annotate (show b) >> failure
 
 
--- Modules in memory, each built: (path, source)
-buildInMemory :: [(Text, Text)] -> BuildResult
-buildInMemory modules = runIdentity (buildModules (fromSources (Map.fromList modules)) "out" [ (initialPos (T.unpack path <> ".ouro"), path) | (path, _) <- modules ])
+-- Modules in memory, each built: (path, source). Each graph is named by the file a project
+-- would write it to, in out.
+buildInMemory :: [(Text, Text)] -> BuildResult FilePath
+buildInMemory modules = uncurry (outputFile "out")
+                        <$> runIdentity (buildModules (fromSources (Map.fromList modules)) [ (initialPos (T.unpack path <> ".ouro"), path) | (path, _) <- modules ])
 
 buildsTo :: [(Text, Text)] -> [(FilePath, Text)] -> Property
 buildsTo modules expected = withTests 1 . property $ outputsAre expected (buildInMemory modules)
@@ -201,7 +203,7 @@ projectFailsWith name files code messages = withTests 1 . property $ do
 
 
 -- The build's files and their JSON, whitespace ignored
-outputsAre :: [(FilePath, Text)] -> BuildResult -> PropertyT IO ()
+outputsAre :: [(FilePath, Text)] -> BuildResult FilePath -> PropertyT IO ()
 outputsAre expected = \case
     BuildSuccess _ outputs -> [ (file, squash (TL.toStrict (toJSON defaultOptions ast))) | (file, ast) <- outputs ] === [ (file, squash json) | (file, json) <- expected ]
     BuildFailure _ errs    -> annotate (show errs) >> failure

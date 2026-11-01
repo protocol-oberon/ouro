@@ -99,10 +99,13 @@ projectOut :: Project -> FilePath
 projectOut project = normalise (takeDirectory (projectFile project) </> buildOut (projectBuild project))
 
 
--- Every graph of a build, by the file it is written to, or every error in the build
-data BuildResult
-    = BuildSuccess [OuroWarning] [(FilePath, I.Expr 'JLD.Primitive)]
+-- Every graph of a build, by its key, or every error in the build. A build of modules keys a
+-- graph by its module and name; a project's build, by the file it is written to (fmap
+-- changes the keys).
+data BuildResult k
+    = BuildSuccess [OuroWarning] [(k, I.Expr 'JLD.Primitive)]
     | BuildFailure [OuroWarning] (NonEmpty OuroError)
+    deriving Functor
 
 
 -- The build file in a directory or the nearest directory above it. It is named relative to the
@@ -235,12 +238,13 @@ discoverModules project = do
 -- Every graph of every module, loaded through the one loader, so a module imported by many
 -- is read once; each module is reported at the position given with it, if it cannot be
 -- loaded. Nothing is built unless everything compiles, and then every error is reported.
-buildModules :: Monad m => LoadEnv m -> FilePath -> [(SourcePos, Text)] -> m BuildResult
-buildModules loader out modules = buildResult <$> runWriterT (runValidateT build')
+-- Each graph is keyed by its module and name; where it is written is up to the caller.
+buildModules :: Monad m => LoadEnv m -> [(SourcePos, Text)] -> m (BuildResult (Text, Text))
+buildModules loader modules = buildResult <$> runWriterT (runValidateT build')
     where
     build' = do
         linked <- runLoader loader (loadModules modules)
-        let compiled = [ (outputFile out name graphName, freeze <$> evaluateGraph (linkedImports l) (linkedModule l) graph)
+        let compiled = [ ((name, graphName), freeze <$> evaluateGraph (linkedImports l) (linkedModule l) graph)
                        | ((_, name), l) <- zip modules linked
                        , graph@(Graph _ graphName _) <- Map.elems (linkedModule l ^. graphRegistry) ]
         case NE.nonEmpty (concat [ toList errs | (_, Left errs) <- compiled ]) of
@@ -259,7 +263,7 @@ outputFile out name graph = out </> joinPath (map T.unpack (T.splitOn "/" name))
 
 -- Builds the project whose build file is in a directory or above it. A build file that cannot
 -- be found or read is a message, since there is no source to show an error in.
-buildProject :: FilePath -> IO (Either Text BuildResult)
+buildProject :: FilePath -> IO (Either Text (BuildResult FilePath))
 buildProject dir = withProject dir $ \case
     (warnings, Left errs) -> pure (BuildFailure warnings errs)
     (warnings, Right project)
@@ -271,7 +275,8 @@ buildProject dir = withProject dir $ \case
            let unique    = [ (initialPos file, name) | (name, [file]) <- Map.toList found ]
                ambiguous = [ OuroError (buildAt build) (ambiguousModule name (map T.pack files)) | (name, files@(_ : _ : _)) <- Map.toList found ]
                absent    = [ OuroError (buildAt build) (missingSourceFolder (T.pack folder) (T.pack looked)) | (folder, looked) <- missing ]
-           built <- buildModules (fromRoots (projectRoots project)) (projectOut project) unique
+           built <- fmap (uncurry (outputFile (projectOut project)))
+                        <$> buildModules (fromRoots (projectRoots project)) unique
            pure $ case (built, NE.nonEmpty (absent <> ambiguous)) of
                       (BuildSuccess ws _, Just errs)     -> BuildFailure (warnings <> ws) errs
                       (BuildSuccess ws outputs, Nothing) -> BuildSuccess (warnings <> ws) outputs
