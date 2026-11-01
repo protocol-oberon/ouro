@@ -12,6 +12,7 @@ import           Control.Monad                 (forM_, when)
 import qualified Data.ByteString               as BS
 import           Data.Char                     (isSpace)
 import           Data.Foldable                 (toList)
+import           Data.Functor.Identity         (runIdentity)
 import           Data.List                     (findIndex, isSuffixOf, sort)
 import           Data.List.NonEmpty            (NonEmpty (..))
 import qualified Data.Map.Strict               as Map
@@ -19,12 +20,14 @@ import           Data.Ouro                     (CompilationResult (..),
                                                 ErrorContext (..),
                                                 OuroError (..), OuroWarning (..),
                                                 SourceFrame (..), bundledFile,
-                                                compileFile, defaultOptions,
-                                                readSource, smartErrorCode,
-                                                smartWarningCode, sourceFrame,
+                                                compileFile, compileUsing,
+                                                defaultOptions, readSource,
+                                                smartErrorCode, sourceFrame,
                                                 toJSON)
 import           Data.Ouro.Lisp.Lexer          (tokenize)
 import           Data.Ouro.Lisp.Module.Bundled (bundled)
+import           Data.Ouro.Lisp.Module.Loader  (LoadEnv (..), Lookup (..),
+                                                Resolved (..))
 import qualified Data.Ouro.Lisp.Module.Types   as M
 import           Data.Ouro.Lisp.Parser         (parseModule)
 import           Data.Text                     (Text)
@@ -48,9 +51,8 @@ import           Utils                         (compileG, compileWithModules,
                                                 importsFailTimes,
                                                 importsFailWith,
                                                 importsFailWithEach,
-                                                importsToJSON, importsWarnAt,
-                                                importsWarnIn, importsWarnTimes,
-                                                warningText)
+                                                importsToJSON, importsWarnIn,
+                                                importsWarnTimes)
 
 
 -- A module imports others with (import path), and is qualified by the path's last segment
@@ -135,6 +137,7 @@ importedModules = Group "Modules: imported modules, in memory"
                                                                    "(import middle) (graph g (:r (lower/shout \"hi\")))")
     , ("nor an importer's imports to a module",    importsFailIn "unaware.ouro" ["qualifierName = \"lower\""] [lower, unaware]
                                                                    "(import lower) (import unaware) (graph g (:r (unaware/call \"hi\")))")
+    , ("one path, a module of each importer's own", hostKeys)
 
       -- Privacy
     , ("an unexported helper is private",          importsFailWith ["unexportedName = \"salutation\""] [helpers]
@@ -249,6 +252,30 @@ importedModules = Group "Modules: imported modules, in memory"
     badlyNamed  = ("badly-named", "(export badName)\n(defn badName () 1)")
     usesBadly n = (n, "(import badly-named)\n(export f)\n(defn f () (badly-named/badName))")
     unparsed    = ("unparsed", "(export f)\n(defn f)")
+
+
+-- The host keys each module: here a library's imports are its own, as a vendored library's
+-- are, so lib/m's (import helpers) is lib/helpers, and the file's is helpers
+hostKeys :: Property
+hostKeys = withTests 1 . property $
+    case runIdentity (compileUsing host "inline-test" "g" "(import lib/m) (import helpers) (graph g (:a (m/f) :b (helpers/v)))") of
+        CompilationSuccess _ ast -> T.filter (not . isSpace) (TL.toStrict (toJSON defaultOptions ast)) === "{\"a\":1,\"b\":2}"
+        failed                   -> annotate (describe failed) >> failure
+    where
+    sources = Map.fromList
+        [ ("lib/m",       "(import helpers)\n(export f)\n(defn f () (helpers/v))")
+        , ("lib/helpers", "(export v)\n(defn v () 1)")
+        , ("helpers",     "(export v)\n(defn v () 2)")
+        ]
+    host = LoadEnv
+        { resolveModule = \importer path -> pure $
+                              let key = case T.breakOn "/" <$> importer of
+                                            Just (lib, rest) | not (T.null rest) -> lib <> "/" <> path
+                                            _other                               -> path
+                              in if Map.member key sources then Resolved key else Missing [T.unpack key <> ".ouro"]
+        , readModule    = \key -> pure (maybe (Unreadable (T.unpack key) "No such module.") (Found (T.unpack key <> ".ouro")) (Map.lookup key sources))
+        , importStack   = []
+        }
 
 
 -- Every function a bundled module defines has a (doc "..."), since the bundled modules are
@@ -408,13 +435,13 @@ moduleErrors = Group "Modules: every error, with its code, place and hint"
     , ("a warning inside a module",                importsWarnIn "badly-named.ouro" "The function 'badName' is not named in kebab-case" [("badly-named", "(export badName)\n(defn badName () 1)")]
                                                                  "(import badly-named) (graph g (:r (badly-named/badName)))")
 
-      -- A module says where it was looked for, and a project's module replaces a bundled one
+      -- A module says where it was looked for, and std/… is always the bundled module
     , ("a missing module says where it looked",    importsFailAt "SCP0006" ("inline-test", 1, 1) ["Looked for nope.ouro.", "The bundled modules are in the folders aat and std, and importing a folder, as (import std), lists its modules."] []
                                                                  "(import nope) (graph g (:r 1))")
-    , ("a project module replaces a bundled one",  importsWarnAt "WRN0005" ("inline-test", 1, 1) ["The project's module 'std/base' replaces the bundled 'std/base'", "std/base.ouro replaces the bundled 'std/base'", "Perhaps rename the file"] [mineStd]
-                                                                 "(import std/base) (graph g (:r (base/core 1 2 3)))")
-    , ("and is the one imported",                  importsToJSON [mineStd] "(import std/base) (graph g (:r (base/core 1 2 3)))"
-                                                                          "{\"r\": \"mine\"}")
+    , ("a project's std/base is not imported",     importsToJSON [mineStd] "(import std/base) (graph g (base/aat \"1\" \"A\"))"
+                                                                          "{\"id\": \"http://vocab.getty.edu/aat/1\", \"type\": \"Type\", \"_label\": \"A\"}")
+    , ("nor a std/ module only the project has",   importsFailAt "SCP0006" ("inline-test", 1, 1) ["missingModule = \"std/nope\""] [("std/nope", "(export f)\n(defn f () 1)")]
+                                                                 "(import std/nope) (graph g (:r 1))")
     ]
 
     where
@@ -483,10 +510,8 @@ modulesOnDisk = Group "Modules: imported from files on disk"
                                                                 "{\"r\": \"Hello, Ann\"}")
     , ("the bundled std, with nothing beside it",  onDiskToJSON "bundled" [main' "(import std/base)\n(graph g (base/aat \"1\" \"A\"))"]
                                                                 "{\"id\": \"http://vocab.getty.edu/aat/1\", \"type\": \"Type\", \"_label\": \"A\"}")
-    , ("a project std replaces the bundled one",   onDiskToJSON "replaced" [("std/base.ouro", "(export core)\n(defn core (a b c) \"mine\")"), main' "(import std/base)\n(graph g (:r (base/core 1 2 3)))"]
-                                                                "{\"r\": \"mine\"}")
-    , ("and says so",                              onDiskWarns "replaced-warns" [("std/base.ouro", "(export core)\n(defn core (a b c) \"mine\")"), main' "(import std/base)\n(graph g (:r (base/core 1 2 3)))"]
-                                                               (\_ -> "WRN0005") (\dir -> T.pack (dir </> "std" </> "base.ouro") <> " replaces the bundled 'std/base'"))
+    , ("a std/base.ouro beside it is not imported", onDiskToJSON "reserved" [("std/base.ouro", "(export core)\n(defn core (a b c) \"mine\")"), main' "(import std/base)\n(graph g (base/aat \"1\" \"A\"))"]
+                                                                "{\"id\": \"http://vocab.getty.edu/aat/1\", \"type\": \"Type\", \"_label\": \"A\"}")
     , ("a missing module says where it looked",    onDiskFails "missing" [main' "(import nope)\n(graph g (:r 1))"]
                                                                (\dir -> ("SCP0006", dir </> "main.ouro", 1, 1, ["Looked for " <> T.pack (dir </> "nope.ouro")])))
     , ("an error in a module is in its file",      onDiskFails "broken" [("broken.ouro", "(export bad)\n(defn bad () (get () 5))"), main' "(import broken)\n(graph g (:r (broken/bad)))"]
@@ -564,14 +589,3 @@ onDiskFails name files expectation = withTests 1 . property $ do
     contextText = \case
         AnnotatedContext blurb inner -> blurb <> "\n" <> contextText inner
         other                        -> T.pack (show other)
-
-onDiskWarns :: FilePath -> [(FilePath, BS.ByteString)] -> (FilePath -> Text) -> (FilePath -> Text) -> Property
-onDiskWarns name files code message = withTests 1 . property $ do
-    (dir, result) <- evalIO (compileOnDisk name files)
-    case result of
-        CompilationSuccess warnings _
-            -> do
-               annotate (show [ (smartWarningCode context, warningText w) | w@(OuroWarning _ context) <- warnings ])
-               assert (any (\w@(OuroWarning _ context) -> smartWarningCode context == code dir && message dir `T.isInfixOf` warningText w) warnings)
-        failed
-            -> annotate (describe failed) >> failure

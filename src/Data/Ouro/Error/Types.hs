@@ -413,11 +413,10 @@ data LinterWarning
       , kebabName       :: Text -- The suggested kebab-case name
       }
 
-    -- LINT WARNING: SHADOWED BUNDLED MODULE
-    -- Occurs when a module of the project has the name of a module bundled with the compiler,
-    -- such as a std.ouro beside the file. The project's module is imported in its place.
-    --
-    -- * Remediation: Issue warning. Suggest another name, unless replacing it is intended.
+    -- LINT WARNING: SHADOWED BUNDLED MODULE (RETIRED, never raised)
+    -- Was raised when a module of the project had the name of a module bundled with the
+    -- compiler and was imported in its place. An import of std/… or aat/… is now always the
+    -- bundled module. Kept so that its code, WRN0005, is never given to another warning.
     | ShadowedBundledModule
       { shadowingModule :: Text -- The module's name
       , shadowingFile   :: Text -- The project's file that replaces it

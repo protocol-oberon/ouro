@@ -448,13 +448,6 @@ notKebabCase kind name kebab = Lint $ NotKebabCase
     , kebabName       = kebab
     }
 
--- Create a warning for a project module that replaces a bundled one: its name and file
-shadowedBundledModule :: Text -> Text -> WarningContext
-shadowedBundledModule name file = Lint $ ShadowedBundledModule
-    { shadowingModule = name
-    , shadowingFile   = file
-    }
-
 -- Create a compile-time elided property assignment semantic warning
 elidedPropertyAssign :: Text -> Text -> WarningContext
 elidedPropertyAssign key construct = Semantic $ ElidedPropertyAssign

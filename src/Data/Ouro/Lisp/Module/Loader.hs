@@ -5,8 +5,10 @@ module Data.Ouro.Lisp.Module.Loader
 , Linked (..)
 , LoaderT
 , Lookup (..)
-, Origin (..)
+, ModuleKey (..)
+, Resolved (..)
 , bundledOnly
+, bundledRoots
 , fromRoots
 , fromSources
 , loadImports
@@ -14,7 +16,7 @@ module Data.Ouro.Lisp.Module.Loader
 , runLoader
 ) where
 
-import           Control.Monad                (filterM, when)
+import           Control.Monad                (filterM)
 import           Control.Monad.Reader         (ReaderT, asks, local, runReaderT)
 import           Control.Monad.State.Strict   (StateT, gets, modify, runStateT)
 import           Control.Monad.Trans          (lift)
@@ -24,10 +26,9 @@ import qualified Data.Map.Strict              as Map
 import           Data.List                    (nub)
 import           Data.Ouro.Error.Diagnostics  (ambiguousModule, importCycle,
                                                moduleNotFound,
-                                               moduleUnreadable,
-                                               shadowedBundledModule)
+                                               moduleUnreadable)
 import qualified Data.Ouro.Error.Linter       as LN
-import           Data.Ouro.Error.Types        (OuroError (..), OuroWarning (..))
+import           Data.Ouro.Error.Types        (OuroError (..))
 import           Data.Ouro.Internal.Compiler  (CompilerT)
 import           Data.Ouro.Internal.Source    (readSource)
 import qualified Data.Ouro.Lisp.Canon         as Canon
@@ -46,27 +47,40 @@ import           System.FilePath              (normalise, (<.>), (</>))
 import           Text.Megaparsec              (SourcePos)
 
 
--- Where a module was found: in the project, or bundled with the compiler
-data Origin
-    = Project
-    | Bundled
-    deriving (Eq, Show)
+-- A module's identity: a bundled module by its path, or one of the host's by the key the
+-- host gave it. The two never meet, so a host's key can be any text.
+data ModuleKey
+    = BundledModule Text
+    | HostModule Text
+    deriving (Eq, Ord, Show)
 
 
--- What looking for a module found: its file and source, the files looked for when there was
--- none, a file that could not be read, and why, or the files of a module in more than one root
-data Lookup
-    = Found FilePath Text Origin
+-- What the host found for an import: the key of the module it names, the files looked for
+-- when there is none, or the files of a module in more than one root
+data Resolved
+    = Resolved Text
     | Missing [FilePath]
-    | Unreadable FilePath Text
     | Ambiguous [FilePath]
 
 
--- Where a module's source comes from. The import stack is the modules being loaded,
--- innermost first: importing one of them again would be a cycle.
+-- What reading a module found: its file, for positions, and its source, or a file that
+-- cannot be read, and why
+data Lookup
+    = Found FilePath Text
+    | Unreadable FilePath Text
+
+
+-- Where modules come from, which the host gives: the command line's files, a test's map, an
+-- embedding program's own store. The host resolves an import, from the module importing it
+-- (Nothing for the file compiled and the modules of a build) and the path imported, to a key
+-- of its choosing, and reads a module by that key. Keys are only compared, and shown in an
+-- import cycle, so a host gives readable ones. Imports of the bundled modules never reach the
+-- host (see 'bundledRoots'). The import stack is the modules being loaded, innermost first:
+-- importing one of them again would be a cycle.
 data LoadEnv m = LoadEnv
-    { readModule  :: Text -> m Lookup
-    , importStack :: [Text]
+    { resolveModule :: Maybe Text -> Text -> m Resolved
+    , readModule    :: Text -> m Lookup
+    , importStack   :: [ModuleKey]
     }
 
 
@@ -79,8 +93,8 @@ data Linked = Linked
     }
 
 
--- The modules loaded so far, by path
-type Loaded = Map.Map Text Linked
+-- The modules loaded so far, by key
+type Loaded = Map.Map ModuleKey Linked
 
 -- The cache of loaded modules is a State *under* ValidateT. A StateT above it would build
 -- its <*> from >>=, and stop at the first error, so two missing imports would report one
@@ -97,45 +111,51 @@ runLoader env loader = do
     either refute pure result
 
 
+-- The bundled modules' folders, std and aat. An import whose first segment is one of them
+-- names a bundled module, whatever the host holds, so std/base means the same in every
+-- program that runs Ouro.
+bundledRoots :: Set.Set Text
+bundledRoots = Set.fromList [ T.takeWhile (/= '/') name | name <- Map.keys bundled ]
+
+
 -- Only the modules bundled with the compiler
 bundledOnly :: Monad m => LoadEnv m
 bundledOnly = fromSources Map.empty
 
 
 -- Modules given as sources in memory, by path, as well as the bundled ones. A module at
--- path a/b is read as the file a/b.ouro, and replaces a bundled module of the same name.
+-- path a/b is read as the file a/b.ouro, and its key is its path.
 fromSources :: Monad m => Map.Map Text Text -> LoadEnv m
 fromSources sources = LoadEnv
-    { readModule  = \path -> pure $ case Map.lookup path sources of
-                                        Just source -> Found (T.unpack path <> ".ouro") source Project
-                                        Nothing     -> fromBundled path [T.unpack path <> ".ouro"]
-    , importStack = []
+    { resolveModule = \_importer path -> pure $ if Map.member path sources
+                                                    then Resolved path
+                                                    else Missing [T.unpack path <> ".ouro"]
+    , readModule    = \key -> let file = T.unpack key <> ".ouro"
+                              in pure (maybe (Unreadable file "No module has this key.") (Found file) (Map.lookup key sources))
+    , importStack   = []
     }
 
 
 -- Modules in files under source roots, the importing file's directory or a build's :sources:
--- (import a/b) reads root/a/b.ouro, which replaces a bundled module of the same name. A module
--- in more than one root is ambiguous, never the first root's. A path is normalised, so one
--- written with / on Windows is shown with one kind of separator.
+-- (import a/b) reads root/a/b.ouro, and its key is its path, a/b. A module in more than one
+-- root is ambiguous, never the first root's. A path is normalised, so one written with / on
+-- Windows is shown with one kind of separator.
 fromRoots :: [FilePath] -> LoadEnv IO
 fromRoots roots = LoadEnv
-    { readModule  = \path -> do
-                        let files = nub [ normalise (root </> T.unpack path <.> "ouro") | root <- roots ]
-                        found <- filterM doesFileExist files
-                        case found of
-                            [file] -> either (Unreadable file) (\source -> Found file source Project) <$> readSource file
-                            []     -> pure (fromBundled path files)
-                            _many  -> pure (Ambiguous found)
-    , importStack = []
+    { resolveModule = \_importer path -> do
+                          found <- existing path
+                          pure $ case found of
+                              [_file] -> Resolved path
+                              []      -> Missing (candidates path)
+                              _many   -> Ambiguous found
+    , readModule    = \key -> existing key >>= \case
+                          [file] -> either (Unreadable file) (Found file) <$> readSource file
+                          _other -> pure (Unreadable (T.unpack key <> ".ouro") "Its file was moved or deleted while the build ran.")
+    , importStack   = []
     }
-
-
--- A bundled module, when nothing in the project has its name; otherwise the files looked for
-fromBundled :: Text -> [FilePath] -> Lookup
-fromBundled path searched =
-    case Map.lookup path bundled of
-        Just (file, source) -> Found file source Bundled
-        Nothing             -> Missing searched
+    where
+    candidates path = nub [ normalise (root </> T.unpack path <.> "ouro") | root <- roots ]
+    existing        = filterM doesFileExist . candidates
 
 
 -- The modules a module imports, by qualifier. The imports are independent, so every one
@@ -149,48 +169,64 @@ loadImports m = Map.fromList <$> traverse (\imp -> (qualifierOf imp,) <$> loadIm
 -- module that cannot be loaded is reported at the position given with it. The modules are
 -- independent, so every one that fails is reported.
 loadModules :: Monad m => [(SourcePos, Text)] -> LoaderT m [Linked]
-loadModules = traverse (uncurry loadPath)
+loadModules = traverse (\(pos, path) -> resolve pos path >>= loadKey pos path)
 
 
 -- One import: the module, loaded and linked the first time it is imported. A module that is
 -- still being loaded is a cycle, since Ouro has no recursion across files either.
 loadImport :: Monad m => Import -> LoaderT m L.Imported
 loadImport imp = do
+    key   <- resolve (importPos imp) (importPath imp)
     stack <- asks importStack
-    if importPath imp `elem` stack
-        then refute (pure (OuroError (importPos imp) (importCycle (reverse (importPath imp : stack)))))
-        else linkedRoot <$> loadPath (importPos imp) (importPath imp)
+    if key `elem` stack
+        then refute (pure (OuroError (importPos imp) (importCycle (reverse (map keyText (key : stack))))))
+        else linkedRoot <$> loadKey (importPos imp) (importPath imp) key
 
 
--- The module at a path, loaded and linked the first time it is asked for. Anything wrong
--- with finding it is reported at the given position, its import's.
-loadPath :: Monad m => SourcePos -> Text -> LoaderT m Linked
-loadPath pos path = gets (Map.lookup path) >>= maybe load pure
+-- The module a path names, from the module importing it: a bundled one when the path's first
+-- segment is a bundled folder, and otherwise the host's. A bundled module imports only bundled
+-- ones, so the host is never asked from one. Anything wrong is reported at the given position.
+resolve :: Monad m => SourcePos -> Text -> LoaderT m ModuleKey
+resolve pos path
+    | T.takeWhile (/= '/') path `Set.member` bundledRoots
+        = if Map.member path bundled then pure (BundledModule path) else notFound []
+    | otherwise
+        = asks importStack >>= \case
+              BundledModule _ : _ -> notFound []
+              HostModule key : _  -> fromHost (Just key)
+              []                  -> fromHost Nothing
+    where
+    fromHost importer = do
+        resolver <- asks resolveModule
+        fromBase (resolver importer path) >>= \case
+            Resolved key     -> pure (HostModule key)
+            Missing searched -> notFound searched
+            Ambiguous files  -> refute (pure (OuroError pos (ambiguousModule path (map T.pack files))))
+
+    notFound searched = refute (pure (OuroError pos (moduleNotFound path searched (Map.keys bundled))))
+
+
+-- The module with a key, loaded and linked the first time it is asked for. A file that cannot
+-- be read is reported at the given position, by the path imported.
+loadKey :: Monad m => SourcePos -> Text -> ModuleKey -> LoaderT m Linked
+loadKey pos path key = gets (Map.lookup key) >>= maybe load pure
     where
     load = do
-        reader <- asks readModule
-        found  <- fromBase (reader path)
+        found <- case key of
+                     BundledModule name -> pure (maybe (Unreadable (T.unpack name) "It is not bundled.") (uncurry Found) (Map.lookup name bundled))
+                     HostModule name    -> asks readModule >>= \reader -> fromBase (reader name)
         case found of
-            Missing searched
-                -> refute (pure (OuroError pos (moduleNotFound path searched (Map.keys bundled))))
-
             Unreadable file reason
                 -> refute (pure (OuroError pos (moduleUnreadable path (T.pack file) reason)))
 
-            Ambiguous files
-                -> refute (pure (OuroError pos (ambiguousModule path (map T.pack files))))
-
-            Found file source origin
+            Found file source
                 -> do
-                   -- A module of the project may take a bundled module's name, and replaces it
-                   when (origin == Project && Map.member path bundled) $
-                       tell [OuroWarning pos (shadowedBundledModule path (T.pack file))]
                    tokens <- either (refute . pure) pure (LX.tokenize file source)
                    tell (LN.lintExpression tokens)
                    parsed <- either (refute . pure) pure (LP.parseModule tokens)
                    tell (LN.lintModule parsed)
                    let canonical = Canon.canonicalModule parsed
-                   dependencies <- local (\env -> env { importStack = path : importStack env })
+                   dependencies <- local (\env -> env { importStack = key : importStack env })
                                          (loadImports canonical)
                    let linked = Linked
                                     { linkedModule  = canonical
@@ -200,8 +236,17 @@ loadPath pos path = gets (Map.lookup path) >>= maybe load pure
                                                           , L.importedExports = Set.fromList (map fst (canonical ^. exports))
                                                           }
                                     }
-                   modify (Map.insert path linked)
+                   modify (Map.insert key linked)
                    pure linked
 
-    -- A read in the base monad: disk in the CLI, a map in the tests
-    fromBase = lift . lift . lift . lift
+
+-- A key as it is shown, in an import cycle
+keyText :: ModuleKey -> Text
+keyText = \case
+    BundledModule name -> name
+    HostModule key     -> key
+
+
+-- A read in the base monad: disk in the CLI, a map in the tests
+fromBase :: Monad m => m a -> LoaderT m a
+fromBase = lift . lift . lift . lift

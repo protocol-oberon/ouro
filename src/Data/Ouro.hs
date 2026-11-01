@@ -115,7 +115,7 @@ compileWith sources filename trgt content = runIdentity (compileUsing (fromSourc
 
 
 -- Compiles a file on disk: it imports the modules in files beside it, a/b.ouro for (import a/b),
--- and the bundled ones. A module in the project replaces a bundled one of the same name.
+-- and the bundled ones. An import of std/… or aat/… is always the bundled module.
 compileFile :: FilePath -> String -> Text -> IO CompilationResult
 compileFile path = compileUsing (fromRoots [takeDirectory path]) path
 
