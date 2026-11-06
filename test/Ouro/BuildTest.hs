@@ -1,27 +1,23 @@
 {-# LANGUAGE GADTs #-}
 
 module Ouro.BuildTest
-( buildFiles
+( packageFiles
 , builds
 , projectsOnDisk
 , buildsTo
-, projectBuildsTo
-, projectFailsWith
-, writeProject
 ) where
 
-import           CLI.Project                  (BuildFile (..), buildProject,
-                                               compileInProject, findBuildFile,
-                                               outputFile, readBuildFile)
+import           CLI.Project                  (Package (..), Project (..),
+                                               buildProject, discoverModules,
+                                               outputFile, readPackage)
 import           Control.Monad                (forM_, when)
 import qualified Data.ByteString              as BS
 import           Data.Char                    (isSpace)
 import           Data.Functor.Identity        (runIdentity)
 import qualified Data.Map.Strict              as Map
-import           Data.Ouro                    (CompilationResult (..),
-                                               ErrorContext (..), OuroError (..),
-                                               defaultOptions, readSource,
-                                               smartErrorCode, toJSON)
+import           Data.Ouro                    (ErrorContext (..), OuroError (..),
+                                               defaultOptions, smartErrorCode,
+                                               toJSON)
 import           Data.Ouro.Build              (BuildResult (..), buildModules)
 import           Data.Ouro.Lisp.Module.Loader (fromSources)
 import           Data.Text                    (Text)
@@ -37,29 +33,32 @@ import           Text.Megaparsec              (initialPos)
 import           Utils                        (warningText)
 
 
--- A build file, build.ouro, is data: one graph named build, checked against the build file's
--- schema, with every setting that is wrong reported
-buildFiles :: Group
-buildFiles = Group "Builds: the build file"
-    [ ("a name is all a build file needs",          readsAs "(graph build (:name \"p\"))" ("p", ["."], "out"))
-    , ("every setting it acts on",                  readsAs "(graph build (:name \"p\" :sources (\"src\" \"lib\") :out \"dist\"))" ("p", ["src", "lib"], "dist"))
-    , ("settings are Ouro values",                  readsAs "(graph build (:name \"p\" :out (+ \"di\" \"st\")))" ("p", ["."], "dist"))
-    , ("an unknown setting suggests the nearest",   buildFileFails "(graph build (:name \"p\" :sorces (\"src\")))" "BLD0000" ["unknownSetting = \"sorces\"", "Perhaps you meant ':sources'"])
-    , ("a name is required",                        buildFileFails "(graph build (:out \"dist\"))" "BLD0001" ["missingSetting = \"name\""])
-    , (":depends is not acted on yet",              buildFileFails "(graph build (:name \"p\" :depends ()))" "BLD0002" ["unsupportedSetting = \"depends\"", "copying it under one of the :sources"])
-    , (":graphs is not acted on yet",               buildFileFails "(graph build (:name \"p\" :graphs ()))" "BLD0002" ["unsupportedSetting = \"graphs\"", "every graph of every module is built"])
-    , ("an import is not data",                     buildFileFails "(import std/base)\n(graph build (:name \"p\"))" "BLD0003" ["an import"])
-    , ("an export is not data",                     buildFileFails "(export f)\n(defn f () 1)\n(graph build (:name \"p\"))" "BLD0003" ["an export"])
-    , ("a function is not data",                    buildFileFails "(defn f () 1)\n(graph build (:name \"p\"))" "BLD0003" ["a function"])
-    , ("a second graph is not data",                buildFileFails "(graph build (:name \"p\"))\n(graph other (:a 1))" "BLD0003" ["a second graph"])
-    , ("the graph is named build",                  buildFileFails "(graph biuld (:name \"p\"))" "BLD0004" ["foundGraph = Just \"biuld\"", "perhaps rename it to build"])
-    , ("an empty build file has no graph",          buildFileFails "" "BLD0004" ["foundGraph = Nothing"])
-    , ("a setting of the wrong type",               buildFileFails "(graph build (:name 1))" "TYP0000" ["The build setting :name is a String", "a Number"])
-    , (":sources is an Array, even of one",         buildFileFails "(graph build (:name \"p\" :sources \"src\"))" "TYP0000" ["even when it names one"])
-    , ("each of the sources is a String",           buildFileFails "(graph build (:name \"p\" :sources (\"src\" 2)))" "TYP0000" [":sources[1] is a String"])
-    , ("the graph is a record of settings",         buildFileFails "(graph build (\"p\"))" "TYP0000" ["a record of settings"])
-    , ("every wrong setting is reported",           buildFileFailsTimes 3 "(graph build (:sorces () :out 1))")
-    , ("every wrong declaration is reported",       buildFileFailsTimes 3 "(import std/base)\n(defn f () 1)\n(graph build (:name \"p\"))\n(graph other (:a 1))")
+-- A package.ouro holds one function, (defn package () ...), whose value is checked against
+-- the settings' schema, with every setting that is wrong reported
+packageFiles :: Group
+packageFiles = Group "Builds: package.ouro"
+    [ ("no setting is needed",                      readsAs "(defn package () #record-empty)" (".", "out"))
+    , ("every setting it acts on",                  readsAs "(defn package () (:sources \"src\" :outputs \"dist\"))" ("src", "dist"))
+    , ("settings are Ouro values",                  readsAs "(defn package () (:outputs (+ \"di\" \"st\")))" (".", "dist"))
+    , ("it can import the bundled modules",         readsAs "(import std/base)\n(defn package () (:sources \"src\"))" ("src", "out"))
+    , ("and only them",                             packageFails "(import helpers)\n(defn package () (:sources \"src\"))" "SCP0006" ["missingModule = \"helpers\""])
+    , ("an unknown setting suggests the nearest",   packageFails "(defn package () (:sorces \"src\"))" "BLD0000" ["unknownSetting = \"sorces\"", "Perhaps you meant ':sources'"])
+    , (":name is not a setting",                    packageFails "(defn package () (:name \"p\"))" "BLD0000" ["unknownSetting = \"name\""])
+    , (":graphs is not acted on yet",               packageFails "(defn package () (:graphs ()))" "BLD0002" ["unsupportedSetting = \"graphs\"", "every graph of every module is built"])
+    , (":ouro is not acted on yet",                 packageFails "(defn package () (:ouro \"1.0\"))" "BLD0002" ["unsupportedSetting = \"ouro\""])
+    , ("a graph is not package data",               packageFails "(defn package () (:sources \"src\"))\n(graph g (:a 1))" "BLD0006" ["a graph"])
+    , ("an export is not package data",             packageFails "(export package)\n(defn package () (:sources \"src\"))" "BLD0006" ["an export"])
+    , ("another function is not package data",      packageFails "(defn f () 1)\n(defn package () (:sources \"src\"))" "BLD0006" ["a function"])
+    , ("the function is named package",             packageFails "(defn pakage () (:sources \"src\"))" "BLD0007" ["foundFunction = Just \"pakage\"", "perhaps rename it to package"])
+    , ("an empty package.ouro is an error",         packageFails "" "BLD0007" ["foundFunction = Nothing", "perhaps delete it"])
+    , ("the package function takes no parameters",  packageFails "(defn package (x) (:sources x))" "BLD0008" ["parameterCount = 1"])
+    , ("inputs is reserved",                        packageFails "(defn inputs () 1)\n(defn package () (:sources \"src\"))" "BLD0010" ["reservedName = \"inputs\""])
+    , ("so are build and exports",                  packageFailsTimes 2 "(defn build () 1)\n(defn exports () 1)\n(defn package () (:sources \"src\"))")
+    , ("a setting of the wrong type",               packageFails "(defn package () (:sources 1))" "TYP0000" ["The package setting :sources is a String", "a Number"])
+    , (":sources is one folder, not an Array",      packageFails "(defn package () (:sources (\"src\" \"lib\")))" "TYP0000" ["The package setting :sources is a String", "Array"])
+    , ("the value is a record of settings",         packageFails "(defn package () \"src\")" "TYP0000" ["a record of settings"])
+    , ("every wrong setting is reported",           packageFailsTimes 3 "(defn package () (:sorces \"src\" :outputs 1 :ouro \"1.0\"))")
+    , ("every wrong declaration is reported",       packageFailsTimes 3 "(defn f () 1)\n(graph g (:a 1))\n(defn build () 1)\n(defn package () (:sources \"src\"))")
     ]
 
 
@@ -77,69 +76,71 @@ builds = Group "Builds: every graph of every module"
     ]
 
 
--- Projects on disk: the build file found from a folder or above it, its source roots, and
--- what is skipped
+-- Projects on disk: a folder, with or without a package.ouro, its source folder, and what
+-- is skipped
 projectsOnDisk :: Group
 projectsOnDisk = Group "Builds: projects on disk"
-    [ ("a project with two source roots",           projectBuildsTo "roots" [ build "(:name \"p\" :sources (\"src\" \"lib\"))", helpers "lib"
-                                                                            , ("src/main.ouro", "(import helpers)\n(graph g (:r (helpers/greet \"Ann\")))") ]
+    [ ("without package.ouro, the folder is the project", projectBuildsTo "no-package" [ ("main.ouro", "(graph g (:r 1))") ]
+                                                                    [("out" </> "main" </> "g.json", "{\"r\":1}")])
+    , ("a project with a source folder",            projectBuildsTo "source-folder" [ package "(:sources \"src\")", helpers "src"
+                                                                                    , ("src/main.ouro", "(import helpers)\n(graph g (:r (helpers/greet \"Ann\")))") ]
                                                                     [("out" </> "main" </> "g.json", "{\"r\":\"Hello,Ann\"}")])
-    , ("without :sources, the build file's folder",  projectBuildsTo "default-root" [ build "(:name \"p\")", ("main.ouro", "(graph g (:r 1))") ]
+    , (":outputs is where the graphs are written",  projectBuildsTo "outputs" [ package "(:outputs \"dist\")", ("main.ouro", "(graph g (:r 1))") ]
+                                                                    [("dist" </> "main" </> "g.json", "{\"r\":1}")])
+    , ("hidden folders and the outputs folder are not", projectBuildsTo "skipped" [ ("main.ouro", "(graph g (:r 1))")
+                                                                              , (".jj/broken.ouro", broken), ("out/broken.ouro", broken) ]
                                                                     [("out" </> "main" </> "g.json", "{\"r\":1}")])
-    , ("hidden folders and the out folder are not", projectBuildsTo "skipped" [ build "(:name \"p\")", ("main.ouro", "(graph g (:r 1))")
-                                                                              , (".jj/broken.ouro", "(graph g (:r (get () 5)))"), ("out/broken.ouro", "(graph g (:r (get () 5)))") ]
+    , ("nor is a source folder through ..",         projectBuildsTo "dotdot" [ package "(:sources \"src/..\")", ("main.ouro", "(graph g (:r 1))")
+                                                                            , ("src/keep.txt", "a folder to go through"), ("out/broken.ouro", broken) ]
                                                                     [("out" </> "main" </> "g.json", "{\"r\":1}")])
-    , ("a module in two roots is ambiguous",        projectFailsWith "ambiguous" [ build "(:name \"p\" :sources (\"src\" \"lib\"))", helpers "src", helpers "lib" ]
-                                                                     "SCP0011" ["ambiguousPath = \"helpers\""])
-    , ("an import of it is too",                    projectFailsWith "ambiguous-import" [ build "(:name \"p\" :sources (\"src\" \"lib\" \"app\"))", helpers "src", helpers "lib"
-                                                                                        , ("app/main.ouro", "(import helpers)\n(graph g (:r (helpers/greet \"Ann\")))") ]
-                                                                     "SCP0011" ["The module 'helpers' is in more than one source root"])
-    , ("a source folder that does not exist",       projectFailsWith "missing-root" [ build "(:name \"p\" :sources (\"src\" \"scr\"))", ("src/main.ouro", "(graph g (:r 1))") ]
+    , ("nor is package.ouro, as a module",          withTests 1 . property $ do
+                                                        dir   <- evalIO (writeProject "dotdot-modules" [ package "(:sources \"src/..\")", ("main.ouro", "(graph g (:r 1))"), ("src/keep.txt", "a folder to go through") ])
+                                                        found <- evalIO (discoverModules (Project dir (Package "src/.." "out" (initialPos "package.ouro"))))
+                                                        map fst found === ["main"])
+    , ("a source folder with a trailing slash is one folder", projectBuildsTo "slash" [ package "(:sources \"src/\")", ("src/main.ouro", "(graph g (:r 1))") ]
+                                                                    [("out" </> "main" </> "g.json", "{\"r\":1}")])
+    , ("a folder with a package.ouro is a project of its own", projectBuildsTo "nested" [ ("main.ouro", "(graph g (:r 1))")
+                                                                                       , ("sub/package.ouro", "(defn package () (:sources \"src\"))"), ("sub/src/broken.ouro", broken) ]
+                                                                    [("out" </> "main" </> "g.json", "{\"r\":1}")])
+    , ("a source folder that does not exist",       projectFailsWith "missing-root" [ package "(:sources \"scr\")", ("src/main.ouro", "(graph g (:r 1))") ]
                                                                      "BLD0005" ["sourceFolder = \"scr\""])
-    , ("the build file is found from below it",     withTests 1 . property $ do
-                                                        dir   <- evalIO (writeProject "below" [ build "(:name \"p\")", ("src/deep/x.ouro", "(graph g (:r 1))") ])
-                                                        found <- evalIO (findBuildFile (dir </> "src" </> "deep"))
-                                                        fmap takeDirectory found === Just dir)
-    , ("a compile reads the build's :sources",      withTests 1 . property $ do
-                                                        dir    <- evalIO (writeProject "compile" [ build "(:name \"p\" :sources (\"lib\"))", helpers "lib"
-                                                                                                 , ("main.ouro", "(import helpers)\n(graph g (:r (helpers/greet \"Ann\")))") ])
-                                                        source <- evalIO (either (error . T.unpack) id <$> readSource (dir </> "main.ouro"))
-                                                        evalIO (compileInProject (dir </> "main.ouro") "g" source) >>= \case
-                                                            Right (CompilationSuccess _ ast) -> squash (TL.toStrict (toJSON defaultOptions ast)) === "{\"r\":\"Hello,Ann\"}"
-                                                            Right (CompilationFailure _ errs) -> annotate (show errs) >> failure
-                                                            Left message -> annotate (T.unpack message) >> failure)
-    , ("a build file is looked for, or it says so", withTests 1 . property $ do
-                                                        dir <- evalIO (writeProject "no-build-file" [ ("main.ouro", "(graph g (:r 1))") ])
-                                                        evalIO (buildProject dir) >>= \case
-                                                            Left message -> assert ("No build.ouro in " `T.isPrefixOf` message)
+    , ("a module under std is reserved",            projectFailsWith "reserved-std" [ ("std/base.ouro", "(graph g (:r 1))"), ("main.ouro", "(graph g (:r 1))") ]
+                                                                     "BLD0009" ["reservedPath = \"std/base\"", "rename the folder"])
+    , ("so is a module named aat",                  projectFailsWith "reserved-aat" [ ("aat.ouro", "(graph g (:r 1))"), ("main.ouro", "(graph g (:r 1))") ]
+                                                                     "BLD0009" ["reservedPath = \"aat\"", "rename the file"])
+    , ("a folder that does not exist is not built from above", withTests 1 . property $ do
+                                                        dir <- evalIO (writeProject "no-folder" [ package "#record-empty", ("main.ouro", "(graph g (:r 1))") ])
+                                                        evalIO (buildProject (dir </> "typo")) >>= \case
+                                                            Left message -> assert ("No folder " `T.isPrefixOf` message)
                                                             Right _      -> failure)
     ]
     where
-    build settings = ("build.ouro", "(graph build " <> settings <> ")")
-    helpers root   = (root <> "/helpers.ouro", "(export greet)\n(defn greet (n) (+ \"Hello, \" n))")
+    package settings = ("package.ouro", "(defn package () " <> settings <> ")")
+    helpers root     = (root <> "/helpers.ouro", "(export greet)\n(defn greet (n) (+ \"Hello, \" n))")
+    broken           = "(graph g (:r (get () 5)))"
 
 
--- The build file reads as the given name, sources and out folder
-readsAs :: Text -> (Text, [FilePath], FilePath) -> Property
-readsAs source (name, sources, out) = withTests 1 . property $
-    case readBuildFile "build.ouro" source of
-        (_, Right b)   -> (buildName b, buildSources b, buildOut b) === (name, sources, out)
+-- package.ouro reads as the given source folder and outputs folder
+readsAs :: Text -> (FilePath, FilePath) -> Property
+readsAs source (sources, outputs) = withTests 1 . property $
+    case readPackage "package.ouro" source of
+        (_, Right p)   -> (packageSources p, packageOutputs p) === (sources, outputs)
         (_, Left errs) -> annotate (show errs) >> failure
 
--- The build file fails with an error of the given code mentioning every given text
-buildFileFails :: Text -> Text -> [Text] -> Property
-buildFileFails source code messages = withTests 1 . property $
-    case readBuildFile "build.ouro" source of
+-- package.ouro fails with an error of the given code mentioning every given text
+packageFails :: Text -> Text -> [Text] -> Property
+packageFails source code messages = withTests 1 . property $
+    case readPackage "package.ouro" source of
         (_, Left errs) -> do
                           annotate (show errs)
                           assert (any (\err -> smartErrorCode (errContext err) == code && all (`T.isInfixOf` errorText err) messages) errs)
-        (_, Right b)   -> annotate (show b) >> failure
+        (_, Right p)   -> annotate (show p) >> failure
 
-buildFileFailsTimes :: Int -> Text -> Property
-buildFileFailsTimes times source = withTests 1 . property $
-    case readBuildFile "build.ouro" source of
+packageFailsTimes :: Int -> Text -> Property
+packageFailsTimes times source = withTests 1 . property $
+    case readPackage "package.ouro" source of
         (_, Left errs) -> annotate (show errs) >> length errs === times
-        (_, Right b)   -> annotate (show b) >> failure
+        (_, Right p)   -> annotate (show p) >> failure
 
 
 -- Modules in memory, each built: (path, source). Each graph is named by the file a project

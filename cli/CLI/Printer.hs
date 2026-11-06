@@ -401,6 +401,36 @@ splitErrorContext = \case
            , Nothing
            )
 
+    Build (NotPackageData declaration)
+        -> ("Not Package Data"
+           , [ labeled "Found: " (pretty declaration) ]
+           , Nothing
+           )
+
+    Build (NoPackageFunction found)
+        -> ("No Package Function"
+           , [ labeled "Function: " (pretty (fromMaybe "none" found)) ]
+           , Nothing
+           )
+
+    Build (PackageParameters count)
+        -> ("Package Parameters"
+           , [ labeled "Parameters: " (pretty count) ]
+           , Nothing
+           )
+
+    Build (ReservedModule name)
+        -> ("Reserved Module"
+           , [ labeled "Module: " (pretty name) ]
+           , Nothing
+           )
+
+    Build (ReservedPackageName name)
+        -> ("Reserved Package Name"
+           , [ labeled "Name: " (pretty name) ]
+           , Nothing
+           )
+
     Internal (ErasureValueLeakError block)
         -> ( "Compiler Internal Error"
            , [ labeled "Expected: " "nil (erased)"

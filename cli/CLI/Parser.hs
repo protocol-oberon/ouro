@@ -22,15 +22,15 @@ import           System.FilePath     (takeExtension)
 pCommand :: Parser Command
 pCommand = subparser
          (  command "compile"  (info (pCompile  <**> helper) (progDesc "Compile Ouro to JSON-LD"))
-         <> command "build"    (info (pBuild    <**> helper) (progDesc "Build every graph of the project described by build.ouro"))
+         <> command "build"    (info (pBuild    <**> helper) (progDesc "Build every graph of the project in a folder, with the settings of its package.ouro, if it has one"))
          <> command "validate" (info (pValidate <**> helper) (progDesc "Validate JSON-LD"))
          )
 
 
--- The directory to look for build.ouro in, and above it: the current one when not given
+-- The project's folder: the current one when not given
 pBuild :: Parser Command
 pBuild = Build <$> argument str ( metavar "DIR"
-                               <> help "Where to look for build.ouro, and in the folders above it"
+                               <> help "The project's folder, the current one when not given"
                                <> value "."
                                 )
 

@@ -233,70 +233,94 @@ ambiguousModule path files =
               (Scope (AmbiguousModule { ambiguousPath = path, ambiguousFiles = files }))
 
 
--- Build file errors
+-- Build errors: package.ouro and the modules under its :sources
 
--- The settings a build file can have, in the order they are listed
+-- The settings package.ouro can have, in the order they are listed
 buildSettings :: [Text]
-buildSettings = ["name", "sources", "out", "graphs", "depends"]
+buildSettings = ["sources", "outputs", "graphs", "ouro"]
 
 
--- A build file's setting that is not one of its schema's
+-- The names package.ouro cannot define, kept for later versions of it
+reservedPackageNames :: [Text]
+reservedPackageNames = ["inputs", "build", "exports"]
+
+
+-- A setting of package.ouro that is not one of its schema's
 unknownBuildSetting :: Text -> ErrorContext
 unknownBuildSetting setting =
-    withBlurb ( "A build file's settings are " <> T.intercalate ", " (map (":" <>) buildSettings) <> "."
+    withBlurb ( "package.ouro's settings are " <> T.intercalate ", " (map (":" <>) buildSettings) <> "."
              <> closest (":" <> setting) (map (":" <>) buildSettings)
               )
               (Build (UnknownBuildSetting { unknownSetting = setting }))
 
 
--- A setting every build needs, missing from the build file
-missingBuildSetting :: Text -> ErrorContext
-missingBuildSetting setting =
-    withBlurb ( "Every build file gives its project a :" <> setting <> ", "
-             <> "as in (graph build (:name \"my-project\"))."
-              )
-              (Build (MissingBuildSetting { missingSetting = setting }))
-
-
 -- A setting of the schema that this version of Ouro does not act on
 unsupportedBuildSetting :: Text -> ErrorContext
 unsupportedBuildSetting setting =
-    withBlurb ( ":" <> setting <> " is a setting of the build file, but this version of Ouro does not act on it yet. "
+    withBlurb ( ":" <> setting <> " is a setting of package.ouro, but this version of Ouro does not act on it yet. "
              <> explanation
               )
               (Build (UnsupportedBuildSetting { unsupportedSetting = setting }))
     where
     explanation = case setting of
                       "graphs"  -> "Until it does, every graph of every module is built: perhaps remove it."
-                      "depends" -> "Until it does, a library is used by copying it under one of the :sources."
                       _other    -> "Perhaps remove it."
 
 
--- A declaration a build file cannot hold, such as "an import"
-notBuildData :: Text -> ErrorContext
-notBuildData declaration =
-    withBlurb ( "A build file is data: it holds one graph, (graph build ...), and nothing else, so it cannot have "
-             <> declaration <> ". Perhaps move it into a module under one of the :sources."
-              )
-              (Build (NotBuildData { buildDeclaration = declaration }))
-
-
--- A build file without a graph named build: the name of the graph it has instead, if any
-noBuildGraph :: Maybe Text -> ErrorContext
-noBuildGraph found =
-    withBlurb ( "A build file holds one graph, named build, as in (graph build (:name \"my-project\"))."
-             <> maybe "" (\name -> " Its graph is named '" <> name <> "': perhaps rename it to build.") found
-              )
-              (Build (NoBuildGraph { foundGraph = found }))
-
-
--- A folder of :sources that does not exist, as written and as it was looked for
+-- The folder of :sources that does not exist, as written and as it was looked for
 missingSourceFolder :: Text -> Text -> ErrorContext
 missingSourceFolder folder looked =
     withBlurb ( "The source folder '" <> folder <> "' does not exist: looked for " <> looked <> ". "
-             <> "A build file's :sources are folders beside it, such as (\"src\")."
+             <> "package.ouro's :sources is a folder beside it, such as \"src\"."
               )
               (Build (MissingSourceFolder { sourceFolder = folder }))
+
+
+-- A declaration package.ouro cannot hold, such as "a graph"
+notPackageData :: Text -> ErrorContext
+notPackageData declaration =
+    withBlurb ( "package.ouro holds one function, (defn package () ...), and nothing else, so it cannot have "
+             <> declaration <> ". Perhaps move it into a module under :sources."
+              )
+              (Build (NotPackageData { packageDeclaration = declaration }))
+
+
+-- package.ouro without a function named package: the name of the function it has instead, if any
+noPackageFunction :: Maybe Text -> ErrorContext
+noPackageFunction found =
+    withBlurb ( "package.ouro holds one function, named package, as in (defn package () (:sources \"src\"))."
+             <> maybe " An empty package.ouro is an error: perhaps delete it, since a project needs none."
+                      (\name -> " Its function is named '" <> name <> "': perhaps rename it to package.") found
+              )
+              (Build (NoPackageFunction { foundFunction = found }))
+
+
+-- A package function that takes parameters, how many
+packageParameters :: Int -> ErrorContext
+packageParameters count =
+    withBlurb "The package function takes no parameters: its settings are a value, as in (defn package () (:sources \"src\"))."
+              (Build (PackageParameters { parameterCount = count }))
+
+
+-- A module under :sources whose path starts with a bundled folder, such as std/base
+reservedModule :: Text -> ErrorContext
+reservedModule name =
+    withBlurb ( "The module '" <> name <> "' is under :sources, but " <> root <> " is the folder of the modules bundled with Ouro, "
+             <> "so (import " <> name <> ") always means the bundled one. Perhaps rename the "
+             <> (if root == name then "file." else "folder.")
+              )
+              (Build (ReservedModule { reservedPath = name }))
+    where
+    root = T.takeWhile (/= '/') name
+
+
+-- A function of package.ouro with a name kept for later versions of it
+reservedPackageName :: Text -> ErrorContext
+reservedPackageName name =
+    withBlurb ( "'" <> name <> "' is reserved for a later version of package.ouro: "
+             <> "the names inputs, build and exports cannot be defined in it."
+              )
+              (Build (ReservedPackageName { reservedName = name }))
 
 
 -- " Perhaps you meant 'x'." for the closest candidate, when one is close enough

@@ -4,7 +4,7 @@ module CLI.Runner
 ) where
 
 import           CLI.Printer       (pintDiagnostic)
-import           CLI.Project       (buildProject, compileInProject)
+import           CLI.Project       (buildProject, compileFile)
 import           CLI.Types         (Command (..), TargetTransform (..),
                                     ValidateCommand (..))
 import           Control.Monad     (join)
@@ -47,8 +47,8 @@ runCompile ifp trgt mOutDir = do
     -- Read and process the input file
     content <- readSourceOrExit ifp
 
-    -- Its imports are read from the :sources of a build.ouro in its folder or above it
-    result <- compileInProject ifp trgt content >>= either (\err -> TIO.hPutStrLn stderr err >> exitFailure) pure
+    -- Its imports are read from the files beside it
+    result <- compileFile ifp trgt content
 
     case result of
         O.CompilationSuccess warnings code
@@ -77,8 +77,8 @@ runCompile ifp trgt mOutDir = do
                exitFailure
 
 
--- Builds the project whose build.ouro is in the directory or above it: every graph of every
--- module is written to out/<module>/<graph>.json, or, if anything fails, nothing is
+-- Builds the project in a folder: every graph of every module is written to
+-- <outputs>/<module>/<graph>.json, or, if anything fails, nothing is
 runBuild :: FilePath -> IO ()
 runBuild dir = do
     putStrLn $ "Building:            " <> dir <> " ..."

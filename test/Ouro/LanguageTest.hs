@@ -19,7 +19,6 @@ module Ouro.LanguageTest
 , knownGaps
 ) where
 
-import           CLI.Project               (findBuildFile)
 import qualified Data.ByteString           as BS
 import           Data.Maybe                (fromJust)
 import           Data.Ouro                 (LinterWarning (..),
@@ -37,9 +36,8 @@ import qualified Data.Text.Lazy            as TL
 import           Hedgehog
 import qualified Hedgehog.Gen              as Gen
 import qualified Hedgehog.Range            as Range
-import           Ouro.BuildTest            (buildsTo, projectBuildsTo,
-                                            projectFailsWith, writeProject)
-import           System.FilePath           (takeDirectory, (</>))
+import           Ouro.BuildTest            (buildsTo)
+import           System.FilePath           ((</>))
 import qualified Text.URI                  as URI
 import           Utils                     (compilesToJSON, emitsExactly,
                                             failsWith, failsWithout, fixture,
@@ -938,22 +936,10 @@ knownGaps = Group "Known gaps: current, incorrect behaviour"
                                                                      "(graph g (:ex:a/b 1 :y 2))")
     , ("gap 31: a '#' ends a key",                   importsFailAt "SYN0000" ("inline-test", 1, 16) ["Unknown property: #b"] []
                                                                      "(graph g (:ex:a#b 1 :y 2))")
-    , ("gap 32: overlapping source roots build a module twice", projectBuildsTo "gap-32-overlap" [ ("build.ouro", "(graph build (:name \"p\" :sources (\".\" \"src\")))"), ("src/main.ouro", "(graph g (:r 1))") ]
-                                                                  [("out" </> "main" </> "g.json", "{\"r\":1}"), ("out" </> "src" </> "main" </> "g.json", "{\"r\":1}")])
-    , ("gap 32: a root with a trailing slash is a second root", projectFailsWith "gap-32-slash" [ ("build.ouro", "(graph build (:name \"p\" :sources (\"src\" \"src/\")))"), ("src/main.ouro", "(graph g (:r 1))") ]
-                                                                   "SCP0011" ["ambiguousPath = \"main\""])
-    , ("gap 32: a root through .. builds the build file", projectBuildsTo "gap-32-dotdot" [ ("build.ouro", "(graph build (:name \"p\" :sources (\"src/..\")))"), ("main.ouro", "(graph g (:r 1))") ]
-                                                             [("out" </> "build" </> "build.json", "{\"name\":\"p\",\"sources\":[\"src/..\"]}"), ("out" </> "main" </> "g.json", "{\"r\":1}")])
-    , ("gap 33: a nested project's build file is a module", projectBuildsTo "gap-33" [ ("build.ouro", "(graph build (:name \"p\"))"), ("sub/build.ouro", "(graph build (:name \"q\"))") ]
-                                                               [("out" </> "sub" </> "build" </> "build.json", "{\"name\":\"q\"}")])
     , ("gap 34: a graph's name is not checked as a file name", buildsTo [("main", "(graph a? (:r 1))\n(graph con (:r 2))\n(graph ex:g (:r 3))")]
                                                                   [("out" </> "main" </> "a?.json", "{\"r\":1}"), ("out" </> "main" </> "con.json", "{\"r\":2}"), ("out" </> "main" </> "ex:g.json", "{\"r\":3}")])
     , ("gap 34: nor are names apart only by case",  buildsTo [("main", "(graph G (:r 1))\n(graph g (:r 2))")]
                                                              [("out" </> "main" </> "G.json", "{\"r\":1}"), ("out" </> "main" </> "g.json", "{\"r\":2}")])
-    , ("gap 36: a folder that does not exist finds the build file above it", withTests 1 . property $ do
-                                                    dir   <- evalIO (writeProject "gap-36" [ ("build.ouro", "(graph build (:name \"p\"))") ])
-                                                    found <- evalIO (findBuildFile (dir </> "typo"))
-                                                    fmap takeDirectory found === Just dir)
     , ("gap 39: insert floors a fractional index",   compilesToJSON "(graph g (:r (insert 1.5 \"x\" (1 2))))"
                                                                    "{\"r\": [1, \"x\", 2]}")
     ]

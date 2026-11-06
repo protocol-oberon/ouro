@@ -1,26 +1,25 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE GADTs     #-}
 
--- A project on disk: the build file that describes it, build.ouro, the modules in the files
--- under its source roots, and where its graphs are written. The compiler knows none of this:
--- it builds the modules it is given (Data.Ouro.Build), through the loader given to it.
+-- A project on disk: a folder, the settings its package.ouro gives, if it has one, the modules
+-- in the files under its :sources, and where its graphs are written. The compiler knows none
+-- of this: it builds the modules it is given (Data.Ouro.Build), through the loader given to it.
 module CLI.Project
-( BuildFile (..)
+( Package (..)
 , Project (..)
-, buildFileName
 , buildProject
 , compileFile
-, compileInProject
+, defaultPackage
 , discoverModules
-, findBuildFile
 , fromRoots
 , outputFile
+, packageFileName
 , projectOut
-, projectRoots
-, readBuildFile
+, projectRoot
+, readPackage
 ) where
 
-import           Control.Monad                (filterM, forM)
+import           Control.Monad                (filterM)
 import           Control.Monad.Validate       (refute, runValidateT)
 import           Control.Monad.Writer         (runWriterT, tell)
 import           Data.Foldable                (toList)
@@ -34,10 +33,12 @@ import           Data.Ouro                    (CompilationResult (..),
                                                compileUsing, evaluateGraph,
                                                readSource)
 import           Data.Ouro.Build              (BuildResult (..), buildModules)
-import           Data.Ouro.Error.Diagnostics  (ambiguousModule, buildSettings,
-                                               missingBuildSetting,
-                                               missingSourceFolder, noBuildGraph,
-                                               notBuildData, typeMismatch,
+import           Data.Ouro.Error.Diagnostics  (buildSettings, missingSourceFolder,
+                                               noPackageFunction, notPackageData,
+                                               packageParameters,
+                                               reservedModule,
+                                               reservedPackageName,
+                                               reservedPackageNames, typeMismatch,
                                                unknownBuildSetting,
                                                unsupportedBuildSetting,
                                                withBlurb)
@@ -49,175 +50,171 @@ import qualified Data.Ouro.Lisp.Canon         as Canon
 import qualified Data.Ouro.Lisp.Eval.Types    as L
 import qualified Data.Ouro.Lisp.Lexer         as LX
 import           Data.Ouro.Lisp.Module.Loader (LoadEnv (..), Lookup (..),
-                                               Resolved (..))
-import           Data.Ouro.Lisp.Module.Types  (Declaration (..),
-                                               HigherExpression (..), Import (..),
-                                               Module, exports, functionRegistry,
-                                               graphRegistry, imports)
+                                               Resolved (..), bundledOnly,
+                                               bundledRoots, loadImports,
+                                               runLoader)
+import           Data.Ouro.Lisp.Module.Types  (HigherExpression (..), Module,
+                                               exports, functionRegistry,
+                                               graphRegistry)
 import qualified Data.Ouro.Lisp.Parser        as LP
+import qualified Data.Ouro.Lisp.Surface       as S
+import qualified Data.Set                     as Set
 import           Data.Text                    (Text)
 import qualified Data.Text                    as T
 import           Lens.Micro.Platform          ((^.))
-import           System.Directory             (doesDirectoryExist, doesFileExist,
-                                               listDirectory, makeAbsolute,
-                                               makeRelativeToCurrentDirectory)
+import           System.Directory             (canonicalizePath,
+                                               doesDirectoryExist, doesFileExist,
+                                               listDirectory)
 import           System.FilePath              (dropExtension, equalFilePath,
                                                joinPath, makeRelative, normalise,
                                                splitDirectories, takeDirectory,
-                                               takeExtension, (<.>), (</>))
+                                               takeExtension, takeFileName, (<.>),
+                                               (</>))
 import           Text.Megaparsec              (SourcePos, initialPos)
 
 
--- The name of a build file, looked for in a directory and the directories above it
-buildFileName :: FilePath
-buildFileName = "build.ouro"
+-- The name of a project's settings file, in the project's folder
+packageFileName :: FilePath
+packageFileName = "package.ouro"
 
 
--- A build file's settings. Its folders are as written, relative to the build file.
-data BuildFile = BuildFile
-    { buildName    :: Text
-    , buildSources :: [FilePath]   -- The source roots, (".") when not given
-    , buildOut     :: FilePath     -- Where the graphs are written, "out" when not given
-    , buildAt      :: SourcePos    -- The build graph, where its settings are reported
+-- A project's settings. Its folders are as written, relative to the project's folder.
+data Package = Package
+    { packageSources :: FilePath    -- The source folder, "." when not given
+    , packageOutputs :: FilePath    -- Where the graphs are written, "out" when not given
+    , packageAt      :: SourcePos   -- The package function, where its settings are reported
     } deriving (Show, Eq)
 
 
--- A build file and where it is: its folders are relative to its directory
+-- The settings of a project without a package.ouro: its folder is its source folder
+defaultPackage :: FilePath -> Package
+defaultPackage dir = Package "." "out" (initialPos (normalise (dir </> packageFileName)))
+
+
+-- A project: its folder, and its settings
 data Project = Project
-    { projectFile  :: FilePath
-    , projectBuild :: BuildFile
+    { projectDir     :: FilePath
+    , projectPackage :: Package
     } deriving (Show, Eq)
 
 
--- The source roots of a project, each once
-projectRoots :: Project -> [FilePath]
-projectRoots project = nub [ normalise (takeDirectory (projectFile project) </> root) | root <- buildSources (projectBuild project) ]
+-- A project's source folder
+projectRoot :: Project -> FilePath
+projectRoot project = normalise (projectDir project </> packageSources (projectPackage project))
 
 
 -- Where a project's graphs are written
 projectOut :: Project -> FilePath
-projectOut project = normalise (takeDirectory (projectFile project) </> buildOut (projectBuild project))
+projectOut project = normalise (projectDir project </> packageOutputs (projectPackage project))
 
 
--- The build file in a directory or the nearest directory above it. It is named relative to the
--- current directory when it is under it, so its errors and its modules' are shown as written.
-findBuildFile :: FilePath -> IO (Maybe FilePath)
-findBuildFile start = makeAbsolute start >>= search
-    where
-    search dir = do
-        let file = dir </> buildFileName
-        exists <- doesFileExist file
-        case (exists, takeDirectory dir) of
-            (True, _)                          -> Just <$> makeRelativeToCurrentDirectory file
-            (False, parent) | parent /= dir    -> search parent
-            _atTheRoot                         -> pure Nothing
-
-
--- Reads a build file: lexed, parsed and evaluated as a module is, but it is data, so it holds
--- one graph named build and nothing else, and the graph's value is checked against the
--- build file's schema. Every error is reported, with the warnings found on the way.
-readBuildFile :: FilePath -> Text -> ([OuroWarning], Either (NonEmpty OuroError) BuildFile)
-readBuildFile file source = swap (runIdentity (runWriterT (runValidateT readIt)))
+-- Reads a package.ouro: lexed, parsed and evaluated as a module is, but it holds one function,
+-- (defn package () ...), whose value is checked against the settings' schema. It can import
+-- the bundled modules, and only them. Every error is reported, with the warnings found on the way.
+readPackage :: FilePath -> Text -> ([OuroWarning], Either (NonEmpty OuroError) Package)
+readPackage file source = swap (runIdentity (runWriterT (runValidateT readIt)))
     where
     swap (result, warnings) = (warnings, result)
 
-    readIt :: CompilerM BuildFile
+    readIt :: CompilerM Package
     readIt = do
              tokens <- either (refute . pure) pure (LX.tokenize file source)
              tell (LN.lintExpression tokens)
              parsed <- either (refute . pure) pure (LP.parseModule tokens)
              tell (LN.lintModule parsed)
              let canonical = Canon.canonicalModule parsed
-             graph <- either refute pure (buildGraph file canonical)
-             value <- either refute pure (evaluateGraph Map.empty canonical graph)
-             case graph of
-                 Graph gPos _ _ -> either refute pure (settings gPos value)
+             pos      <- either refute pure (packageFunction file canonical)
+             imported <- runLoader bundledOnly (loadImports canonical)
+             -- Its value is a call of it, (package), evaluated as a graph is
+             value    <- either refute pure (evaluateGraph imported canonical (Graph pos "package" (S.Form pos [S.Symbol pos "package"])))
+             either refute pure (settings pos value)
 
 
--- The build file's one graph, named build: anything else it declares is an error
-buildGraph :: FilePath -> Module -> Either (NonEmpty OuroError) (HigherExpression 'GraphExpr)
-buildGraph file m =
-    case (NE.nonEmpty (sortOn errPos (others <> unnamed)), Map.lookup "build" graphs) of
-        (Nothing, Just graph) -> Right graph
-        (Just errs, _)        -> Left errs
-        (Nothing, Nothing)    -> Left (pure (OuroError (initialPos file) (noBuildGraph Nothing)))
+-- package.ouro's one function, package, of no parameters, and where it is: anything else it
+-- declares is an error
+packageFunction :: FilePath -> Module -> Either (NonEmpty OuroError) SourcePos
+packageFunction file m =
+    case (NE.nonEmpty (sortOn errPos (others <> unnamed)), Map.lookup "package" functions) of
+        (Nothing, Just (Function pos _ _ _ _)) -> Right pos
+        (Just errs, _)                         -> Left errs
+        (Nothing, Nothing)                     -> Left (pure (OuroError (initialPos file) (noPackageFunction Nothing)))
     where
-    graphs = m ^. graphRegistry
+    functions = m ^. functionRegistry
 
-    others = [ OuroError (importPos imp) (notBuildData "an import") | imp <- m ^. imports ]
-          <> [ OuroError pos (notBuildData "an export") | (_, pos) <- m ^. exports ]
-          <> [ OuroError pos (notBuildData "a function") | Function pos _ _ _ _ <- Map.elems (m ^. functionRegistry) ]
-          <> [ OuroError pos (notBuildData "a second graph") | Graph pos _ _ <- extra ]
+    others = [ OuroError pos (notPackageData "an export") | (_, pos) <- m ^. exports ]
+          <> [ OuroError pos (notPackageData "a graph") | Graph pos _ _ <- Map.elems (m ^. graphRegistry) ]
+          <> [ OuroError pos (reservedPackageName name) | Function pos name _ _ _ <- Map.elems functions, name `elem` reservedPackageNames ]
+          <> [ OuroError pos (packageParameters (length params)) | Just (Function pos _ _ params _) <- [Map.lookup "package" functions], not (null params) ]
+          <> [ OuroError pos (notPackageData "a function") | Function pos _ _ _ _ <- extra ]
 
-    -- Without a graph named build, the first graph is reported as misnamed, and any others
-    -- as second graphs
-    (unnamed, extra) = case Map.member "build" graphs of
-                           True  -> ([], [ g | g@(Graph _ name _) <- Map.elems graphs, name /= "build" ])
-                           False -> case sortOn (\(Graph pos _ _) -> pos) (Map.elems graphs) of
-                                        Graph pos name _ : rest -> ([OuroError pos (noBuildGraph (Just name))], rest)
-                                        []                      -> ([], [])
+    -- The functions that are neither package nor reserved. Without a function named package,
+    -- the first of them is reported as misnamed, and any others as other functions.
+    unreserved = sortOn (\(Function pos _ _ _ _) -> pos)
+                        [ f | f@(Function _ name _ _ _) <- Map.elems functions, name /= "package", name `notElem` reservedPackageNames ]
+
+    (unnamed, extra) = case (Map.member "package" functions, unreserved) of
+                           (True, _)                               -> ([], unreserved)
+                           (False, Function pos name _ _ _ : rest) -> ([OuroError pos (noPackageFunction (Just name))], rest)
+                           (False, [])                             -> ([], [])
 
 
--- The build graph's value against the build file's schema: a record of known settings, with
--- :name required. Every setting that is wrong is reported, at the graph.
-settings :: SourcePos -> L.Expr -> Either (NonEmpty OuroError) BuildFile
+-- The package function's value against the settings' schema: a record of known settings,
+-- none required, so #record-empty is every default. Every setting that is wrong is reported,
+-- at the function.
+settings :: SourcePos -> L.Expr -> Either (NonEmpty OuroError) Package
 settings pos = \case
-    L.Record _ pairs
-        -> let setting key = lookup key pairs
-               unknown     = [ at (unknownBuildSetting key) | (key, _) <- pairs, key `notElem` buildSettings ]
-               unsupported = [ at (unsupportedBuildSetting key) | (key, _) <- pairs, key `elem` ["graphs", "depends"] ]
-               name        = maybe (Left (pure (at (missingBuildSetting "name")))) (text "name") (setting "name")
-               sources     = maybe (Right ["."]) folders (setting "sources")
-               out         = maybe (Right "out") (fmap T.unpack . text "out") (setting "out")
-           in case NE.nonEmpty (unknown <> unsupported <> problems name <> problems sources <> problems out) of
-                  Just errs -> Left errs
-                  Nothing   -> BuildFile <$> name <*> sources <*> out <*> pure pos
-
+    L.Record _ pairs      -> fromPairs pairs
+    L.Primitive I.EmptyRec -> fromPairs []
     other
         -> Left (pure (mismatch "a Record" other
-                         "A build file's graph is a record of settings, as in (graph build (:name \"my-project\"))."))
+                         "The package function's value is a record of settings, as in (defn package () (:sources \"src\"))."))
     where
+    fromPairs pairs =
+        let setting key = lookup key pairs
+            unknown     = [ at (unknownBuildSetting key) | (key, _) <- pairs, key `notElem` buildSettings ]
+            unsupported = [ at (unsupportedBuildSetting key) | (key, _) <- pairs, key `elem` ["graphs", "ouro"] ]
+            sources     = maybe (Right ".") (folder "sources") (setting "sources")
+            outputs     = maybe (Right "out") (folder "outputs") (setting "outputs")
+        in case NE.nonEmpty (unknown <> unsupported <> problems sources <> problems outputs) of
+               Just errs -> Left errs
+               Nothing   -> Package <$> sources <*> outputs <*> pure pos
+
     at = OuroError pos
 
     problems = either toList (const [])
 
-    text key = \case
-        L.Primitive (I.String t) -> Right t
-        other                    -> Left (pure (mismatch "#string" other ("The build setting :" <> key <> " is a String.")))
-
-    -- :sources is an Array of folders, even when it names one
-    folders = \case
-        L.Array elements
-            -> let checked = [ text ("sources[" <> T.pack (show i) <> "]") element | (i, element) <- zip [0 :: Int ..] elements ]
-               in case NE.nonEmpty (concatMap problems checked) of
-                      Just errs -> Left errs
-                      Nothing   -> map T.unpack <$> sequence checked
-        other
-            -> Left (pure (mismatch "an Array of #string" other
-                             "The build setting :sources is an Array of folders, as in (\"src\"), even when it names one."))
+    folder key = \case
+        L.Primitive (I.String t) -> Right (T.unpack t)
+        other                    -> Left (pure (mismatch "#string" other ("The package setting :" <> key <> " is a String.")))
 
     mismatch expected actual blurb = typeMismatch expected (L.humanReadableType actual) & withBlurb blurb & at
 
 
--- The modules under a project's source roots, each with the files it was found in: a module
--- in more than one root has more than one. A module's name is its path under its root,
--- written with '/'. The build file, hidden folders (.git, .jj) and the out folder are skipped,
--- as is a root that does not exist, which the build reports.
-discoverModules :: Project -> IO (Map.Map Text [FilePath])
+-- The modules under a project's source folder, each with its file, by name. A module's name is
+-- its path under the folder, written with '/'. Skipped: hidden folders (.git, .jj), the outputs
+-- folder, every package.ouro, and every folder holding one, which is a project of its own.
+-- Folders are compared as they are on disk, so a source folder written through .. still skips
+-- the outputs. A source folder that does not exist has none, which the build reports.
+discoverModules :: Project -> IO [(Text, FilePath)]
 discoverModules project = do
-    roots <- filterM doesDirectoryExist (projectRoots project)
-    found <- forM roots $ \root -> do
-                 files <- walk root
-                 pure [ (moduleName root file, [file]) | file <- files ]
-    pure (Map.fromListWith (flip (<>)) (concat found))
+    let root = projectRoot project
+    exists <- doesDirectoryExist root
+    out    <- canonicalizePath (projectOut project)
+    files  <- if exists then walk out root else pure []
+    pure (sortOn fst [ (moduleName root file, file) | file <- files ])
     where
-    walk dir = do
+    walk out dir = do
         entries <- map (dir </>) . filter (not . hidden) <$> listDirectory dir
         dirs    <- filterM doesDirectoryExist entries
-        let files = [ entry | entry <- entries, entry `notElem` dirs, takeExtension entry == ".ouro"
-                            , not (equalFilePath entry (normalise (projectFile project))) ]
-        nested  <- traverse walk (filter (not . equalFilePath (projectOut project)) dirs)
+        let files = [ entry | entry <- entries, entry `notElem` dirs, takeExtension entry == ".ouro", takeFileName entry /= packageFileName ]
+        kept    <- filterM (built out) dirs
+        nested  <- traverse (walk out) kept
         pure (files <> concat nested)
+
+    built out dir = do
+        canonical <- canonicalizePath dir
+        project'  <- doesFileExist (dir </> packageFileName)
+        pure (not (equalFilePath canonical out) && not project')
 
     hidden = \case
         '.' : _ -> True
@@ -226,7 +223,7 @@ discoverModules project = do
     moduleName root file = T.intercalate "/" (map T.pack (splitDirectories (dropExtension (makeRelative root file))))
 
 
--- Modules in files under source roots, the importing file's directory or a build's :sources:
+-- Modules in files under source roots, the importing file's directory or a project's :sources:
 -- (import a/b) reads root/a/b.ouro, and its key is its path, a/b. A module in more than one
 -- root is ambiguous, never the first root's. A path is normalised, so one written with / on
 -- Windows is shown with one kind of separator.
@@ -253,54 +250,46 @@ outputFile :: FilePath -> Text -> Text -> FilePath
 outputFile out name graph = out </> joinPath (map T.unpack (T.splitOn "/" name)) </> T.unpack graph <.> "json"
 
 
--- Builds the project whose build file is in a directory or above it. A build file that cannot
--- be found or read is a message, since there is no source to show an error in.
+-- Builds the project in a folder: every graph of every module under its :sources, to
+-- <outputs>/<module>/<graph>.json. A module under a bundled folder, std or aat, is an error,
+-- and is not built. A folder that does not exist, or a package.ouro that cannot be read, is a
+-- message, since there is no source to show an error in.
 buildProject :: FilePath -> IO (Either Text (BuildResult FilePath))
-buildProject dir = withProject dir $ \case
-    (warnings, Left errs) -> pure (BuildFailure warnings errs)
-    (warnings, Right project)
-        -> do
-           let build = projectBuild project
-           missing  <- filterM (fmap not . doesDirectoryExist . snd)
-                               [ (folder, normalise (takeDirectory (projectFile project) </> folder)) | folder <- buildSources build ]
-           found    <- discoverModules project
-           let unique    = [ (initialPos file, name) | (name, [file]) <- Map.toList found ]
-               ambiguous = [ OuroError (buildAt build) (ambiguousModule name (map T.pack files)) | (name, files@(_ : _ : _)) <- Map.toList found ]
-               absent    = [ OuroError (buildAt build) (missingSourceFolder (T.pack folder) (T.pack looked)) | (folder, looked) <- missing ]
-           built <- fmap (uncurry (outputFile (projectOut project)))
-                        <$> buildModules (fromRoots (projectRoots project)) unique
-           pure $ case (built, NE.nonEmpty (absent <> ambiguous)) of
-                      (BuildSuccess ws _, Just errs)     -> BuildFailure (warnings <> ws) errs
-                      (BuildSuccess ws outputs, Nothing) -> BuildSuccess (warnings <> ws) outputs
-                      (BuildFailure ws errs, extra)      -> BuildFailure (warnings <> ws) (maybe errs (<> errs) extra)
+buildProject dir = doesDirectoryExist dir >>= \case
+    False -> pure (Left ("No folder " <> T.pack dir <> ": ouro build builds the project in a folder."))
+    True  -> readProject >>= \case
+        Left message                    -> pure (Left message)
+        Right (warnings, Left errs)     -> pure (Right (BuildFailure warnings errs))
+        Right (warnings, Right project) -> Right <$> build warnings project
     where
-    withProject start continue = findBuildFile start >>= \case
-        Nothing   -> pure (Left ("No " <> T.pack buildFileName <> " in " <> T.pack start <> " or any folder above it."))
-        Just file -> readSource file >>= \case
-                         Left  err    -> pure (Left err)
-                         Right source -> let (warnings, read') = readBuildFile file source
-                                         in Right <$> continue (warnings, Project file <$> read')
+    readProject = do
+        let file = normalise (dir </> packageFileName)
+        exists <- doesFileExist file
+        if not exists
+            then pure (Right ([], Right (Project dir (defaultPackage dir))))
+            else readSource file >>= \case
+                     Left  err    -> pure (Left err)
+                     Right source -> let (warnings, read') = readPackage file source
+                                     in pure (Right (warnings, Project dir <$> read'))
+
+    build warnings project = do
+        let package = projectPackage project
+            root    = projectRoot project
+        rootExists <- doesDirectoryExist root
+        found      <- discoverModules project
+        let isReserved name = T.takeWhile (/= '/') name `Set.member` bundledRoots
+            absent   = [ OuroError (packageAt package) (missingSourceFolder (T.pack (packageSources package)) (T.pack root)) | not rootExists ]
+            reserved = [ OuroError (initialPos file) (reservedModule name) | (name, file) <- found, isReserved name ]
+            modules  = [ (initialPos file, name) | (name, file) <- found, not (isReserved name) ]
+        built <- fmap (uncurry (outputFile (projectOut project)))
+                     <$> buildModules (fromRoots [root]) modules
+        pure $ case (built, NE.nonEmpty (absent <> reserved)) of
+                   (BuildSuccess ws _, Just errs)     -> BuildFailure (warnings <> ws) errs
+                   (BuildSuccess ws outputs, Nothing) -> BuildSuccess (warnings <> ws) outputs
+                   (BuildFailure ws errs, extra)      -> BuildFailure (warnings <> ws) (maybe errs (<> errs) extra)
 
 
 -- Compiles a file on disk: it imports the modules in files beside it, a/b.ouro for (import a/b),
 -- and the bundled ones. An import of std/… or aat/… is always the bundled module.
 compileFile :: FilePath -> String -> Text -> IO CompilationResult
 compileFile path = compileUsing (fromRoots [takeDirectory path]) path
-
-
--- Compiles a graph of a file as the build would: its imports are read from the :sources of
--- the build file in its directory or above it, and from the file's own directory when there
--- is none. A build file that cannot be read is a message.
-compileInProject :: FilePath -> String -> Text -> IO (Either Text CompilationResult)
-compileInProject path trgt content = findBuildFile (takeDirectory path) >>= \case
-    Nothing   -> Right <$> compileFile path trgt content
-    Just file -> readSource file >>= \case
-        Left  err    -> pure (Left err)
-        Right source -> case readBuildFile file source of
-            (warnings, Left errs)  -> pure (Right (CompilationFailure warnings errs))
-            (warnings, Right build) -> Right . withWarnings warnings
-                                       <$> compileUsing (fromRoots (projectRoots (Project file build))) path trgt content
-    where
-    withWarnings ws = \case
-        CompilationSuccess more ast  -> CompilationSuccess (ws <> more) ast
-        CompilationFailure more errs -> CompilationFailure (ws <> more) errs

@@ -300,16 +300,18 @@ data InternalError
     deriving (Show, Eq, Ord, Generic)
 
 
---- BUILD FILE VIOLATIONS ---
--- What is wrong with a build.ouro, the data that describes a build. A setting of the wrong
--- type is a TypeMismatch.
+--- BUILD VIOLATIONS ---
+-- What is wrong with a project's build: its package.ouro, the settings of a build, and the
+-- modules under its :sources. A setting of the wrong type is a TypeMismatch. A retired error
+-- keeps its constructor, never raised, so its code is never given to another error.
 data BuildError
-    -- A setting the build file's schema does not have, such as :sorces
+    -- A setting package.ouro's schema does not have, such as :sorces
     = UnknownBuildSetting
       { unknownSetting :: Text
       }
 
-    -- A setting every build needs that the build file does not give
+    -- RETIRED, never raised: a setting every build needed that build.ouro did not give, its
+    -- :name. No setting of package.ouro is required.
     | MissingBuildSetting
       { missingSetting :: Text
       }
@@ -319,19 +321,46 @@ data BuildError
       { unsupportedSetting :: Text
       }
 
-    -- A declaration a build file cannot hold: an import, an export, a function or a second graph
+    -- RETIRED, never raised: a declaration build.ouro could not hold, an import, an export, a
+    -- function or a second graph. package.ouro's are NotPackageData and ReservedPackageName.
     | NotBuildData
       { buildDeclaration :: Text
       }
 
-    -- The build file's graph is not named build, or the file has no graph
+    -- RETIRED, never raised: build.ouro's graph was not named build, or it had no graph.
+    -- package.ouro's is NoPackageFunction.
     | NoBuildGraph
       { foundGraph :: Maybe Text
       }
 
-    -- A folder of :sources that does not exist
+    -- The folder of :sources does not exist
     | MissingSourceFolder
       { sourceFolder :: Text
+      }
+
+    -- A declaration package.ouro cannot hold: a graph, an export or a function other than package
+    | NotPackageData
+      { packageDeclaration :: Text
+      }
+
+    -- package.ouro has no function named package: the name of the function it has instead, if any
+    | NoPackageFunction
+      { foundFunction :: Maybe Text
+      }
+
+    -- The package function takes parameters
+    | PackageParameters
+      { parameterCount :: Int
+      }
+
+    -- A module under :sources whose path starts with a bundled folder, std or aat
+    | ReservedModule
+      { reservedPath :: Text
+      }
+
+    -- A function of package.ouro named inputs, build or exports, names kept for later versions
+    | ReservedPackageName
+      { reservedName :: Text
       }
     deriving (Show, Eq, Ord, Generic)
 

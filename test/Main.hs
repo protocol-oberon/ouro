@@ -54,8 +54,8 @@ main = withUtf8Console $ do
         , Import.moduleErrors
         , Import.sourceFrames
         , Import.modulesOnDisk
-        -- Builds: build.ouro, its source roots, and every graph of every module
-        , Build.buildFiles
+        -- Builds: package.ouro, its source folder, and every graph of every module
+        , Build.packageFiles
         , Build.builds
         , Build.projectsOnDisk
         -- The command line: ouro itself, run as a user runs it
