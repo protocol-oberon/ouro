@@ -8,6 +8,7 @@ module Ouro.ImportTest
 , sourceFrames
 ) where
 
+import           CLI.Project                   (compileFile)
 import           Control.Monad                 (forM_, when)
 import qualified Data.ByteString               as BS
 import           Data.Char                     (isSpace)
@@ -20,7 +21,7 @@ import           Data.Ouro                     (CompilationResult (..),
                                                 ErrorContext (..),
                                                 OuroError (..), OuroWarning (..),
                                                 SourceFrame (..), bundledFile,
-                                                compileFile, compileUsing,
+                                                compileUsing,
                                                 defaultOptions, readSource,
                                                 smartErrorCode, sourceFrame,
                                                 toJSON)

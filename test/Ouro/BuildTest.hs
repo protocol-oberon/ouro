@@ -10,6 +10,9 @@ module Ouro.BuildTest
 , writeProject
 ) where
 
+import           CLI.Project                  (BuildFile (..), buildProject,
+                                               compileInProject, findBuildFile,
+                                               outputFile, readBuildFile)
 import           Control.Monad                (forM_, when)
 import qualified Data.ByteString              as BS
 import           Data.Char                    (isSpace)
@@ -19,10 +22,7 @@ import           Data.Ouro                    (CompilationResult (..),
                                                ErrorContext (..), OuroError (..),
                                                defaultOptions, readSource,
                                                smartErrorCode, toJSON)
-import           Data.Ouro.Build              (BuildFile (..), BuildResult (..),
-                                               buildModules, buildProject, outputFile,
-                                               compileInProject, findBuildFile,
-                                               readBuildFile)
+import           Data.Ouro.Build              (BuildResult (..), buildModules)
 import           Data.Ouro.Lisp.Module.Loader (fromSources)
 import           Data.Text                    (Text)
 import qualified Data.Text                    as T

@@ -4,7 +4,6 @@
 module Data.Ouro
   -- * Core Compilation Pipeline
 ( compile
-, compileFile
 , compileUsing
 , compileWith
 , evaluateGraph
@@ -83,9 +82,8 @@ import           Data.Ouro.Lisp.Eval.Types   (Expr (..), freeze)
 import qualified Data.Ouro.Lisp.Eval.Types   as L
 import qualified Data.Ouro.Lisp.Lexer        as LX
 import           Data.Ouro.Lisp.Module.Bundled (bundledFile)
-import           Data.Ouro.Lisp.Module.Loader (LoadEnv, fromRoots,
-                                              fromSources, loadImports,
-                                              runLoader)
+import           Data.Ouro.Lisp.Module.Loader (LoadEnv, fromSources,
+                                              loadImports, runLoader)
 import           Data.Ouro.Lisp.Module.Types (Declaration (..),
                                               HigherExpression (..), Module,
                                               graphRegistry)
@@ -94,7 +92,6 @@ import           Data.Text                   (Text)
 import qualified Data.Text                   as T
 import qualified Data.Text.Lazy              as TL
 import           Lens.Micro.Platform         ((^.))
-import           System.FilePath             (takeDirectory)
 import qualified Text.Megaparsec             as M
 import           Text.Megaparsec             (errorBundlePretty)
 
@@ -112,12 +109,6 @@ compile = compileWith Map.empty
 -- the bundled ones. Nothing is read from disk, so it is pure: the test suite's fake files.
 compileWith :: Map.Map Text Text -> String -> String -> Text -> CompilationResult
 compileWith sources filename trgt content = runIdentity (compileUsing (fromSources sources) filename trgt content)
-
-
--- Compiles a file on disk: it imports the modules in files beside it, a/b.ouro for (import a/b),
--- and the bundled ones. An import of std/… or aat/… is always the bundled module.
-compileFile :: FilePath -> String -> Text -> IO CompilationResult
-compileFile path = compileUsing (fromRoots [takeDirectory path]) path
 
 
 -- Compiles a file whose imports are read through the given loader: from memory, or from disk

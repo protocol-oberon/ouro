@@ -9,28 +9,24 @@ module Data.Ouro.Lisp.Module.Loader
 , Resolved (..)
 , bundledOnly
 , bundledRoots
-, fromRoots
 , fromSources
 , loadImports
 , loadModules
 , runLoader
 ) where
 
-import           Control.Monad                (filterM)
 import           Control.Monad.Reader         (ReaderT, asks, local, runReaderT)
 import           Control.Monad.State.Strict   (StateT, gets, modify, runStateT)
 import           Control.Monad.Trans          (lift)
 import           Control.Monad.Validate       (refute, runValidateT)
 import           Control.Monad.Writer         (runWriterT, tell)
 import qualified Data.Map.Strict              as Map
-import           Data.List                    (nub)
 import           Data.Ouro.Error.Diagnostics  (ambiguousModule, importCycle,
                                                moduleNotFound,
                                                moduleUnreadable)
 import qualified Data.Ouro.Error.Linter       as LN
 import           Data.Ouro.Error.Types        (OuroError (..))
 import           Data.Ouro.Internal.Compiler  (CompilerT)
-import           Data.Ouro.Internal.Source    (readSource)
 import qualified Data.Ouro.Lisp.Canon         as Canon
 import qualified Data.Ouro.Lisp.Eval.Types    as L
 import qualified Data.Ouro.Lisp.Lexer         as LX
@@ -42,8 +38,6 @@ import qualified Data.Set                     as Set
 import           Data.Text                    (Text)
 import qualified Data.Text                    as T
 import           Lens.Micro                   ((^.))
-import           System.Directory             (doesFileExist)
-import           System.FilePath              (normalise, (<.>), (</>))
 import           Text.Megaparsec              (SourcePos)
 
 
@@ -134,28 +128,6 @@ fromSources sources = LoadEnv
                               in pure (maybe (Unreadable file "No module has this key.") (Found file) (Map.lookup key sources))
     , importStack   = []
     }
-
-
--- Modules in files under source roots, the importing file's directory or a build's :sources:
--- (import a/b) reads root/a/b.ouro, and its key is its path, a/b. A module in more than one
--- root is ambiguous, never the first root's. A path is normalised, so one written with / on
--- Windows is shown with one kind of separator.
-fromRoots :: [FilePath] -> LoadEnv IO
-fromRoots roots = LoadEnv
-    { resolveModule = \_importer path -> do
-                          found <- existing path
-                          pure $ case found of
-                              [_file] -> Resolved path
-                              []      -> Missing (candidates path)
-                              _many   -> Ambiguous found
-    , readModule    = \key -> existing key >>= \case
-                          [file] -> either (Unreadable file) (Found file) <$> readSource file
-                          _other -> pure (Unreadable (T.unpack key <> ".ouro") "Its file was moved or deleted while the build ran.")
-    , importStack   = []
-    }
-    where
-    candidates path = nub [ normalise (root </> T.unpack path <.> "ouro") | root <- roots ]
-    existing        = filterM doesFileExist . candidates
 
 
 -- The modules a module imports, by qualifier. The imports are independent, so every one

@@ -1116,7 +1116,7 @@ Dependencies flow in one direction, from the pure JSON-LD core upwards:
 | Front end    | ~Lisp.Tokens~, ~Lisp.Lexer~, ~Lisp.Surface~, ~Lisp.Function~, ~Lisp.Parser~, ~Lisp.Canon~ (and its passes), ~Lisp.Module.Types~ | errors, each other                                           |
 | Evaluator    | ~Eval.Types~ ← ~Eval.Builtins~, ~Eval.Schema~, ~Eval.Pattern~ ← ~Eval.Scope~ ← ~Eval.Structural~ ← ~Eval.Engine~ | everything below                                             |
 | Pipeline     | ~Data.Ouro~ ← ~Data.Ouro.Build~                                                                                  | everything                                                   |
-| Command line | =app/= (~CLI.Parser~, ~CLI.Runner~, ~CLI.Printer~)                                                               | ~Data.Ouro~ and ~Data.Ouro.Build~ only                       |
+| Command line | =cli/=, the internal library =ouro-cli= (~CLI.Project~, ~CLI.Parser~, ~CLI.Runner~, ~CLI.Printer~); =app/= is ~Main~ only | the library; nothing in the library imports it               |
 
 Invariants:
 

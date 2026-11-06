@@ -4,6 +4,7 @@ module CLI.Runner
 ) where
 
 import           CLI.Printer       (pintDiagnostic)
+import           CLI.Project       (buildProject, compileInProject)
 import           CLI.Types         (Command (..), TargetTransform (..),
                                     ValidateCommand (..))
 import           Control.Monad     (join)
@@ -12,8 +13,7 @@ import           Data.List         (nub)
 import           Data.Ouro         (OuroError (..), OuroWarning (..),
                                     PrinterOptions (..), defaultOptions)
 import qualified Data.Ouro         as O
-import           Data.Ouro.Build   (BuildResult (..), buildProject,
-                                    compileInProject)
+import           Data.Ouro.Build   (BuildResult (..))
 import qualified Data.Text         as T
 import qualified Data.Text.IO      as TIO
 import qualified Data.Text.Lazy    as TL

@@ -19,6 +19,7 @@ module Ouro.LanguageTest
 , knownGaps
 ) where
 
+import           CLI.Project               (findBuildFile)
 import qualified Data.ByteString           as BS
 import           Data.Maybe                (fromJust)
 import           Data.Ouro                 (LinterWarning (..),
@@ -29,7 +30,6 @@ import           Data.Ouro                 (LinterWarning (..),
                                             smartWarningCode, validate)
 import qualified Data.Ouro.Internal.Expr   as I
 import qualified Data.Ouro.Internal.Kinds  as JLD
-import           Data.Ouro.Build           (findBuildFile)
 import           Data.Ouro.Internal.Schema (ContextEntry (..), ContextValue (..),
                                             Directives, Schema (..), directive)
 import qualified Data.Text                 as T
