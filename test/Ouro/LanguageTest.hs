@@ -19,6 +19,9 @@ module Ouro.LanguageTest
 , knownGaps
 ) where
 
+import           CLI.Project               (Package (..), Project (..),
+                                            buildProject, defaultPackage,
+                                            discoverModules)
 import           CLI.Source                (readSource)
 import qualified Data.ByteString           as BS
 import           Data.Maybe                (fromJust)
@@ -37,11 +40,14 @@ import qualified Data.Text.Lazy            as TL
 import           Hedgehog
 import qualified Hedgehog.Gen              as Gen
 import qualified Hedgehog.Range            as Range
-import           Ouro.BuildTest            (buildsTo)
+import           Ouro.BuildTest            (buildsTo, projectBuildsTo,
+                                            projectFailsWith, writeProject)
 import           System.FilePath           ((</>))
+import           Text.Megaparsec           (initialPos)
 import qualified Text.URI                  as URI
 import           Utils                     (compilesToJSON, emitsExactly,
                                             failsWith, failsWithout, fixture,
+                                            fixedGap,
                                             importsFailAt, readSourceFile,
                                             shouldCompileTo)
 
@@ -937,10 +943,28 @@ knownGaps = Group "Known gaps: current, incorrect behaviour"
                                                                      "(graph g (:ex:a/b 1 :y 2))")
     , ("gap 31: a '#' ends a key",                   importsFailAt "SYN0000" ("inline-test", 1, 16) ["Unknown property: #b"] []
                                                                      "(graph g (:ex:a#b 1 :y 2))")
+      -- Fixed gaps: each old pin, written for package.ouro, run negated
+    , ("gap 32 (fixed): overlapping source roots build a module twice", fixedGap $ projectBuildsTo "gap-32-overlap" [ ("package.ouro", "(defn package () (:sources (\".\" \"src\")))"), ("src/main.ouro", "(graph g (:r 1))") ]
+                                                                  [("out" </> "main" </> "g.json", "{\"r\":1}"), ("out" </> "src" </> "main" </> "g.json", "{\"r\":1}")])
+    , ("gap 32 (fixed): a root with a trailing slash is a second root", fixedGap $ projectFailsWith "gap-32-slash" [ ("package.ouro", "(defn package () (:sources (\"src\" \"src/\")))"), ("src/main.ouro", "(graph g (:r 1))") ]
+                                                                   "SCP0011" ["ambiguousPath = \"main\""])
+    , ("gap 32 (fixed): a root through .. builds the project's file", fixedGap . withTests 1 . property $ do
+                                                    dir   <- evalIO (writeProject "gap-32-dotdot" [ ("package.ouro", "(defn package () (:sources \"src/..\"))"), ("main.ouro", "(graph g (:r 1))"), ("src/keep.txt", "a folder to go through") ])
+                                                    found <- evalIO (discoverModules (Project dir (Package "src/.." "out" (initialPos "package.ouro"))))
+                                                    map fst found === ["main", "package"])
+    , ("gap 33 (fixed): a nested project's files are modules", fixedGap . withTests 1 . property $ do
+                                                    dir   <- evalIO (writeProject "gap-33" [ ("main.ouro", "(graph g (:r 1))"), ("sub/package.ouro", "(defn package () (:sources \"src\"))"), ("sub/src/x.ouro", "(graph g (:r 2))") ])
+                                                    found <- evalIO (discoverModules (Project dir (defaultPackage dir)))
+                                                    assert (any (`elem` map fst found) ["sub/package", "sub/src/x"]))
     , ("gap 34: a graph's name is not checked as a file name", buildsTo [("main", "(graph a? (:r 1))\n(graph con (:r 2))\n(graph ex:g (:r 3))")]
                                                                   [("out" </> "main" </> "a?.json", "{\"r\":1}"), ("out" </> "main" </> "con.json", "{\"r\":2}"), ("out" </> "main" </> "ex:g.json", "{\"r\":3}")])
     , ("gap 34: nor are names apart only by case",  buildsTo [("main", "(graph G (:r 1))\n(graph g (:r 2))")]
                                                              [("out" </> "main" </> "G.json", "{\"r\":1}"), ("out" </> "main" </> "g.json", "{\"r\":2}")])
+    , ("gap 36 (fixed): a folder that does not exist builds the project above it", fixedGap . withTests 1 . property $ do
+                                                    dir <- evalIO (writeProject "gap-36" [ ("package.ouro", "(defn package () #record-empty)"), ("main.ouro", "(graph g (:r 1))") ])
+                                                    evalIO (buildProject (dir </> "typo")) >>= \case
+                                                        Right _ -> success
+                                                        Left _  -> failure)
     , ("gap 39: insert floors a fractional index",   compilesToJSON "(graph g (:r (insert 1.5 \"x\" (1 2))))"
                                                                    "{\"r\": [1, \"x\", 2]}")
     ]

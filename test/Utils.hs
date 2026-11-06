@@ -22,6 +22,10 @@ import           Data.Text                    (Text)
 import qualified Data.Text                    as T
 import qualified Data.Text.Lazy               as TL
 import           Hedgehog
+import           Hedgehog.Internal.Property   (Property (..))
+import           Hedgehog.Internal.Report     (Report (..), Result (..))
+import           Hedgehog.Internal.Runner     (checkReport)
+import qualified Hedgehog.Internal.Seed       as Seed
 import           Text.Megaparsec              (SourcePos, initialPos, sourceColumn,
                                                sourceLine, sourceName, unPos)
 
@@ -62,6 +66,19 @@ readSourceFile path = decodeSource path <$> BS.readFile path
 
 fixture :: FilePath -> FilePath
 fixture path = "./test/fixtures/" <> path
+
+
+-- A fixed gap's old pin, run negated: it passes only while the pin fails, so the gap's old,
+-- incorrect behaviour coming back fails the suite. The pin runs silently. It passes when the
+-- pin fails for any reason, a setup that no longer works included, so a fixed gap always has
+-- a test of the correct behaviour as well.
+fixedGap :: Property -> Property
+fixedGap pin = withTests 1 . property $ do
+    seed   <- Seed.random
+    report <- evalIO (checkReport (propertyConfig pin) 30 seed (propertyTest pin) (const (pure ())))
+    case reportStatus report of
+        Failed _ -> success
+        _other   -> annotate "The gap's old behaviour is back: its pin passes." >> failure
 
 
 -- Generates a complete, schema-less 'JLD.Primitive Record from a list of attribute pairs.

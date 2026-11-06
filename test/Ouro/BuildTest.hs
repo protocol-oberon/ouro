@@ -5,6 +5,9 @@ module Ouro.BuildTest
 , builds
 , projectsOnDisk
 , buildsTo
+, projectBuildsTo
+, projectFailsWith
+, writeProject
 ) where
 
 import           CLI.Project                  (Package (..), Project (..),
