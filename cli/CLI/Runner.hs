@@ -5,6 +5,7 @@ module CLI.Runner
 
 import           CLI.Printer       (pintDiagnostic)
 import           CLI.Project       (buildProject, compileFile)
+import           CLI.Source        (readSource)
 import           CLI.Types         (Command (..), TargetTransform (..),
                                     ValidateCommand (..))
 import           Control.Monad     (join)
@@ -147,7 +148,7 @@ runValidate (ValidateCommand fp op sp sc) =
 
 -- Reads a source file as UTF-8, whatever the platform's code page, or reports why it cannot
 readSourceOrExit :: FilePath -> IO T.Text
-readSourceOrExit fp = O.readSource fp >>= \case
+readSourceOrExit fp = readSource fp >>= \case
     Right content -> pure content
     Left  err     -> TIO.hPutStrLn stderr err >> exitFailure
 
@@ -170,4 +171,4 @@ sourcesFor known positions = do
     where
     readOther file = case O.bundledFile file of
                          Just source -> pure (Just source)
-                         Nothing     -> either (const Nothing) Just <$> O.readSource file
+                         Nothing     -> either (const Nothing) Just <$> readSource file

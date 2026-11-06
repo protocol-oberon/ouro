@@ -19,13 +19,14 @@ module Ouro.LanguageTest
 , knownGaps
 ) where
 
+import           CLI.Source                (readSource)
 import qualified Data.ByteString           as BS
 import           Data.Maybe                (fromJust)
 import           Data.Ouro                 (LinterWarning (..),
                                             SemanticWarning (..),
                                             VocabularyWarning (..),
                                             WarningContext (..), decodeSource,
-                                            defaultOptions, readSource,
+                                            defaultOptions,
                                             smartWarningCode, validate)
 import qualified Data.Ouro.Internal.Expr   as I
 import qualified Data.Ouro.Internal.Kinds  as JLD
@@ -41,7 +42,7 @@ import           System.FilePath           ((</>))
 import qualified Text.URI                  as URI
 import           Utils                     (compilesToJSON, emitsExactly,
                                             failsWith, failsWithout, fixture,
-                                            importsFailAt,
+                                            importsFailAt, readSourceFile,
                                             shouldCompileTo)
 
 
@@ -428,7 +429,7 @@ encoding = Group "Encoding: source files are UTF-8"
     [ ("a UTF-8 file compiles",              withTests 1 . property $
                                                   shouldCompileTo (fixture "ouro/encoding.ouro") "encoding" (fixture "json/encoding.json"))
     , ("whatever the code page",             withTests 1 . property $ do
-                                                  content <- evalIO (readSource (fixture "ouro/encoding.ouro"))
+                                                  content <- evalIO (readSourceFile (fixture "ouro/encoding.ouro"))
                                                   fmap (T.isInfixOf "\201douard Manet") content === Right True)
     , ("names and keys can be any letters",  compilesToJSON "(defn caf\233 () \"x\") (graph g (:r (caf\233) :na\239ve 1))"
                                                                  "{\"r\": \"x\", \"na\239ve\": 1}")

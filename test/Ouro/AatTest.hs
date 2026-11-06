@@ -3,7 +3,6 @@ module Ouro.AatTest
 ) where
 
 import qualified Data.Map.Strict               as Map
-import           Data.Ouro                     (readSource)
 import           Data.Ouro.Lisp.Lexer          (tokenize)
 import           Data.Ouro.Lisp.Module.Bundled (bundled)
 import qualified Data.Ouro.Lisp.Module.Types   as M
@@ -13,7 +12,7 @@ import           Hedgehog
 import           Data.Ouro.Lisp.Parser         (parseModule)
 import           Utils                         (compilesToJSON,
                                                 compilesWithoutWarnings,
-                                                failsWith)
+                                                failsWith, readSourceFile)
 
 
 -- A program that imports every aat/ module
@@ -75,7 +74,7 @@ recommendedTerms = Group "aat: Linked Art's recommended terms"
 -- the table changed, fails here
 everyTermGenerated :: Property
 everyTermGenerated = withTests 1 . property $ do
-    table <- evalIO (readSource "scripts/aat/recommended.tsv") >>= either (\err -> annotate (T.unpack err) >> failure) pure
+    table <- evalIO (readSourceFile "scripts/aat/recommended.tsv") >>= either (\err -> annotate (T.unpack err) >> failure) pure
     let terms     = [ number | line <- T.lines table, not ("##" `T.isPrefixOf` line), [_, number, _] <- [T.splitOn "\t" (T.strip line)] ]
         sources   = [ source | (path, (_, source)) <- Map.toList bundled, "aat/" `T.isPrefixOf` path ]
         missing   = [ number | number <- terms, not (any (("\"" <> number <> "\"") `T.isInfixOf`) sources) ]

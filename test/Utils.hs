@@ -3,14 +3,14 @@
 module Utils where
 
 import           Control.Monad.IO.Class       (MonadIO, liftIO)
+import qualified Data.ByteString              as BS
 import           Data.Char                    (isSpace)
 import           Data.Foldable                (toList)
 import qualified Data.Map.Strict              as Map
 import           Data.Maybe                   (fromJust)
 import           Data.Ouro                    (CompilationResult (..), compile,
-                                               compileWith,
-                                               defaultOptions, readSource,
-                                               toJSON)
+                                               compileWith, decodeSource,
+                                               defaultOptions, toJSON)
 import           Data.Ouro.Error.Diagnostics  (smartErrorCode, smartWarningCode,
                                                warningBlurb,
                                                warningSummary)
@@ -51,9 +51,14 @@ shouldCompileTo test graph trgt = do
             failure
 
     where
-    readUtf8 path = liftIO (readSource path) >>= \case
+    readUtf8 path = liftIO (readSourceFile path) >>= \case
         Right content -> pure content
         Left  err     -> annotate (T.unpack err) >> failure
+
+-- A file's bytes decoded as Ouro source is, as UTF-8: the library reads no files, so its
+-- tests read their own
+readSourceFile :: FilePath -> IO (Either Text Text)
+readSourceFile path = decodeSource path <$> BS.readFile path
 
 fixture :: FilePath -> FilePath
 fixture path = "./test/fixtures/" <> path

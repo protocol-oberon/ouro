@@ -19,6 +19,7 @@ module CLI.Project
 , readPackage
 ) where
 
+import           CLI.Source                   (readSource)
 import           Control.Monad                (filterM)
 import           Control.Monad.Validate       (refute, runValidateT)
 import           Control.Monad.Writer         (runWriterT, tell)
@@ -30,8 +31,7 @@ import           Data.List.NonEmpty           (NonEmpty (..))
 import qualified Data.List.NonEmpty           as NE
 import qualified Data.Map.Strict              as Map
 import           Data.Ouro                    (CompilationResult (..),
-                                               compileUsing, evaluateGraph,
-                                               readSource)
+                                               compileUsing, evaluateGraph)
 import           Data.Ouro.Build              (BuildResult (..), buildModules)
 import           Data.Ouro.Error.Diagnostics  (buildSettings, missingSourceFolder,
                                                noPackageFunction, notPackageData,

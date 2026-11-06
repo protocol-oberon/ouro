@@ -13,10 +13,9 @@ module Data.Ouro
 , defaultOptions
 , validate
 
--- * Reading source files, and the bundled modules' sources
+-- * Decoding source files, and the bundled modules' sources
 , bundledFile
 , decodeSource
-, readSource
 
 -- * Core Execution Error Types
 , BuildError(..)
@@ -70,7 +69,7 @@ import           Data.Ouro.Error.Types       (BuildError (..), ErrorContext (..)
 import           Data.Ouro.Internal.Compiler (CompilerT)
 import qualified Data.Ouro.Internal.Expr     as I
 import qualified Data.Ouro.Internal.Kinds    as JLD
-import           Data.Ouro.Internal.Source   (decodeSource, readSource)
+import           Data.Ouro.Internal.Source   (decodeSource)
 import           Data.Ouro.Internal.Utils    (rankBySimilarity)
 import qualified Data.Ouro.Json.Parser       as JP
 import           Data.Ouro.Json.Serializer   (PrinterOptions (..),

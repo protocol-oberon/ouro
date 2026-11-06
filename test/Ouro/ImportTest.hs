@@ -9,6 +9,7 @@ module Ouro.ImportTest
 ) where
 
 import           CLI.Project                   (compileFile)
+import           CLI.Source                    (readSource)
 import           Control.Monad                 (forM_, when)
 import qualified Data.ByteString               as BS
 import           Data.Char                     (isSpace)
@@ -22,7 +23,7 @@ import           Data.Ouro                     (CompilationResult (..),
                                                 OuroError (..), OuroWarning (..),
                                                 SourceFrame (..), bundledFile,
                                                 compileUsing,
-                                                defaultOptions, readSource,
+                                                defaultOptions,
                                                 smartErrorCode, sourceFrame,
                                                 toJSON)
 import           Data.Ouro.Lisp.Lexer          (tokenize)
