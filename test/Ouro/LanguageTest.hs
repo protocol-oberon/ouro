@@ -154,6 +154,14 @@ formsAndBuiltins = Group "Special forms and built-ins"
                                                               "(graph g (:a #string 1))")
     , ("recursion is an error",                     failsWith "a recursive function call"
                                                               "(defn f (n) (f n)) (graph g (:r (f 1)))")
+    , ("so is mutual recursion",                    failsWith "a recursive function call"
+                                                              "(defn f (n) (h n)) (defn h (n) (f n)) (graph g (:r (f 1)))")
+    , ("and a function applied to itself",          failsWith "a recursive function call"
+                                                              "(defn w (x) (x x)) (graph g (:r (w w)))")
+    , ("a fn too, with no name to recurse by",      failsWith "a recursive function call"
+                                                              "(graph g (let ($w (fn (x) (x x))) (:r (w w))))")
+    , ("and through map",                           failsWith "a recursive function call"
+                                                              "(graph g (let ($w (fn (x) (map (fn (y) (y y)) (list x)))) (:r (w w))))")
     , ("brackets are reserved",                     failsWith "an unrecognized compiler macro token shape"
                                                               "(graph g (:a [1 2]))")
 
