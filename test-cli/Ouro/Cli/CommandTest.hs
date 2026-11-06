@@ -1,4 +1,4 @@
-module Ouro.CliTest
+module Ouro.Cli.CommandTest
 ( builds
 , compiles
 , validates

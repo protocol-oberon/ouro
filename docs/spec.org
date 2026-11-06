@@ -1158,7 +1158,7 @@ Why quoting went: curators compose and restructure records; they do not manipula
 
 * Appendix B: Known gaps
 
-Recorded 2026-10-12 and kept up to date since; none were caused by the scoping redesign. Each open gap is pinned in =Language.knownGaps= (=test/Ouro/LanguageTest.hs=), or, when only running =ouro= shows it, in the CLI's tests (=test/Ouro/CliTest.hs=), by its current, incorrect behaviour, in a test named "gap N: …"; the change that fixes a gap flips its test.
+Recorded 2026-10-12 and kept up to date since; none were caused by the scoping redesign. Each open gap is pinned by its current, incorrect behaviour, in a test named "gap N: …": a gap of the compiler in =Language.knownGaps= (=test/Ouro/LanguageTest.hs=, the =ouro-test= suite), and a gap of the command line in the =ouro-cli-test= suite, in =Project.knownGaps= (=test-cli/Ouro/Cli/ProjectTest.hs=) or, when only running =ouro= shows it, in =test-cli/Ouro/Cli/CommandTest.hs=. The change that fixes a gap adds a test of the correct behaviour and keeps the old pin, run negated (=fixedGap=), as "gap N (fixed): …", so the old behaviour coming back fails the suite.
 
 1. /Fixed:/ =@context= handling was incomplete: only four directives could be written, with no term definitions or =null=, and a remote context with local directives serialised as a nested =@context= object, which is invalid JSON-LD. A context is now a value written as JSON-LD writes it, and several contexts are an array (see [[*=@context=][=@context=]]).
 
@@ -1184,7 +1184,7 @@ Recorded 2026-10-12 and kept up to date since; none were caused by the scoping r
 
 12. *Zero-argument functions re-evaluate* on every call; as pure constants they could be shared.
 
-13. *Code health:* the =[ ]= bracket syntax parses but has no meaning; =validate= without =-o= overwrites its input; the CLI is tested only from outside, by running =ouro= (=test/Ouro/CliTest.hs=), for its exit codes, the files it writes and what it prints; and no test checks an error message's rendering. The ~failsWith~ checks search the Haskell =show= of an error, but the rendered diagnostic (title, code, source line and caret, blurb) is built in =app/CLI/Printer.hs=, which writes ANSI straight to stderr and cannot be imported by the tests. The planned fix: move the rendering into the library as a pure document, leaving the CLI to colour and print it, and add golden tests (=test/fixtures/errors/=, one =.ouro= and its expected =.txt= per error kind).
+13. *Code health:* the =[ ]= bracket syntax parses but has no meaning; =validate= without =-o= overwrites its input; the CLI's commands are tested only from outside, by running =ouro= (=test-cli/Ouro/Cli/CommandTest.hs=), for their exit codes, the files they write and what they print; and no test checks an error message's rendering. The ~failsWith~ checks search the Haskell =show= of an error, but the rendered diagnostic (title, code, source line and caret, blurb) is built in =cli/CLI/Printer.hs=, which writes ANSI straight to stderr, so a test sees it only by running =ouro=. The planned fix: move the rendering into the library as a pure document, leaving the CLI to colour and print it, and add golden tests (=test/fixtures/errors/=, one =.ouro= and its expected =.txt= per error kind).
 
 14. *A record made only of inlays is read as an array:* ~((inlay (a)) (inlay (b)))~ has no written attribute pair, so structural classification makes it an array, and each =inlay= then expects an array. Workaround: write at least one attribute pair.
 

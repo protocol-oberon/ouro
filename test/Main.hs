@@ -1,12 +1,9 @@
-{-# LANGUAGE CPP #-}
-
 module Main where
 
 import           Hedgehog
 import qualified Ouro.AatTest        as Aat
 import qualified Ouro.BuildTest      as Build
 import qualified Ouro.CanonicalTest  as Canonical
-import qualified Ouro.CliTest        as Cli
 import qualified Ouro.EvaluationTest as Evaluation
 import qualified Ouro.FunctionTest   as Function
 import qualified Ouro.ImportTest     as Import
@@ -16,10 +13,7 @@ import qualified Ouro.ScopingTest    as Scoping
 import qualified Ouro.StdTest        as Std
 import qualified Ouro.StructuralTest as Structural
 import           System.Exit         (exitFailure, exitSuccess)
-#if defined(mingw32_HOST_OS)
-import           Control.Exception    (IOException, bracket_, catch)
-import           System.Win32.Console (getConsoleOutputCP, setConsoleOutputCP)
-#endif
+import           Utils               (withUtf8Console)
 
 
 main :: IO ()
@@ -53,15 +47,8 @@ main = withUtf8Console $ do
         , Import.importedModules
         , Import.moduleErrors
         , Import.sourceFrames
-        , Import.modulesOnDisk
-        -- Builds: package.ouro, its source folder, and every graph of every module
-        , Build.packageFiles
+        -- Builds: every graph of every module, keyed by module and graph
         , Build.builds
-        , Build.projectsOnDisk
-        -- The command line: ouro itself, run as a user runs it
-        , Cli.builds
-        , Cli.compiles
-        , Cli.validates
         -- The bundled std: Linked Art's patterns and required terms
         , Std.base
         , Std.time
@@ -92,7 +79,7 @@ main = withUtf8Console $ do
         , Language.conditions
         , Language.contexts
         , Language.contextAlgebra
-        -- Known gaps: pinned as they are today; a fix flips its test
+        -- Known gaps: pinned as they are today; a fixed gap keeps its pin, run negated
         , Language.knownGaps
         ]
 
@@ -100,21 +87,3 @@ main = withUtf8Console $ do
     case and results of
         True  -> exitSuccess
         False -> exitFailure
-
-
--- Hedgehog writes its report as UTF-8 (✓, ━, ┃), but a Windows console decodes what it is
--- sent with its own code page, such as 850. As in ouro's own main, the console is switched
--- to UTF-8 (65001) while the tests run and restored afterwards; without a console (output
--- redirected) nothing is changed.
-withUtf8Console :: IO a -> IO a
-#if defined(mingw32_HOST_OS)
-withUtf8Console action = do
-    previous <- getConsoleOutputCP
-    case previous of
-        0           -> action
-        _hasConsole -> bracket_ (trySet 65001) (trySet previous) action
-    where
-    trySet codePage = setConsoleOutputCP codePage `catch` \(_ :: IOException) -> pure ()
-#else
-withUtf8Console = id
-#endif

@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP       #-}
 {-# LANGUAGE DataKinds #-}
 
 module Utils where
@@ -11,10 +12,12 @@ import           Data.Maybe                   (fromJust)
 import           Data.Ouro                    (CompilationResult (..), compile,
                                                compileWith, decodeSource,
                                                defaultOptions, toJSON)
+import           Data.Ouro.Build              (BuildResult (..))
 import           Data.Ouro.Error.Diagnostics  (smartErrorCode, smartWarningCode,
                                                warningBlurb,
                                                warningSummary)
-import           Data.Ouro.Error.Types        (OuroError (..), OuroWarning (..))
+import           Data.Ouro.Error.Types        (ErrorContext (..), OuroError (..),
+                                               OuroWarning (..))
 import qualified Data.Ouro.Internal.Expr      as I
 import qualified Data.Ouro.Internal.Kinds     as JLD
 import           Data.Ouro.Lisp.Eval.Builtins (parseISO8601)
@@ -28,6 +31,28 @@ import           Hedgehog.Internal.Runner     (checkReport)
 import qualified Hedgehog.Internal.Seed       as Seed
 import           Text.Megaparsec              (SourcePos, initialPos, sourceColumn,
                                                sourceLine, sourceName, unPos)
+#if defined(mingw32_HOST_OS)
+import           Control.Exception            (IOException, bracket_, catch)
+import           System.Win32.Console         (getConsoleOutputCP, setConsoleOutputCP)
+#endif
+
+
+-- Hedgehog writes its report as UTF-8 (✓, ━, ┃), but a Windows console decodes what it is
+-- sent with its own code page, such as 850. As in ouro's own main, the console is switched
+-- to UTF-8 (65001) while the tests run and restored afterwards; without a console (output
+-- redirected) nothing is changed. Both test suites run under it.
+withUtf8Console :: IO a -> IO a
+#if defined(mingw32_HOST_OS)
+withUtf8Console action = do
+    previous <- getConsoleOutputCP
+    case previous of
+        0           -> action
+        _hasConsole -> bracket_ (trySet 65001) (trySet previous) action
+    where
+    trySet codePage = setConsoleOutputCP codePage `catch` \(_ :: IOException) -> pure ()
+#else
+withUtf8Console = id
+#endif
 
 
 -- runCompileInline :: String -> CompilationResult
@@ -79,6 +104,25 @@ fixedGap pin = withTests 1 . property $ do
     case reportStatus report of
         Failed _ -> success
         _other   -> annotate "The gap's old behaviour is back: its pin passes." >> failure
+
+
+-- A build's graphs and their JSON, by key, whitespace ignored: keyed by module and graph in
+-- the library, by the file it is written to in the CLI
+outputsAre :: (Eq k, Show k) => [(k, Text)] -> BuildResult k -> PropertyT IO ()
+outputsAre expected = \case
+    BuildSuccess _ outputs -> [ (key, squash (TL.toStrict (toJSON defaultOptions ast))) | (key, ast) <- outputs ] === [ (key, squash json) | (key, json) <- expected ]
+    BuildFailure _ errs    -> annotate (show errs) >> failure
+
+squash :: Text -> Text
+squash = T.filter (not . isSpace)
+
+-- An error's text, with its blurb, unescaped: show would double a Windows path's backslashes
+errorText :: OuroError -> Text
+errorText (OuroError _ context) = contextText context
+    where
+    contextText = \case
+        AnnotatedContext blurb inner -> blurb <> "\n" <> contextText inner
+        other                        -> T.pack (show other)
 
 
 -- Generates a complete, schema-less 'JLD.Primitive Record from a list of attribute pairs.
@@ -181,8 +225,6 @@ compilesToJSON src expected = withTests 1 . property $
         failed                   -> do
                                     annotate (describe failed)
                                     failure
-    where
-    squash = T.filter (not . isSpace)
 
 -- The program compiles, and its output contains the given text exactly, whitespace included,
 -- for checks that 'compilesToJSON' would squash away, such as the characters inside a string
@@ -247,8 +289,6 @@ importsToJSON modules src expected = withTests 1 . property $
         failed                   -> do
                                     annotate (describe failed)
                                     failure
-    where
-    squash = T.filter (not . isSpace)
 
 -- With modules: the program fails, and one of its errors mentions every given text. An
 -- error shows its line and column but not its file: importsFailIn checks the file.
