@@ -4,7 +4,7 @@ module CLI.Runner
 ) where
 
 import           CLI.Printer       (pintDiagnostic)
-import           CLI.Project       (buildProject, compileFile)
+import           CLI.Project       (buildProject)
 import           CLI.Source        (readSource)
 import           CLI.Types         (Command (..), TargetTransform (..),
                                     ValidateCommand (..))
@@ -21,7 +21,7 @@ import qualified Data.Text.Lazy    as TL
 import qualified Data.Text.Lazy.IO as TLIO
 import           System.Directory  (createDirectoryIfMissing)
 import           System.Exit       (exitFailure)
-import           System.FilePath   (hasExtension, takeDirectory, (</>))
+import           System.FilePath   (takeDirectory)
 import           System.IO         (IOMode (..), hSetEncoding, hSetNewlineMode,
                                     noNewlineTranslation, stderr, utf8,
                                     withFile)
@@ -30,60 +30,16 @@ import           Text.Megaparsec   (SourcePos, sourceName)
 
 runCommand :: Command -> IO ()
 runCommand = \case
-              Compile  ifp trgt ofp -> runCompile  ifp trgt ofp
-              Build    dir          -> runBuild    dir
-              Validate c            -> runValidate c
+              Build    dir graphs -> runBuild    dir graphs
+              Validate c          -> runValidate c
 
 
-runCompile :: FilePath -> String -> Maybe FilePath -> IO ()
-runCompile ifp trgt mOutDir = do
-    -- Calculate the actual output file path dynamically
-    let ofp = case mOutDir of
-                  Just path -> case hasExtension path of
-                                   True  -> path
-                                   False -> path </> (trgt <> ".json")
-                  Nothing   -> trgt <> ".json"
-
-    putStrLn $ "Compiling:           "<> ifp <> " [" <> trgt <> "] ..."
-    -- Read and process the input file
-    content <- readSourceOrExit ifp
-
-    -- Its imports are read from the files beside it
-    result <- compileFile ifp trgt content
-
-    case result of
-        O.CompilationSuccess warnings code
-            -> do
-               -- Print all accumulated diagnostics (both warnings and non-fatal/harvested errors) up front
-               sourceOf <- sourcesFor [(ifp, content)] (map warnPos warnings)
-               mapM_ (pintDiagnostic sourceOf . Left) warnings
-
-               -- Proceed with serialization
-               let opts = defaultOptions
-               putStrLn $ "Compilation Success: " ++ ifp ++ " [" ++ trgt ++ "] -> " ++ ofp
-               -- An output directory that does not exist yet is made
-               createDirectoryIfMissing True (takeDirectory ofp)
-               writeJSON ofp (O.toJSON opts code)
-
-        O.CompilationFailure warnings errors
-            -> do
-               -- Even in failure, print the warnings gathered up to the crash point
-               sourceOf <- sourcesFor [(ifp, content)] (map warnPos warnings <> map errPos (toList errors))
-               mapM_ (pintDiagnostic sourceOf . Left) warnings
-
-               -- Print the full harvest of architectural errors
-               mapM_ (pintDiagnostic sourceOf . Right) errors
-
-               putStrLn $ "Compilation Failed: " ++ ifp ++ " due to compiler errors."
-               exitFailure
-
-
--- Builds the project in a folder: every graph of every module is written to
+-- Builds the project in a folder: the graphs chosen, every one when none is, are written to
 -- <outputs>/<module>/<graph>.json, or, if anything fails, nothing is
-runBuild :: FilePath -> IO ()
-runBuild dir = do
+runBuild :: FilePath -> [String] -> IO ()
+runBuild dir graphs = do
     putStrLn $ "Building:            " <> dir <> " ..."
-    result <- buildProject dir >>= either (\err -> TIO.hPutStrLn stderr err >> exitFailure) pure
+    result <- buildProject dir (map T.pack graphs) >>= either (\err -> TIO.hPutStrLn stderr err >> exitFailure) pure
     case result of
         BuildSuccess warnings outputs
             -> do

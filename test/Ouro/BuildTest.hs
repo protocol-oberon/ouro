@@ -2,11 +2,13 @@
 
 module Ouro.BuildTest
 ( builds
+, chosenGraphs
 ) where
 
 import           Data.Functor.Identity        (runIdentity)
 import qualified Data.Map.Strict              as Map
-import           Data.Ouro.Build              (BuildResult (..), buildModules)
+import           Data.Ouro.Build              (BuildResult (..), Graphs (..),
+                                               buildModules)
 import           Data.Ouro.Lisp.Module.Loader (fromSources)
 import           Data.Text                    (Text)
 import qualified Data.Text                    as T
@@ -30,9 +32,24 @@ builds = Group "Builds: every graph of every module"
     ]
 
 
+-- The graphs a build compiles, by module: every one, or those named
+chosenGraphs :: Group
+chosenGraphs = Group "Builds: the graphs chosen"
+    [ ("only the graphs named",                     chosenTo [("a", "(graph x (:r 1))\n(graph y (:r 2))")] [("a", OnlyGraphs ["y"])]
+                                                             [(("a", "y"), "{\"r\":2}")])
+    , ("in the order named",                        chosenTo [("a", "(graph x (:r 1))\n(graph y (:r 2))")] [("a", OnlyGraphs ["y", "x"])]
+                                                             [(("a", "y"), "{\"r\":2}"), (("a", "x"), "{\"r\":1}")])
+    , ("a graph not named is not compiled",         chosenTo [("a", "(graph x (:r 1))\n(graph bad (:r (get () 5)))")] [("a", OnlyGraphs ["x"])]
+                                                             [(("a", "x"), "{\"r\":1}")])
+    , ("a graph its module lacks suggests the closest", chosenFailsWith [("a", "(graph x (:r 1))\n(graph person (:r 2))")] [("a", OnlyGraphs ["persn"])]
+                                                             ["trgtGraph = \"persn\"", "suggestedGraph = \"person\""])
+    , ("a module with no graphs has none to name",  chosenFailsWith [("a", "(export f)\n(defn f () 1)")] [("a", OnlyGraphs ["g"])] ["NoCompilationTarget"])
+    ]
+
+
 -- Modules in memory, each built: (path, source). Each graph is keyed by its module and name.
 buildInMemory :: [(Text, Text)] -> BuildResult (Text, Text)
-buildInMemory modules = runIdentity (buildModules (fromSources (Map.fromList modules)) [ (initialPos (T.unpack path <> ".ouro"), path) | (path, _) <- modules ])
+buildInMemory modules = runIdentity (buildModules (fromSources (Map.fromList modules)) [ (initialPos (T.unpack path <> ".ouro"), path, AllGraphs) | (path, _) <- modules ])
 
 buildsTo :: [(Text, Text)] -> [((Text, Text), Text)] -> Property
 buildsTo modules expected = withTests 1 . property $ outputsAre expected (buildInMemory modules)
@@ -47,6 +64,19 @@ buildFailsTimes :: Int -> [(Text, Text)] -> Property
 buildFailsTimes times modules = withTests 1 . property $
     case buildInMemory modules of
         BuildFailure _ errs -> annotate (show errs) >> length errs === times
+        BuildSuccess _ outs -> annotate (show (map fst outs)) >> failure
+
+-- Modules in memory, the graphs named of each built
+chosenInMemory :: [(Text, Text)] -> [(Text, Graphs)] -> BuildResult (Text, Text)
+chosenInMemory modules chosen = runIdentity (buildModules (fromSources (Map.fromList modules)) [ (initialPos (T.unpack path <> ".ouro"), path, graphs) | (path, graphs) <- chosen ])
+
+chosenTo :: [(Text, Text)] -> [(Text, Graphs)] -> [((Text, Text), Text)] -> Property
+chosenTo modules chosen expected = withTests 1 . property $ outputsAre expected (chosenInMemory modules chosen)
+
+chosenFailsWith :: [(Text, Text)] -> [(Text, Graphs)] -> [Text] -> Property
+chosenFailsWith modules chosen messages = withTests 1 . property $
+    case chosenInMemory modules chosen of
+        BuildFailure _ errs -> annotate (show errs) >> assert (any (\err -> all (`T.isInfixOf` errorText err) messages) errs)
         BuildSuccess _ outs -> annotate (show (map fst outs)) >> failure
 
 buildWarnsTimes :: Int -> Text -> [(Text, Text)] -> Property

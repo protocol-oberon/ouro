@@ -361,6 +361,41 @@ importCase written spelt =
               (Build (ImportCase { writtenImport = written, fileImport = spelt }))
 
 
+-- An :ouro newer than this compiler: as written, and this compiler's version
+newerOuro :: Text -> Text -> ErrorContext
+newerOuro needed have =
+    withBlurb ( "The project needs Ouro " <> needed <> ", and this is Ouro " <> have <> ". Perhaps update Ouro, "
+             <> "or lower :ouro if the project builds with this version."
+              )
+              (Build (NewerOuro { neededOuro = needed, compilerOuro = have }))
+
+
+-- An :ouro that is not a version
+invalidVersion :: Text -> ErrorContext
+invalidVersion written =
+    withBlurb ( "The package setting :ouro is the version of Ouro the project needs, numbers apart by dots, as \"0.5\"."
+              )
+              (Build (InvalidVersion { writtenVersion = written }))
+
+
+-- A graph chosen by :graphs or -g whose module the project does not have, with the project's
+-- modules to suggest the closest of
+unknownModule :: Text -> Text -> [Text] -> ErrorContext
+unknownModule selection name modules =
+    withBlurb ( "The project has no module " <> name <> ", so it has no graph " <> selection <> "."
+             <> closest name modules
+              )
+              (Build (UnknownModule { unknownSelection = selection }))
+
+
+-- A graph chosen by :graphs or -g not written module/graph
+graphSelectionForm :: Text -> ErrorContext
+graphSelectionForm written =
+    withBlurb ( "A graph is chosen by its module and its name, as people/person for the graph person of the module people."
+              )
+              (Build (GraphSelectionForm { writtenSelection = written }))
+
+
 -- " Perhaps you meant 'x'." for the closest candidate, when one is close enough
 closest :: Text -> [Text] -> Text
 closest target candidates =

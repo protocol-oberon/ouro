@@ -49,6 +49,7 @@ main = withUtf8Console $ do
         , Import.sourceFrames
         -- Builds: every graph of every module, keyed by module and graph
         , Build.builds
+        , Build.chosenGraphs
         -- The bundled std: Linked Art's patterns and required terms
         , Std.base
         , Std.time

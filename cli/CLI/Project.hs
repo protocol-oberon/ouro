@@ -15,6 +15,7 @@ module CLI.Project
 , fromProject
 , fromRoots
 , outputFile
+, ouroVersion
 , packageFileName
 , projectOut
 , projectRoot
@@ -27,6 +28,7 @@ import           CLI.Source                   (readSource)
 import           Control.Monad                (filterM)
 import           Control.Monad.Validate       (refute, runValidateT)
 import           Control.Monad.Writer         (runWriterT, tell)
+import           Data.Char                    (isDigit)
 import           Data.Foldable                (toList)
 import           Data.Function                ((&))
 import           Data.Functor.Identity        (runIdentity)
@@ -36,16 +38,18 @@ import qualified Data.List.NonEmpty           as NE
 import qualified Data.Map.Strict              as Map
 import           Data.Ouro                    (CompilationResult (..),
                                                compileUsing, evaluateGraph)
-import           Data.Ouro.Build              (BuildResult (..), buildModules)
+import           Data.Ouro.Build              (BuildResult (..), Graphs (..),
+                                               buildModules)
 import           Data.Ouro.Error.Diagnostics  (buildSettings, collectionOverlap,
-                                               importCase, missingSourceFolder,
-                                               nestedVendor, noPackageFunction,
-                                               notPackageData, packageParameters,
+                                               graphSelectionForm, importCase,
+                                               invalidVersion, missingSourceFolder,
+                                               nestedVendor, newerOuro,
+                                               noPackageFunction, notPackageData,
+                                               packageParameters,
                                                reservedCollection, reservedModule,
                                                reservedPackageName,
                                                reservedPackageNames, typeMismatch,
-                                               unknownBuildSetting,
-                                               unsupportedBuildSetting,
+                                               unknownBuildSetting, unknownModule,
                                                withBlurb)
 import qualified Data.Ouro.Error.Linter       as LN
 import           Data.Ouro.Error.Types        (OuroError (..), OuroWarning (..))
@@ -66,7 +70,9 @@ import qualified Data.Ouro.Lisp.Surface       as S
 import qualified Data.Set                     as Set
 import           Data.Text                    (Text)
 import qualified Data.Text                    as T
+import           Data.Version                 (versionBranch)
 import           Lens.Micro.Platform          ((^.))
+import           Paths_ouro                   (version)
 import           System.Directory             (canonicalizePath,
                                                doesDirectoryExist, doesFileExist,
                                                listDirectory)
@@ -87,15 +93,21 @@ packageFileName = "package.ouro"
 
 -- A project's settings. Its folders are as written, relative to the project's folder.
 data Package = Package
-    { packageSources :: FilePath    -- The source folder, "." when not given
-    , packageOutputs :: FilePath    -- Where the graphs are written, "out" when not given
-    , packageAt      :: SourcePos   -- The package function, where its settings are reported
+    { packageSources :: FilePath      -- The source folder, "." when not given
+    , packageOutputs :: FilePath      -- Where the graphs are written, "out" when not given
+    , packageGraphs  :: Maybe [Text]  -- The graphs built, as module/graph, every one when not given
+    , packageAt      :: SourcePos     -- The package function, where its settings are reported
     } deriving (Show, Eq)
 
 
 -- The settings of a project without a package.ouro: its folder is its source folder
 defaultPackage :: FilePath -> Package
-defaultPackage dir = Package "." "out" (initialPos (normalise (dir </> packageFileName)))
+defaultPackage dir = Package "." "out" Nothing (initialPos (normalise (dir </> packageFileName)))
+
+
+-- This compiler's version, as :ouro is written: 0.5.0.0
+ouroVersion :: Text
+ouroVersion = T.intercalate "." (map (T.pack . show) (versionBranch version))
 
 
 -- A project: its folder, and its settings
@@ -179,20 +191,47 @@ settings pos = \case
     fromPairs pairs =
         let setting key = lookup key pairs
             unknown     = [ at (unknownBuildSetting key) | (key, _) <- pairs, key `notElem` buildSettings ]
-            unsupported = [ at (unsupportedBuildSetting key) | (key, _) <- pairs, key `elem` ["graphs", "ouro"] ]
-            sources     = maybe (Right ".") (folder "sources") (setting "sources")
-            outputs     = maybe (Right "out") (folder "outputs") (setting "outputs")
-        in case NE.nonEmpty (unknown <> unsupported <> problems sources <> problems outputs) of
+            sources     = maybe (Right ".") (fmap T.unpack . text "sources") (setting "sources")
+            outputs     = maybe (Right "out") (fmap T.unpack . text "outputs") (setting "outputs")
+            graphs      = maybe (Right Nothing) (fmap Just . graphNames) (setting "graphs")
+            needed      = maybe (Right ()) (\value -> text "ouro" value >>= ouro) (setting "ouro")
+        in case NE.nonEmpty (unknown <> problems sources <> problems outputs <> problems graphs <> problems needed) of
                Just errs -> Left errs
-               Nothing   -> Package <$> sources <*> outputs <*> pure pos
+               Nothing   -> Package <$> sources <*> outputs <*> graphs <*> pure pos
 
     at = OuroError pos
 
     problems = either toList (const [])
 
-    folder key = \case
-        L.Primitive (I.String t) -> Right (T.unpack t)
+    text key = \case
+        L.Primitive (I.String t) -> Right t
         other                    -> Left (pure (mismatch "#string" other ("The package setting :" <> key <> " is a String.")))
+
+    -- :graphs is an Array of graphs, each written module/graph, even when it names one
+    graphNames = \case
+        L.Primitive I.EmptyArr -> Right []
+        L.Array elements
+            -> let checked = [ text ("graphs[" <> T.pack (show i) <> "]") element | (i, element) <- zip [0 :: Int ..] elements ]
+               in case NE.nonEmpty (concatMap problems checked) of
+                      Just errs -> Left errs
+                      Nothing   -> sequence checked
+        other
+            -> Left (pure (mismatch "an Array of #string" other
+                             "The package setting :graphs is an Array of graphs, as in (\"people/person\"), even when it names one."))
+
+    -- :ouro is the version of Ouro the project needs: no newer than this compiler
+    ouro written = case traverse number (T.splitOn "." written) of
+        Nothing     -> Left (pure (at (invalidVersion written)))
+        Just needed -> let have   = versionBranch version
+                           width  = max (length needed) (length have)
+                           padded = take width . (<> repeat 0)
+                       in case padded needed > padded have of
+                              True  -> Left (pure (at (newerOuro written ouroVersion)))
+                              False -> Right ()
+        where
+        number part = case (T.null part, T.all isDigit part) of
+                          (False, True) -> Just (read (T.unpack part) :: Int)
+                          _other        -> Nothing
 
     mismatch expected actual blurb = typeMismatch expected (L.humanReadableType actual) & withBlurb blurb & at
 
@@ -391,14 +430,16 @@ outputFile :: FilePath -> Text -> Text -> FilePath
 outputFile out name graph = out </> joinPath (map T.unpack (T.splitOn "/" name)) </> T.unpack graph <.> "json"
 
 
--- Builds the project in a folder: every graph of every module under its :sources, to
--- <outputs>/<module>/<graph>.json. Its vendored libraries are read, and their modules compiled
--- only when imported. A module under a bundled folder, std or aat, is an error, and is not
--- built; nor is one under a folder named after a collection, which the overlap reports. A
--- folder that does not exist, or a package.ouro that cannot be read, is a message, since there
--- is no source to show an error in.
-buildProject :: FilePath -> IO (Either Text (BuildResult FilePath))
-buildProject dir = doesDirectoryExist dir >>= \case
+-- Builds the project in a folder: the graphs chosen, by -g, else by :graphs, else every graph
+-- of every module under its :sources, to <outputs>/<module>/<graph>.json; only the chosen
+-- graphs' modules, and what they import, are compiled. Its vendored libraries are read, and
+-- their modules compiled only when imported. A module under a bundled folder, std or aat, is an
+-- error, and is not built; nor is one under a folder named after a collection, which the overlap
+-- reports. A folder that does not exist, or a package.ouro that cannot be read, is a message,
+-- since there is no source to show an error in. A graph chosen by -g that is wrong is reported
+-- at the argument, "-g people/persn".
+buildProject :: FilePath -> [Text] -> IO (Either Text (BuildResult FilePath))
+buildProject dir requested = doesDirectoryExist dir >>= \case
     False -> pure (Left ("No folder " <> T.pack dir <> ": ouro build builds the project in a folder."))
     True  -> readPackageIn dir >>= \case
         Left message                    -> pure (Left message)
@@ -417,15 +458,41 @@ buildProject dir = doesDirectoryExist dir >>= \case
         let firstSegment name  = T.takeWhile (/= '/') name
             isReserved name    = firstSegment name `Set.member` bundledRoots
             isCollection name  = T.isInfixOf "/" name && firstSegment name `elem` map collectionName collections
-            absent   = [ OuroError (packageAt package) (missingSourceFolder (T.pack (packageSources package)) (T.pack root)) | not rootExists ]
-            reserved = [ OuroError (initialPos file) (reservedModule name) | (name, file) <- found, isReserved name ]
-            modules  = [ (initialPos file, name) | (name, file) <- found, not (isReserved name), not (isCollection name) ]
+            absent    = [ OuroError (packageAt package) (missingSourceFolder (T.pack (packageSources package)) (T.pack root)) | not rootExists ]
+            reserved  = [ OuroError (initialPos file) (reservedModule name) | (name, file) <- found, isReserved name ]
+            buildable = [ (name, file) | (name, file) <- found, not (isReserved name), not (isCollection name) ]
+            (wrong, modules) = case (requested, packageGraphs package) of
+                (_ : _, _)       -> select buildable [ (initialPos ("-g " <> T.unpack g), g) | g <- requested ]
+                ([], Just names) -> select buildable [ (packageAt package, g) | g <- names ]
+                ([], Nothing)    -> ([], [ (initialPos file, name, AllGraphs) | (name, file) <- buildable ])
         built <- fmap (uncurry (outputFile (projectOut project)))
                      <$> buildModules loader modules
-        pure $ case (built, NE.nonEmpty (absent <> reserved <> cErrors <> overlapping)) of
+        pure $ case (built, NE.nonEmpty (absent <> reserved <> cErrors <> overlapping <> wrong)) of
                    (BuildSuccess ws _, Just errs)     -> BuildFailure (warnings <> ws) errs
                    (BuildSuccess ws outputs, Nothing) -> BuildSuccess (warnings <> ws) outputs
                    (BuildFailure ws errs, extra)      -> BuildFailure (warnings <> ws) (maybe errs (<> errs) extra)
+
+
+-- The modules a build compiles for the graphs chosen, each written module/graph, with the
+-- graphs named of each, in the order of the modules' names. A choice not written so (BLD0018),
+-- or of a module the project does not build (BLD0017, with the closest module), is reported at
+-- the position given with it. A graph its module does not have is the build's to report.
+select :: [(Text, FilePath)] -> [(SourcePos, Text)] -> ([OuroError], [(SourcePos, Text, Graphs)])
+select buildable chosen = (errors, modules)
+    where
+    names  = map fst buildable
+    parsed = [ (pos, selection, split selection) | (pos, selection) <- chosen ]
+
+    -- module/graph, split at its last '/', both sides non-empty
+    split selection = case T.breakOnEnd "/" selection of
+        (prefix, graph) | not (T.null (T.dropEnd 1 prefix)), not (T.null graph) -> Just (T.dropEnd 1 prefix, graph)
+        _other                                                                   -> Nothing
+
+    errors = [ OuroError pos (graphSelectionForm selection) | (pos, selection, Nothing) <- parsed ]
+          <> [ OuroError pos (unknownModule selection name names) | (pos, selection, Just (name, _)) <- parsed, name `notElem` names ]
+
+    byModule = Map.fromListWith (flip (<>)) [ (name, [graph]) | (_, _, Just (name, graph)) <- parsed ]
+    modules  = [ (initialPos file, name, OnlyGraphs (nub graphs)) | (name, file) <- buildable, Just graphs <- [Map.lookup name byModule] ]
 
 
 -- Compiles a file on disk: it imports the modules in files beside it, a/b.ouro for (import a/b),

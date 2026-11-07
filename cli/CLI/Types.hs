@@ -8,8 +8,7 @@ module CLI.Types
 
 -- Configuration
 data Command
-    = Compile  FilePath String (Maybe FilePath)
-    | Build    FilePath
+    = Build    FilePath [String]  -- The project's folder, and the graphs chosen by -g
     | Validate ValidateCommand
     deriving (Show)
 

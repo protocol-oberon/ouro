@@ -1,6 +1,5 @@
 module Ouro.Cli.CommandTest
 ( builds
-, compiles
 , validates
 ) where
 
@@ -54,6 +53,32 @@ builds = Group "CLI: ouro build"
                                                         assert ("No folder typo" `T.isInfixOf` plain (err run))
                                                         written <- evalIO (doesDirectoryExist (dir </> "out"))
                                                         written === False)
+    , ("-g builds only the graphs named",           withTests 1 . property $ do
+                                                        dir <- evalIO (writeFolder "build-chosen" [ ("a.ouro", "(graph x (:r 1))\n(graph y (:r 2))"), ("b.ouro", "(graph g (:r (get () 5)))") ])
+                                                        run <- evalIO (ouro dir ["build", "-g", "a/y"])
+                                                        exitCode run === ExitSuccess
+                                                        assert ("Build Success:       1 graphs" `T.isInfixOf` plain (out run))
+                                                        written <- evalIO (traverse doesFileExist [dir </> "out" </> "a" </> "y.json", dir </> "out" </> "a" </> "x.json"])
+                                                        written === [True, False])
+    , ("-g with a graph that does not exist suggests the closest", withTests 1 . property $ do
+                                                        dir <- evalIO (writeFolder "build-chosen-graph" [ ("a.ouro", "(graph person (:r 1))") ])
+                                                        run <- evalIO (ouro dir ["build", "-g", "a/persn"])
+                                                        exitCode run === ExitFailure 1
+                                                        assert ("Error [SCP0004]" `T.isInfixOf` plain (err run))
+                                                        assert ("'person'" `T.isInfixOf` plain (err run)))
+    , ("-g with a module that does not exist suggests the closest", withTests 1 . property $ do
+                                                        dir <- evalIO (writeFolder "build-chosen-module" [ ("people.ouro", "(graph person (:r 1))") ])
+                                                        run <- evalIO (ouro dir ["build", "-g", "peopel/person"])
+                                                        exitCode run === ExitFailure 1
+                                                        assert ("Error [BLD0017]" `T.isInfixOf` plain (err run))
+                                                        assert ("-g peopel/person" `T.isInfixOf` plain (err run))
+                                                        assert ("Perhaps you meant 'people'" `T.isInfixOf` plain (err run)))
+    , ("ouro compile is no longer a command",       withTests 1 . property $ do
+                                                        dir <- evalIO (writeFolder "compile-gone" [ ("m.ouro", "(graph g (:r 1))") ])
+                                                        run <- evalIO (ouro dir ["compile", "m.ouro", "-t", "g"])
+                                                        exitCode run === ExitFailure 1
+                                                        written <- evalIO (doesFileExist (dir </> "g.json"))
+                                                        written === False)
     , ("gap 27: a renamed graph's old output is left", withTests 1 . property $ do
                                                         dir <- evalIO (writeFolder "build-stale" [ ("main.ouro", "(graph g (:r 1))") ])
                                                         _   <- evalIO (ouro dir ["build"])
@@ -75,41 +100,6 @@ builds = Group "CLI: ouro build"
                                                         run <- evalIO (ouro dir ["build"])
                                                         assert ("\ESC[" `T.isInfixOf` err run))
     ]
-
-
--- ouro compile, run as a user runs it, in a folder of its own
-compiles :: Group
-compiles = Group "CLI: ouro compile"
-    [ ("a graph is written to <graph>.json where ouro runs", withTests 1 . property $ do
-                                                        dir <- evalIO (writeFolder "compile-success" [ module' ])
-                                                        run <- evalIO (ouro dir ["compile", "m.ouro", "-t", "g"])
-                                                        exitCode run === ExitSuccess
-                                                        assert ("Compilation Success: m.ouro [g] -> g.json" `T.isInfixOf` plain (out run))
-                                                        json <- evalIO (readText (dir </> "g.json"))
-                                                        squash json === "{\"r\":1}")
-    , ("-o a folder writes <graph>.json in it, made", withTests 1 . property $ do
-                                                        dir <- evalIO (writeFolder "compile-folder" [ module' ])
-                                                        run <- evalIO (ouro dir ["compile", "m.ouro", "-t", "g", "-o", "new/dir"])
-                                                        exitCode run === ExitSuccess
-                                                        json <- evalIO (readText (dir </> "new" </> "dir" </> "g.json"))
-                                                        squash json === "{\"r\":1}")
-    , ("-o a file writes it",                       withTests 1 . property $ do
-                                                        dir <- evalIO (writeFolder "compile-file" [ module' ])
-                                                        run <- evalIO (ouro dir ["compile", "m.ouro", "-t", "g", "-o", "x.json"])
-                                                        exitCode run === ExitSuccess
-                                                        json <- evalIO (readText (dir </> "x.json"))
-                                                        squash json === "{\"r\":1}")
-    , ("a failure writes nothing, its errors on stderr", withTests 1 . property $ do
-                                                        dir <- evalIO (writeFolder "compile-failure" [ module' ])
-                                                        run <- evalIO (ouro dir ["compile", "m.ouro", "-t", "nope"])
-                                                        exitCode run === ExitFailure 1
-                                                        assert ("Compilation Failed: m.ouro due to compiler errors." `T.isInfixOf` plain (out run))
-                                                        assert ("Error [SCP0004]" `T.isInfixOf` plain (err run))
-                                                        written <- evalIO (doesFileExist (dir </> "nope.json"))
-                                                        written === False)
-    ]
-    where
-    module' = ("m.ouro", "(graph g (:r 1))")
 
 
 -- ouro validate, run as a user runs it, in a folder of its own

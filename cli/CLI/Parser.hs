@@ -10,8 +10,8 @@ import           Data.Version        (showVersion)
 import           Options.Applicative (Parser, argument, auto, command,
                                       customExecParser, eitherReader, fullDesc,
                                       header, help, helper, info, infoOption,
-                                      long, metavar, option, optional, prefs,
-                                      progDesc, short, showHelpOnEmpty,
+                                      long, many, metavar, option, optional,
+                                      prefs, progDesc, short, showHelpOnEmpty,
                                       showHelpOnError, str, strOption,
                                       subparser, switch, value, (<**>))
 import           Paths_ouro          (version)
@@ -21,25 +21,24 @@ import           System.FilePath     (takeExtension)
 -- Main Parser directly returns a Command
 pCommand :: Parser Command
 pCommand = subparser
-         (  command "compile"  (info (pCompile  <**> helper) (progDesc "Compile Ouro to JSON-LD"))
-         <> command "build"    (info (pBuild    <**> helper) (progDesc "Build every graph of the project in a folder, with the settings of its package.ouro, if it has one"))
+         (  command "build"    (info (pBuild    <**> helper) (progDesc "Build the graphs of the project in a folder, with the settings of its package.ouro, if it has one"))
          <> command "validate" (info (pValidate <**> helper) (progDesc "Validate JSON-LD"))
          )
 
 
--- The project's folder: the current one when not given
+-- The project's folder, the current one when not given, and the graphs chosen, every one when
+-- none is: -g people/person, as often as needed
 pBuild :: Parser Command
-pBuild = Build <$> argument str ( metavar "DIR"
-                               <> help "The project's folder, the current one when not given"
-                               <> value "."
-                                )
-
-
-pCompile :: Parser Command
-pCompile =  Compile
-        <$> pOuroFile
-        <*> pTargetOption
-        <*> optional pOutputDirOption
+pBuild =  Build
+      <$> argument str ( metavar "DIR"
+                      <> help "The project's folder, the current one when not given"
+                      <> value "."
+                       )
+      <*> many (strOption ( long "graph"
+                         <> short 'g'
+                         <> metavar "MODULE/GRAPH"
+                         <> help "A graph to build, as people/person; may be given more than once, and replaces :graphs"
+                          ))
 
 
 pValidate :: Parser Command
@@ -85,22 +84,6 @@ pVersion = infoOption ("Ouro v" <> showVersion version)
 
 
 -- Reusable primitive parsers
-pTargetOption :: Parser String
-pTargetOption = strOption ( long "trgt"
-                         <> short 't'
-                         <> metavar "STRING"
-                         <> help "Target graph name within the module"
-                          )
-
-
-pOutputDirOption :: Parser FilePath
-pOutputDirOption = strOption ( long "output"
-                            <> short 'o'
-                            <> metavar "DIR"
-                            <> help "Output directory"
-                             )
-
-
 pOutputFileOption :: Parser FilePath
 pOutputFileOption = strOption ( long "output"
                              <> short 'o'
@@ -118,16 +101,6 @@ pJsonFile = argument (eitherReader validateJsonPath) (metavar "file")
                                 False -> Left $ "Invalid input file '"
                                              ++ path
                                              ++ "'. Input must be a .json file."
-
-
-pOuroFile :: Parser FilePath
-pOuroFile = argument (eitherReader validateOuroPath) (metavar "SOURCE_FILE")
-    where
-    validateOuroPath path = case map toLower (takeExtension path) == ".ouro" of
-                               True  -> Right path
-                               False -> Left $ "Invalid compiler source target '"
-                                            ++ path
-                                            ++ "'. Input must be an Ouro Lisp (.ouro) file."
 
 
 runParser :: IO Command

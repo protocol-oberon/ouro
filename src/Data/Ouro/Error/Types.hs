@@ -316,7 +316,8 @@ data BuildError
       { missingSetting :: Text
       }
 
-    -- A setting of the schema that this version of Ouro does not act on yet
+    -- A setting of the schema that this version of Ouro does not act on yet. None is now: kept
+    -- for a setting added before it is acted on.
     | UnsupportedBuildSetting
       { unsupportedSetting :: Text
       }
@@ -384,6 +385,27 @@ data BuildError
     | ImportCase
       { writtenImport :: Text   -- As written in the import
       , fileImport    :: Text   -- As the file spells it
+      }
+
+    -- An :ouro newer than the compiler: as written, and the compiler's version
+    | NewerOuro
+      { neededOuro   :: Text
+      , compilerOuro :: Text
+      }
+
+    -- An :ouro that is not a version, as 0.5
+    | InvalidVersion
+      { writtenVersion :: Text
+      }
+
+    -- A graph chosen by :graphs or -g whose module the project does not have
+    | UnknownModule
+      { unknownSelection :: Text
+      }
+
+    -- A graph chosen by :graphs or -g not written module/graph
+    | GraphSelectionForm
+      { writtenSelection :: Text
       }
     deriving (Show, Eq, Ord, Generic)
 

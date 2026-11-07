@@ -6,6 +6,7 @@ module Ouro.Cli.ProjectTest
 ( packageFiles
 , projectsOnDisk
 , vendoredLibraries
+, chosenGraphs
 , modulesOnDisk
 , sourceFiles
 , knownGaps
@@ -14,7 +15,8 @@ module Ouro.Cli.ProjectTest
 import           CLI.Project                  (Package (..), Project (..),
                                                buildProject, compileFile,
                                                defaultPackage, discoverModules,
-                                               outputFile, readPackage)
+                                               ouroVersion, outputFile,
+                                               readPackage)
 import           CLI.Source                   (readSource)
 import           Control.Monad                (forM_, when)
 import qualified Data.ByteString              as BS
@@ -25,7 +27,8 @@ import qualified Data.Map.Strict              as Map
 import           Data.Ouro                    (CompilationResult (..),
                                                OuroError (..), defaultOptions,
                                                smartErrorCode, toJSON)
-import           Data.Ouro.Build              (BuildResult (..), buildModules)
+import           Data.Ouro.Build              (BuildResult (..), Graphs (..),
+                                               buildModules)
 import           Data.Ouro.Lisp.Module.Loader (fromSources)
 import           Data.Text                    (Text)
 import qualified Data.Text                    as T
@@ -55,8 +58,12 @@ packageFiles = Group "Builds: package.ouro"
     , ("and only them",                             packageFails "(import helpers)\n(defn package () (:sources \"src\"))" "SCP0006" ["missingModule = \"helpers\""])
     , ("an unknown setting suggests the nearest",   packageFails "(defn package () (:sorces \"src\"))" "BLD0000" ["unknownSetting = \"sorces\"", "Perhaps you meant ':sources'"])
     , (":name is not a setting",                    packageFails "(defn package () (:name \"p\"))" "BLD0000" ["unknownSetting = \"name\""])
-    , (":graphs is not acted on yet",               packageFails "(defn package () (:graphs ()))" "BLD0002" ["unsupportedSetting = \"graphs\"", "every graph of every module is built"])
-    , (":ouro is not acted on yet",                 packageFails "(defn package () (:ouro \"1.0\"))" "BLD0002" ["unsupportedSetting = \"ouro\""])
+    , (":graphs chooses the graphs built",          readsGraphs "(defn package () (:graphs (\"people/person\" \"places/tate\")))" (Just ["people/person", "places/tate"]))
+    , ("without it, every graph is",                readsGraphs "(defn package () (:sources \"src\"))" Nothing)
+    , (":graphs is an Array, even of one",          packageFails "(defn package () (:graphs \"people/person\"))" "TYP0000" ["even when it names one"])
+    , (":ouro is the version needed",               readsAs "(defn package () (:ouro \"0.5\"))" (".", "out"))
+    , ("no newer than this compiler",               packageFails "(defn package () (:ouro \"99.0\"))" "BLD0015" ["neededOuro = \"99.0\"", "compilerOuro = \"" <> ouroVersion <> "\""])
+    , ("written as numbers apart by dots",          packageFails "(defn package () (:ouro \"latest\"))" "BLD0016" ["writtenVersion = \"latest\""])
     , ("a graph is not package data",               packageFails "(defn package () (:sources \"src\"))\n(graph g (:a 1))" "BLD0006" ["a graph"])
     , ("an export is not package data",             packageFails "(export package)\n(defn package () (:sources \"src\"))" "BLD0006" ["an export"])
     , ("another function is not package data",      packageFails "(defn f () 1)\n(defn package () (:sources \"src\"))" "BLD0006" ["a function"])
@@ -92,7 +99,7 @@ projectsOnDisk = Group "Builds: projects on disk"
                                                                     [("out" </> "main" </> "g.json", "{\"r\":1}")])
     , ("nor is package.ouro, as a module",          withTests 1 . property $ do
                                                         dir   <- evalIO (writeProject "dotdot-modules" [ package "(:sources \"src/..\")", ("main.ouro", "(graph g (:r 1))"), ("src/keep.txt", "a folder to go through") ])
-                                                        found <- evalIO (discoverModules (Project dir (Package "src/.." "out" (initialPos "package.ouro"))))
+                                                        found <- evalIO (discoverModules (Project dir (Package "src/.." "out" Nothing (initialPos "package.ouro"))))
                                                         map fst found === ["main"])
     , ("a source folder with a trailing slash is one folder", projectBuildsTo "slash" [ package "(:sources \"src/\")", ("src/main.ouro", "(graph g (:r 1))") ]
                                                                     [("out" </> "main" </> "g.json", "{\"r\":1}")])
@@ -107,7 +114,7 @@ projectsOnDisk = Group "Builds: projects on disk"
                                                                      "BLD0009" ["reservedPath = \"aat\"", "rename the file"])
     , ("a folder that does not exist is not built from above", withTests 1 . property $ do
                                                         dir <- evalIO (writeProject "no-folder" [ package "#record-empty", ("main.ouro", "(graph g (:r 1))") ])
-                                                        evalIO (buildProject (dir </> "typo")) >>= \case
+                                                        evalIO (buildProject (dir </> "typo") []) >>= \case
                                                             Left message -> assert ("No folder " `T.isPrefixOf` message)
                                                             Right _      -> failure)
     ]
@@ -178,6 +185,36 @@ vendoredLibraries = Group "Builds: vendored libraries"
         False -> projectFailsWith name files "SCP0006" [missing]
 
 
+-- The graphs a project builds: those named by -g, else by :graphs, else every one; only their
+-- modules are compiled
+chosenGraphs :: Group
+chosenGraphs = Group "Builds: the graphs chosen"
+    [ (":graphs builds only those graphs",         projectBuildsTo "chosen" [ package "(:graphs (\"a/x\"))", two, broken ]
+                                                                    [("out" </> "a" </> "x.json", "{\"r\":1}")])
+    , ("-g replaces :graphs",                       projectBuildsWith "chosen-g" ["a/y"] [ package "(:graphs (\"a/x\"))", two, broken ]
+                                                                      [("out" </> "a" </> "y.json", "{\"r\":2}")])
+    , ("-g may be given more than once",            projectBuildsWith "chosen-twice" ["a/y", "a/x"] [ two ]
+                                                                      [("out" </> "a" </> "y.json", "{\"r\":2}"), ("out" </> "a" </> "x.json", "{\"r\":1}")])
+    , (":graphs () builds nothing",                 projectBuildsTo "chosen-none" [ package "(:graphs ())", two, broken ] [])
+    , ("a graph is written module/graph",          projectFailsWith "chosen-form" [ package "(:graphs (\"x\"))", two ]
+                                                                     "BLD0018" ["writtenSelection = \"x\"", "people/person"])
+    , ("a module the project lacks suggests the closest", projectFailsWith "chosen-module" [ package "(:graphs (\"peopel/person\"))", ("people.ouro", "(graph person (:r 1))") ]
+                                                                     "BLD0017" ["unknownSelection = \"peopel/person\"", "Perhaps you meant 'people'"])
+    , ("a graph its module lacks suggests the closest", projectFailsWith "chosen-graph" [ package "(:graphs (\"a/persn\"))", ("a.ouro", "(graph person (:r 1))") ]
+                                                                     "SCP0004" ["trgtGraph = \"persn\"", "suggestedGraph = \"person\""])
+    , ("-g's error is shown at the argument",     withTests 1 . property $ do
+                                                        dir <- evalIO (writeProject "chosen-at" [ two ])
+                                                        evalIO (buildProject dir ["b/x"]) >>= \case
+                                                            Right (BuildFailure _ errs) -> map (sourceName . errPos) (toList errs) === ["-g b/x"]
+                                                            Right (BuildSuccess _ outs) -> annotate (show (map fst outs)) >> failure
+                                                            Left message                -> annotate (T.unpack message) >> failure)
+    ]
+    where
+    package settings = ("package.ouro", "(defn package () " <> settings <> ")")
+    two              = ("a.ouro", "(graph x (:r 1))\n(graph y (:r 2))")
+    broken           = ("b.ouro", "(graph g (:r (get () 5)))")
+
+
 -- Modules in files on disk, read as the command line reads them: from the directory of the
 -- file compiled, before the bundled ones
 modulesOnDisk :: Group
@@ -243,7 +280,7 @@ knownGaps = Group "Known gaps: the project, current and fixed"
                                                                    "SCP0011" ["ambiguousPath = \"main\""])
     , ("gap 32 (fixed): a root through .. builds the project's file", fixedGap . withTests 1 . property $ do
                                                     dir   <- evalIO (writeProject "gap-32-dotdot" [ ("package.ouro", "(defn package () (:sources \"src/..\"))"), ("main.ouro", "(graph g (:r 1))"), ("src/keep.txt", "a folder to go through") ])
-                                                    found <- evalIO (discoverModules (Project dir (Package "src/.." "out" (initialPos "package.ouro"))))
+                                                    found <- evalIO (discoverModules (Project dir (Package "src/.." "out" Nothing (initialPos "package.ouro"))))
                                                     map fst found === ["main", "package"])
     , ("gap 33 (fixed): a nested project's files are modules", fixedGap . withTests 1 . property $ do
                                                     dir   <- evalIO (writeProject "gap-33" [ ("main.ouro", "(graph g (:r 1))"), ("sub/package.ouro", "(defn package () (:sources \"src\"))"), ("sub/src/x.ouro", "(graph g (:r 2))") ])
@@ -255,7 +292,7 @@ knownGaps = Group "Known gaps: the project, current and fixed"
                                                              [("out" </> "main" </> "G.json", "{\"r\":1}"), ("out" </> "main" </> "g.json", "{\"r\":2}")])
     , ("gap 36 (fixed): a folder that does not exist builds the project above it", fixedGap . withTests 1 . property $ do
                                                     dir <- evalIO (writeProject "gap-36" [ ("package.ouro", "(defn package () #record-empty)"), ("main.ouro", "(graph g (:r 1))") ])
-                                                    evalIO (buildProject (dir </> "typo")) >>= \case
+                                                    evalIO (buildProject (dir </> "typo") []) >>= \case
                                                         Right _ -> success
                                                         Left _  -> failure)
     ]
@@ -266,6 +303,13 @@ readsAs :: Text -> (FilePath, FilePath) -> Property
 readsAs source (sources, outputs) = withTests 1 . property $
     case readPackage "package.ouro" source of
         (_, Right p)   -> (packageSources p, packageOutputs p) === (sources, outputs)
+        (_, Left errs) -> annotate (show errs) >> failure
+
+-- package.ouro reads as the given graphs chosen
+readsGraphs :: Text -> Maybe [Text] -> Property
+readsGraphs source graphs = withTests 1 . property $
+    case readPackage "package.ouro" source of
+        (_, Right p)   -> packageGraphs p === graphs
         (_, Left errs) -> annotate (show errs) >> failure
 
 -- package.ouro fails with an error of the given code mentioning every given text
@@ -287,7 +331,7 @@ packageFailsTimes times source = withTests 1 . property $
 -- Modules in memory, each built, each graph named by the file a project writes it to, in out
 filesTo :: [(Text, Text)] -> [(FilePath, Text)] -> Property
 filesTo modules expected = withTests 1 . property $
-    outputsAre expected (uncurry (outputFile "out") <$> runIdentity (buildModules (fromSources (Map.fromList modules)) [ (initialPos (T.unpack path <> ".ouro"), path) | (path, _) <- modules ]))
+    outputsAre expected (uncurry (outputFile "out") <$> runIdentity (buildModules (fromSources (Map.fromList modules)) [ (initialPos (T.unpack path <> ".ouro"), path, AllGraphs) | (path, _) <- modules ]))
 
 -- Writes the files into a directory of their own, named for the test
 writeProject :: FilePath -> [(FilePath, BS.ByteString)] -> IO FilePath
@@ -306,14 +350,22 @@ writeProject name files = do
 projectBuildsTo :: FilePath -> [(FilePath, BS.ByteString)] -> [(FilePath, Text)] -> Property
 projectBuildsTo name files expected = withTests 1 . property $ do
     dir <- evalIO (writeProject name files)
-    evalIO (buildProject dir) >>= \case
+    evalIO (buildProject dir []) >>= \case
+        Right result -> outputsAre [ (dir </> file, json) | (file, json) <- expected ] result
+        Left message -> annotate (T.unpack message) >> failure
+
+-- The project builds the graphs chosen by -g to the given files
+projectBuildsWith :: FilePath -> [Text] -> [(FilePath, BS.ByteString)] -> [(FilePath, Text)] -> Property
+projectBuildsWith name graphs files expected = withTests 1 . property $ do
+    dir <- evalIO (writeProject name files)
+    evalIO (buildProject dir graphs) >>= \case
         Right result -> outputsAre [ (dir </> file, json) | (file, json) <- expected ] result
         Left message -> annotate (T.unpack message) >> failure
 
 projectFailsWith :: FilePath -> [(FilePath, BS.ByteString)] -> Text -> [Text] -> Property
 projectFailsWith name files code messages = withTests 1 . property $ do
     dir <- evalIO (writeProject name files)
-    evalIO (buildProject dir) >>= \case
+    evalIO (buildProject dir []) >>= \case
         Right (BuildFailure _ errs) -> do
                                        annotate (show errs)
                                        assert (any (\err -> smartErrorCode (errContext err) == code && all (`T.isInfixOf` errorText err) messages) errs)
@@ -324,7 +376,7 @@ projectFailsWith name files code messages = withTests 1 . property $ do
 projectFailsTimes :: FilePath -> Int -> [(FilePath, BS.ByteString)] -> Property
 projectFailsTimes name times files = withTests 1 . property $ do
     dir <- evalIO (writeProject name files)
-    evalIO (buildProject dir) >>= \case
+    evalIO (buildProject dir []) >>= \case
         Right (BuildFailure _ errs) -> annotate (show errs) >> length errs === times
         Right (BuildSuccess _ outs) -> annotate (show (map fst outs)) >> failure
         Left message                -> annotate (T.unpack message) >> failure
@@ -333,7 +385,7 @@ projectFailsTimes name times files = withTests 1 . property $ do
 projectWarnsTimes :: FilePath -> Int -> Text -> [(FilePath, BS.ByteString)] -> Property
 projectWarnsTimes name times message files = withTests 1 . property $ do
     dir <- evalIO (writeProject name files)
-    evalIO (buildProject dir) >>= \case
+    evalIO (buildProject dir []) >>= \case
         Right (BuildSuccess warnings _) -> annotate (show warnings) >> length (filter (T.isInfixOf message . warningText) warnings) === times
         Right (BuildFailure _ errs)     -> annotate (show errs) >> failure
         Left message'                   -> annotate (T.unpack message') >> failure

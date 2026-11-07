@@ -459,6 +459,32 @@ splitErrorContext = \case
            , Nothing
            )
 
+    Build (NewerOuro needed have)
+        -> ("Newer Ouro"
+           , [ labeled "Needed: " (pretty needed)
+             , labeled "This:   " (pretty have)
+             ]
+           , Nothing
+           )
+
+    Build (InvalidVersion written)
+        -> ("Invalid Version"
+           , [ labeled "Written: " (pretty written) ]
+           , Nothing
+           )
+
+    Build (UnknownModule selection)
+        -> ("Unknown Module"
+           , [ labeled "Graph: " (pretty selection) ]
+           , Nothing
+           )
+
+    Build (GraphSelectionForm written)
+        -> ("Graph Selection Form"
+           , [ labeled "Written: " (pretty written) ]
+           , Nothing
+           )
+
     Internal (ErasureValueLeakError block)
         -> ( "Compiler Internal Error"
            , [ labeled "Expected: " "nil (erased)"

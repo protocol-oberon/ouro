@@ -16,11 +16,11 @@ main = withUtf8Console $ do
           Project.packageFiles
         , Project.projectsOnDisk
         , Project.vendoredLibraries
+        , Project.chosenGraphs
         , Project.modulesOnDisk
         , Project.sourceFiles
         -- The command line: ouro itself, run as a user runs it
         , Command.builds
-        , Command.compiles
         , Command.validates
         -- Known gaps of the project: pinned as they are today; a fixed gap keeps its pin, run negated
         , Project.knownGaps
