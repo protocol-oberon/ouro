@@ -64,7 +64,7 @@ matchPattern evaluator pattern value =
               expected <- evaluator pattern
               pure $ case expected of
                          EvalError err -> Left err
-                         _value        -> Right (if expected == value then Just [] else Nothing)
+                         _value        -> Right (case expected == value of True -> Just []; False -> Nothing)
 
     matchArray :: [S.Expr] -> L.Expr -> EvalM MatchResult
     matchArray elems = \case

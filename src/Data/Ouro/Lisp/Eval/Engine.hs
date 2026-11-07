@@ -907,7 +907,7 @@ findPath value = \case
 
 -- The element at an index, counting from the end when it is negative
 elementAt :: Int -> [a] -> Maybe a
-elementAt i xs = V.fromList xs V.!? (if i < 0 then length xs + i else i)
+elementAt i xs = V.fromList xs V.!? (case i < 0 of True -> length xs + i; False -> i)
 
 
 -- imageOf.

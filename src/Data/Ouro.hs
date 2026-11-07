@@ -193,7 +193,7 @@ validateAST' gPos path valueGraph = case valueGraph of
                               -- JSON has no representation for Infinity or NaN
                               Primitive (I.Number n)
                                   | isInfinite n || isNaN n
-                                                       -> typeMismatch "a finite Number" (if isNaN n then "NaN" else "Infinity")
+                                                       -> typeMismatch "a finite Number" (case isNaN n of True -> "NaN"; False -> "Infinity")
                                                           & withBlurb ( "The value at " <> location <> " is not a finite number, which JSON cannot represent."
                                                                      <> "\n\nPerhaps an arithmetic expression overflowed, or a numeric literal is too large."
                                                                       )
@@ -208,9 +208,13 @@ validateAST' gPos path valueGraph = case valueGraph of
                                                           & OuroError gPos
                                                           & pure
     where
-    keyPath   k = if T.null path then k else path <> "." <> k
+    keyPath   k = case T.null path of
+                      True  -> k
+                      False -> path <> "." <> k
     indexPath i = path <> "[" <> T.pack (show i) <> "]"
-    location    = if T.null path then "the root of the graph" else "'" <> path <> "'"
+    location    = case T.null path of
+                      True  -> "the root of the graph"
+                      False -> "'" <> path <> "'"
 
 
 -- Explains why a compile-time only value cannot be written to the JSON output.

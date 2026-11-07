@@ -225,12 +225,18 @@ instance Show (Expr t) where
         renderChildren env xs =
             let flags = replicate (length xs - 1) False ++ [True]
                 block = concat $ zipWith (renderChild env) flags xs
-            in if null block then "" else init block
+            in case null block of
+                   True  -> ""
+                   False -> init block
 
 
         renderChild :: [String] -> Bool -> (String, SomeExpr) -> String
         renderChild env isLast (binding, SomeExpr val) =
-            let marker    = if isLast then "└── " :: String else "├── " :: String
-                parentBar = if isLast then "    " :: String else "│   " :: String
+            let marker    = case isLast of
+                                True  -> "└── " :: String
+                                False -> "├── "
+                parentBar = case isLast of
+                                True  -> "    " :: String
+                                False -> "│   "
                 pad       = replicate (length binding) ' '
             in concat env ++ marker ++ binding ++ render (env ++ [parentBar, pad]) isLast val ++ "\n"

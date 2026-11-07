@@ -259,7 +259,9 @@ hostKeys = withTests 1 . property $
                               let key = case T.breakOn "/" <$> importer of
                                             Just (lib, rest) | not (T.null rest) -> lib <> "/" <> path
                                             _other                               -> path
-                              in if Map.member key sources then Resolved key else Missing [T.unpack key <> ".ouro"]
+                              in case Map.member key sources of
+                                     True  -> Resolved key
+                                     False -> Missing [T.unpack key <> ".ouro"]
         , readModule    = \key -> pure (maybe (Unreadable (T.unpack key) "No such module.") (Found (T.unpack key <> ".ouro")) (Map.lookup key sources))
         , importStack   = []
         }
@@ -304,7 +306,9 @@ bundledMatchesLib = withTests 1 . property $ do
     inside dir entry = do
         let path = dir <> "/" <> entry
         isFolder <- doesDirectoryExist path
-        if isFolder then ouroFiles path else pure [ path | ".ouro" `isSuffixOf` entry ]
+        case isFolder of
+            True  -> ouroFiles path
+            False -> pure [ path | ".ouro" `isSuffixOf` entry ]
 
 
 -- Every error modules can raise, each with its code, the file, line and column it is

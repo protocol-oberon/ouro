@@ -759,7 +759,7 @@ handleAdjoin pos = pure . \case
 
     -- A key already there keeps its place; a new one goes after the others
     placed key value pairs
-        | any ((== key) . fst) pairs = [ (k, if k == key then value else v) | (k, v) <- pairs ]
+        | any ((== key) . fst) pairs = [ (k, case k == key of True -> value; False -> v) | (k, v) <- pairs ]
         | otherwise                  = pairs <> [(key, value)]
 
     -- A function cannot be compared, so it cannot be looked for among a key's values
