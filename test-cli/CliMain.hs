@@ -12,9 +12,10 @@ import           Utils                (withUtf8Console)
 main :: IO ()
 main = withUtf8Console $ do
     results <- mapM checkParallel
-        [ -- Projects: package.ouro, the source folder, and the modules on disk
+        [ -- Projects: package.ouro, the source folder, vendored libraries, and the modules on disk
           Project.packageFiles
         , Project.projectsOnDisk
+        , Project.vendoredLibraries
         , Project.modulesOnDisk
         , Project.sourceFiles
         -- The command line: ouro itself, run as a user runs it

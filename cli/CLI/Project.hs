@@ -5,18 +5,22 @@
 -- in the files under its :sources, and where its graphs are written. The compiler knows none
 -- of this: it builds the modules it is given (Data.Ouro.Build), through the loader given to it.
 module CLI.Project
-( Package (..)
+( Collection (..)
+, Package (..)
 , Project (..)
 , buildProject
 , compileFile
 , defaultPackage
 , discoverModules
+, fromProject
 , fromRoots
 , outputFile
 , packageFileName
 , projectOut
 , projectRoot
+, readCollections
 , readPackage
+, vendorFolderName
 ) where
 
 import           CLI.Source                   (readSource)
@@ -26,17 +30,18 @@ import           Control.Monad.Writer         (runWriterT, tell)
 import           Data.Foldable                (toList)
 import           Data.Function                ((&))
 import           Data.Functor.Identity        (runIdentity)
-import           Data.List                    (nub, sortOn)
+import           Data.List                    (nub, sort, sortOn)
 import           Data.List.NonEmpty           (NonEmpty (..))
 import qualified Data.List.NonEmpty           as NE
 import qualified Data.Map.Strict              as Map
 import           Data.Ouro                    (CompilationResult (..),
                                                compileUsing, evaluateGraph)
 import           Data.Ouro.Build              (BuildResult (..), buildModules)
-import           Data.Ouro.Error.Diagnostics  (buildSettings, missingSourceFolder,
-                                               noPackageFunction, notPackageData,
-                                               packageParameters,
-                                               reservedModule,
+import           Data.Ouro.Error.Diagnostics  (buildSettings, collectionOverlap,
+                                               importCase, missingSourceFolder,
+                                               nestedVendor, noPackageFunction,
+                                               notPackageData, packageParameters,
+                                               reservedCollection, reservedModule,
                                                reservedPackageName,
                                                reservedPackageNames, typeMismatch,
                                                unknownBuildSetting,
@@ -65,8 +70,10 @@ import           Lens.Micro.Platform          ((^.))
 import           System.Directory             (canonicalizePath,
                                                doesDirectoryExist, doesFileExist,
                                                listDirectory)
-import           System.FilePath              (dropExtension, equalFilePath,
-                                               joinPath, makeRelative, normalise,
+import           System.FilePath              (dropExtension,
+                                               dropTrailingPathSeparator,
+                                               equalFilePath, joinPath,
+                                               makeRelative, normalise,
                                                splitDirectories, takeDirectory,
                                                takeExtension, takeFileName, (<.>),
                                                (</>))
@@ -192,35 +199,169 @@ settings pos = \case
 
 -- The modules under a project's source folder, each with its file, by name. A module's name is
 -- its path under the folder, written with '/'. Skipped: hidden folders (.git, .jj), the outputs
--- folder, every package.ouro, and every folder holding one, which is a project of its own.
--- Folders are compared as they are on disk, so a source folder written through .. still skips
--- the outputs. A source folder that does not exist has none, which the build reports.
+-- folder, the vendor folder, every package.ouro, and every folder holding one, which is a
+-- project of its own. Folders are compared as they are on disk, so a source folder written
+-- through .. still skips the outputs. A source folder that does not exist has none, which the
+-- build reports.
 discoverModules :: Project -> IO [(Text, FilePath)]
 discoverModules project = do
     let root = projectRoot project
-    exists <- doesDirectoryExist root
-    out    <- canonicalizePath (projectOut project)
-    files  <- if exists then walk out root else pure []
+    exists  <- doesDirectoryExist root
+    skipped <- traverse canonicalizePath [projectOut project, normalise (projectDir project </> vendorFolderName)]
+    files   <- case exists of
+                   True  -> walk skipped root
+                   False -> pure []
     pure (sortOn fst [ (moduleName root file, file) | file <- files ])
     where
-    walk out dir = do
+    walk skipped dir = do
         entries <- map (dir </>) . filter (not . hidden) <$> listDirectory dir
         dirs    <- filterM doesDirectoryExist entries
         let files = [ entry | entry <- entries, entry `notElem` dirs, takeExtension entry == ".ouro", takeFileName entry /= packageFileName ]
-        kept    <- filterM (built out) dirs
-        nested  <- traverse (walk out) kept
+        kept    <- filterM (built skipped) dirs
+        nested  <- traverse (walk skipped) kept
         pure (files <> concat nested)
 
-    built out dir = do
+    built skipped dir = do
         canonical <- canonicalizePath dir
         project'  <- doesFileExist (dir </> packageFileName)
-        pure (not (equalFilePath canonical out) && not project')
-
-    hidden = \case
-        '.' : _ -> True
-        _other  -> False
+        pure (not (any (equalFilePath canonical) skipped) && not project')
 
     moduleName root file = T.intercalate "/" (map T.pack (splitDirectories (dropExtension (makeRelative root file))))
+
+
+-- A file or folder whose name starts with a dot, as .git and .jj
+hidden :: FilePath -> Bool
+hidden = \case
+    '.' : _ -> True
+    _other  -> False
+
+
+-- The folder of a project's vendored libraries, beside its package.ouro
+vendorFolderName :: FilePath
+vendorFolderName = "vendor"
+
+
+-- A vendored library, a folder of vendor/: its name, which its modules are imported by, its
+-- folder, and its source folder, its own package.ouro's :sources or else its folder
+data Collection = Collection
+    { collectionName :: Text
+    , collectionDir  :: FilePath
+    , collectionRoot :: FilePath
+    } deriving (Show, Eq)
+
+
+-- The vendored libraries of a project, by name, with the warnings and errors found reading
+-- them: a folder named after a bundled one (BLD0011), a library with a vendor/ of its own
+-- (BLD0012), its package.ouro's errors, and a source folder that does not exist. A library
+-- with an error is not among them. A package.ouro that cannot be read is a message.
+readCollections :: FilePath -> IO (Either Text ([OuroWarning], [OuroError], [Collection]))
+readCollections dir = do
+    let vendor = normalise (dir </> vendorFolderName)
+    exists  <- doesDirectoryExist vendor
+    names   <- case exists of
+                   True  -> filter (not . hidden) . sort <$> (listDirectory vendor >>= filterM (doesDirectoryExist . (vendor </>)))
+                   False -> pure []
+    results <- traverse (readCollection vendor) names
+    pure $ (\read' -> (concat [ ws | (ws, _, _) <- read' ], concat [ errs | (_, errs, _) <- read' ], [ c | (_, _, Just c) <- read' ]))
+           <$> sequence results
+    where
+    readCollection vendor name = do
+        let folder = vendor </> name
+            text   = T.pack name
+        nested <- doesDirectoryExist (folder </> vendorFolderName)
+        case (text `Set.member` bundledRoots, nested) of
+            (True, _)
+                -> pure (Right ([], [OuroError (initialPos folder) (reservedCollection text)], Nothing))
+            (False, True)
+                -> pure (Right ([], [OuroError (initialPos (folder </> vendorFolderName)) (nestedVendor text)], Nothing))
+            (False, False)
+                -> readPackageIn folder >>= \case
+                       Left message              -> pure (Left message)
+                       Right (ws, Left errs)     -> pure (Right (ws, toList errs, Nothing))
+                       Right (ws, Right package) -> do
+                           let root = normalise (folder </> packageSources package)
+                           rootExists <- doesDirectoryExist root
+                           pure $ Right $ case rootExists of
+                               True  -> (ws, [], Just (Collection text folder root))
+                               False -> (ws, [OuroError (packageAt package) (missingSourceFolder (T.pack (packageSources package)) (T.pack root))], Nothing)
+
+
+-- Every collection name that is also a top-level folder or module of a source root, an error
+-- wherever it is, imported or not: (import tate/…) must never have two meanings
+overlaps :: [Text] -> FilePath -> IO [OuroError]
+overlaps names root = do
+    exists  <- doesDirectoryExist root
+    entries <- case exists of
+                   True  -> filter (not . hidden) <$> listDirectory root
+                   False -> pure []
+    named   <- traverse (\entry -> (,) entry <$> doesDirectoryExist (root </> entry)) entries
+    pure [ OuroError (initialPos (root </> entry)) (collectionOverlap name (T.pack (dropTrailingPathSeparator root)))
+         | (entry, isFolder) <- named
+         , let name = case isFolder of
+                          True  -> T.pack entry
+                          False -> T.pack (dropExtension entry)
+         , isFolder || takeExtension entry == ".ouro"
+         , name `elem` names ]
+
+
+-- The settings of the project or library in a folder: its package.ouro's, or the defaults
+-- when it has none. A package.ouro that cannot be read is a message.
+readPackageIn :: FilePath -> IO (Either Text ([OuroWarning], Either (NonEmpty OuroError) Package))
+readPackageIn dir = do
+    let file = normalise (dir </> packageFileName)
+    exists <- doesFileExist file
+    case exists of
+        False -> pure (Right ([], Right (defaultPackage dir)))
+        True  -> readSource file >>= \case
+                     Left  err    -> pure (Left err)
+                     Right source -> pure (Right (readPackage file source))
+
+
+-- Modules in the files of a project and its vendored libraries. An import resolves by its first
+-- segment: a collection's name reads the module from that library's source folder, and any
+-- other path reads it from the source folder of the importing module's own library, the
+-- project's for the project's modules. A module's key is its file, as spelt on disk, relative
+-- to the project's folder, so a file is loaded once however it is reached. An import spelt in
+-- another case than its file is refused (BLD0014), since only some file systems would find it.
+fromProject :: FilePath -> FilePath -> [Collection] -> IO (LoadEnv IO)
+fromProject dir root collections = do
+    home <- canonicalizePath dir
+    pure LoadEnv
+        { resolveModule = \importer path -> do
+              let (base, prefix, rest) = locate importer path
+                  written              = splitDirectories (T.unpack rest <.> "ouro")
+                  file                 = normalise (joinPath (base : written))
+              exists <- doesFileExist file
+              case exists of
+                  False -> pure (Missing [file])
+                  True  -> do
+                      canonical <- canonicalizePath file
+                      let spelt = reverse (take (length written) (reverse (splitDirectories canonical)))
+                      pure $ case spelt == written of
+                          True  -> Resolved (T.pack (makeRelative home canonical))
+                          False -> Rejected (importCase path (T.intercalate "/" (prefix <> map T.pack (splitDirectories (dropExtension (joinPath spelt))))))
+        , readModule    = \key -> let file = normalise (dir </> T.unpack key)
+                                  in either (Unreadable file) (Found file) <$> readSource file
+        , importStack   = []
+        }
+    where
+    byName = [ (collectionName c, c) | c <- collections ]
+
+    -- The folder an import is read from, the collection it names, if any, and the rest of its path
+    locate importer path =
+        case T.breakOn "/" path of
+            (first, slashRest) | not (T.null slashRest), Just c <- lookup first byName
+                -> (collectionRoot c, [first], T.drop 1 slashRest)
+            _other
+                -> (ownRoot importer, [], path)
+
+    -- The source folder of the library the importing module is in: a key under vendor/<name>/ is
+    -- a module of that collection, any other one the project's
+    ownRoot = \case
+        Just key | v : name : _ <- splitDirectories (T.unpack key), v == vendorFolderName, Just c <- lookup (T.pack name) byName
+            -> collectionRoot c
+        _other
+            -> root
 
 
 -- Modules in files under source roots, the importing file's directory or a project's :sources:
@@ -251,39 +392,37 @@ outputFile out name graph = out </> joinPath (map T.unpack (T.splitOn "/" name))
 
 
 -- Builds the project in a folder: every graph of every module under its :sources, to
--- <outputs>/<module>/<graph>.json. A module under a bundled folder, std or aat, is an error,
--- and is not built. A folder that does not exist, or a package.ouro that cannot be read, is a
--- message, since there is no source to show an error in.
+-- <outputs>/<module>/<graph>.json. Its vendored libraries are read, and their modules compiled
+-- only when imported. A module under a bundled folder, std or aat, is an error, and is not
+-- built; nor is one under a folder named after a collection, which the overlap reports. A
+-- folder that does not exist, or a package.ouro that cannot be read, is a message, since there
+-- is no source to show an error in.
 buildProject :: FilePath -> IO (Either Text (BuildResult FilePath))
 buildProject dir = doesDirectoryExist dir >>= \case
     False -> pure (Left ("No folder " <> T.pack dir <> ": ouro build builds the project in a folder."))
-    True  -> readProject >>= \case
+    True  -> readPackageIn dir >>= \case
         Left message                    -> pure (Left message)
         Right (warnings, Left errs)     -> pure (Right (BuildFailure warnings errs))
-        Right (warnings, Right project) -> Right <$> build warnings project
+        Right (warnings, Right package) -> readCollections dir >>= \case
+            Left message                             -> pure (Left message)
+            Right (cWarnings, cErrors, collections) -> Right <$> build (warnings <> cWarnings) cErrors collections (Project dir package)
     where
-    readProject = do
-        let file = normalise (dir </> packageFileName)
-        exists <- doesFileExist file
-        if not exists
-            then pure (Right ([], Right (Project dir (defaultPackage dir))))
-            else readSource file >>= \case
-                     Left  err    -> pure (Left err)
-                     Right source -> let (warnings, read') = readPackage file source
-                                     in pure (Right (warnings, Project dir <$> read'))
-
-    build warnings project = do
+    build warnings cErrors collections project = do
         let package = projectPackage project
             root    = projectRoot project
-        rootExists <- doesDirectoryExist root
-        found      <- discoverModules project
-        let isReserved name = T.takeWhile (/= '/') name `Set.member` bundledRoots
+        rootExists  <- doesDirectoryExist root
+        found       <- discoverModules project
+        overlapping <- concat <$> traverse (overlaps (map collectionName collections)) (root : map collectionRoot collections)
+        loader      <- fromProject dir root collections
+        let firstSegment name  = T.takeWhile (/= '/') name
+            isReserved name    = firstSegment name `Set.member` bundledRoots
+            isCollection name  = T.isInfixOf "/" name && firstSegment name `elem` map collectionName collections
             absent   = [ OuroError (packageAt package) (missingSourceFolder (T.pack (packageSources package)) (T.pack root)) | not rootExists ]
             reserved = [ OuroError (initialPos file) (reservedModule name) | (name, file) <- found, isReserved name ]
-            modules  = [ (initialPos file, name) | (name, file) <- found, not (isReserved name) ]
+            modules  = [ (initialPos file, name) | (name, file) <- found, not (isReserved name), not (isCollection name) ]
         built <- fmap (uncurry (outputFile (projectOut project)))
-                     <$> buildModules (fromRoots [root]) modules
-        pure $ case (built, NE.nonEmpty (absent <> reserved)) of
+                     <$> buildModules loader modules
+        pure $ case (built, NE.nonEmpty (absent <> reserved <> cErrors <> overlapping)) of
                    (BuildSuccess ws _, Just errs)     -> BuildFailure (warnings <> ws) errs
                    (BuildSuccess ws outputs, Nothing) -> BuildSuccess (warnings <> ws) outputs
                    (BuildFailure ws errs, extra)      -> BuildFailure (warnings <> ws) (maybe errs (<> errs) extra)

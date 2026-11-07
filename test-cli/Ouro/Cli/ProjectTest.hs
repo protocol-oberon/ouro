@@ -1,10 +1,11 @@
 {-# LANGUAGE GADTs #-}
 
--- The command line's project code, tested from inside: package.ouro, projects and modules on
--- disk, source files read from disk, and the gaps that live there
+-- The command line's project code, tested from inside: package.ouro, projects, vendored
+-- libraries and modules on disk, source files read from disk, and the gaps that live there
 module Ouro.Cli.ProjectTest
 ( packageFiles
 , projectsOnDisk
+, vendoredLibraries
 , modulesOnDisk
 , sourceFiles
 , knownGaps
@@ -35,10 +36,12 @@ import           System.Directory             (createDirectoryIfMissing,
                                                getTemporaryDirectory,
                                                removeDirectoryRecursive)
 import           System.FilePath              (normalise, takeDirectory, (</>))
+import           System.Info                  (os)
 import           Text.Megaparsec              (initialPos, sourceColumn, sourceLine,
                                                sourceName, unPos)
 import           Utils                        (describe, errorText, fixedGap,
-                                               fixture, outputsAre, squash)
+                                               fixture, outputsAre, squash,
+                                               warningText)
 
 
 -- A package.ouro holds one function, (defn package () ...), whose value is checked against
@@ -114,6 +117,67 @@ projectsOnDisk = Group "Builds: projects on disk"
     broken           = "(graph g (:r (get () 5)))"
 
 
+-- Vendored libraries: each folder of vendor/ a collection, imported by its name, its modules
+-- read from its own source folder and compiled only when imported
+vendoredLibraries :: Group
+vendoredLibraries = Group "Builds: vendored libraries"
+    [ ("a collection's module is imported by its name", projectBuildsTo "vendor-import" [ person "vendor/tate/people.ouro", ("main.ouro", "(import tate/people)\n(graph g (:r (people/person \"A\")))") ]
+                                                                    [("out" </> "main" </> "g.json", "{\"r\":\"Person:A\"}")])
+    , ("a library's own imports are its own",       projectBuildsTo "vendor-own" [ ("vendor/tate/people.ouro", "(import helpers)\n(export person)\n(defn person () (helpers/who))")
+                                                                                 , ("vendor/tate/helpers.ouro", "(export who)\n(defn who () \"tate\")")
+                                                                                 , ("helpers.ouro", "(export who)\n(defn who () \"project\")")
+                                                                                 , ("main.ouro", "(import tate/people)\n(import helpers)\n(graph g (:r (people/person) :s (helpers/who)))") ]
+                                                                    [("out" </> "main" </> "g.json", "{\"r\":\"tate\",\"s\":\"project\"}")])
+    , ("its package.ouro gives its source folder",  projectBuildsTo "vendor-sources" [ ("vendor/tate/package.ouro", "(defn package () (:sources \"src\"))"), person "vendor/tate/src/people.ouro"
+                                                                                     , ("main.ouro", "(import tate/people)\n(graph g (:r (people/person \"A\")))") ]
+                                                                    [("out" </> "main" </> "g.json", "{\"r\":\"Person:A\"}")])
+    , ("a library imports another collection",      projectBuildsTo "vendor-other" [ ("vendor/a/x.ouro", "(import b/y)\n(export f)\n(defn f () (y/g))"), ("vendor/b/y.ouro", "(export g)\n(defn g () \"from b\")")
+                                                                                   , ("main.ouro", "(import a/x)\n(graph g (:r (x/f)))") ]
+                                                                    [("out" </> "main" </> "g.json", "{\"r\":\"fromb\"}")])
+    , ("its modules are compiled only when imported", projectBuildsTo "vendor-lazy" [ ("vendor/tate/people.ouro", "(export person)\n(defn person (n) n)\n(graph g (:r 1))"), ("vendor/tate/broken.ouro", broken)
+                                                                                   , ("main.ouro", "(import tate/people)\n(graph g (:r (people/person \"A\")))") ]
+                                                                    [("out" </> "main" </> "g.json", "{\"r\":\"A\"}")])
+    , ("a module reached two ways is loaded once",  projectWarnsTimes "vendor-once" 1 "badName" [ ("vendor/tate/badly.ouro", "(export badName)\n(defn badName () 1)")
+                                                                                              , ("one.ouro", "(import tate/badly)\n(graph g (:r (badly/badName)))")
+                                                                                              , ("two.ouro", "(import tate/badly)\n(graph g (:r (badly/badName)))") ])
+    , ("a missing module says where it looked",     projectFailsWith "vendor-missing" [ person "vendor/tate/people.ouro", ("main.ouro", "(import tate/nope)\n(graph g (:r 1))") ]
+                                                                     "SCP0006" ["missingModule = \"tate/nope\"", "nope.ouro"])
+    , ("a cycle through collections names its files", projectFailsWith "vendor-cycle" [ ("vendor/a/x.ouro", "(import b/y)\n(export f)\n(defn f () (y/g))"), ("vendor/b/y.ouro", "(import a/x)\n(export g)\n(defn g () (x/f))")
+                                                                                    , ("main.ouro", "(import a/x)\n(graph g (:r (x/f)))") ]
+                                                                     "SCP0009" ["vendor", "x.ouro", "y.ouro"])
+    , ("a collection cannot be named std",          projectFailsWith "vendor-std" [ person "vendor/std/people.ouro", ("main.ouro", "(graph g (:r 1))") ]
+                                                                     "BLD0011" ["reservedFolder = \"std\"", "Perhaps rename the folder"])
+    , ("nor aat",                                   projectFailsWith "vendor-aat" [ person "vendor/aat/people.ouro", ("main.ouro", "(graph g (:r 1))") ]
+                                                                     "BLD0011" ["reservedFolder = \"aat\""])
+    , ("a library's own vendor/ is an error",        projectFailsWith "vendor-nested" [ person "vendor/tate/people.ouro", person "vendor/tate/vendor/inner/people.ouro", ("main.ouro", "(graph g (:r 1))") ]
+                                                                     "BLD0012" ["nestedCollection = \"tate\"", "vendoring is flat"])
+    , ("a collection's name as a folder of the project", projectFailsWith "vendor-overlap" [ person "vendor/tate/people.ouro", person "tate/people.ouro", ("main.ouro", "(graph g (:r 1))") ]
+                                                                     "BLD0013" ["overlapName = \"tate\"", "could mean either"])
+    , ("its modules are not also loaded from the collection", projectFailsTimes "vendor-overlap-once" 1 [ person "vendor/tate/people.ouro", person "tate/places.ouro", ("main.ouro", "(graph g (:r 1))") ])
+    , ("or as a module of it",                      projectFailsWith "vendor-overlap-module" [ person "vendor/tate/people.ouro", ("tate.ouro", "(graph g (:r 1))") ]
+                                                                     "BLD0013" ["overlapName = \"tate\""])
+    , ("or of another library",                     projectFailsWith "vendor-overlap-library" [ person "vendor/a/b/people.ouro", person "vendor/b/people.ouro", ("main.ouro", "(graph g (:r 1))") ]
+                                                                     "BLD0013" ["overlapName = \"b\""])
+    , ("a library's package.ouro is checked",       projectFailsWith "vendor-package" [ ("vendor/tate/package.ouro", "(defn package () (:sources 1))"), ("main.ouro", "(graph g (:r 1))") ]
+                                                                     "TYP0000" ["The package setting :sources is a String"])
+    , ("and its source folder must exist",          projectFailsWith "vendor-no-sources" [ ("vendor/tate/package.ouro", "(defn package () (:sources \"src\"))"), ("main.ouro", "(graph g (:r 1))") ]
+                                                                     "BLD0005" ["sourceFolder = \"src\""])
+    , ("an import spelt in another case",           importCase "vendor-case" [ person "people.ouro", ("main.ouro", "(import People)\n(graph g (:r (People/person \"A\")))") ]
+                                                               "fileImport = \"people\"" "missingModule = \"People\"")
+    , ("in a collection too",                       importCase "vendor-case-collection" [ person "vendor/tate/people.ouro", ("main.ouro", "(import tate/People)\n(graph g (:r (People/person \"A\")))") ]
+                                                               "fileImport = \"tate/people\"" "missingModule = \"tate/People\"")
+    ]
+    where
+    person file = (file, "(export person)\n(defn person (n) (+ \"Person: \" n))")
+    broken      = "(graph g (:r (get () 5)))"
+
+    -- Only a file system that ignores case, as Windows' and macOS's do, finds the file, which
+    -- is then refused (BLD0014); any other does not find it (SCP0006)
+    importCase name files refused missing = case os `elem` ["mingw32", "darwin"] of
+        True  -> projectFailsWith name files "BLD0014" [refused]
+        False -> projectFailsWith name files "SCP0006" [missing]
+
+
 -- Modules in files on disk, read as the command line reads them: from the directory of the
 -- file compiled, before the bundled ones
 modulesOnDisk :: Group
@@ -152,7 +216,7 @@ modulesOnDisk = Group "Modules: imported from files on disk"
 slashedPath :: Property
 slashedPath = withTests 1 . property $ do
     (dir, _) <- evalIO (compileOnDisk "slashed" [("broken.ouro", "(export bad)\n(defn bad () (get () 5))"), ("main.ouro", "(import broken)\n(graph g (:r (broken/bad)))")])
-    let written = map (\c -> if c == '\\' then '/' else c) (dir </> "main.ouro")
+    let written = map (\case '\\' -> '/'; c -> c) (dir </> "main.ouro")
     source <- evalIO (either (error . T.unpack) id <$> readSource written)
     result <- evalIO (compileFile written "g" source)
     case result of
@@ -255,6 +319,24 @@ projectFailsWith name files code messages = withTests 1 . property $ do
                                        assert (any (\err -> smartErrorCode (errContext err) == code && all (`T.isInfixOf` errorText err) messages) errs)
         Right (BuildSuccess _ outs) -> annotate (show (map fst outs)) >> failure
         Left message                -> annotate (T.unpack message) >> failure
+
+-- The project fails with the given number of errors
+projectFailsTimes :: FilePath -> Int -> [(FilePath, BS.ByteString)] -> Property
+projectFailsTimes name times files = withTests 1 . property $ do
+    dir <- evalIO (writeProject name files)
+    evalIO (buildProject dir) >>= \case
+        Right (BuildFailure _ errs) -> annotate (show errs) >> length errs === times
+        Right (BuildSuccess _ outs) -> annotate (show (map fst outs)) >> failure
+        Left message                -> annotate (T.unpack message) >> failure
+
+-- The project builds, warning the given number of times with the given text
+projectWarnsTimes :: FilePath -> Int -> Text -> [(FilePath, BS.ByteString)] -> Property
+projectWarnsTimes name times message files = withTests 1 . property $ do
+    dir <- evalIO (writeProject name files)
+    evalIO (buildProject dir) >>= \case
+        Right (BuildSuccess warnings _) -> annotate (show warnings) >> length (filter (T.isInfixOf message . warningText) warnings) === times
+        Right (BuildFailure _ errs)     -> annotate (show errs) >> failure
+        Left message'                   -> annotate (T.unpack message') >> failure
 
 
 -- Writes the files into a directory of their own, named for the test, and compiles its

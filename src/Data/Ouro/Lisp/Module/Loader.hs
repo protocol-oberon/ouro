@@ -25,7 +25,7 @@ import           Data.Ouro.Error.Diagnostics  (ambiguousModule, importCycle,
                                                moduleNotFound,
                                                moduleUnreadable)
 import qualified Data.Ouro.Error.Linter       as LN
-import           Data.Ouro.Error.Types        (OuroError (..))
+import           Data.Ouro.Error.Types        (ErrorContext, OuroError (..))
 import           Data.Ouro.Internal.Compiler  (CompilerT)
 import qualified Data.Ouro.Lisp.Canon         as Canon
 import qualified Data.Ouro.Lisp.Eval.Types    as L
@@ -50,11 +50,13 @@ data ModuleKey
 
 
 -- What the host found for an import: the key of the module it names, the files looked for
--- when there is none, or the files of a module in more than one root
+-- when there is none, the files of a module in more than one root, or an import the host
+-- refuses, with its own error (the command line refuses one spelt in another case than its file)
 data Resolved
     = Resolved Text
     | Missing [FilePath]
     | Ambiguous [FilePath]
+    | Rejected ErrorContext
 
 
 -- What reading a module found: its file, for positions, and its source, or a file that
@@ -121,9 +123,9 @@ bundledOnly = fromSources Map.empty
 -- path a/b is read as the file a/b.ouro, and its key is its path.
 fromSources :: Monad m => Map.Map Text Text -> LoadEnv m
 fromSources sources = LoadEnv
-    { resolveModule = \_importer path -> pure $ if Map.member path sources
-                                                    then Resolved path
-                                                    else Missing [T.unpack path <> ".ouro"]
+    { resolveModule = \_importer path -> pure $ case Map.member path sources of
+                                                    True  -> Resolved path
+                                                    False -> Missing [T.unpack path <> ".ouro"]
     , readModule    = \key -> let file = T.unpack key <> ".ouro"
                               in pure (maybe (Unreadable file "No module has this key.") (Found file) (Map.lookup key sources))
     , importStack   = []
@@ -150,9 +152,9 @@ loadImport :: Monad m => Import -> LoaderT m L.Imported
 loadImport imp = do
     key   <- resolve (importPos imp) (importPath imp)
     stack <- asks importStack
-    if key `elem` stack
-        then refute (pure (OuroError (importPos imp) (importCycle (reverse (map keyText (key : stack))))))
-        else linkedRoot <$> loadKey (importPos imp) (importPath imp) key
+    case key `elem` stack of
+        True  -> refute (pure (OuroError (importPos imp) (importCycle (reverse (map keyText (key : stack))))))
+        False -> linkedRoot <$> loadKey (importPos imp) (importPath imp) key
 
 
 -- The module a path names, from the module importing it: a bundled one when the path's first
@@ -161,7 +163,9 @@ loadImport imp = do
 resolve :: Monad m => SourcePos -> Text -> LoaderT m ModuleKey
 resolve pos path
     | T.takeWhile (/= '/') path `Set.member` bundledRoots
-        = if Map.member path bundled then pure (BundledModule path) else notFound []
+        = case Map.member path bundled of
+              True  -> pure (BundledModule path)
+              False -> notFound []
     | otherwise
         = asks importStack >>= \case
               BundledModule _ : _ -> notFound []
@@ -174,6 +178,7 @@ resolve pos path
             Resolved key     -> pure (HostModule key)
             Missing searched -> notFound searched
             Ambiguous files  -> refute (pure (OuroError pos (ambiguousModule path (map T.pack files))))
+            Rejected context -> refute (pure (OuroError pos context))
 
     notFound searched = refute (pure (OuroError pos (moduleNotFound path searched (Map.keys bundled))))
 

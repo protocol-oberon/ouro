@@ -431,6 +431,34 @@ splitErrorContext = \case
            , Nothing
            )
 
+    Build (ReservedCollection name)
+        -> ("Reserved Collection"
+           , [ labeled "Collection: " (pretty name) ]
+           , Nothing
+           )
+
+    Build (NestedVendor name)
+        -> ("Nested Vendor"
+           , [ labeled "Collection: " (pretty name) ]
+           , Nothing
+           )
+
+    Build (CollectionOverlap name folder)
+        -> ("Collection Overlap"
+           , [ labeled "Name: " (pretty name)
+             , labeled "Also in: " (pretty folder)
+             ]
+           , Nothing
+           )
+
+    Build (ImportCase written spelt)
+        -> ("Import Case"
+           , [ labeled "Written: " (pretty written)
+             , labeled "File:    " (pretty spelt)
+             ]
+           , Nothing
+           )
+
     Internal (ErasureValueLeakError block)
         -> ( "Compiler Internal Error"
            , [ labeled "Expected: " "nil (erased)"

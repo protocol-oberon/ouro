@@ -362,6 +362,29 @@ data BuildError
     | ReservedPackageName
       { reservedName :: Text
       }
+
+    -- A folder of vendor/ named after a bundled folder, std or aat
+    | ReservedCollection
+      { reservedFolder :: Text
+      }
+
+    -- A vendored library with a vendor/ folder of its own
+    | NestedVendor
+      { nestedCollection :: Text
+      }
+
+    -- A collection's name that is also a top-level folder or module of a source root
+    | CollectionOverlap
+      { overlapName   :: Text
+      , overlapFolder :: Text   -- The source root it is also in
+      }
+
+    -- An import spelt in another case than the file it finds, which only a case-insensitive
+    -- file system finds
+    | ImportCase
+      { writtenImport :: Text   -- As written in the import
+      , fileImport    :: Text   -- As the file spells it
+      }
     deriving (Show, Eq, Ord, Generic)
 
 

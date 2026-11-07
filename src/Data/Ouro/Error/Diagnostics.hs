@@ -306,12 +306,14 @@ packageParameters count =
 reservedModule :: Text -> ErrorContext
 reservedModule name =
     withBlurb ( "The module '" <> name <> "' is under :sources, but " <> root <> " is the folder of the modules bundled with Ouro, "
-             <> "so (import " <> name <> ") always means the bundled one. Perhaps rename the "
-             <> (if root == name then "file." else "folder.")
+             <> "so (import " <> name <> ") always means the bundled one. Perhaps rename the " <> renamed
               )
               (Build (ReservedModule { reservedPath = name }))
     where
-    root = T.takeWhile (/= '/') name
+    root    = T.takeWhile (/= '/') name
+    renamed = case root == name of
+                  True  -> "file."
+                  False -> "folder."
 
 
 -- A function of package.ouro with a name kept for later versions of it
@@ -321,6 +323,42 @@ reservedPackageName name =
              <> "the names inputs, build and exports cannot be defined in it."
               )
               (Build (ReservedPackageName { reservedName = name }))
+
+
+-- A folder of vendor/ named after a bundled folder, such as vendor/std
+reservedCollection :: Text -> ErrorContext
+reservedCollection name =
+    withBlurb ( "vendor/" <> name <> " cannot be a collection: " <> name <> " is the folder of the modules bundled with Ouro, "
+             <> "so (import " <> name <> "/…) always means the bundled one. Perhaps rename the folder."
+              )
+              (Build (ReservedCollection { reservedFolder = name }))
+
+
+-- A vendored library with a vendor/ folder of its own
+nestedVendor :: Text -> ErrorContext
+nestedVendor name =
+    withBlurb ( "vendor/" <> name <> " has a vendor/ folder of its own: vendoring is flat, so a library's dependencies "
+             <> "are vendored beside it, in vendor/. Perhaps move its folders up."
+              )
+              (Build (NestedVendor { nestedCollection = name }))
+
+
+-- A collection's name that is also a top-level folder or module of a source root, as written
+collectionOverlap :: Text -> Text -> ErrorContext
+collectionOverlap name folder =
+    withBlurb ( name <> " is a collection, vendor/" <> name <> ", and a module or folder of " <> folder
+             <> ", so (import " <> name <> "/…) could mean either. Perhaps rename one of them."
+              )
+              (Build (CollectionOverlap { overlapName = name, overlapFolder = folder }))
+
+
+-- An import spelt in another case than its file: as written, and as the file spells it
+importCase :: Text -> Text -> ErrorContext
+importCase written spelt =
+    withBlurb ( "The module is spelt " <> spelt <> ": perhaps write (import " <> spelt <> "). "
+             <> "A file system that ignores case finds it as written, but one that does not, such as Linux's, would not."
+              )
+              (Build (ImportCase { writtenImport = written, fileImport = spelt }))
 
 
 -- " Perhaps you meant 'x'." for the closest candidate, when one is close enough
