@@ -1,0 +1,2 @@
+(export person)
+(defn person (n) n)

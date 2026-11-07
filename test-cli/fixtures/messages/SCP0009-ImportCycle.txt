@@ -1,0 +1,31 @@
+Error [SCP0009]: Import Cycle
+  ┌── │test-cli/fixtures/messages/SCP0009-ImportCycle/b.ouro:1:1│
+  │
+1 │ (import a)
+  │ ^
+  │ Cycle: a.ouro → b.ouro → a.ouro
+  │ 
+
+Modules cannot import each other in a circle: a.ouro → b.ouro → a.ouro. Ouro has no recursion, across
+files as within one. Perhaps move what they share into a module of its own, which each imports.
+Error [SCP0009]: Import Cycle
+  ┌── │test-cli/fixtures/messages/SCP0009-ImportCycle/a.ouro:1:1│
+  │
+1 │ (import b)
+  │ ^
+  │ Cycle: b.ouro → a.ouro → b.ouro
+  │ 
+
+Modules cannot import each other in a circle: b.ouro → a.ouro → b.ouro. Ouro has no recursion, across
+files as within one. Perhaps move what they share into a module of its own, which each imports.
+Error [SCP0009]: Import Cycle
+  ┌── │test-cli/fixtures/messages/SCP0009-ImportCycle/b.ouro:1:1│
+  │
+1 │ (import a)
+  │ ^
+  │ Cycle: main.ouro → a.ouro → b.ouro → a.ouro
+  │ 
+
+Modules cannot import each other in a circle: main.ouro → a.ouro → b.ouro → a.ouro. Ouro has no
+recursion, across files as within one. Perhaps move what they share into a module of its own, which
+each imports.

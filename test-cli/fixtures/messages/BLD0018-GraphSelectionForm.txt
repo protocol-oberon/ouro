@@ -1,0 +1,10 @@
+Error [BLD0018]: Graph Selection Form
+  ┌── │test-cli/fixtures/messages/BLD0018-GraphSelectionForm/package.ouro:1:1│
+  │
+1 │ (defn package () (:graphs ("person")))
+  │ ^
+  │ Written: person
+  │ 
+
+A graph is chosen by its module and its name, as people/person for the graph person of the module
+people.

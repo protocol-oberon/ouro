@@ -1181,13 +1181,13 @@ Recorded 2026-10-12 and kept up to date since; none were caused by the scoping r
 
 9. *Suggestions miss local names:* "Perhaps you meant" ranks only the root scope.
 
-10. *Stale wording in messages:* =get='s missing-key blurb mentions =define=; subtraction's type error names an internal type, "a Date minus a L.Duration"; a =$= binding named after a special form (=$get=) is rightly rejected, but the message calls it an attribute key ("primative" is also misspelt). (The hint for a function used as a value, which suggested =(name! args)=, was fixed: it now shows how the function is called, with its parameters' names, =Perhaps call it: (aat id label).=)
+10. *Stale wording in messages:* =get='s missing-key blurb mentions =define=; subtraction's type error names an internal type, "a Date minus a L.Duration"; a =$= binding named after a special form (=$get=) is rightly rejected, but the message calls it an attribute key ("primative" is also misspelt); =WRN0000='s hint names =#record-empty= by its old name, =#obj-empty=, and misspells "intended"; =SCP0001= writes "Expected :an independent expression", its colon misplaced. The messages' golden files (=test-cli/fixtures/messages/=) pin these wordings as they are. (The hint for a function used as a value, which suggested =(name! args)=, was fixed: it now shows how the function is called, with its parameters' names, =Perhaps call it: (aat id label).=)
 
 11. *A parameter named after a special form* (e.g. =fn=) gives a confusing error about =fn= syntax.
 
 12. *Zero-argument functions re-evaluate* on every call; as pure constants they could be shared.
 
-13. *Code health:* the =[ ]= bracket syntax parses but has no meaning; =validate= without =-o= overwrites its input; the CLI's commands are tested only from outside, by running =ouro= (=test-cli/Ouro/Cli/CommandTest.hs=), for their exit codes, the files they write and what they print; and no test checks an error message's rendering. The ~failsWith~ checks search the Haskell =show= of an error, but the rendered diagnostic (title, code, source line and caret, blurb) is built in =cli/CLI/Printer.hs=, which writes ANSI straight to stderr, so a test sees it only by running =ouro=. The planned fix: move the rendering into the library as a pure document, leaving the CLI to colour and print it, and add golden tests (=test/fixtures/errors/=, one =.ouro= and its expected =.txt= per error kind).
+13. *Code health:* the =[ ]= bracket syntax parses but has no meaning; =validate= without =-o= overwrites its input; the CLI's commands are tested only from outside, by running =ouro= (=test-cli/Ouro/Cli/CommandTest.hs=), for their exit codes, the files they write and what they print. (Fixed: no test checked an error message's rendering. Each code a source or a project can raise now has a fixture in =test-cli/fixtures/messages/=, and its rendering, as =ouro= prints it without colours, in a golden file beside it, =CODE-Constructor.txt=; =OURO_ACCEPT=1 cabal test ouro-cli-test= rewrites them. The renderer stayed in the CLI, as the pure =renderDiagnostic= of =cli/CLI/Printer.hs=, rather than moving into the library as planned.)
 
 14. *A record made only of inlays is read as an array:* ~((inlay (a)) (inlay (b)))~ has no written attribute pair, so structural classification makes it an array, and each =inlay= then expects an array. Workaround: write at least one attribute pair.
 
@@ -1240,5 +1240,7 @@ Recorded 2026-10-12 and kept up to date since; none were caused by the scoping r
 38. *=ouro validate= reports its errors on stdout:* invalid JSON ("Compilation Error:") and the unimplemented =merge= are written to stdout, with nothing on stderr, while =build= writes its diagnostics to stderr. Found while writing the CLI's tests (2026-10-29).
 
 39. *=insert= floors a fractional index:* ~(insert 1.5 "x" (1 2))~ is ~(1 "x" 2)~, the index rounded down without a word, while =get= rejects one, "Expected: a whole number to index an Array with". Found while weighing an =#integer= property (2026-10-29).
+
+40. *A failure is reported once for each route to it:* one import cycle, =main= → =a= → =b= → =a=, is three =SCP0009= errors, one from each module on the cycle and one from =main=, and an unreadable module is two =SCP0010= errors, at the module and at its import. Each module of a project is built as a root, so each reports what it reaches. Found while writing the messages' golden files (2026-11-07).
 
 #  LocalWords:  Ouro LD

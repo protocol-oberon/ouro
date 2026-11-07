@@ -1,0 +1,11 @@
+Error [BLD0014]: Import Case
+  ┌── │test-cli/fixtures/messages/BLD0014-ImportCase/main.ouro:1:1│
+  │
+1 │ (import People)
+  │ ^
+  │ Written: People
+  │ File:    people
+  │ 
+
+The module is spelt people: perhaps write (import people). A file system that ignores case finds it
+as written, but one that does not, such as Linux's, would not.

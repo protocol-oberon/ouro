@@ -1,0 +1,10 @@
+Error [BLD0007]: No Package Function
+  ┌── │test-cli/fixtures/messages/BLD0007-NoPackageFunction/package.ouro:1:1│
+  │
+1 │ 
+  │ ^
+  │ Function: none
+  │ 
+
+package.ouro holds one function, named package, as in (defn package () (:sources "src")). An empty
+package.ouro is an error: perhaps delete it, since a project needs none.

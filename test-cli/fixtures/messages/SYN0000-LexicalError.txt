@@ -1,0 +1,10 @@
+Error [SYN0000]: Lexical Error
+  ┌── │SYN0000-LexicalError.ouro:2:1│
+  │
+2 │ (import std/base)
+  │ ^
+  │ Imports and exports come first in a file, before any defn or graph.
+  │ 
+
+Perhaps move it to the top of the file, so the file's dependencies and exports are the first thing
+read.

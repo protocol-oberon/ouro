@@ -1,0 +1,2 @@
+(defn inputs () 1)
+(defn package () (:sources "."))

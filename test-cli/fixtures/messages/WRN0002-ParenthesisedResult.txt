@@ -1,0 +1,11 @@
+Warning [WRN0002]: The result of 'fn' is an array of one value
+  ┌── │WRN0002-ParenthesisedResult.ouro:1:26│
+  │
+1 │ (graph g (let ($f (fn () (1))) (:r (f))))
+  │                          ^
+  │                          Array of: 1
+  │ 
+
+A function's result is one expression, and parentheses around values make an array: (1) is [1].
+
+Perhaps remove the parentheses: 1, if a single value is intended.

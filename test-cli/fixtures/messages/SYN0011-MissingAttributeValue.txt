@@ -1,0 +1,11 @@
+Error [SYN0011]: Missing Attribute Value
+  ┌── │SYN0011-MissingAttributeValue.ouro:1:11│
+  │
+1 │ (graph g (:a :b 1 :y 2))
+  │           ^
+  │           Key:         :a
+  │           Followed by: the key ':b'
+  │ 
+
+The key ':a' has no value: it is followed by the key ':b'. An attribute pair is a key and its value, :key
+value. Perhaps a value is missing, or the key should be removed.

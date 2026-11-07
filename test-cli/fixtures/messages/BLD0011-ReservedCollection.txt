@@ -1,0 +1,10 @@
+Error [BLD0011]: Reserved Collection
+  ┌── │test-cli/fixtures/messages/BLD0011-ReservedCollection/vendor/std:1:1│
+  │
+1 │ 
+  │ ^
+  │ Collection: std
+  │ 
+
+vendor/std cannot be a collection: std is the folder of the modules bundled with Ouro, so (import
+std/…) always means the bundled one. Perhaps rename the folder.

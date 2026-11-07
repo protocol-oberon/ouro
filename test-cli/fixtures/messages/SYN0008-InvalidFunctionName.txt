@@ -1,0 +1,9 @@
+Error [SYN0008]: Invalid Function Name
+  ┌── │SYN0008-InvalidFunctionName.ouro:1:1│
+  │
+1 │ (defn case () 1)
+  │ ^
+  │ Naming Rule: 'case' is a special form, so it cannot be used as a function name.
+  │ 
+
+'case' is a special form, so it cannot be used as a function name. Perhaps choose another name.

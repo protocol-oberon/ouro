@@ -1,0 +1,10 @@
+Error [SCP0006]: Module Not Found
+  ┌── │SCP0006-ModuleNotFound.ouro:1:1│
+  │
+1 │ (import nope)
+  │ ^
+  │ Module: nope
+  │ 
+
+Looked for nope.ouro. The bundled modules are in the folders aat and std, and importing a folder, as
+(import std), lists its modules.

@@ -1,0 +1,10 @@
+Error [BLD0009]: Reserved Module
+  ┌── │test-cli/fixtures/messages/BLD0009-ReservedModule/std/base.ouro:1:1│
+  │
+1 │ (graph g (:r 1))
+  │ ^
+  │ Module: std/base
+  │ 
+
+The module 'std/base' is under :sources, but std is the folder of the modules bundled with Ouro, so
+(import std/base) always means the bundled one. Perhaps rename the folder.

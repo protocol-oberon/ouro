@@ -1,0 +1,12 @@
+Error [PTH0000]: Missing Path Key
+  ┌── │PTH0000-MissingPathKey.ouro:1:26│
+  │
+1 │ (graph g (:r (get (:a 1) b)))
+  │                          ^
+  │                          Missing:   b
+  │                          Available: ["a"]
+  │ 
+
+The Record has no attribute 'b'.
+
+Values written in a 'define' are private to their block and cannot be reached with 'get'.

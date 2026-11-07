@@ -1,0 +1,2 @@
+(defn len (x) x)
+(graph g (:r (len 1)))

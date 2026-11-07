@@ -1,0 +1,12 @@
+Warning [WRN0003]: The function 'len' replaces the built-in 'len'
+  ┌── │WRN0003-ShadowedBuiltin.ouro:1:1│
+  │
+1 │ (defn len (x) x)
+  │ ^
+  │ Replaced Built-in: len
+  │ 
+
+A defn named after a built-in replaces it throughout the file: in calls, in case guards, and under
+any symbol the built-in is also written with (= is eq, ∪ is union).
+
+Perhaps choose another name for the function, unless replacing 'len' is intended.

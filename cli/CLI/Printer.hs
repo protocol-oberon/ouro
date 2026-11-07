@@ -3,7 +3,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -Wno-unused-imports #-}
 
-module CLI.Printer (pintDiagnostic) where
+module CLI.Printer
+( pintDiagnostic
+, renderDiagnostic
+) where
 
 import           Data.Char                     (isAlphaNum, isLetter)
 import           Data.Maybe                    (fromMaybe)
@@ -28,11 +31,13 @@ import           Data.Text                     (Text)
 import qualified Data.Text                     as T
 import           Prettyprinter                 (Doc, LayoutOptions (..),
                                                 PageWidth (AvailablePerLine),
-                                                Pretty (pretty), annotate,
-                                                defaultLayoutOptions, fillSep,
-                                                flatAlt, group, hardline, hsep,
-                                                indent, layoutSmart, nest,
-                                                reAnnotateS, sep, vsep)
+                                                Pretty (pretty), SimpleDocStream,
+                                                annotate, defaultLayoutOptions,
+                                                fillSep, flatAlt, group, hardline,
+                                                hsep, indent, layoutSmart, nest,
+                                                reAnnotateS, sep, unAnnotateS,
+                                                vsep)
+import           Prettyprinter.Render.Text     (renderStrict)
 import           Prettyprinter.Render.Terminal (AnsiStyle, Color (..), bold,
                                                 color, colorDull, renderIO)
 import           System.IO                     (stderr)
@@ -61,11 +66,21 @@ styleToAnsi = \case
                NoteBody -> mempty
 
 
--- Prints a diagnostic in the file it was reported in, which need not be the file compiled:
+-- Prints a diagnostic to stderr, in colour
+pintDiagnostic :: (FilePath -> Maybe Text) -> Either OuroWarning OuroError -> IO ()
+pintDiagnostic sourceOf = renderIO stderr . reAnnotateS styleToAnsi . diagnosticLayout sourceOf
+
+
+-- A diagnostic as it is printed, without its colours: what the messages' golden files hold
+renderDiagnostic :: (FilePath -> Maybe Text) -> Either OuroWarning OuroError -> Text
+renderDiagnostic sourceOf = renderStrict . unAnnotateS . diagnosticLayout sourceOf
+
+
+-- A diagnostic laid out in the file it was reported in, which need not be the file compiled:
 -- an error inside an imported module is shown with that module's name and line. The sources
 -- of every file a diagnostic can be in are given by name.
-pintDiagnostic :: (FilePath -> Maybe Text) -> Either OuroWarning OuroError -> IO ()
-pintDiagnostic sourceOf diagnostic = do
+diagnosticLayout :: (FilePath -> Maybe Text) -> Either OuroWarning OuroError -> SimpleDocStream OuroStyle
+diagnosticLayout sourceOf diagnostic = do
     -- Source Coordinate and Frame Metric Extraction
     let (pos, headerStyle, codeText, title, details, mBlurb) = case diagnostic of
             Right (OuroError ePos context)
@@ -151,9 +166,9 @@ pintDiagnostic sourceOf diagnostic = do
 
     -- Rendering Pipe
     -- Instructs the layout engine to execute text-wrapping computations under an adjusted
-    -- line constraint before converting annotations to ANSI terminal stream codes.
+    -- line constraint; pintDiagnostic adds the colours, renderDiagnostic leaves them out.
     let layoutOptions = LayoutOptions (AvailablePerLine adjustedWidth 1.0)
-    renderIO stderr (reAnnotateS styleToAnsi (layoutSmart layoutOptions doc))
+    layoutSmart layoutOptions doc
 
     where
     renderLabel :: OuroStyle -> Text

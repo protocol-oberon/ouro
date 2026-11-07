@@ -1,0 +1,10 @@
+Error [SYN0009]: Malformed Pattern
+  ┌── │SYN0009-MalformedPattern.ouro:1:14│
+  │
+1 │ (defn f ((?a (g ?b))) a)
+  │              ^
+  │              Pattern Rule: Patterns are written as values are: (pattern ...) for an Array, (:key pattern ...) for a Record, and ? or ?name for a hole.
+  │ 
+
+A '?' hole cannot appear inside a function call or type assertion. Holes can only stand in for Record values or
+Array elements.

@@ -1,0 +1,11 @@
+Error [SCP0000]: Unbound Identifier
+  ┌── │SCP0000-ScopeError.ouro:1:14│
+  │
+1 │ (graph g (:r nope))
+  │              ^
+  │              Expected: a defined symbol
+  │              Got:      nope
+  │ 
+
+The evaluator attempted to lookup the value for 'nope', but the identifier failed to resolve within any active
+scope chain.

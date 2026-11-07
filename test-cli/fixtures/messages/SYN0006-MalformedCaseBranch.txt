@@ -1,0 +1,7 @@
+Error [SYN0006]: Malformed Case Branch
+  ┌── │SYN0006-MalformedCaseBranch.ouro:1:15│
+  │
+1 │ (graph g (:r (case 3 (1 2 3) (otherwise "b"))))
+  │               ^
+  │               Invalid Branch, expected Form:  (<pattern> <body>)
+  │ 

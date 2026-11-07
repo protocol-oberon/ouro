@@ -1,0 +1,11 @@
+Error [BLD0005]: Missing Source Folder
+  ┌── │test-cli/fixtures/messages/BLD0005-MissingSourceFolder/package.ouro:1:1│
+  │
+1 │ (defn package () (:sources "scr"))
+  │ ^
+  │ Folder: scr
+  │ 
+
+The source folder 'scr' does not exist: looked for
+test-cli/fixtures/messages/BLD0005-MissingSourceFolder/scr. package.ouro's :sources is a folder
+beside it, such as "src".

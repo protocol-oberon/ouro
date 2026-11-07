@@ -1,0 +1,8 @@
+Error [SCP0004]: Non Existent Graph
+  ┌── │SCP0004-NonExistentGraph.ouro:1:1│
+  │
+1 │ (graph h (:r 1))
+  │ ^
+  │ Compilation target graph: 'g' cannot be found
+  │ Perhaps you meant to target the graph: 'h'
+  │ 

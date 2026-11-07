@@ -1,0 +1,10 @@
+Error [BLD0012]: Nested Vendor
+  ┌── │test-cli/fixtures/messages/BLD0012-NestedVendor/vendor/tate/vendor:1:1│
+  │
+1 │ 
+  │ ^
+  │ Collection: tate
+  │ 
+
+vendor/tate has a vendor/ folder of its own: vendoring is flat, so a library's dependencies are
+vendored beside it, in vendor/. Perhaps move its folders up.

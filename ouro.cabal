@@ -284,6 +284,7 @@ test-suite ouro-cli-test
     other-modules:
         Utils
         Ouro.Cli.CommandTest
+        Ouro.Cli.MessageTest
         Ouro.Cli.ProjectTest
 
     -- LANGUAGE extensions used by modules in this package.

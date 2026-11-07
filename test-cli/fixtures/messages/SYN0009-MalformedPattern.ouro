@@ -1,0 +1,2 @@
+(defn f ((?a (g ?b))) a)
+(graph g (:r (f (1 2))))

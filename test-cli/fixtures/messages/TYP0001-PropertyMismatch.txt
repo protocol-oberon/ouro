@@ -1,0 +1,9 @@
+Error [TYP0001]: Property Mismatch
+  ┌── │TYP0001-PropertyMismatch.ouro:1:22│
+  │
+1 │ (graph g (:a #string 1))
+  │                      ^
+  │                      Expected data to have the property #string, got #number instead.
+  │ 
+
+Ouro's built-in properties are #string, #number, #boolean, #uri, #date, #record, #array and #function.

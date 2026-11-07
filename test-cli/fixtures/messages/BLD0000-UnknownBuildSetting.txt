@@ -1,0 +1,9 @@
+Error [BLD0000]: Unknown Build Setting
+  ┌── │test-cli/fixtures/messages/BLD0000-UnknownBuildSetting/package.ouro:1:1│
+  │
+1 │ (defn package () (:sorces "src"))
+  │ ^
+  │ Setting: :sorces
+  │ 
+
+package.ouro's settings are :sources, :outputs, :graphs, :ouro. Perhaps you meant ':sources'.

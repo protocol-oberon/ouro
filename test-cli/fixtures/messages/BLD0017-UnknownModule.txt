@@ -1,0 +1,9 @@
+Error [BLD0017]: Unknown Module
+  ┌── │test-cli/fixtures/messages/BLD0017-UnknownModule/package.ouro:1:1│
+  │
+1 │ (defn package () (:graphs ("peopel/person")))
+  │ ^
+  │ Graph: peopel/person
+  │ 
+
+The project has no module peopel, so it has no graph peopel/person. Perhaps you meant 'people'.

@@ -1,0 +1,3 @@
+(defn f () 1)
+(import std/base)
+(graph g (:r 1))

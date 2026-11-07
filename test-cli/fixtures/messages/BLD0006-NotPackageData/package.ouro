@@ -1,0 +1,2 @@
+(defn package () (:sources "."))
+(graph g (:a 1))

@@ -1,0 +1,2 @@
+(import nope)
+(graph g (:r 1))

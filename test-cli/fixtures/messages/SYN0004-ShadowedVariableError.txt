@@ -1,0 +1,10 @@
+Error [SYN0004]: Shadowed Attribute
+  ┌── │SYN0004-ShadowedVariableError.ouro:1:11│
+  │
+1 │ (graph g (:case 1))
+  │           ^
+  │           This attribute key shadows a core language primative
+  │ 
+
+The identifier 'case' cannot be used as a local binding name because it is strictly reserved as a core system
+primitive. Please choose a unique, non-reserved name for your attribute.

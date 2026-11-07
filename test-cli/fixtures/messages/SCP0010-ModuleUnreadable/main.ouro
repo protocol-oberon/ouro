@@ -1,0 +1,2 @@
+(import latin)
+(graph g (:r (latin/f)))

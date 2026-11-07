@@ -1,0 +1,13 @@
+Error [SYN0007]: Missing Case Fallback
+  ┌── │SYN0007-MissingOtherwiseFallback.ouro:1:15│
+  │
+1 │ (graph g (:r (case 3 ((= 1) "a"))))
+  │               ^
+  │               Structural Rule: All case statements must end with an 'otherwise' branch.
+  │ 
+
+Ouro enforces strict determinism at compile time. A 'case' statement was detected without a terminal 'otherwise'
+branch. To guarantee that the compiled output never silently drops data due to an unhandled state, you must
+explicitly declare a fallback behavior.
+
+Perhaps append '(otherwise <fallback-expr>)' as the final branch.

@@ -1,0 +1,12 @@
+Error [BLD0013]: Collection Overlap
+  ┌── │test-cli/fixtures/messages/BLD0013-CollectionOverlap/tate:1:1│
+  │
+1 │ 
+  │ ^
+  │ Name: tate
+  │ Also in: test-cli/fixtures/messages/BLD0013-CollectionOverlap
+  │ 
+
+tate is a collection, vendor/tate, and a module or folder of
+test-cli/fixtures/messages/BLD0013-CollectionOverlap, so (import tate/…) could mean either. Perhaps
+rename one of them.

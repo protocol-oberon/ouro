@@ -1,0 +1,10 @@
+Error [BLD0010]: Reserved Package Name
+  ┌── │test-cli/fixtures/messages/BLD0010-ReservedPackageName/package.ouro:1:1│
+  │
+1 │ (defn inputs () 1)
+  │ ^
+  │ Name: inputs
+  │ 
+
+'inputs' is reserved for a later version of package.ouro: the names inputs, build and exports cannot
+be defined in it.
