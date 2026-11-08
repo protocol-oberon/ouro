@@ -15,10 +15,10 @@ import qualified Data.Ouro.Internal.Expr     as I
 import qualified Data.Ouro.Internal.Kinds    as JLD
 import           Data.Ouro.Lisp.Analysis.Forms (BlockTarget (..), FrameEntry (..),
                                               bindableAttr, collectBindings,
-                                              determineBlockTarget)
+                                              determineBlockTarget, shadowsForm)
 import           Data.Ouro.Lisp.Eval.Pattern (matchPattern)
 import           Data.Ouro.Lisp.Eval.Schema  (contextFromValue)
-import           Data.Ouro.Lisp.Eval.Scope   (allocFrame, allocValues, force)
+import           Data.Ouro.Lisp.Eval.Scope   (allocFrame, allocValues, boundIn, force)
 import           Data.Ouro.Lisp.Eval.Types   (Binding (..), Env (..), EvalM, Expr (..),
                                               humanReadableType)
 import qualified Data.Ouro.Lisp.Eval.Types   as L
@@ -130,8 +130,10 @@ emitProps evaluator env attrAddrs expressions = go I.EmptyMeta expressions
                              Record m p -> Record m (("*err*", EvalError (removedAttrForm pos)) : p)
                              otherVal   -> otherVal
 
-                  -- Case B: Inlay evaluated record pairs directly into the current record scope
-                  S.Form _ [S.Symbol pos "inlay", iExpr] : rest
+                  -- Case B: Inlay evaluated record pairs directly into the current record scope, unless a
+                  -- binding of the name shadows the form, as in Scheme
+                  S.Form _ inlayForm@[S.Symbol pos (S.formName -> "inlay"), iExpr] : rest
+                      | not (shadowsForm (`boundIn` env) inlayForm)
                       -> let blockTarget = case iExpr of
                                                S.Form _ inner -> determineBlockTarget inner
                                                _              -> TargetFunctionApp -- Treat symbols/primitives as dynamic
@@ -296,8 +298,10 @@ compileArray evaluator env pos elements = Array <$> compileElements env elements
             S.Form _ [S.Symbol _ "%attr", _, _] : xs
                 -> compileElements env' xs
 
-            -- Case B.5: Inlay evaluated array elements directly into the current array scope
-            S.Form _ [S.Symbol sPos "inlay", iExpr] : xs
+            -- Case B.5: Inlay evaluated array elements directly into the current array scope, unless
+            -- a binding of the name shadows the form, as in Scheme
+            S.Form _ inlayForm@[S.Symbol sPos (S.formName -> "inlay"), iExpr] : xs
+                | not (shadowsForm (`boundIn` env') inlayForm)
                 -> let blockTarget = case iExpr of
                                          S.Form _ inner -> determineBlockTarget inner
                                          _              -> TargetFunctionApp -- Treat symbols/functions as dynamic

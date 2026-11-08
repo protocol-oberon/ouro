@@ -35,9 +35,9 @@ adjoinForms = bottomUp $ \case
 
     where
     addition = \case
-        S.Form _ [S.Symbol _ "inlay", inlaid] :| [] -> inlaid
-        item :| [] | not (isPair item)            -> S.Form (S.exprPos item) [S.Symbol (S.exprPos item) "list", item]
-        first :| rest                             -> S.Form (S.exprPos first) (first : rest)
+        S.Form _ [S.Symbol _ (S.formName -> "inlay"), inlaid] :| [] -> inlaid
+        item :| [] | not (isPair item)                              -> S.Form (S.exprPos item) [S.Symbol (S.exprPos item) "list", item]
+        first :| rest                                               -> S.Form (S.exprPos first) (first : rest)
 
     -- An attribute pair, or a context, which is written beside them
     isPair = \case

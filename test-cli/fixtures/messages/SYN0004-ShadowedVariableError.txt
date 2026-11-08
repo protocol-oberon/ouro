@@ -1,9 +1,0 @@
-Error [SYN0004]: Reserved Name
-  ┌── │SYN0004-ShadowedVariableError.ouro:1:11│
-  │
-1 │ (graph g (:case 1))
-  │           ^
-  │           Reserved: case
-  │ 
-
-'case' is reserved by Ouro, so it cannot name an attribute key or a let binding. Perhaps choose another name.

@@ -32,15 +32,15 @@ import           Text.Megaparsec        (SourcePos)
 -- other call.
 placeholders :: S.Expr -> S.Expr
 placeholders = \case
-    S.Form pos (cSym@(S.Symbol _ "case") : target : branches)
+    S.Form pos (cSym@(S.Symbol _ (S.formName -> "case")) : target : branches)
         -> S.Form pos (cSym : placeholders target : map branch branches)
 
     -- A fn's parameters are names and patterns, not arguments, so only its body is read
-    S.Form pos [fnSym@(S.Symbol _ "fn"), params, body]
+    S.Form pos [fnSym@(S.Symbol _ (S.formName -> "fn")), params, body]
         -> S.Form pos [fnSym, params, placeholders body]
 
     S.Form pos (headExpr@(S.Symbol _ name) : args)
-        | name `notElem` holeFreeForms
+        | S.formName name `notElem` holeFreeForms
         , not (any S.isAttrForm args)
         , any hole args
         -> holeFunction pos headExpr (map placeholders args)
@@ -75,7 +75,7 @@ hole = \case
 -- Builds (fn (params) (head args)) from a call with holes
 holeFunction :: SourcePos -> S.Expr -> [S.Expr] -> S.Expr
 holeFunction pos headExpr args =
-    S.Form pos [ S.Symbol pos "fn"
+    S.Form pos [ S.Symbol pos "%fn"
                , S.Form pos (firstOfEach [ p | Just p <- params ])
                , S.Form pos (headExpr : args')
                ]

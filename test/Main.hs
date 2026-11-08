@@ -84,6 +84,7 @@ main = withUtf8Console $ do
         , Language.conditions
         , Language.contexts
         , Language.contextAlgebra
+        , Language.specialFormsAreBindings
         -- Known gaps: pinned as they are today; a fixed gap keeps its pin, run negated
         , Language.knownGaps
         ]

@@ -58,10 +58,6 @@ targetMismatch expected actual = Syntax $ TargetMismatchAttr
     }
 
 
-shadowedVariable :: Text -> ErrorContext
-shadowedVariable = Syntax . ShadowedVariableError
-
-
 inexhaustiveCase :: Text -> Int -> ErrorContext
 inexhaustiveCase fallthrough attempts = Syntax $ InexhaustiveCase
     { unmatchedTarget = fallthrough
@@ -493,11 +489,6 @@ binaryOpMismatchBlurb base modif = "The provided operands " <> humanReadableType
                                 <> "Verify that your input data matches the expected structural schema."
 
 
-shadowedVariableBlurb :: Text -> Text
-shadowedVariableBlurb keyword = "'" <> keyword <> "' is reserved by Ouro, so it cannot name an attribute key or a let binding. "
-                             <> "Perhaps choose another name."
-
-
 inexhaustiveCaseBlurb :: Int -> Text
 inexhaustiveCaseBlurb attempts =
     let baseBlurb = "Ouro requires absolute determinism for branch evaluation. Because every case form must completely map its input domain, a failure to match implies an incomplete data flow contract."
@@ -609,8 +600,9 @@ warningBlurb = \case
         <> "Perhaps remove the parentheses: " <> val <> ", if a single value is intended."
 
     Lint (ShadowedBuiltin name)
-        -> "A defn named after a built-in replaces it throughout the file: in calls, in case guards, "
-        <> "and under any symbol the built-in is also written with (= is eq, ∪ is union).\n\n"
+        -> "A defn named after a built-in or a special form replaces it throughout the file, as a definition does in Scheme: "
+        <> "a built-in in calls, in case guards and under any symbol it is also written with (= is eq, ∪ is union), "
+        <> "a special form wherever it is called.\n\n"
         <> "Perhaps choose another name for the function, unless replacing '" <> name <> "' is intended."
 
     Lint (NotKebabCase _ _ kebab)

@@ -20,6 +20,6 @@ withForms = bottomUp $ \case
     S.Form pos (S.Symbol sPos "with" : base : items)
         -> case items of
                [] -> base
-               _  -> S.Form pos (S.Form sPos [S.Symbol sPos "inlay", base] : items)
+               _  -> S.Form pos (S.Form sPos [S.Symbol sPos "%inlay", base] : items)
     other
         -> other

@@ -96,14 +96,8 @@ data SyntaxError
       , actualAttr :: Text  -- The raw text identifier of the invalid attribute binder encountered
       }
 
-    -- SYNTAX VIOLATION: BUILTIN KEYWORD SHADOWING
-    -- Occurs when a structural layout configuration or user-defined assignment attempts
-    -- to bind a localized variable or graph attribute name to an identifier string
-    -- that is strictly reserved for core system primitives and evaluator keywords.
-    --
-    -- * Remediation: The compiler or editing layer must inform the user that core system
-    --   operators cannot be re-bound or overwritten, and suggest choosing a unique alternate
-    --   identifier name that does not conflict with the foundational engine registry.
+    -- RETIRED, never raised: a key or a let binding named after a special form, which was
+    -- reserved. A binding now shadows a special form, as in Scheme (gap 43).
     | ShadowedVariableError
       { shadows :: Text
       }
@@ -466,13 +460,14 @@ data LinterWarning
       }
 
     -- LINT WARNING: SHADOWED BUILT-IN
-    -- Occurs when a defn is named after a built-in, such as (defn eq (a b) ...). The function
-    -- replaces the built-in throughout the file: in calls, in case guards, and under any
-    -- symbol the built-in is also written with, so (defn = ...) replaces eq too.
+    -- Occurs when a defn is named after a built-in, such as (defn eq (a b) ...), or a special
+    -- form, such as (defn list (x) ...). The function replaces a built-in throughout the file:
+    -- in calls, in case guards, and under any symbol the built-in is also written with, so
+    -- (defn = ...) replaces eq too; and it shadows a special form wherever it is called.
     --
     -- * Remediation: Issue warning. Suggest another name, unless the replacement is intended.
     | ShadowedBuiltin
-      { shadowedName :: Text -- The name of the built-in the function replaces
+      { shadowedName :: Text -- The name of the built-in or special form the function replaces
       }
 
     -- LINT WARNING: NOT KEBAB CASE

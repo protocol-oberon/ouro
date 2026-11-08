@@ -16,7 +16,7 @@ import qualified Data.Ouro.Lisp.Surface        as S
 -- destructuring patterns, which hold a '?' hole or a ':key pattern'.
 alternatives :: S.Expr -> S.Expr
 alternatives = bottomUp $ \case
-    S.Form fPos (cSym@(S.Symbol _ "case") : target : branches)
+    S.Form fPos (cSym@(S.Symbol _ (S.formName -> "case")) : target : branches)
         -> S.Form fPos (cSym : target : concatMap expandBranch branches)
     other
         -> other

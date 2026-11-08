@@ -15,18 +15,17 @@ module Data.Ouro.Lisp.Analysis.Forms
 , isSubjectHole
 , letBindings
 , param
-, reservedNames
+, shadowsForm
 ) where
 
-import           Control.Monad               (when)
 import           Data.Function               ((&))
-import           Data.Ouro.Error.Diagnostics (lexicalError, shadowedVariable,
-                                              shadowedVariableBlurb, withBlurb)
+import           Data.Ouro.Error.Diagnostics (lexicalError, withBlurb)
 import           Data.Ouro.Error.Types       (OuroError (..))
 import           Data.Ouro.Lisp.Function     (bindingWithoutValue,
                                               isFunctionKeyword, keyInLet,
                                               misplacedBinding, patternParam,
-                                              removedDefine, removedLocalDefn)
+                                              removedDefine, removedLocalDefn,
+                                              specialForms)
 import qualified Data.Ouro.Lisp.Module.Types as M
 import qualified Data.Ouro.Lisp.Surface      as S
 import           Data.Text                   (Text)
@@ -134,8 +133,8 @@ letBindings = traverse $ \case
            & Left
 
 
--- Special forms are recognised by their head symbol, so they cannot be bound as names, and
--- a '/' qualifies an imported name, so a binding cannot have one
+-- A '/' qualifies an imported name, so a binding cannot have one. Any other name can be bound,
+-- a special form's too: the binding shadows the form, as in Scheme (see 'shadowsForm')
 checkBindableName :: Text -> SourcePos -> Either OuroError ()
 checkBindableName key pos
     | Just _ <- M.splitQualified key
@@ -144,16 +143,17 @@ checkBindableName key pos
           & OuroError pos
           & Left
     | otherwise
-        = when (key `elem` reservedNames) $
-              shadowedVariable key
-              & withBlurb (shadowedVariableBlurb key)
-              & OuroError pos
-              & Left
+        = Right ()
 
--- The removed forms, nth, attr, define and defun, are not reserved: their names shadow nothing,
--- and a call of one is still reported with its replacement, by its head symbol
-reservedNames :: [Text]
-reservedNames = ["list", "case", "get", "context", "inlay", "insert", "defn", "let", "fn"]
+
+-- Whether a form is a call of a binding rather than a special form, given whether a name is
+-- bound where the form is written. As in Scheme, a special form's name means the form unless a
+-- binding around it has the name: an attribute key, a let binding, a parameter, a hole or a
+-- defn of the module. A head Canon wrote, such as %case, is never a binding's (see 'S.formName').
+shadowsForm :: (Text -> Bool) -> [S.Expr] -> Bool
+shadowsForm bound = \case
+    S.Symbol _ name : _ -> name `elem` specialForms && bound name
+    _notNamed           -> False
 
 
 -- A ':key value' attribute pair that binds a name. Pairs whose value is itself a structural

@@ -24,7 +24,7 @@ import           Data.Ouro.Lisp.Analysis.Forms (BlockTarget (..), FrameEntry (..
                                                 determineBlockTarget,
                                                 hasValidOtherwise, holeName,
                                                 isRestHole, isSubjectHole,
-                                                letBindings, param)
+                                                letBindings, param, shadowsForm)
 import           Data.Ouro.Lisp.Eval.Builtins  (builtinRegistry)
 import qualified Data.Ouro.Lisp.Eval.Types     as L
 import           Data.Ouro.Lisp.Function       (checkParams, functionBody,
@@ -51,9 +51,13 @@ data Scope = Scope
     , scopeImports   :: Map.Map Text L.Imported
     }
 
+-- Whether a binding around this point has the name: a local or a function of the module
+bound :: Scope -> Text -> Bool
+bound scope name = name `Set.member` scopeLocals scope || Map.member name (scopeFunctions scope)
+
 -- The scope with more names bound around it
 within :: Set.Set Text -> Scope -> Scope
-within bound scope = scope { scopeLocals = bound <> scopeLocals scope }
+within more scope = scope { scopeLocals = more <> scopeLocals scope }
 
 
 -- Every error in a module's functions and graphs, in source order, with the modules it
@@ -94,7 +98,7 @@ parameters closure params body =
 pattern :: Scope -> S.Expr -> Maybe ([OuroError], Set.Set Text)
 pattern scope = \case
     S.Hole _ hole
-        -> Just ([], bound hole)
+        -> Just ([], holeBinds hole)
 
     S.Form _ elems
         | any S.isAttrForm elems
@@ -103,7 +107,7 @@ pattern scope = \case
                strays = length elems - length keyed - length rests
            in case (strays, rests) of
                   (0, [])     -> mconcat <$> traverse (pattern scope) keyed
-                  (0, [rest]) -> (<> ([], bound rest)) . mconcat <$> traverse (pattern scope) keyed
+                  (0, [rest]) -> (<> ([], holeBinds rest)) . mconcat <$> traverse (pattern scope) keyed
                   _malformed  -> Nothing
 
     p@(S.Form _ (S.Symbol _ _ : _))
@@ -118,7 +122,7 @@ pattern scope = \case
     p   -> byValue p
 
     where
-    bound hole = foldMap Set.singleton (holeName hole)
+    holeBinds hole = foldMap Set.singleton (holeName hole)
 
     byValue p = case S.containsHole p of
                     True  -> Nothing
@@ -161,6 +165,11 @@ resolve scope pos name
 -- evaluator's, where it is evaluated.
 form :: Scope -> SourcePos -> [S.Expr] -> [OuroError]
 form scope pos items = case items of
+    -- A special form's name that a binding around the form has is the binding's, as in Scheme:
+    -- the form is an ordinary call of it
+    _shadowed
+        | shadowsForm (bound scope) items             -> arity scope pos items <> concatMap (names scope) items
+
     S.Symbol _ "context" : _                         -> []
     S.Symbol _ "attr" : _                            -> []
 
@@ -185,9 +194,9 @@ form scope pos items = case items of
     [S.Symbol _ "with"]                              -> []
     [S.Symbol _ "adjoin"]                            -> []
 
-    S.Symbol _ "let" : [S.Form _ bindings, body]
+    S.Symbol _ (S.formName -> "let") : [S.Form _ bindings, body]
         | Right entries <- letBindings bindings      -> frame scope entries <> names (within (keys entries) scope) body
-    S.Symbol _ "let" : _                             -> []
+    S.Symbol _ (S.formName -> "let") : _             -> []
 
     S.Symbol _ "define" : _                          -> []
     S.Symbol _ "when" : _                            -> []
@@ -198,18 +207,18 @@ form scope pos items = case items of
         | isFunctionKeyword keyword                  -> []
     [S.Symbol _ "%binder", S.Literal _ (S.Str _)]    -> []
 
-    [S.Symbol fnPos "fn", S.Form _ params, body]
+    [S.Symbol fnPos (S.formName -> "fn"), S.Form _ params, body]
         | Just typed <- traverse param (zip [1 ..] params)
                                                      -> lambda fnPos typed body
-    [S.Symbol fnPos "fn", S.Tagged _ _ (S.Form _ params), body]
+    [S.Symbol fnPos (S.formName -> "fn"), S.Tagged _ _ (S.Form _ params), body]
         | Just typed <- traverse param (zip [1 ..] params)
                                                      -> lambda fnPos typed body
-    S.Symbol _ "fn" : _                              -> []
+    S.Symbol _ (S.formName -> "fn") : _              -> []
 
     [S.Symbol _ "%attr", S.Literal _ (S.Str _), value]
                                                      -> names scope value
 
-    S.Symbol _ "case" : target : branches
+    S.Symbol _ (S.formName -> "case") : target : branches
         | hasValidOtherwise branches                 -> names scope target <> concatMap (branch scope) branches
         | otherwise                                  -> []
 
@@ -290,7 +299,8 @@ record scope items = case collectBindings items of
     Right entries  -> let inside = within (keys entries) scope
                       in frame scope entries
                          <> concat (take 1 [ names inside e | S.Form _ [S.Symbol _ "%context", e] <- items ])
-                         <> concat [ names inside e | S.Form _ [S.Symbol _ "inlay", e] <- items, not (literal TargetList e) ]
+                         <> concat [ names inside e | S.Form _ inlay@[S.Symbol _ (S.formName -> "inlay"), e] <- items
+                                                  , not (shadowsForm (bound inside) inlay), not (literal TargetList e) ]
 
 
 -- An array's elements; an attribute pair in it is erased, and an inlay of a record literal
@@ -304,9 +314,10 @@ array scope = concatMap $ \case
     S.Form _ (S.Symbol _ "context" : _)                      -> []
     S.Form _ (S.Symbol _ "attr" : _)                         -> []
     S.Form _ [S.Symbol _ "%attr", _, _]                      -> []
-    S.Form _ [S.Symbol _ "inlay", e]
-        | literal TargetRecord e                             -> []
-        | otherwise                                          -> names scope e
+    S.Form _ inlay@[S.Symbol _ (S.formName -> "inlay"), e]
+        | not (shadowsForm (bound scope) inlay), literal TargetRecord e
+                                                             -> []
+        | not (shadowsForm (bound scope) inlay)              -> names scope e
     element                                                  -> names scope element
 
 

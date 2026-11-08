@@ -128,3 +128,16 @@ isAttrForm :: Expr -> Bool
 isAttrForm = \case
               Form _ (Symbol _ "%attr" : _) -> True
               _notAnAttr                    -> False
+
+
+-- The heads Canon writes for the forms it builds: %case for and and or, %let for a case's
+-- guards, %fn for placeholders and %inlay for with. No Ouro source can spell them, so no
+-- binding can capture code the source did not write (hygiene, as a Scheme macro's if means the
+-- core if wherever it is expanded). Each is read as the form it names; any other head is itself.
+formName :: Text -> Text
+formName = \case
+    "%case"  -> "case"
+    "%let"   -> "let"
+    "%fn"    -> "fn"
+    "%inlay" -> "inlay"
+    name     -> name

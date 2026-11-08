@@ -261,7 +261,7 @@ splitErrorContext = \case
 
     Syntax (InvalidFunctionName name)
         -> ( "Invalid Function Name"
-           , [ labeled "Naming Rule: " (pretty $ "'" <> name <> "' is a special form, so it cannot be used as a function name.") ]
+           , [ labeled "Naming Rule: " (pretty $ "'" <> name <> "' is read by its syntax, so a function cannot take its name.") ]
            , Nothing
            )
 

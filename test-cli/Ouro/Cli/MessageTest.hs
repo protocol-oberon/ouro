@@ -31,7 +31,7 @@ import           Text.Megaparsec     (sourceName)
 -- a project built. Its diagnostics are rendered as ouro prints them, without their colours, and
 -- compared with the golden file beside it, CODE-Constructor.txt. With OURO_ACCEPT set, the golden
 -- files are written instead, so a change of wording is reviewed as a change of the golden file.
--- Never raised, so without a fixture: SYN0002 and SYN0005, SCP0011 (only a host with several
+-- Never raised, so without a fixture: SYN0002, SYN0005 and the retired SYN0004, SCP0011 (only a host with several
 -- roots raises it), the internal errors, the retired BLD0001, BLD0003, BLD0004, and BLD0002, and
 -- the warnings WRN0001 DeprecatedSyntax, ElidedPropertyAssign and UnboundTypeReference.
 messages :: IO Group

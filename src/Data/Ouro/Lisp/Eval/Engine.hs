@@ -31,11 +31,11 @@ import           Data.Ouro.Lisp.Analysis.Forms  (BlockTarget (..),
                                                  determineBlockTarget,
                                                  hasValidOtherwise,
                                                  isSubjectHole, letBindings,
-                                                 param)
+                                                 param, shadowsForm)
 import           Data.Ouro.Lisp.Eval.Builtins   (builtinRegistry, distinctValues, parseISO8601)
 import           Data.Ouro.Lisp.Eval.Pattern    (matchPattern)
-import           Data.Ouro.Lisp.Eval.Scope      (allocFrame, allocValues, force,
-                                                 lookupVar)
+import           Data.Ouro.Lisp.Eval.Scope      (allocFrame, allocValues, boundIn,
+                                                 force, lookupVar)
 import           Data.Ouro.Lisp.Eval.Structural (alreadyAField, compileArray,
                                                  compileRecord, evalFunction)
 import           Data.Ouro.Lisp.Eval.Types      (Env (..), EvalM, Expr (..),
@@ -45,7 +45,7 @@ import           Data.Ouro.Lisp.Function        (checkParams, isFunctionKeyword,
                                                  misplacedBinding,
                                                  removedAttrForm, removedContextForm,
                                                  removedDefine, removedLocalDefn, removedNth,
-                                                 strayHole, typedResult)
+                                                 specialForms, strayHole, typedResult)
 import           Data.Ouro.Lisp.Module.Types    (Module)
 import qualified Data.Ouro.Lisp.Surface         as S
 import           Data.Text                      (Text)
@@ -132,6 +132,12 @@ evalExpr expr = do
 
         -- Holes left by 'Canon.placeholders': outside a call's arguments and case patterns
         S.Hole   pos hole          -> pure (EvalError (strayHole hole pos))
+
+        -- A special form's name that a binding around the form has is the binding's: as in
+        -- Scheme, a binding shadows a special form, so the form is an ordinary call of it
+        S.Form pos items
+            | shadowsForm (`boundIn` env) items
+            -> applyFunction pos items
 
         --- INTERCEPT SPECIAL FORMS ---
         -- The old (context (...)) form: a record's context is now ':context value'
@@ -324,7 +330,7 @@ evalExpr expr = do
                & pure
 
         -- (let ($name expr ...) expr): private bindings, in any order, around one result
-        S.Form pos (S.Symbol _ "let" : rest)
+        S.Form pos (S.Symbol _ (S.formName -> "let") : rest)
             -> case rest of
                    [S.Form _ bindings, body]
                        -> case letBindings bindings of
@@ -383,15 +389,15 @@ evalExpr expr = do
 
         -- (fn (args) expr): an anonymous function, closed over the scope it is written in.
         -- A return type is read as a tag on the parameter list: (fn #number (n) expr).
-        S.Form pos [S.Symbol _ "fn", S.Form _ params, body]
+        S.Form pos [S.Symbol _ (S.formName -> "fn"), S.Form _ params, body]
             | Just typed <- traverse param (zip [1 ..] params)
             -> pure (either EvalError (const (FunctionClosure env ("fn", pos) typed [body])) (checkParams pos typed))
 
-        S.Form pos [S.Symbol _ "fn", S.Tagged tPos tag (S.Form _ params), body]
+        S.Form pos [S.Symbol _ (S.formName -> "fn"), S.Tagged tPos tag (S.Form _ params), body]
             | Just typed <- traverse param (zip [1 ..] params)
             -> pure (either EvalError (const (FunctionClosure env ("fn", pos) typed [typedResult (Just (tPos, tag)) body])) (checkParams pos typed))
 
-        S.Form pos (S.Symbol _ "fn" : _)
+        S.Form pos (S.Symbol _ (S.formName -> "fn") : _)
             -> lexicalError "A fn is written (fn (args) expr): argument names or patterns, each with an optional type, then exactly one result expression."
                & withBlurb "A signature's types are properties: (fn #number (#number n) (* n 2))."
                & OuroError pos
@@ -405,7 +411,7 @@ evalExpr expr = do
 
 
 
-        S.Form _ (S.Symbol pos "case" : target : patterns)
+        S.Form _ (S.Symbol pos (S.formName -> "case") : target : patterns)
             -> case (hasValidOtherwise patterns) of
                    True -> evalExpr target >>= \case
                                EvalError err   -> pure $ EvalError err
@@ -651,9 +657,18 @@ applyFunction pos exprs =
                    otherVal          -> let what = case operatorExpr of
                                                        S.Symbol _ name -> "'" <> name <> "'"
                                                        _notAName       -> "This expression"
+                                            -- A binding named after a special form shadows it, so the call is of the binding
+                                            shadowedForm = case operatorExpr of
+                                                S.Symbol _ name
+                                                    | name `elem` specialForms
+                                                    -> "\n\n'" <> name <> "' is also a special form, which a binding of the same name shadows, as in Scheme, "
+                                                    <> "so (" <> name <> " ...) here calls the binding. Perhaps rename the binding to use the form."
+                                                _notAForm
+                                                    -> ""
                                         in typeMismatch "a function to call" (humanReadableType otherVal)
                                            & withBlurb ( what <> " is " <> humanReadableType otherVal <> ", not a function, so it cannot be called."
                                                       <> "\n\nFunctions and values share one namespace: a value with the same name as a function shadows it."
+                                                      <> shadowedForm
                                                        )
                                            & OuroError pos
                                            & EvalError

@@ -6,7 +6,8 @@ Warning [WRN0003]: The function 'len' replaces the built-in 'len'
   │ Replaced Built-in: len
   │ 
 
-A defn named after a built-in replaces it throughout the file: in calls, in case guards, and under
-any symbol the built-in is also written with (= is eq, ∪ is union).
+A defn named after a built-in or a special form replaces it throughout the file, as a definition does
+in Scheme: a built-in in calls, in case guards and under any symbol it is also written with (= is eq,
+∪ is union), a special form wherever it is called.
 
 Perhaps choose another name for the function, unless replacing 'len' is intended.

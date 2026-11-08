@@ -27,11 +27,11 @@ connectives = \case
     S.Form pos (S.Symbol _ "or" : operands)
         -> connectives (chain pos False operands)
 
-    S.Form pos (cSym@(S.Symbol _ "case") : target : branches)
+    S.Form pos (cSym@(S.Symbol _ (S.formName -> "case")) : target : branches)
         -> S.Form pos (cSym : connectives target : map branch branches)
 
     -- A fn's parameters are names and patterns, so only its body is read
-    S.Form pos [fnSym@(S.Symbol _ "fn"), params, body]
+    S.Form pos [fnSym@(S.Symbol _ (S.formName -> "fn")), params, body]
         -> S.Form pos [fnSym, params, connectives body]
 
     S.Form    pos items     -> S.Form    pos (map connectives items)
@@ -54,7 +54,7 @@ chain pos isAll = \case
     [operand]
         -> asBool operand
     operand : rest
-        -> S.Form pos [ S.Symbol pos "case"
+        -> S.Form pos [ S.Symbol pos "%case"
                       , asBool operand
                       , S.Form pos [S.Literal pos (S.Bool True), whenTrue]
                       , S.Form pos [S.Symbol pos "otherwise",    whenFalse]

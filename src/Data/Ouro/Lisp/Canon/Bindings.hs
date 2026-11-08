@@ -17,7 +17,7 @@ import qualified Data.Ouro.Lisp.Surface        as S
 -- reports; a '$name' anywhere else stays (%binder "name"), reported where it is evaluated.
 bindings :: S.Expr -> S.Expr
 bindings = topDown $ \case
-    S.Form pos (letSym@(S.Symbol _ "let") : S.Form lPos binders : rest)
+    S.Form pos (letSym@(S.Symbol _ (S.formName -> "let")) : S.Form lPos binders : rest)
         -> S.Form pos (letSym : S.Form lPos (pairUp binders) : rest)
     other
         -> other

@@ -83,8 +83,8 @@ plainNames = Group "Functions: names are plain symbols, in one namespace"
                                                                 "(graph g (:r \"value\"))")
     , ("a function defined twice",                 failsWith "defined more than once"
                                                              "(defn f () 1) (defn f () 2) (graph g (:r (f)))")
-    , ("a function named after a special form",    failsWith "special form"
-                                                             "(defn get (x) x) (graph g (:r 1))")
+    , ("a function named after a special form shadows it", compilesToJSON "(defn get (x) x) (graph g (:r (get 1)))"
+                                                             "{\"r\": 1}")
     , ("calling a value that shadows a function",  failsWith "not a function"
                                                              "(defn label () \"function\") (graph g (:label \"value\" :r (label)))")
 
@@ -244,8 +244,8 @@ mapping = Group "Functions: map calls a function on each element"
                                                             "(graph g (:r (map (+ ? 1) (:a 1))))")
     , ("map takes a function and an array",       failsWith "map is written (map f array)"
                                                             "(graph g (:r (map (+ ? 1))))")
-    , ("map cannot be a function name",           failsWith "'map' is a special form"
-                                                            "(defn map (x) x) (graph g (:r 1))")
+    , ("map can name a function, which shadows it", compilesToJSON "(defn map (x) x) (graph g (:r (map 1)))"
+                                                            "{\"r\": 1}")
     , ("a function cannot map itself",            failsWith "a recursive function call"
                                                             "(defn f (x) (map f x)) (graph g (:r (f (1))))")
     ]
@@ -367,9 +367,9 @@ threading = Group "Functions: with and -> build a value step by step"
                                                             "(graph g (:r (->)))")
     , ("with needs a value",                      failsWith "with is written (with value :key value ...)"
                                                             "(graph g (:r (with)))")
-    , ("with cannot be a function name",          failsWith "'with' is a special form"
+    , ("with cannot be a function name",          failsWith "'with' is read by its syntax before any name is bound"
                                                             "(defn with (x) x) (graph g (:r 1))")
-    , ("-> cannot be a function name",            failsWith "'->' is a special form"
+    , ("-> cannot be a function name",            failsWith "'->' is read by its syntax before any name is bound"
                                                             "(defn -> (x) x) (graph g (:r 1))")
     ]
     where
@@ -441,7 +441,7 @@ adjoining = Group "Functions: adjoin adds to a property's set of values"
                                                             "(graph g (:r (adjoin (:k 1) :k 2 :k 3)))")
     , ("adjoin needs a value",                    failsWith "adjoin is written (adjoin value :key value ...)"
                                                             "(graph g (:r (adjoin)))")
-    , ("adjoin cannot be a function name",        failsWith "'adjoin' is a special form"
+    , ("adjoin cannot be a function name",        failsWith "'adjoin' is read by its syntax before any name is bound"
                                                             "(defn adjoin (x) x) (graph g (:r 1))")
     ]
 
@@ -526,7 +526,7 @@ documentation = Group "Functions: a body can hold one (doc ...)"
                                                             "(defn one! () (let ($f (fn () (doc \"F.\") 1)) (f))) (graph g (:r (one!)))")
     , ("a doc in a graph is an error",            failsWith "'doc' belongs directly in the body of a defn"
                                                             "(graph g (:r 1 :d (doc \"A graph.\")))")
-    , ("doc cannot be a function name",           failsWith "'doc' is a special form"
+    , ("doc cannot be a function name",           failsWith "'doc' is read by its syntax before any name is bound"
                                                             "(defn doc (x) x) (graph g (:r 1))")
     ]
     where

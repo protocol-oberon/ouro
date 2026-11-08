@@ -17,6 +17,7 @@ module Data.Ouro.Lisp.Function
 , removedLocalDefn
 , removedNth
 , renamedDefun
+, specialForms
 , strayHole
 , typedArgument
 , typedResult
@@ -385,8 +386,9 @@ isFunctionKeyword = (`elem` ["defn", "defun"])
 
 
 -- Function names are plain symbols, in one namespace with values. A trailing '!'
--- is allowed but not required. A name cannot be a special form: special forms are
--- recognised before names are looked up, so such a function could never be called.
+-- is allowed but not required. A function can take a special form's name, and shadows the
+-- form in its module, as a definition does in Scheme; but not the name of a form read by its
+-- syntax before any name is bound, which it could never be called by (see 'readBySyntax').
 checkFunctionName :: Text -> SourcePos -> Either OuroError ()
 checkFunctionName name pos
     | Just (qualifier, unqualified) <- splitQualified name
@@ -396,13 +398,20 @@ checkFunctionName name pos
                       )
           & OuroError pos
           & Left
-    | name `elem` specialForms
+    | name `elem` readBySyntax
         = invalidFunctionName name
-          & withBlurb ("'" <> name <> "' is a special form, so it cannot be used as a function name. Perhaps choose another name.")
+          & withBlurb ("'" <> name <> "' is read by its syntax before any name is bound, so a function named after it could never be called by it. Perhaps choose another name.")
           & OuroError pos
           & Left
     | otherwise
         = Right ()
+
+
+-- The forms read by their syntax before any name is bound: the declarations, a module's defn
+-- and graph, a function's doc and the removed define and defun, and the forms Canon rewrites
+-- (and, or, ->, with, adjoin, thru). A binding of one of their names is never called by them.
+readBySyntax :: [Text]
+readBySyntax = ["defn", "defun", "define", "graph", "doc", "->", "adjoin", "and", "or", "thru", "with"]
 
 
 -- A function can be defined once in each scope
@@ -413,7 +422,8 @@ duplicateFunction name pos =
     & OuroError pos
 
 
--- Forms the evaluator recognises by their head symbol, before any name lookup
+-- Forms the evaluator recognises by their head symbol, unless a binding around them has the
+-- name, which shadows the form, as in Scheme (see 'Analysis.Forms.shadowsForm')
 specialForms :: [Text]
 specialForms = [ "->", "adjoin", "and", "attr", "case", "context", "define", "defn", "defun", "doc", "exists"
                , "filter", "fn", "forall", "get", "get-or", "graph", "has", "image", "inlay", "insert", "let"

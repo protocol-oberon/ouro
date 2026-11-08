@@ -1,2 +1,2 @@
-(defn case () 1)
+(defn with () 1)
 (graph g (:r 1))

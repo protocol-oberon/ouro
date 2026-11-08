@@ -109,7 +109,8 @@ library
     -- LANGUAGE extensions used by modules in this package.
     default-extensions:
         LambdaCase,
-        OverloadedStrings
+        OverloadedStrings,
+        ViewPatterns
 
 
     -- Other library packages from which modules are imported.

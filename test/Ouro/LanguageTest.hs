@@ -16,6 +16,7 @@ module Ouro.LanguageTest
 , conditions
 , contexts
 , contextAlgebra
+, specialFormsAreBindings
 , knownGaps
 ) where
 
@@ -95,18 +96,18 @@ serialisation = Group "Serialisation: only values reach the output"
                                                               "(graph g (:p (:a 1) :r (get p b)))")
     , ("subtraction's hint names a Duration",       failsWith "or a Date minus a Duration"
                                                               "(graph g (:r (- \"a\" 1)))")
-    , ("a reserved $ name is reserved",             failsWith "'get' is reserved by Ouro, so it cannot name an attribute key or a let binding."
-                                                              "(graph g (let ($get 1) (:r get)))")
-    , ("and so is a reserved key",                  failsWith "'case' is reserved by Ouro, so it cannot name an attribute key or a let binding."
-                                                              "(graph g (:case 1))")
+    , ("a $ name may be a special form's",          compilesToJSON "(graph g (let ($get 1) (:r get)))"
+                                                                   "{\"r\": 1}")
+    , ("and so may a key",                          compilesToJSON "(graph g (:case 1))"
+                                                                   "{\"case\": 1}")
 
       -- A removed form's name is free, as a key or a binding (gap 42, fixed); a call of one is
-      -- still reported with its replacement
+      -- reported with its replacement, unless a binding of the name shadows it, as in Scheme
     , ("a removed form's name is a key",            compilesToJSON "(graph g (:a (:attr 1 :nth 2 :define 3 :defun 4)))"
                                                                    "{\"a\": {\"attr\": 1, \"nth\": 2, \"define\": 3, \"defun\": 4}}")
     , ("and a binding",                             compilesToJSON "(graph g (let ($attr 1 $defun 2) (:r (+ attr defun))))"
                                                                    "{\"r\": 3}")
-    , ("whose call is still the removed form",      failsWith "The (nth index array) form has been replaced by get."
+    , ("whose call is the binding's",               failsWith "'nth' is also a special form, which a binding of the same name shadows"
                                                               "(graph g (let ($nth 1) (:r (nth 0 (1 2)))))")
 
       -- Pinned limits: the call is shown by the function's own name, not as it was qualified,
@@ -209,9 +210,9 @@ formsAndBuiltins = Group "Special forms and built-ins"
                                                                    "{\"r\": false, \"s\": [true, false]}")
     , ("and and or are threading steps",            compilesToJSON "(graph g (:r (-> true (and false)) :s (-> false (or true))))"
                                                                    "{\"r\": false, \"s\": true}")
-    , ("and cannot name a function",                failsWith "'and' is a special form"
+    , ("and cannot name a function",                failsWith "'and' is read by its syntax before any name is bound"
                                                               "(defn and (x) x) (graph g (:r (and 1)))")
-    , ("nor can or",                                failsWith "'or' is a special form"
+    , ("nor can or",                                failsWith "'or' is read by its syntax before any name is bound"
                                                               "(defn or (x) x) (graph g (:r 1))")
     , ("and and or guard an index",                 compilesToJSON "(graph g (let ($tags ()) (:featured (and (> (len tags) 0) (eq (get tags 0) \"featured\")) :listed (or (eq (len tags) 0) (eq (get tags 0) \"listed\")))))"
                                                                    "{\"featured\": false, \"listed\": true}")
@@ -462,8 +463,8 @@ encoding = Group "Encoding: source files are UTF-8"
                                                                  "{\"r\": 2}")
     , ("with a signature and a pattern",     compilesToJSON "(graph g (:r (map (\955 #number ((?a ?b)) (+ a b)) ((1 2) (3 4)))))"
                                                                  "{\"r\": [3, 7]}")
-    , ("\955 cannot name a function",        failsWith "'fn' is a special form"
-                                                            "(defn \955 (x) x) (graph g (:r 1))")
+    , ("\955 can name a function, as fn",     compilesToJSON "(defn \955 (x) x) (graph g (:r (fn 1)))"
+                                                            "{\"r\": 1}")
     , ("\955x is an ordinary name",          compilesToJSON "(graph g (let ($\955x 1) (:r \955x)))"
                                                                  "{\"r\": 1}")
 
@@ -474,7 +475,7 @@ encoding = Group "Encoding: source files are UTF-8"
                                                                     "{\"a\": true, \"b\": true, \"c\": true}")
     , ("\8746 \8745 \8726 \8838 are the set operations", compilesToJSON "(graph g (:a (\8746 (1) (2)) :b (\8745 (1 2) (2)) :c (\8726 (1 2) (2)) :d (\8838 (1) (1 2))))"
                                                                             "{\"a\": [1, 2], \"b\": [2], \"c\": [1], \"d\": true}")
-    , ("messages name the word",             failsWith "'and' is a special form"
+    , ("messages name the word",             failsWith "'and' is read by its syntax before any name is bound"
                                                             "(defn \8743 (x) x) (graph g (:r 1))")
     , ("\8743x is an ordinary name",         compilesToJSON "(graph g (let ($\8743x 1) (:r \8743x)))"
                                                                  "{\"r\": 1}")
@@ -577,8 +578,8 @@ logicAndCollections = Group "Built-ins: logic, arrays and records"
                                                                 "{\"r\": true}")
     , ("omits needs a function",                 failsWith "a function for omits to call"
                                                            "(graph g (:r (omits 1 (1 2))))")
-    , ("omits cannot name a function",           failsWith "'omits' is a special form"
-                                                           "(defn omits (x) x) (graph g (:r 1))")
+    , ("omits can name a function",              compilesToJSON "(defn omits (x) x) (graph g (:r (omits 1)))"
+                                                           "{\"r\": 1}")
     , ("filter keeps the matching elements",     compilesToJSON "(graph g (:r (filter (> ? 1) (1 2 3))))"
                                                                 "{\"r\": [2, 3]}")
     , ("filter with has",                        compilesToJSON "(graph g (:r (filter (fn (p) (has p name)) ((:name \"a\") (:id 1)))))"
@@ -593,8 +594,8 @@ logicAndCollections = Group "Built-ins: logic, arrays and records"
                                                            "(graph g (:r (forall (> ? 1) 5)))")
     , ("a malformed filter is an error",         failsWith "filter is written (filter f array)"
                                                            "(graph g (:r (filter (> ? 1))))")
-    , ("exists cannot name a function",          failsWith "'exists' is a special form"
-                                                           "(defn exists (x) x) (graph g (:r 1))")
+    , ("exists can name a function",             compilesToJSON "(defn exists (x) x) (graph g (:r (exists 1)))"
+                                                           "{\"r\": 1}")
 
       -- contains and distinct
     , ("contains looks in an Array",             compilesToJSON "(graph g (:a (contains (1 2 3) 2) :b (contains (1 2) 5)))"
@@ -673,8 +674,8 @@ logicAndCollections = Group "Built-ins: logic, arrays and records"
                                                            "(graph g (:r (image (:p ((:k (get () 5)))) p k)))")
     , ("a malformed image is an error",          failsWith "image is written (image record key ...)"
                                                            "(graph g (:r (image (:k 1))))")
-    , ("image cannot name a function",           failsWith "'image' is a special form"
-                                                           "(defn image (x) x) (graph g (:r 1))")
+    , ("image can name a function",              compilesToJSON "(defn image (x) x) (graph g (:r (image 1)))"
+                                                           "{\"r\": 1}")
 
       -- union, intersect and setminus treat Arrays as sets
     , ("union joins without repeats",            compilesToJSON "(graph g (:a (union (1 2) (2 3)) :b (union (1 1)) :c (union (1) (2) (1 3))))"
@@ -730,8 +731,8 @@ conditions = Group "Case: conditions"
                                                            "(graph g (:r (case 5 ((when 1) \"a\") (otherwise \"b\"))))")
     , ("when outside a case is an error",        failsWith "when is written as the head of a case branch"
                                                            "(graph g (:r (when true)))")
-    , ("when cannot name a function",            failsWith "'when' is a special form"
-                                                           "(defn when (x) x) (graph g (:r 1))")
+    , ("when can name a function",               compilesToJSON "(defn when (x) x) (graph g (:r (when 1)))"
+                                                           "{\"r\": 1}")
 
       -- Comparison guards become conditions on the case's target
     , ("a guard compares a computed target",     compilesToJSON "(graph g (:r (case (+ 2 3) ((> 4) \"big\") (otherwise \"small\"))))"
@@ -752,8 +753,8 @@ conditions = Group "Case: conditions"
                                                            "(graph g (:r (map (satisfies #string) (list 1))))")
     , ("a property on its own is misplaced",     failsWith "A property on its own"
                                                            "(graph g (:r (list #string)))")
-    , ("satisfies cannot name a function",       failsWith "'satisfies' is a special form"
-                                                           "(defn satisfies (x) x) (graph g (:r 1))")
+    , ("satisfies can name a function",          compilesToJSON "(defn satisfies (x) x) (graph g (:r (satisfies 1)))"
+                                                           "{\"r\": 1}")
     ]
 
 
@@ -908,6 +909,37 @@ contextAlgebra = Group "Contexts: combining them is a monoid"
     remote = Schema . pure . remoteEntry
 
 
+-- A special form's name is bound like any other name, as in Scheme: a binding around a form,
+-- whether an attribute key, a let binding, a parameter or a defn, shadows it, and the form is
+-- then an ordinary call of the binding. The forms Canon writes are not the source's, so no
+-- binding can capture them.
+specialFormsAreBindings :: Group
+specialFormsAreBindings = Group "Special forms are bindings, as in Scheme"
+    [ ("a let binding shadows a special form",      compilesToJSON "(graph g (let ($list (fn (x) (+ x 1))) (:r (list 1))))"
+                                                                   "{\"r\": 2}")
+    , ("as does a bound map, which is called",      compilesToJSON "(graph g (let ($map (fn (x) x)) (:r (map 1))))"
+                                                                   "{\"r\": 1}")
+    , ("a parameter, even one named fn",            compilesToJSON "(defn call (fn) (fn)) (graph g (:r (call (fn () 1))))"
+                                                                   "{\"r\": 1}")
+    , ("a defn, throughout its module",             compilesToJSON "(defn list (x) (+ x 1)) (graph g (:r (list 1)))"
+                                                                   "{\"r\": 2}")
+    , ("with a warning, as for a built-in",         warnsWith "or a special form replaces it throughout the file"
+                                                              "(defn list (x) (+ x 1)) (graph g (:r (list 1)))")
+    , ("and its calls have its arity",              failsWith "IncorrectArity"
+                                                              "(defn list (x) x) (defn h () (list 1 2)) (graph g (:r 1))")
+    , ("a key, whose value is no function",         failsWith "'image' is also a special form, which a binding of the same name shadows"
+                                                              "(graph g (:image \"x\" :r (image \"a\" 1)))")
+    , ("only where the binding is",                 compilesToJSON "(graph g (:a (let ($list 1) list) :b (list 1 2)))"
+                                                                   "{\"a\": 1, \"b\": [1, 2]}")
+    , ("an inlay is shadowed too",                  compilesToJSON "(graph g (let ($inlay (fn (x) x)) (:r ((inlay 1) 2))))"
+                                                                   "{\"r\": [1, 2]}")
+    , ("Canon's forms are not captured",            compilesToJSON "(graph g (let ($case 1 $fn 2 $inlay 3) (:r (or false true) :s (map (+ ? 1) (1 2)) :t (with (:a 1) :b 2))))"
+                                                                   "{\"r\": true, \"s\": [2, 3], \"t\": {\"a\": 1, \"b\": 2}}")
+    , ("nor is a guard's",                          compilesToJSON "(graph g (let ($let 4) (:r (case 5 ((< 3) \"small\") (otherwise \"big\")))))"
+                                                                   "{\"r\": \"big\"}")
+    ]
+
+
 -- Known gaps, numbered as in the specification's Appendix B. Each test pins the current,
 -- incorrect behaviour; the change that fixes a gap adds a test of the correct behaviour and
 -- keeps the pin, run negated (fixedGap), so the old behaviour coming back fails the suite.
@@ -921,7 +953,7 @@ knownGaps = Group "Known gaps: current and fixed"
                                                               "(graph g (:r (- \"a\" 1)))")
     , ("gap 10 (fixed): a reserved $ name is called an attribute key", fixedGap $ failsWith "for your attribute"
                                                               "(graph g (let ($get 1) (:r get)))")
-    , ("gap 11: a parameter named fn",              failsWith "A fn is written"
+    , ("gap 11 (fixed): a parameter named fn",      fixedGap $ failsWith "A fn is written"
                                                               "(defn call (fn) (fn)) (graph g (:r (call 1)))")
     , ("gap 14: a record of only inlays is an array", failsWith "a valid Array to inlay"
                                                               "(defn a () (:k 1)) (defn b () (:j 2)) (graph g ((inlay (a)) (inlay (b))))")
@@ -974,9 +1006,9 @@ knownGaps = Group "Known gaps: current and fixed"
                                                                    "{\"r\": 1}")
     , ("gap 43: and a key",                          compilesToJSON "(graph g (:map 1))"
                                                                    "{\"map\": 1}")
-    , ("gap 43: but not list",                       failsWith "ShadowedVariableError"
+    , ("gap 43 (fixed): but not list",               fixedGap $ failsWith "ShadowedVariableError"
                                                               "(graph g (let ($list 1) (:r list)))")
-    , ("gap 43: and a bound map is not called",      failsWith "LexicalError"
+    , ("gap 43 (fixed): and a bound map is not called", fixedGap $ failsWith "LexicalError"
                                                               "(graph g (let ($map (fn (x) x)) (:r (map 1))))")
     , ("gap 44 (fixed for names): an uncalled function's unbound name", fixedGap $ compilesToJSON "(defn f () nope) (graph g (:r 1))"
                                                                    "{\"r\": 1}")
@@ -986,4 +1018,8 @@ knownGaps = Group "Known gaps: current and fixed"
                                                                    "{\"r\": \"a\"}")
     , ("gap 44: an uncalled function's recursion",   compilesToJSON "(defn f () (f)) (graph g (:r 1))"
                                                                    "{\"r\": 1}")
+    , ("gap 45: a binding of and is ignored at a call", compilesToJSON "(graph g (let ($and (fn (a b) 1)) (:r (and true false))))"
+                                                                   "{\"r\": false}")
+    , ("gap 45: and of with",                        compilesToJSON "(graph g (let ($with (fn (a b) 1)) (:r (with (:a 1) :b 2))))"
+                                                                   "{\"r\": {\"a\": 1, \"b\": 2}}")
     ]

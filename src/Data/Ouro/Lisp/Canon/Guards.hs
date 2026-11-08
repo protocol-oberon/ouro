@@ -31,9 +31,9 @@ import           Data.Text                         (Text)
 -- which keeps a (%when ...) head.
 guards :: S.Expr -> S.Expr
 guards = topDown $ \case
-    S.Form pos (cSym@(S.Symbol _ "case") : target : branches)
+    S.Form pos (cSym@(S.Symbol _ (S.formName -> "case")) : target : branches)
         | any comparesTarget branches
-        -> S.Form pos [ S.Symbol pos "let"
+        -> S.Form pos [ S.Symbol pos "%let"
                       , S.Form pos [S.Form pos [S.Symbol pos "%bind", S.Literal pos (S.Str "%target"), target]]
                       , S.Form pos (cSym : S.Symbol pos "%target" : map condition branches)
                       ]

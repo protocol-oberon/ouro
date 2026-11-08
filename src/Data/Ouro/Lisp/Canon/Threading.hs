@@ -32,7 +32,7 @@ threading = \case
 
     where
     thread value step = case step of
-        S.Form pos (S.Symbol _ "fn" : _)            -> S.Form pos [S.Symbol pos "%apply", step, value]
-        S.Form pos (headExpr@(S.Symbol _ _) : args) -> S.Form pos (headExpr : value : args)
-        S.Symbol pos _                              -> S.Form pos [step, value]
-        other                                       -> S.Form (S.exprPos other) [S.Symbol (S.exprPos other) "%apply", other, value]
+        S.Form pos (S.Symbol _ (S.formName -> "fn") : _) -> S.Form pos [S.Symbol pos "%apply", step, value]
+        S.Form pos (headExpr@(S.Symbol _ _) : args)      -> S.Form pos (headExpr : value : args)
+        S.Symbol pos _                                   -> S.Form pos [step, value]
+        other                                            -> S.Form (S.exprPos other) [S.Symbol (S.exprPos other) "%apply", other, value]

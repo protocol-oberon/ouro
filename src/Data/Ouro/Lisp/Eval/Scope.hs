@@ -94,6 +94,15 @@ cyclicLookup pos name =
     & L.EvalError
 
 
+-- Whether a binding around this point has the name: one of the frames', outward, or a
+-- function of the module, at the root. A built-in is not a binding.
+boundIn :: Text -> Env -> Bool
+boundIn name env =
+    Map.member name (env ^. L.localScope)
+    || Map.member name (env ^. L.functionRegistry)
+    || maybe False (boundIn name) (env ^. L.parentEnv)
+
+
 -- lookupVar.
 --
 -- Resolves a name by walking outward through the frames, then function definitions,
