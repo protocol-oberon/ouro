@@ -100,6 +100,15 @@ serialisation = Group "Serialisation: only values reach the output"
     , ("and so is a reserved key",                  failsWith "'case' is reserved by Ouro, so it cannot name an attribute key or a let binding."
                                                               "(graph g (:case 1))")
 
+      -- A removed form's name is free, as a key or a binding (gap 42, fixed); a call of one is
+      -- still reported with its replacement
+    , ("a removed form's name is a key",            compilesToJSON "(graph g (:a (:attr 1 :nth 2 :define 3 :defun 4)))"
+                                                                   "{\"a\": {\"attr\": 1, \"nth\": 2, \"define\": 3, \"defun\": 4}}")
+    , ("and a binding",                             compilesToJSON "(graph g (let ($attr 1 $defun 2) (:r (+ attr defun))))"
+                                                                   "{\"r\": 3}")
+    , ("whose call is still the removed form",      failsWith "The (nth index array) form has been replaced by get."
+                                                              "(graph g (let ($nth 1) (:r (nth 0 (1 2)))))")
+
       -- Pinned limits: the call is shown by the function's own name, not as it was qualified,
       -- and a function inside an array is reported at the graph, where its position is lost
     , ("the name is unqualified",                   failsWith "Perhaps call it: (aat id label)."
@@ -957,8 +966,16 @@ knownGaps = Group "Known gaps: current and fixed"
                                                                "(graph g (:r (#record-empty \"x\")))")
     , ("gap 41: though it is kept",                  compilesToJSON "(graph g (:r (#record-empty \"x\")))"
                                                                    "{\"r\": [{}, \"x\"]}")
-    , ("gap 42: a removed form's name is reserved as a key", failsWith "ShadowedVariableError"
+    , ("gap 42 (fixed): a removed form's name is reserved as a key", fixedGap $ failsWith "ShadowedVariableError"
                                                                    "(graph g (:a (:attr 1)))")
-    , ("gap 42: and as a binding",                   failsWith "ShadowedVariableError"
+    , ("gap 42 (fixed): and as a binding",           fixedGap $ failsWith "ShadowedVariableError"
                                                               "(graph g (let ($defun 1) (:r defun)))")
+    , ("gap 43: a binding may be named map",         compilesToJSON "(graph g (let ($map 1) (:r map)))"
+                                                                   "{\"r\": 1}")
+    , ("gap 43: and a key",                          compilesToJSON "(graph g (:map 1))"
+                                                                   "{\"map\": 1}")
+    , ("gap 43: but not list",                       failsWith "ShadowedVariableError"
+                                                              "(graph g (let ($list 1) (:r list)))")
+    , ("gap 43: and a bound map is not called",      failsWith "LexicalError"
+                                                              "(graph g (let ($map (fn (x) x)) (:r (map 1))))")
     ]

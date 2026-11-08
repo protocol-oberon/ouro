@@ -116,8 +116,10 @@ checkBindableName key pos
               & OuroError pos
               & Left
 
+-- The removed forms, nth, attr, define and defun, are not reserved: their names shadow nothing,
+-- and a call of one is still reported with its replacement, by its head symbol
 reservedNames :: [Text]
-reservedNames = ["nth", "list", "case", "get", "context", "define", "inlay", "insert", "attr", "defn", "defun", "let", "fn"]
+reservedNames = ["list", "case", "get", "context", "inlay", "insert", "defn", "let", "fn"]
 
 
 -- A ':key value' attribute pair that binds a name. Pairs whose value is itself a structural
