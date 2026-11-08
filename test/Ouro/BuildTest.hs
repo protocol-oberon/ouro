@@ -34,6 +34,8 @@ builds = Group "Builds: every graph of every module"
     , ("named by its own modules, not the one built", chosenFailsWith [("main", "(import a)\n(graph g (:r (a/f)))"), ("a", "(import b)\n(export f)\n(defn f () 1)"), ("b", "(import a)\n(export f)\n(defn f () 2)")] [("main", AllGraphs)]
                                                              ["cyclePath = [\"a\",\"b\",\"a\"]"])
     , ("a module imported by many fails once",      buildFailsTimes 1 [("main", "(import bad)\n(import other)\n(graph g (:r (other/f)))"), ("other", "(import bad)\n(export f)\n(defn f () 1)"), ("bad", "(graph g (:r \"open))")])
+      -- Every module built is analysed, its functions no graph calls too
+    , ("a function no graph calls is checked",      buildFailsWith [("a", "(defn f () nope)\n(graph g (:r 1))")] ["variableName = \"nope\""])
     ]
 
 

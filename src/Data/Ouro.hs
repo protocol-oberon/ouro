@@ -44,6 +44,7 @@ module Data.Ouro
 import           Control.Monad.Validate      (refute, runValidateT)
 import           Control.Monad.Writer        (runWriterT, tell)
 import           Data.Containers.ListUtils   (nubOrd)
+import           Data.Foldable               (traverse_)
 import           Data.Function               ((&))
 import           Data.Functor.Identity       (runIdentity)
 import           Data.List                   (sortOn)
@@ -75,6 +76,7 @@ import qualified Data.Ouro.Json.Parser       as JP
 import           Data.Ouro.Json.Serializer   (PrinterOptions (..),
                                               defaultOptions)
 import qualified Data.Ouro.Json.Serializer   as Ser
+import           Data.Ouro.Lisp.Analysis     (analyseModule)
 import qualified Data.Ouro.Lisp.Canon        as Canon
 import qualified Data.Ouro.Lisp.Eval.Engine  as EN
 import           Data.Ouro.Lisp.Eval.Types   (Expr (..), freeze)
@@ -139,7 +141,11 @@ compileUsing loader filename trgt content = compilationResult <$> runWriterT (ru
                -- They are read through the loader: from memory, or from disk.
                imported <- runLoader loader (loadImports desugaredModule)
 
-               -- Pass 3.3: Find target graph
+               -- Pass 3.3: Static analysis: every function and graph checked as written, before
+               -- any is evaluated. Its errors end the compile, as the parser's do.
+               traverse_ refute (NE.nonEmpty (analyseModule (Map.map L.importedExports imported) desugaredModule))
+
+               -- Pass 3.4: Find target graph
                graph <- case Map.lookup (T.pack trgt) (desugaredModule ^. graphRegistry) of
                             Just    g -> return g
                             Nothing

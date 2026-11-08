@@ -126,6 +126,20 @@ unboundIdentifier :: Text -> ErrorContext
 unboundIdentifier var = Scope $ ScopeError { variableName = var }
 
 
+-- A name nothing binds where it is written, with the nearest of the names that are in scope
+-- there, if one is near
+unboundName :: Text -> [Text] -> ErrorContext
+unboundName name inScope =
+    withBlurb ( "'" <> name <> "' is not bound here: no attribute pair, let binding or parameter around it, "
+             <> "function of this module or built-in has that name." <> suggestion
+              )
+              (unboundIdentifier name)
+    where
+    suggestion = case rankBySimilarity name inScope of
+                     (bestMatch, score) : _ | score <= 3 -> "\n\nPerhaps you meant: '" <> bestMatch <> "'?"
+                     _noneNear                           -> ""
+
+
 cyclicDependency :: Text -> ErrorContext
 cyclicDependency var = Scope $ CyclicDependencyError { variableName = var }
 

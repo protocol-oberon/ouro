@@ -7,5 +7,5 @@ Error [SCP0000]: Unbound Identifier
   │              Got:      nope
   │ 
 
-The evaluator attempted to lookup the value for 'nope', but the identifier failed to resolve within any active
-scope chain.
+'nope' is not bound here: no attribute pair, let binding or parameter around it, function of this module or
+built-in has that name.

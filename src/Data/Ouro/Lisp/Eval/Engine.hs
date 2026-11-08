@@ -29,7 +29,9 @@ import           Data.Ouro.Error.Types          (ErrorContext (..),
 import qualified Data.Ouro.Internal.Expr        as I
 import           Data.Ouro.Lisp.Analysis.Forms  (BlockTarget (..),
                                                  determineBlockTarget,
-                                                 letBindings)
+                                                 hasValidOtherwise,
+                                                 isSubjectHole, letBindings,
+                                                 param)
 import           Data.Ouro.Lisp.Eval.Builtins   (builtinRegistry, distinctValues, parseISO8601)
 import           Data.Ouro.Lisp.Eval.Pattern    (matchPattern)
 import           Data.Ouro.Lisp.Eval.Scope      (allocFrame, allocValues, force,
@@ -40,7 +42,7 @@ import           Data.Ouro.Lisp.Eval.Types      (Env (..), EvalM, Expr (..),
                                                  humanReadableType, propertyOf)
 import qualified Data.Ouro.Lisp.Eval.Types      as L
 import           Data.Ouro.Lisp.Function        (checkParams, isFunctionKeyword,
-                                                 misplacedBinding, patternParam,
+                                                 misplacedBinding,
                                                  removedAttrForm, removedContextForm,
                                                  removedDefine, removedLocalDefn, removedNth,
                                                  strayHole, typedResult)
@@ -743,21 +745,6 @@ evaluateGuards eval env pos target attempts branches =
                & pure
 
 
-hasValidOtherwise :: [S.Expr] -> Bool
-hasValidOtherwise branches =
-    case reverse branches of
-        -- Check the very last branch in the list (the first element of the reversed list)
-        (S.Form _ [S.Symbol _ "otherwise", _] : _) -> True
-        _noOtherwise                               -> False
-
-
--- The subject of a property written on its own, (satisfies #p), which a case fills in
-isSubjectHole :: S.Expr -> Bool
-isSubjectHole = \case
-    S.Hole _ "%subject" -> True
-    _notTheSubject      -> False
-
-
 -- Whether an error is a value lacking a property, under any blurbs written on it
 isPropertyMismatch :: ErrorContext -> Bool
 isPropertyMismatch = \case
@@ -1023,16 +1010,3 @@ notAField :: L.Expr -> Bool
 notAField = \case
     Attr _ _     -> False
     _notAField   -> True
-
-
--- A function parameter is a name or a pattern, optionally typed by the tag before it:
--- n, #number n, (?a ?b) or #array (?a ?b). A pattern is named by its position among the parameters.
--- A '$name' is read as (%binder "name"), which is a binding, not a pattern.
-param :: (Int, S.Expr) -> Maybe S.Param
-param (index, expr) = case expr of
-    S.Symbol _ name                       -> Just (S.Param name Nothing Nothing)
-    S.Tagged pos tag (S.Symbol _ name)    -> Just (S.Param name (Just (pos, tag)) Nothing)
-    S.Form _ (S.Symbol _ "%binder" : _)   -> Nothing
-    pattern@(S.Form _ _)                  -> Just (patternParam index Nothing pattern)
-    S.Tagged pos tag pattern@(S.Form _ _) -> Just (patternParam index (Just (pos, tag)) pattern)
-    _notAParameter                        -> Nothing

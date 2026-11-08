@@ -8,10 +8,9 @@ import qualified Data.IntMap.Strict           as IntMap
 import           Data.Function                ((&))
 import qualified Data.Map                     as Map
 import           Data.Ouro.Error.Diagnostics  (astCorruption, cyclicDependency,
-                                               notExported, unboundIdentifier,
+                                               notExported, unboundName,
                                                unknownQualifier, withBlurb)
 import           Data.Ouro.Error.Types        (OuroError (..))
-import           Data.Ouro.Internal.Utils     (rankBySimilarity)
 import           Data.Ouro.Lisp.Analysis.Forms (FrameEntry (..))
 import           Data.Ouro.Lisp.Eval.Builtins (builtinRegistry)
 import           Data.Ouro.Lisp.Eval.Types    (Binding (..), Env (..), EvalM,
@@ -181,17 +180,7 @@ lookupBuiltin
 lookupBuiltin pos name env =
     case L.PrimitiveOp <$> Map.lookup name builtinRegistry of
         Just nativeOp -> pure nativeOp
-        Nothing       -> let keys       = Set.toList $ allEnvKeys env
-                             suggestion = case rankBySimilarity name keys of
-                                 ((bestMatch, score) : _) | score <=3
-                                     -> "\n\nPerhaps you meant: '" <> bestMatch <> "'?"
-                                 _   -> ""
-                         in unboundIdentifier name
-                            & withBlurb
-                                  ( "The evaluator attempted to lookup the value for '" <> name <> "', "
-                                 <> "but the identifier failed to resolve within any active scope chain."
-                                 <> suggestion
-                                  )
-                            & OuroError pos
-                            & L.EvalError
-                            & pure
+        Nothing       -> unboundName name (Set.toList (allEnvKeys env))
+                         & OuroError pos
+                         & L.EvalError
+                         & pure

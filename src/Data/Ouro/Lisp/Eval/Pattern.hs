@@ -10,11 +10,11 @@ import           Data.Function               ((&))
 import           Data.Ouro.Error.Diagnostics (malformedPattern, withBlurb)
 import           Data.Ouro.Error.Types       (OuroError (..))
 import qualified Data.Ouro.Internal.Expr     as I
+import           Data.Ouro.Lisp.Analysis.Forms (holeName, isRestHole)
 import           Data.Ouro.Lisp.Eval.Types   (EvalM, Expr (..))
 import qualified Data.Ouro.Lisp.Eval.Types   as L
 import qualified Data.Ouro.Lisp.Surface      as S
 import           Data.Text                   (Text)
-import qualified Data.Text                   as T
 import           Text.Megaparsec             (SourcePos)
 
 
@@ -126,15 +126,9 @@ andThen first second =
         stop                  -> pure stop
 
 
--- '?' binds nothing; '?name' and '?..name' bind 'name'
+-- A hole binds the value it matches to its name, if it has one (see 'holeName')
 bindHole :: Text -> L.Expr -> Bindings
-bindHole hole value =
-    case T.dropWhile (\c -> c == '?' || c == '.') hole of
-        ""   -> []
-        name -> [(name, value)]
-
-isRestHole :: Text -> Bool
-isRestHole = T.isPrefixOf "?.."
+bindHole hole value = [ (name, value) | Just name <- [holeName hole] ]
 
 matched :: Bindings -> EvalM MatchResult
 matched = pure . Right . Just

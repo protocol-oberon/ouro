@@ -66,6 +66,8 @@ outward through the enclosing parentheses, never through the call stack.
 
 - *No hidden errors:* after the output is built, every promise it never needed is forced, so an error in an unused binding is still reported.
 
+- *Names are checked as written:* before anything is evaluated, the static analysis resolves every name in every function and graph, of the module and of every module it imports, by these same rules. An unbound name is reported even in a function no graph calls or a =case= branch not taken, and its "Perhaps you meant" is ranked over every name in scope there, local bindings included. A path's keys, as in ~(get r part)~, are keys, not names.
+
 ** No runtime
 
 Ouro is a compiler, not an interpreter for a program that runs later. All names, calls and patterns are resolved at compile time; the result is a static JSON-LD document. There is no virtual machine, no I/O and no network access during compilation (see [[*6. Architectural Boundaries][Architectural Boundaries]]).
@@ -76,13 +78,13 @@ Ouro is dynamically typed, with optional type annotations that are checked when 
 
 Evaluation happens in a flexible, dynamically typed sandbox (~L.Expr~) in which errors are values. Before anything is serialised, the evaluated tree must pass the verification gate and is then collapsed into ~I.Expr~, a GADT indexed by JSON-LD kinds. Ouro is dynamic where curators write code and static where the output is produced.
 
-The annotations are built-in properties, on an expression or in a function's [[*Functions: =defn=, =fn= and calls][signature]]. They are checked when values reach them, not as static types are: nothing is checked before evaluation, and an annotation on code that is never evaluated is never checked. When a check fails, the blame falls where it belongs: a bad argument is reported at the call, and a bad result at the function's body.
+The annotations are built-in properties, on an expression or in a function's [[*Functions: =defn=, =fn= and calls][signature]]. They are checked when values reach them, not as static types are: no annotation is checked before evaluation, and an annotation on code that is never evaluated is never checked. Only names are checked before evaluation (see [[*Lexical scope, lazily][lexical scope]]). When a check fails, the blame falls where it belongs: a bad argument is reported at the call, and a bad result at the function's body.
 
 This is not gradual typing in the sense of Siek and Taha, where annotated code is checked statically and checks are inserted only at the boundary with untyped code.
 
 ** Errors for curators
 
-Errors are part of the design, not an afterthought. Every surface node carries its ~SourcePos~, every error is reported with its position, a short message and a blurb that suggests a fix, and evaluation continues past an error so that one compile reports them all. Removed syntax is recognised and answered with its replacement (for example "'define' has been replaced by let."). A function written where a value belongs, or called with the wrong number of arguments, is shown with how it is called, by its parameters' names: "Perhaps call it: (aat id label)", "It is called (c)." (a built-in or an anonymous =fn=, whose parameters have no names, is told to be called with its arguments). The call uses the function's own name, not the qualifier it was reached through, and a function found inside an array when the output is checked is reported at the graph, with its path (='r[0]'=), since its position is gone by then.
+Errors are part of the design, not an afterthought. Every surface node carries its ~SourcePos~, every error is reported with its position, a short message and a blurb that suggests a fix, and evaluation continues past an error so that one compile reports them all. Names are checked before evaluation, every unbound one reported together, and a program with one is not evaluated, so its other errors are reported once its names are put right. Removed syntax is recognised and answered with its replacement (for example "'define' has been replaced by let."). A function written where a value belongs, or called with the wrong number of arguments, is shown with how it is called, by its parameters' names: "Perhaps call it: (aat id label)", "It is called (c)." (a built-in or an anonymous =fn=, whose parameters have no names, is told to be called with its arguments). The call uses the function's own name, not the qualifier it was reached through, and a function found inside an array when the output is checked is reported at the graph, with its path (='r[0]'=), since its position is gone by then.
 
 ** Deterministic serialisation
 
@@ -99,13 +101,16 @@ The flow from source to JSON is strictly linear (~Data.Ouro.compile~):
 |    3 | ~Lisp.Parser~                 | ~[Token]~ → ~Module~ of =defn= and =graph= ~S.Expr~ |
 |  3.0 | ~Error.Linter~                | ~Module~ → warnings (does not stop compilation)     |
 |  3.1 | ~Lisp.Canon~                  | ~S.Expr~ → placeholders, then desugared ~S.Expr~    |
-|  3.2 | ~Data.Ouro~                   | select the target graph (with a "did you mean")     |
+|  3.2 | ~Lisp.Analysis~               | ~Module~ → errors: every name resolves where written |
+|  3.3 | ~Data.Ouro~                   | select the target graph (with a "did you mean")     |
 |    4 | ~Lisp.Eval.Engine~            | ~S.Expr~ → ~(L.Expr, [OuroError])~                  |
 |    5 | ~Data.Ouro.validateAST~       | the verification gate                               |
 |    6 | ~Lisp.Eval.Types.freeze~      | ~L.Expr~ → ~I.Expr 'Primitive~                      |
 |    7 | ~Json.Serializer.toJSON~      | ~I.Expr~ → JSON text                                |
 
 Errors from passes 1 and 3 stop compilation immediately (there is no tree to continue with).
+The static analysis (3.2) runs once the modules imported are loaded, each of which is analysed
+too; its errors are collected and reported together, and stop compilation before evaluation.
 From pass 4 onwards, errors are collected and reported together.
 
 * The Language (Syntax Layer)
@@ -916,7 +921,7 @@ A promise is evaluated in /its own/ environment, not the one where it is referen
 
 *** Looking up a name
 
-~lookupVar~ walks outward from the current frame. In each frame it checks the bound names, then the functions defined in that frame, then moves to the parent. At the root it falls back to the built-ins. An unbound name is an error with a "Perhaps you meant" suggestion, ranked by edit distance.
+~lookupVar~ walks outward from the current frame. In each frame it checks the bound names, then the functions defined in that frame, then moves to the parent. At the root it falls back to the built-ins. An unbound name is an error with a "Perhaps you meant" suggestion, ranked by edit distance. The static analysis (~Lisp.Analysis~) has already resolved every name by the same rules, so a program the evaluator runs has none unbound; what a form is, and what a record, a =let=, a parameter or a hole binds, comes from one module both use, ~Lisp.Analysis.Forms~, so the two cannot disagree about either.
 
 *** Emitting a record
 
@@ -1179,7 +1184,7 @@ Recorded 2026-10-12 and kept up to date since; none were caused by the scoping r
 
 8. /Fixed:/ source was read in the Windows code page, so accented names were garbled, and so were the compiler's diagnostics. Source is now read as UTF-8 on every platform, and messages are written as UTF-8 (see [[*Lexical elements][Lexical elements]]).
 
-9. *Suggestions miss local names:* "Perhaps you meant" ranks only the root scope.
+9. /Fixed:/ "Perhaps you meant" ranked only the root scope, so a misspelt local name, ~artst~ for a =let='s =$artist=, had no suggestion. Unbound names are now found by the static analysis, which ranks every name in scope where the name is written, local bindings included.
 
 10. /Fixed:/ messages had stale wording: =get='s missing-key blurb mentioned =define=; subtraction's type error named an internal type, "a Date minus a L.Duration"; a =$= binding named after a special form (=$get=) was rightly rejected, but called an attribute key, "Shadowed Attribute", with "primative" misspelt; =WRN0000='s hint named =#record-empty= by its old name, =#obj-empty=, and misspelt "intended"; =SCP0001= wrote "Expected :an independent expression", its colon misplaced. A reserved name is now =SYN0004= "Reserved Name", which says it cannot name an attribute key or a =let= binding, and the rest read as Ouro is today. The hint for a function used as a value, which suggested =(name! args)=, was fixed before them: it shows how the function is called, with its parameters' names, =Perhaps call it: (aat id label).=
 
@@ -1249,6 +1254,6 @@ Recorded 2026-10-12 and kept up to date since; none were caused by the scoping r
 
 43. *Which special forms' names are reserved is inconsistent:* a key or a =let= binding named after =list=, =case=, =get=, =context=, =inlay=, =insert=, =defn=, =let= or =fn= is =SYN0004=, but one named after any other special form, such as =map=, =with=, =when=, =image= or =->=, is accepted: ~(let ($map 1) (:r map))~ is ={"r": 1}=. A special form is recognised by its head symbol, so a binding named after one can be read as a value but never called: ~(let ($map (fn (x) x)) (:r (map 1)))~ is =map='s own error, =SYN0000=. A key is data, so whether keys should be reserved at all is part of the question. Found while fixing gap 42 (2026-11-08).
 
-44. *Code that is not evaluated is not checked:* compiling evaluates the graphs, so a mistake off their path is never reported. An unbound name in a function no graph calls, ~(defn f () nope)~, a call with the wrong number of arguments in one, an unbound name in a =case= branch that is not taken, and even a function that calls itself, ~(defn f () (f))~, all compile, while an unused =let= binding's unbound name is =SCP0000=. A library's broken function is found by whoever first calls it. Found while weighing static analysis (2026-11-08).
+44. *Code that is not evaluated is not checked:* compiling evaluates the graphs, so a mistake off their path is never reported. An unbound name in a function no graph calls, ~(defn f () nope)~, a call with the wrong number of arguments in one, an unbound name in a =case= branch that is not taken, and even a function that calls itself, ~(defn f () (f))~, all compile, while an unused =let= binding's unbound name is =SCP0000=. A library's broken function is found by whoever first calls it. Found while weighing static analysis (2026-11-08). /Fixed for names:/ the static analysis reports an unbound name, qualifier or export wherever it is written, in a function no graph calls, an untaken branch and an imported module alike; the wrong arity and the recursion still compile.
 
 #  LocalWords:  Ouro LD

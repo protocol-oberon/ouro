@@ -1,6 +1,7 @@
 -- What a form is and what it binds, read off the form alone: whether it is a call, a record or
--- an array, and the names a record or a let binds. The static analysis and the evaluator share
--- these, so the two cannot disagree about either (see the org note, "One scope, not two").
+-- an array, and the names a record, a let, a parameter or a hole binds. The static analysis and
+-- the evaluator share these, so the two cannot disagree about either (see the org note, "One
+-- scope, not two").
 module Data.Ouro.Lisp.Analysis.Forms
 ( BlockTarget (..)
 , FrameEntry (..)
@@ -8,7 +9,12 @@ module Data.Ouro.Lisp.Analysis.Forms
 , checkBindableName
 , collectBindings
 , determineBlockTarget
+, hasValidOtherwise
+, holeName
+, isRestHole
+, isSubjectHole
 , letBindings
+, param
 , reservedNames
 ) where
 
@@ -19,11 +25,12 @@ import           Data.Ouro.Error.Diagnostics (lexicalError, shadowedVariable,
 import           Data.Ouro.Error.Types       (OuroError (..))
 import           Data.Ouro.Lisp.Function     (bindingWithoutValue,
                                               isFunctionKeyword, keyInLet,
-                                              misplacedBinding, removedDefine,
-                                              removedLocalDefn)
+                                              misplacedBinding, patternParam,
+                                              removedDefine, removedLocalDefn)
 import qualified Data.Ouro.Lisp.Module.Types as M
 import qualified Data.Ouro.Lisp.Surface      as S
 import           Data.Text                   (Text)
+import qualified Data.Text                   as T
 import           Text.Megaparsec             (SourcePos)
 
 
@@ -163,3 +170,43 @@ bindableAttr = \case
                         S.Form _ (S.Symbol _ "%attr"    : _) -> True
                         S.Form _ (S.Symbol _ "context"  : _) -> True
                         _otherForm                           -> False
+
+
+-- A function parameter is a name or a pattern, optionally typed by the tag before it:
+-- n, #number n, (?a ?b) or #array (?a ?b). A pattern is named by its position among the parameters.
+-- A '$name' is read as (%binder "name"), which is a binding, not a pattern.
+param :: (Int, S.Expr) -> Maybe S.Param
+param (index, expr) = case expr of
+    S.Symbol _ name                       -> Just (S.Param name Nothing Nothing)
+    S.Tagged pos tag (S.Symbol _ name)    -> Just (S.Param name (Just (pos, tag)) Nothing)
+    S.Form _ (S.Symbol _ "%binder" : _)   -> Nothing
+    pattern@(S.Form _ _)                  -> Just (patternParam index Nothing pattern)
+    S.Tagged pos tag pattern@(S.Form _ _) -> Just (patternParam index (Just (pos, tag)) pattern)
+    _notAParameter                        -> Nothing
+
+
+-- The name a pattern's hole binds: '?' binds nothing; '?name' and '?..name' bind 'name'
+holeName :: Text -> Maybe Text
+holeName hole =
+    case T.dropWhile (\c -> c == '?' || c == '.') hole of
+        ""   -> Nothing
+        name -> Just name
+
+-- A hole that binds the rest of a Record or an Array
+isRestHole :: Text -> Bool
+isRestHole = T.isPrefixOf "?.."
+
+
+hasValidOtherwise :: [S.Expr] -> Bool
+hasValidOtherwise branches =
+    case reverse branches of
+        -- Check the very last branch in the list (the first element of the reversed list)
+        (S.Form _ [S.Symbol _ "otherwise", _] : _) -> True
+        _noOtherwise                               -> False
+
+
+-- The subject of a property written on its own, (satisfies #p), which a case fills in
+isSubjectHole :: S.Expr -> Bool
+isSubjectHole = \case
+    S.Hole _ "%subject" -> True
+    _notTheSubject      -> False

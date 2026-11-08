@@ -1,5 +1,6 @@
--- Loading the modules a module imports. Each is read, lexed, parsed, linted and desugared on
--- its own, loaded once however often it is imported, and linked into its own root frame.
+-- Loading the modules a module imports. Each is read, lexed, parsed, linted, desugared and
+-- analysed on its own, loaded once however often it is imported, and linked into its own root
+-- frame.
 module Data.Ouro.Lisp.Module.Loader
 ( LoadEnv (..)
 , Linked (..)
@@ -20,6 +21,7 @@ import           Control.Monad.State.Strict   (StateT, gets, modify, runStateT)
 import           Control.Monad.Trans          (lift)
 import           Control.Monad.Validate       (refute, runValidateT)
 import           Control.Monad.Writer         (runWriterT, tell)
+import           Data.Foldable                (traverse_)
 import           Data.List.NonEmpty           (NonEmpty)
 import qualified Data.List.NonEmpty           as NE
 import qualified Data.Map.Strict              as Map
@@ -29,6 +31,7 @@ import           Data.Ouro.Error.Diagnostics  (ambiguousModule, importCycle,
 import qualified Data.Ouro.Error.Linter       as LN
 import           Data.Ouro.Error.Types        (ErrorContext, OuroError (..))
 import           Data.Ouro.Internal.Compiler  (CompilerT)
+import           Data.Ouro.Lisp.Analysis      (analyseModule)
 import qualified Data.Ouro.Lisp.Canon         as Canon
 import qualified Data.Ouro.Lisp.Eval.Types    as L
 import qualified Data.Ouro.Lisp.Lexer         as LX
@@ -223,6 +226,7 @@ loadKey pos path key = gets (Map.lookup key) >>= \case
                    let canonical = Canon.canonicalModule parsed
                    dependencies <- local (\env -> env { importStack = key : importStack env })
                                          (loadImports canonical)
+                   traverse_ refute (NE.nonEmpty (analyseModule (Map.map L.importedExports dependencies) canonical))
                    let linked = Linked
                                     { linkedModule  = canonical
                                     , linkedImports = dependencies

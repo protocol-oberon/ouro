@@ -74,6 +74,7 @@ library
         Data.Ouro.Internal.Utils
         Data.Ouro.Json.Parser
         Data.Ouro.Json.Serializer
+        Data.Ouro.Lisp.Analysis
         Data.Ouro.Lisp.Analysis.Forms
         Data.Ouro.Lisp.Canon
         Data.Ouro.Lisp.Canon.Adjoin
@@ -227,6 +228,7 @@ test-suite ouro-test
     other-modules:
         Utils
         Ouro.AatTest
+        Ouro.AnalysisTest
         Ouro.BuildTest
         Ouro.CanonicalTest
         Ouro.StructuralTest
