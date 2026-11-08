@@ -1016,7 +1016,7 @@ knownGaps = Group "Known gaps: current and fixed"
                                                                    "{\"r\": 1}")
     , ("gap 44 (fixed for names): an untaken branch's unbound name", fixedGap $ compilesToJSON "(graph g (:r (case 1 ((= 1) \"a\") (otherwise nope))))"
                                                                    "{\"r\": \"a\"}")
-    , ("gap 44: an uncalled function's recursion",   compilesToJSON "(defn f () (f)) (graph g (:r 1))"
+    , ("gap 44 (fixed): an uncalled function's recursion", fixedGap $ compilesToJSON "(defn f () (f)) (graph g (:r 1))"
                                                                    "{\"r\": 1}")
     , ("gap 45: a binding of and is ignored at a call", compilesToJSON "(graph g (let ($and (fn (a b) 1)) (:r (and true false))))"
                                                                    "{\"r\": false}")

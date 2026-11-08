@@ -1,6 +1,7 @@
 module Ouro.AnalysisTest
 ( calls
 , names
+, recursion
 ) where
 
 import           Hedgehog
@@ -69,4 +70,40 @@ calls = Group "Static analysis: a call of a known function has its arity"
                                                                 "(defn c () 1) (defn h () (c 1)) (graph g (:r 1))")
     , ("a name bound around the call is its own", compilesToJSON "(defn f (x) x) (graph g (let ($f (fn (a b) a)) (:r (f 1 2))))"
                                                                  "{\"r\": 1}")
+    ]
+
+
+-- A function that reaches itself by its name, a defn or a fn bound by name, is recursion,
+-- reported once for each circle of functions, at the name that closes it, whether or not
+-- anything calls it. A function reached through a value is the evaluator's to check.
+recursion :: Group
+recursion = Group "Static analysis: no function reaches itself by its name"
+    [ ("an uncalled function's recursion",        importsFailAt "TYP0000" ("inline-test", 1, 13) ["Recursion is strictly forbidden in Ouro: 'f' calls itself."] []
+                                                                "(defn f () (f)) (graph g (:r 1))")
+    , ("mutual recursion, at the name that closes it", importsFailAt "TYP0000" ("inline-test", 1, 33) ["'f' calls itself, through f "] []
+                                                                "(defn f (n) (h n)) (defn h (n) (f n)) (graph g (:r 1))")
+    , ("once for each circle",                    importsFailTimes 1 []
+                                                                "(defn f (n) (h n)) (defn h (n) (f n)) (graph g (:r 1))")
+    , ("a constant naming itself",                importsFailAt "TYP0000" ("inline-test", 1, 12) ["'a' calls itself."] []
+                                                                "(defn a () a) (graph g (:r 1))")
+    , ("a function passed to map by its name",    failsWith "'f' calls itself."
+                                                                "(defn f (x) (map f x)) (graph g (:r 1))")
+    , ("a function in its own pattern",           failsWith "'f' calls itself."
+                                                                "(defn f (((f 1) ?x)) x) (graph g (:r 1))")
+    , ("let-bound fns naming each other",         importsFailAt "TYP0000" ("inline-test", 1, 46) ["'a' calls itself, through a "] []
+                                                                "(graph g (let ($a (fn (x) (b x)) $b (fn (x) (a x))) (:r 1)))")
+    , ("a function and the fn it binds",          failsWith "'g' calls itself, through g "
+                                                                "(defn f (x) (let ($g (fn (y) (f y))) (g x))) (graph g (:r 1))")
+    , ("a fn it returns may not name it either",  failsWith "'f' calls itself."
+                                                                "(defn f () (fn () (f))) (graph g (:r 1))")
+
+      -- Only the function itself: names are resolved as the evaluator resolves them
+    , ("a parameter of its name is not the function", compilesToJSON "(defn f (f) (f 1)) (graph g (:r 1))"
+                                                                 "{\"r\": 1}")
+    , ("a binding never sees itself, so names the function", failsWith "'f' calls itself, through f "
+                                                                "(defn f (x) (let ($f (fn (y) (f y))) (f x))) (graph g (:r 1))")
+    , ("nesting a call is not recursion",         compilesToJSON "(defn id (a) a) (graph g (:r (id (id 1))))"
+                                                                 "{\"r\": 1}")
+    , ("a self-application is the evaluator's",   failsWith "attempted to call itself"
+                                                                "(defn w (x) (x x)) (graph g (:r (w w)))")
     ]

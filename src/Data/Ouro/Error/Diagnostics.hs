@@ -148,6 +148,19 @@ incorrectArity name argNo actNo = Scope $ IncorrectArity
     }
 
 
+-- A function that reaches itself by its name: the circle of functions, from the one called
+-- back to it, as the evaluator's recursion check reports a call of a function already called
+recursiveCall :: [Text] -> ErrorContext
+recursiveCall circle =
+    withBlurb ( "Recursion is strictly forbidden in Ouro: '" <> T.concat (take 1 circle) <> "' calls itself" <> through <> ". "
+             <> "Perhaps write each level out, with a function for each."
+              )
+              (typeMismatch "a terminating function call" "a recursive function call")
+    where
+    through = case circle of
+                  [_, _]  -> ""
+                  _longer -> ", through " <> T.intercalate " → " circle
+
 indexOutOfBounds :: Text -> Text -> Int -> Int -> ErrorContext
 indexOutOfBounds = \cb tOft att act -> Scope $ IndexOutOfBoundsError cb tOft att act
 

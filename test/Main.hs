@@ -66,6 +66,7 @@ main = withUtf8Console $ do
         -- Static analysis: every module checked as written, before anything is evaluated
         , Analysis.names
         , Analysis.calls
+        , Analysis.recursion
         -- Bindings: let, fn and defn replace define and defun
         , Let.letAndFn
         -- The language as specified: what reaches the output, special forms and built-ins
