@@ -59,8 +59,8 @@ placeholders = \case
 
 -- Forms with their own structure, whose arguments are not values a hole could stand for
 holeFreeForms :: [Text]
-holeFreeForms = [ "%attr", "case", "context", "define", "defn", "defun", "fn", "graph"
-                , "inlay", "let", "thru", "%binder" ]
+holeFreeForms = [ "%attr", "case", "context", "defn", "fn", "graph", "inlay", "let", "thru"
+                , "%binder" ]
 
 
 -- An argument that is a hole, or a hole under a type tag. A rest hole is not a parameter,

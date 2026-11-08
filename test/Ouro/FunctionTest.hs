@@ -55,7 +55,7 @@ expressionBodies = Group "Functions: a body is one result expression"
     , ("a spliced record body is an error",       failsToCompile "(defn person! (who) :type \"Person\" :_label who) (graph g (:r (person! \"Manet\")))")
     , ("return is no longer a special form",      failsToCompile "(defn id! (x) (return x)) (graph g (:r (id! 1)))")
     , ("two result expressions are an error",     failsToCompile "(defn two! () 1 2) (graph g (:r (two!)))")
-    , ("a define in a body is an error",          failsToCompile "(defn none! () (define :a 1)) (graph g (:r (none!)))")
+    , ("a define in a body is an unbound call",   failsToCompile "(defn none! () (define :a 1)) (graph g (:r (none!)))")
     ]
 
 

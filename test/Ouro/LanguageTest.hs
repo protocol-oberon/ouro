@@ -1022,4 +1022,6 @@ knownGaps = Group "Known gaps: current and fixed"
                                                                    "{\"r\": false}")
     , ("gap 45: and of with",                        compilesToJSON "(graph g (let ($with (fn (a b) 1)) (:r (with (:a 1) :b 2))))"
                                                                    "{\"r\": {\"a\": 1, \"b\": 2}}")
+    , ("gap 46: an unknown top-level form is named by its Haskell constructor", importsFailAt "SYN0000" ("inline-test", 1, 2) ["Invalid top-level keyword: Symbol"] []
+                                                                   "(foo f () 1)\n(graph g (:r 1))")
     ]

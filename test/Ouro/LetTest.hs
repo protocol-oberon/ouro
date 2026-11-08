@@ -7,7 +7,8 @@ import           Utils    (compilesToJSON, compilesWithoutWarnings, failsWith,
                            warnsWith)
 
 
--- 'let' and 'fn' replace 'define' and a local 'defun', and 'defun' is now 'defn':
+-- 'let' and 'fn' replaced 'define' and a local 'defun', and 'defun' became 'defn'; 'define'
+-- and 'defun' are now ordinary names:
 --
 --   (fn (x y) expr)              an anonymous function value
 --   (let ($name expr ...) expr)  private bindings, then one result expression. The
@@ -71,14 +72,18 @@ letAndFn = Group "Bindings: let, fn and defn"
                                                              "(graph g (:r (let ($a 1) a a)))")
     , ("a spliced graph is an error",              failsWith "one expression"
                                                              "(graph g :a 1)")
-    , ("define has been replaced by let",          failsWith "replaced by let"
-                                                             "(graph g (:a 1 (define :b 2)))")
-    , ("a define as a value is an error",          failsWith "replaced by let"
+    , ("define is an ordinary name",               failsWith "'define' is not bound here"
                                                              "(graph g (:a 1 :b (define :c 2)))")
+    , ("a function may be named define",           compilesToJSON "(defn define (x) x) (graph g (:r (define 1)))"
+                                                                  "{\"r\": 1}")
     , ("a name may start with defn",               compilesToJSON "(defn defnode (defnx) defnx) (graph g (:r (defnode 1)))"
                                                                   "{\"r\": 1}")
-    , ("defun has been renamed defn",              failsWith "renamed defn"
+    , ("defun is an ordinary name",                failsWith "Invalid top-level keyword"
                                                              "(defun f () 1) (graph g (:r (f)))")
+    , ("a local defun is a call",                  failsWith "'defun' is not bound here"
+                                                             "(defn outer () (defun inner () 1)) (graph g (:r (outer)))")
+    , ("a function may be named defun",            compilesToJSON "(defn defun (x) x) (graph g (:r (defun 1)))"
+                                                                  "{\"r\": 1}")
     , ("a local defn is replaced by fn",           failsWith "(fn "
                                                              "(defn outer () (defn inner () 1) (inner)) (graph g (:r (outer)))")
 

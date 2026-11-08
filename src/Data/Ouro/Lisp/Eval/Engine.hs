@@ -44,7 +44,7 @@ import qualified Data.Ouro.Lisp.Eval.Types      as L
 import           Data.Ouro.Lisp.Function        (checkParams, isFunctionKeyword,
                                                  misplacedBinding,
                                                  removedAttrForm, removedContextForm,
-                                                 removedDefine, removedLocalDefn, removedNth,
+                                                 removedLocalDefn, removedNth,
                                                  specialForms, strayHole, typedResult)
 import           Data.Ouro.Lisp.Module.Types    (Module)
 import qualified Data.Ouro.Lisp.Surface         as S
@@ -348,10 +348,6 @@ evalExpr expr = do
                           & OuroError pos
                           & EvalError
                           & pure
-
-        -- 'define' and a local 'defn' were replaced by 'let' and 'fn'
-        S.Form pos (S.Symbol _ "define" : _)
-            -> pure (EvalError (removedDefine pos))
 
         -- (when cond) is the head of a case branch; anywhere else it is misplaced
         S.Form pos (S.Symbol _ "when" : _)

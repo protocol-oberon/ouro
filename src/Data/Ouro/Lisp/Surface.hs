@@ -26,21 +26,21 @@ import           Text.Megaparsec (SourcePos)
 --
 -- Atomic leaves are grouped homogeneously under Literal. By packaging raw values (Strings, Numbers,
 -- Booleans, and Null structures) into an un-indexed payload wrapper, the parser can handle scalar
--- primitives flexibly as generic data tokens or macro arguments prior to static type inference.
+-- primitives flexibly as generic data tokens prior to evaluation.
 --
 -- Type assertions are injected via the Tagged constructor '#'. This allows for explicit validation of types
 -- which may visually share identical lexical layouts under raw JSON-LD rules (such as Strings and URLs),
 -- ensuring they can be contextualized and evaluated strictly according to intent by the compiler.
 --
 -- Sequence nesting relies on uniform, unrestricted collections:
---   * Form (...) provides a clean homoiconic list container where attribute definitions, macro
---     declarations, and function applications share a singular, highly flexible tree representation.
---   * Bracket [...] reserves an isolated structural grouping channel for vector layouts or multi-binding
---     scoping blocks like 'let' expressions.
+--   * Form (...) is the one list container: records, arrays, special forms and calls share it.
+--     The source is written as this tree, but a program cannot build or read code as a value:
+--     Ouro has no quote, eval or macros (see Appendix A of the spec).
+--   * Bracket [...] reserves an isolated structural grouping channel.
 --
--- The ultimate lifecycle of this surface AST is short-lived. It serves as an intermediate blueprint
--- completely consumed by the compilation Engine, which resolves its lazy environments, expands its
--- macro closures, and transforms it into the permanently typed, hyper-strict 'JLD.Type' core GADT.
+-- The surface AST is short-lived. Canon rewrites its derived forms into core ones, the static
+-- analysis checks it, and the Engine evaluates it, resolving its lazy environments, into the
+-- strict 'JLD.Type' core GADT.
 data Expr
     = Symbol      SourcePos Text            -- variable names and functions
     | DefunSymbol SourcePos Text            -- function identifiers

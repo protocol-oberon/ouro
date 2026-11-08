@@ -24,8 +24,7 @@ import           Data.Ouro.Error.Types       (OuroError (..))
 import           Data.Ouro.Lisp.Function     (bindingWithoutValue,
                                               isFunctionKeyword, keyInLet,
                                               misplacedBinding, patternParam,
-                                              removedDefine, removedLocalDefn,
-                                              specialForms)
+                                              removedLocalDefn, specialForms)
 import qualified Data.Ouro.Lisp.Module.Types as M
 import qualified Data.Ouro.Lisp.Surface      as S
 import           Data.Text                   (Text)
@@ -55,7 +54,7 @@ determineBlockTarget items =
     isFunctionApplication :: [S.Expr] -> Bool
     isFunctionApplication =
         \case
-         (S.Symbol _ name : _) -> not (isFunctionKeyword name || name == "define")
+         (S.Symbol _ name : _) -> not (isFunctionKeyword name)
          _NotaFunc             -> False
 
     isStructuralAttr :: S.Expr -> Bool
@@ -82,18 +81,15 @@ data FrameEntry = FrameEntry
 -- collectBindings.
 --
 -- Sweeps a Record's expressions for the attribute pairs it binds, in source order. Context
--- forms, malformed attributes and loose expressions bind nothing. 'define' and a local
--- 'defn' were replaced by 'let' and 'fn', and a private '$name value' binding belongs
--- in a let; all are reported where they appear.
+-- forms, malformed attributes and loose expressions bind nothing. A local 'defn' was
+-- replaced by a let-bound 'fn', and a private '$name value' binding belongs in a let;
+-- both are reported where they appear.
 collectBindings :: [S.Expr] -> Either OuroError [FrameEntry]
 collectBindings = \case
     [] -> pure []
 
     S.Form _ (S.Symbol _ "context" : _) : xs
         -> collectBindings xs
-
-    S.Form pos (S.Symbol _ "define" : _) : _
-        -> Left (removedDefine pos)
 
     S.Form pos (S.Symbol _ keyword : _) : _ | isFunctionKeyword keyword
         -> Left (removedLocalDefn pos)

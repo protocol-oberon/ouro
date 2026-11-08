@@ -16,7 +16,7 @@ tests = Group "Structural Lookaheads"
     , ("routes leading attributes to TargetRecord", prop_attr_targetRecord)
     , ("routes leading symbols to FunctionApp",   prop_symbol_targetFunctionApp)
     , ("routes 'context' bindings to TargetRecord", prop_context_targetRecord)
-    , ("routes 'define' macros to TargetList",    prop_define_targetList)
+    , ("routes a local 'defn' to TargetList",     prop_defn_targetList)
     , ("routes nested records to TargetList",     prop_nestedRecord_targetList)
     , ("routes nested matrices to TargetList",    prop_nestedMatrix_targetList)
     , ("routes nested functions to TargetList",   prop_nestedFunction_targetList)
@@ -36,16 +36,16 @@ prop_attr_targetRecord = property $ do
 prop_symbol_targetFunctionApp :: Property
 prop_symbol_targetFunctionApp = property $ do
     -- Generate a few different valid symbols
-    sym <- forAll $ Gen.element ["+", "-", "eq", "concat", "map"]
+    sym <- forAll $ Gen.element ["+", "-", "eq", "concat", "map", "define", "defun"]
     determineBlockTarget [S.Symbol nullPos sym] === TargetFunctionApp
 
 prop_context_targetRecord :: Property
 prop_context_targetRecord = property $ do
     determineBlockTarget [S.Form nullPos [S.Symbol nullPos "%context", S.Literal nullPos (S.Str "https://a.org/c.json")]] === TargetRecord
 
-prop_define_targetList :: Property
-prop_define_targetList = property $ do
-    determineBlockTarget [S.Form nullPos [S.Symbol nullPos "define", S.Symbol nullPos "x"]] === TargetList
+prop_defn_targetList :: Property
+prop_defn_targetList = property $ do
+    determineBlockTarget [S.Form nullPos [S.Symbol nullPos "defn", S.Symbol nullPos "x"]] === TargetList
 
 prop_nestedRecord_targetList :: Property
 prop_nestedRecord_targetList = property $ do

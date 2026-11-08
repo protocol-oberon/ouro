@@ -61,7 +61,6 @@ pCoreKeywords = lexeme . withPos . try $ choice
     [ Tkn.Import   <$ string "import"   <* endOfWord
     , Tkn.Export   <$ string "export"   <* endOfWord
     , Tkn.Defn     <$ string "defn"     <* endOfWord
-    , Tkn.Defun    <$ string "defun"    <* endOfWord
     , Tkn.Graph    <$ string "graph"    <* endOfWord
     ]
 

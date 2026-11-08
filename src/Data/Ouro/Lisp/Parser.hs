@@ -19,8 +19,7 @@ import           Data.Ouro.Lisp.Function     (checkFunctionName, checkParams,
                                               duplicateFunction, functionBody,
                                               functionDoc, graphBody,
                                               isFunctionKeyword, patternParam,
-                                              removedLocalDefn, renamedDefun,
-                                              typedResult)
+                                              removedLocalDefn, typedResult)
 import           Data.Ouro.Lisp.Module.Types (Declaration (..),
                                               HigherExpression (..),
                                               Import (..), Module (..),
@@ -191,7 +190,6 @@ pHigherExpression = do
                          kwTkn <- popToken
                          case Tkn.tokenType kwTkn of
                              Tkn.Defn     -> pDefn (Tkn.pos startTkn)
-                             Tkn.Defun    -> lift (Left (renamedDefun (Tkn.pos kwTkn)))
                              Tkn.Graph    -> pGraph (Tkn.pos startTkn)
                              Tkn.Import   -> pImport (Tkn.pos startTkn)
                              Tkn.Export   -> pExport (Tkn.pos startTkn)
@@ -407,7 +405,6 @@ pExpr = do
                              -- Primitive Leaf Node capture (+ source location)
                              Tkn.Let            -> capture (S.Symbol (Tkn.pos t) "let")
                              Tkn.Defn           -> capture (S.Symbol (Tkn.pos t) "defn")
-                             Tkn.Defun          -> capture (S.Symbol (Tkn.pos t) "defun")
 
                              -- Parameterized Identifiers
                              Tkn.Symbol         txt -> capture (S.Symbol (Tkn.pos t) txt)

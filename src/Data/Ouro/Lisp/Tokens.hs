@@ -25,7 +25,6 @@ data TokenType
     | Import           -- Module imports
     | Export           -- Module exports, can only be functions
     | Defn             -- Named top-level functions
-    | Defun            -- The old name for defn, kept so it can be reported
     | Graph            -- JSON-LD graph to compile
     -- Identifiers
     | Attr   !Text     -- ':id', ':type' (stores the string without the leading ':')

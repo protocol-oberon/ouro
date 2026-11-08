@@ -13,10 +13,8 @@ module Data.Ouro.Lisp.Function
 , patternParam
 , removedAttrForm
 , removedContextForm
-, removedDefine
 , removedLocalDefn
 , removedNth
-, renamedDefun
 , specialForms
 , strayHole
 , typedArgument
@@ -147,9 +145,6 @@ functionBody name pos body
           & withBlurb "Perhaps write the value directly, e.g. (defn id (x) x) instead of (defn id (x) (return x))."
           & OuroError (S.exprPos returnForm)
           & Left
-
-    | defineForm : _ <- filter (isHeadedBy "define") body
-        = Left (removedDefine (S.exprPos defineForm))
 
     | defnForm : _ <- filter isLocalFunction body
         = Left (removedLocalDefn (S.exprPos defnForm))
@@ -299,15 +294,6 @@ removedContextForm pos =
     & OuroError pos
 
 
--- 'define' was replaced by 'let', which binds private values around the one
--- expression that uses them
-removedDefine :: SourcePos -> OuroError
-removedDefine pos =
-    lexicalError "'define' has been replaced by let."
-    & withBlurb "Bind private values around the expression that uses them: (let ($name value ...) expr)."
-    & OuroError pos
-
-
 -- A (doc "...") documents a named function, so it belongs among the direct elements of
 -- a defn's body: never inside its result, in a fn or in a graph
 misplacedDoc :: SourcePos -> OuroError
@@ -371,18 +357,9 @@ strayHole hole pos
           & OuroError pos
 
 
--- 'defun' was renamed 'defn'
-renamedDefun :: SourcePos -> OuroError
-renamedDefun pos =
-    lexicalError "'defun' has been renamed defn."
-    & withBlurb "Write a top-level function as (defn name (args) expr)."
-    & OuroError pos
-
-
--- The keywords that define a named function: 'defn', and the old 'defun', which is
--- still recognised so that it can be reported
+-- The keyword that defines a named function, so that a local one can be reported
 isFunctionKeyword :: Text -> Bool
-isFunctionKeyword = (`elem` ["defn", "defun"])
+isFunctionKeyword = (== "defn")
 
 
 -- Function names are plain symbols, in one namespace with values. A trailing '!'
@@ -408,10 +385,10 @@ checkFunctionName name pos
 
 
 -- The forms read by their syntax before any name is bound: the declarations, a module's defn
--- and graph, a function's doc and the removed define and defun, and the forms Canon rewrites
--- (and, or, ->, with, adjoin, thru). A binding of one of their names is never called by them.
+-- and graph, a function's doc, and the forms Canon rewrites (and, or, ->, with, adjoin, thru).
+-- A binding of one of their names is never called by them.
 readBySyntax :: [Text]
-readBySyntax = ["defn", "defun", "define", "graph", "doc", "->", "adjoin", "and", "or", "thru", "with"]
+readBySyntax = ["defn", "graph", "doc", "->", "adjoin", "and", "or", "thru", "with"]
 
 
 -- A function can be defined once in each scope
@@ -425,9 +402,9 @@ duplicateFunction name pos =
 -- Forms the evaluator recognises by their head symbol, unless a binding around them has the
 -- name, which shadows the form, as in Scheme (see 'Analysis.Forms.shadowsForm')
 specialForms :: [Text]
-specialForms = [ "->", "adjoin", "and", "attr", "case", "context", "define", "defn", "defun", "doc", "exists"
-               , "filter", "fn", "forall", "get", "get-or", "graph", "has", "image", "inlay", "insert", "let"
-               , "list", "map", "nth", "omits", "or", "replace-at", "satisfies", "thru", "when", "with" ]
+specialForms = [ "->", "adjoin", "and", "attr", "case", "context", "defn", "doc", "exists", "filter", "fn"
+               , "forall", "get", "get-or", "graph", "has", "image", "inlay", "insert", "let", "list", "map"
+               , "nth", "omits", "or", "replace-at", "satisfies", "thru", "when", "with" ]
 
 
 isHeadedBy :: Text -> S.Expr -> Bool

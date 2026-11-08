@@ -198,7 +198,6 @@ form scope pos items = case items of
         | Right entries <- letBindings bindings      -> frame scope entries <> names (within (keys entries) scope) body
     S.Symbol _ (S.formName -> "let") : _             -> []
 
-    S.Symbol _ "define" : _                          -> []
     S.Symbol _ "when" : _                            -> []
     [S.Symbol _ "satisfies", S.Tagged _ _ subject]
         | not (isSubjectHole subject)                -> names scope subject
@@ -307,7 +306,6 @@ record scope items = case collectBindings items of
 -- is the evaluator's error
 array :: Scope -> [S.Expr] -> [OuroError]
 array scope = concatMap $ \case
-    S.Form _ (S.Symbol _ "define" : _)                       -> []
     S.Form _ (S.Symbol _ keyword : _)
         | isFunctionKeyword keyword                          -> []
     S.Form _ [S.Symbol _ "%binder", S.Literal _ (S.Str _)]   -> []

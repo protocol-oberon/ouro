@@ -84,7 +84,7 @@ This is not gradual typing in the sense of Siek and Taha, where annotated code i
 
 ** Errors for curators
 
-Errors are part of the design, not an afterthought. Every surface node carries its ~SourcePos~, every error is reported with its position, a short message and a blurb that suggests a fix, and evaluation continues past an error so that one compile reports them all. Names are checked before evaluation, every unbound one reported together, and a program with one is not evaluated, so its other errors are reported once its names are put right. Removed syntax is recognised and answered with its replacement (for example "'define' has been replaced by let."). A function written where a value belongs, or called with the wrong number of arguments, is shown with how it is called, by its parameters' names: "Perhaps call it: (aat id label)", "It is called (c)." (a built-in or an anonymous =fn=, whose parameters have no names, is told to be called with its arguments). The call uses the function's own name, not the qualifier it was reached through, and a function found inside an array when the output is checked is reported at the graph, with its path (='r[0]'=), since its position is gone by then.
+Errors are part of the design, not an afterthought. Every surface node carries its ~SourcePos~, every error is reported with its position, a short message and a blurb that suggests a fix, and evaluation continues past an error so that one compile reports them all. Names are checked before evaluation, every unbound one reported together, and a program with one is not evaluated, so its other errors are reported once its names are put right. Removed syntax is recognised and answered with its replacement (for example "The (nth index array) form has been replaced by get."). A function written where a value belongs, or called with the wrong number of arguments, is shown with how it is called, by its parameters' names: "Perhaps call it: (aat id label)", "It is called (c)." (a built-in or an anonymous =fn=, whose parameters have no names, is told to be called with its arguments). The call uses the function's own name, not the qualifier it was reached through, and a function found inside an array when the output is checked is reported at the graph, with its path (='r[0]'=), since its position is gone by then.
 
 ** Deterministic serialisation
 
@@ -428,7 +428,7 @@ Semantics of a call:
       (:r (inc 2))))              ; {"r": 3}
   #+END_SRC
 
-A =defn= body is checked when the file is parsed: apart from its =doc=, it must be one expression and cannot be a spliced record (~(defn f (x) :k v)~). A =define= or a nested =defn= in it is reported with its replacement, =let= or a =let=-bound =fn=.
+A =defn= body is checked when the file is parsed: apart from its =doc=, it must be one expression and cannot be a spliced record (~(defn f (x) :k v)~). A nested =defn= in it is reported with its replacement, a =let=-bound =fn=.
 
 *Signatures.* A function's types are built-in properties in its header: one between the name and the parameters is the return type, and one before a parameter is that parameter's type. Either can be left out, and so can any parameter's.
 
@@ -500,7 +500,7 @@ A parameter can be a pattern, written as a =case= pattern is. It takes one argum
 
 ** Special forms
 
-Special forms are recognised by their head symbol, and their names are bound like any other, as in Scheme, which has no reserved words: a binding around a form, an attribute key, a =let= binding, a parameter, a hole or a =defn= of the module, shadows it, and the form is then an ordinary call of the binding. ~(let ($list (fn (x) (+ x 1))) (list 1))~ is =2=. A key is a binding whose value is also written out, and a value written out cannot be a function, so a call of a form a key shadows is an error that says so: ~(:image "x" :r (image y part))~ calls the string ="x"=. The forms Canon writes are not the source's, and use heads no source can spell (=%case=, =%let=, =%fn=, =%inlay=), so no binding captures them: ~(let ($case 1) (or a b))~ is still =or= (hygiene, as a Scheme macro's =if= means the core =if=). The exception is the forms Canon rewrites by their syntax before any name is bound, =and=, =or=, =->=, =with=, =adjoin= and =thru=, and a =case= branch's =(when c)= and =(satisfies #p)= heads: a binding of one of their names is ignored where Canon reads the form (gap 45), and a =defn= cannot take their names, nor the declarations' (=defn=, =defun=, =define=, =graph=, =doc=), since it could never be called by them (=SYN0008=).
+Special forms are recognised by their head symbol, and their names are bound like any other, as in Scheme, which has no reserved words: a binding around a form, an attribute key, a =let= binding, a parameter, a hole or a =defn= of the module, shadows it, and the form is then an ordinary call of the binding. ~(let ($list (fn (x) (+ x 1))) (list 1))~ is =2=. A key is a binding whose value is also written out, and a value written out cannot be a function, so a call of a form a key shadows is an error that says so: ~(:image "x" :r (image y part))~ calls the string ="x"=. The forms Canon writes are not the source's, and use heads no source can spell (=%case=, =%let=, =%fn=, =%inlay=), so no binding captures them: ~(let ($case 1) (or a b))~ is still =or= (hygiene, as a Scheme macro's =if= means the core =if=). The exception is the forms Canon rewrites by their syntax before any name is bound, =and=, =or=, =->=, =with=, =adjoin= and =thru=, and a =case= branch's =(when c)= and =(satisfies #p)= heads: a binding of one of their names is ignored where Canon reads the form (gap 45), and a =defn= cannot take their names, nor the declarations' (=defn=, =graph=, =doc=), since it could never be called by them (=SYN0008=).
 
 | Form                                     | Meaning                                                                               |
 |------------------------------------------+---------------------------------------------------------------------------------------|
@@ -772,7 +772,7 @@ determineBlockTarget items =
                                      False -> TargetList
     where
     isFunctionApplication = \case
-        (S.Symbol _ name : _) -> not (isFunctionKeyword name || name == "define")
+        (S.Symbol _ name : _) -> not (isFunctionKeyword name)
         _notAFunction         -> False
 
     isStructuralAttr = \case
@@ -890,7 +890,7 @@ This is the environment model of Scheme (SICP §3.2) with call-by-need bindings,
 
 A record or a =let= is evaluated in two steps:
 
-1. ~collectBindings~ (records) or ~letBindings~ (=let=) sweeps the forms for =:key value= attribute pairs (records) or =$name value= bindings (=let=) and returns their un-evaluated expressions as ~FrameEntry~ values. Removed forms (=define=, a local =defn=) are reported here.
+1. ~collectBindings~ (records) or ~letBindings~ (=let=) sweeps the forms for =:key value= attribute pairs (records) or =$name value= bindings (=let=) and returns their un-evaluated expressions as ~FrameEntry~ values. A local =defn=, a removed form, is reported here.
 
 2. ~allocFrame~ allocates one ~Unforced~ promise per entry and builds the frame that binds their names. Every promise's environment is that same frame, minus the promise's own name. This is what makes the bindings recursive, each binding sees all of its siblings in any order, while a binding never sees itself: its own name resolves in the enclosing scope.
 
@@ -1147,10 +1147,10 @@ Ouro's compiler guarantees structural validity: a compiled graph is well-formed 
 
 | Removed                                            | Replacement                                        | Reported as                                                                     |
 |----------------------------------------------------+----------------------------------------------------+---------------------------------------------------------------------------------|
-| =defun=                                            | =defn=                                             | ='defun' has been renamed defn.=                                                |
-| =(define :name value ...)=                         | =(let ($name value ...) expr)=                     | ='define' has been replaced by let.=                                            |
+| =defun=                                            | =defn=                                             | none: =defun= is an ordinary name                                               |
+| =(define :name value ...)=                         | =(let ($name value ...) expr)=                     | none: =define= is an ordinary name                                              |
 | =(let (:name value ...) expr)=                     | =(let ($name value ...) expr)=                     | =':name' marks a key in the output, but a let's bindings are never output.=     |
-| a local =defun= / =defn=                           | a =let=-bound =fn=                                 | =A defn can only appear at the top level of a file.=                            |
+| a local =defn=                                     | a =let=-bound =fn=                                 | =A defn can only appear at the top level of a file.=                            |
 | spliced graph bodies                               | =(graph name (:key value ...))=                    | =The graph 'g' must be one expression.=                                         |
 | spliced function bodies, =return=                  | one result expression                              | "has a ':key value' attribute pair directly in its body", "'return' is no longer needed" |
 | required =!= on function names                     | plain names (=!= still allowed)                    | none                                                                            |
@@ -1250,12 +1250,14 @@ Recorded 2026-10-12 and kept up to date since; none were caused by the scoping r
 
 41. *=WRN0000= is never true:* it says a string written after =#record-empty= or =#array-empty= is discarded ("will be completely erased from properties at compile time"), but in an array the string is kept, ~(:r (#record-empty "x"))~ being ={"r": [{}, "x"]}=, and in a record it is an error, =TYP0000=, which the warning only precedes. The linter reads tokens, not forms, so it cannot tell the two apart. Found while fixing gap 10 (2026-11-07).
 
-42. /Fixed:/ the names of removed forms were still reserved: =nth=, =attr=, =define= and =defun= were removed (see Appendix A), but a key or a =let= binding named after one, ~(:attr 1)~ or ~$defun~, was =SYN0004=, "Reserved Name", though nothing would be shadowed. They are now free as keys and bindings; a call of one, ~(nth 0 xs)~, is still reported with its replacement, whatever is bound, and a function still cannot be named after one (=SYN0008=), since it could never be called. Found while fixing gap 10 (2026-11-07). Since gap 43's fix, a binding of one of their names shadows it as it shadows any special form, and only =define= and =defun=, read by their syntax, cannot name a function.
+42. /Fixed:/ the names of removed forms were still reserved: =nth=, =attr=, =define= and =defun= were removed (see Appendix A), but a key or a =let= binding named after one, ~(:attr 1)~ or ~$defun~, was =SYN0004=, "Reserved Name", though nothing would be shadowed. They are now free as keys and bindings; a call of one, ~(nth 0 xs)~, is still reported with its replacement, whatever is bound, and a function still cannot be named after one (=SYN0008=), since it could never be called. Found while fixing gap 10 (2026-11-07). Since gap 43's fix, a binding of one of their names shadows it as it shadows any special form. Since 2026-11-08 =define= and =defun= are not forms at all, and their removal messages are gone: they are ordinary names, which a function can take.
 
 43. /Fixed:/ which special forms' names were reserved was inconsistent: a key or a =let= binding named after =list=, =case=, =get=, =context=, =inlay=, =insert=, =defn=, =let= or =fn= is =SYN0004=, but one named after any other special form, such as =map=, =with=, =when=, =image= or =->=, is accepted: ~(let ($map 1) (:r map))~ is ={"r": 1}=. A special form is recognised by its head symbol, so a binding named after one can be read as a value but never called: ~(let ($map (fn (x) x)) (:r (map 1)))~ is =map='s own error, =SYN0000=. A key is data, so whether keys should be reserved at all is part of the question. Found while fixing gap 42 (2026-11-08). No name is reserved now: a binding of a special form's name shadows the form, as in Scheme, so ~(let ($list 1) (:r list))~ is ={"r": 1}= and ~(let ($map (fn (x) x)) (:r (map 1)))~ calls the binding (see [[*Special forms][special forms]]); =SYN0004= is retired.
 
 44. *Code that is not evaluated is not checked:* compiling evaluates the graphs, so a mistake off their path is never reported. An unbound name in a function no graph calls, ~(defn f () nope)~, a call with the wrong number of arguments in one, an unbound name in a =case= branch that is not taken, and even a function that calls itself, ~(defn f () (f))~, all compile, while an unused =let= binding's unbound name is =SCP0000=. A library's broken function is found by whoever first calls it. Found while weighing static analysis (2026-11-08). /Fixed for names:/ the static analysis reports an unbound name, qualifier or export wherever it is written, in a function no graph calls, an untaken branch and an imported module alike; the recursion still compiles. /Fixed for arity:/ a call written with a function's name is checked against its parameters wherever it is written.
 
 45. *A binding of a form Canon rewrites is ignored at a call:* Canon rewrites =and=, =or=, =->=, =with=, =adjoin= and =thru=, and a =case= branch's =(when c)= and =(satisfies #p)= heads, by their syntax, before any name is bound, so a binding of one of their names never shadows them as a binding shadows every other special form: ~(let ($and (fn (a b) 1)) (:r (and true false)))~ is ={"r": false}=. Their names cannot name a =defn= (=SYN0008=), but a key, a =let= binding or a parameter of the name is accepted and ignored at the call. Scheme avoids this because its expander knows the scope at each point; the fix is a scope-aware Canon. Found while fixing gap 43 (2026-11-08).
+
+46. *An unknown top-level form is named by its Haskell constructor:* a file's top level holds =defn=, =graph=, =import= and =export= forms, and any other, ~(foo f () 1)~, is =SYN0000=, =Invalid top-level keyword: Symbol "foo"=, with no blurb saying what may be written there. An old =(defun ...)= is now reported this way. Found while making =defun= an ordinary name (2026-11-08).
 
 #  LocalWords:  Ouro LD

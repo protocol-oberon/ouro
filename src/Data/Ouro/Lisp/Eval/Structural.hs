@@ -25,8 +25,7 @@ import qualified Data.Ouro.Lisp.Eval.Types   as L
 import           Data.Ouro.Lisp.Function     (functionBody, isFunctionKeyword,
                                               misplacedBinding, removedAttrForm,
                                               removedContextForm,
-                                              removedDefine, removedLocalDefn,
-                                              typedArgument)
+                                              removedLocalDefn, typedArgument)
 import qualified Data.Ouro.Lisp.Surface      as S
 import qualified Data.Set                    as Set
 import           Data.Text                   (Text)
@@ -275,10 +274,7 @@ compileArray evaluator env pos elements = Array <$> compileElements env elements
         case exprs of
             [] -> pure []
 
-            -- Case A: 'define' and a local 'defn' were replaced by 'let' and 'fn'
-            S.Form dPos (S.Symbol _ "define" : _) : xs
-                -> (EvalError (removedDefine dPos) :) <$> compileElements env' xs
-
+            -- Case A: a local 'defn' was replaced by a let-bound 'fn'
             S.Form dPos (S.Symbol _ keyword : _) : xs | isFunctionKeyword keyword
                 -> (EvalError (removedLocalDefn dPos) :) <$> compileElements env' xs
 
