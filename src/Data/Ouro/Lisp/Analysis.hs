@@ -4,9 +4,10 @@
 -- The static analysis: every module checked as written, all of it, before anything is
 -- evaluated, so a mistake in a function no graph calls, or in a branch not taken, is reported
 -- too (see the org note, "Static analysis"). It checks names, that every name resolves where
--- it is written; calls, that a call of a known function has its arity; and recursion, that no
--- function reaches itself by its name. The scope rules are the evaluator's, and what a form is
--- and what it binds come from 'Analysis.Forms', which the evaluator uses too.
+-- it is written; calls, that a call of a known function has its arity; and recursion, that a
+-- function reaching itself by its name goes down into a value each time round, so it finishes.
+-- The scope rules are the evaluator's, and what a form is and what it binds come from
+-- 'Analysis.Forms', which the evaluator uses too.
 module Data.Ouro.Lisp.Analysis
 ( analyseModule
 ) where
@@ -17,7 +18,7 @@ import           Data.Function                 ((&))
 import           Data.Graph                    (SCC (..), stronglyConnComp)
 import           Data.List                     (sortOn)
 import qualified Data.Map.Strict               as Map
-import           Data.Maybe                    (fromMaybe)
+import           Data.Maybe                    (fromMaybe, mapMaybe)
 import           Data.Ouro.Error.Diagnostics   (incorrectArity, notExported,
                                                 recursiveCall, unboundName,
                                                 unknownQualifier, withBlurb)
@@ -57,12 +58,30 @@ nodeName = \case
     Defn  name   -> name
     Bound name _ -> name
 
+-- How a value relates to one of a function's parameters: no larger (the value itself, or
+-- something no larger), or smaller, a part of it
+data Rel = NoLarger | Smaller
+    deriving (Eq, Ord)
+
+-- What is known of a value's size: how it relates to each parameter of the function it is
+-- written in, by the parameter's place. Nothing known is no entry.
+type Size = Map.Map Int Rel
+
+-- A part of a value: smaller than whatever the value is no larger than
+partOf :: Map.Map k Rel -> Map.Map k Rel
+partOf = Map.map (const Smaller)
+
+-- A value no larger than another
+noLargerThan :: Size -> Size
+noLargerThan = Map.map (const NoLarger)
+
 -- A function's name written inside another function (or itself), where it is written: a call,
--- or the function passed on as a value, as to map
+-- with the size of each argument, or the function named otherwise, its arguments unknown
 data Call = Call
     { callFrom :: Node
     , callTo   :: Node
     , callPos  :: SourcePos
+    , callArgs :: Maybe [Size]
     }
 
 -- What the walk finds: errors, and the calls by name between functions
@@ -81,12 +100,14 @@ problem err = Found [err] []
 -- What a name can refer to where it is written: the names bound around it (attribute pairs,
 -- let bindings, parameters, holes), each with the function it names, if it binds a fn; the
 -- module's own functions; and the modules it imports, by qualifier. The built-ins come after
--- them all. The function being written, if any, is where a name of another function calls it.
+-- them all. The function being written, if any, is where a name of another function calls it,
+-- and the names whose size is known are known against its parameters.
 data Scope = Scope
     { scopeLocals    :: Map.Map Text (Maybe Node)
     , scopeFunctions :: L.FunctionRegistry
     , scopeImports   :: Map.Map Text L.Imported
     , scopeOwner     :: Maybe Node
+    , scopeSizes     :: Map.Map Text Size
     }
 
 -- Whether a binding around this point has the name: a local or a function of the module
@@ -97,13 +118,28 @@ bound scope name = Map.member name (scopeLocals scope) || Map.member name (scope
 within :: Set.Set Text -> Scope -> Scope
 within more = withinFrame (Map.fromSet (const Nothing) more)
 
--- The scope with a frame's names bound around it
+-- The scope with a frame's names bound around it, of no known size
 withinFrame :: Map.Map Text (Maybe Node) -> Scope -> Scope
-withinFrame more scope = scope { scopeLocals = more <> scopeLocals scope }
+withinFrame more scope = scope { scopeLocals = more <> scopeLocals scope
+                               , scopeSizes  = scopeSizes scope `Map.difference` more }
 
--- The scope inside a function's body
+-- The scope with the sizes of some of its names known
+sized :: Map.Map Text Size -> Scope -> Scope
+sized sizes scope = scope { scopeSizes = Map.filter (not . Map.null) sizes <> scopeSizes scope }
+
+-- The scope inside a function's body, where sizes are known against its parameters
 inside :: Node -> Scope -> Scope
-inside node scope = scope { scopeOwner = Just node }
+inside node scope = scope { scopeOwner = Just node, scopeSizes = Map.empty }
+
+-- The function a name names, where it is written: one bound around it by name, or one of the
+-- module; not a built-in, nor an import's, which cannot call back
+named :: Scope -> Text -> Maybe Node
+named scope name =
+    case Map.lookup name (scopeLocals scope) of
+        Just local -> local
+        Nothing    -> case Map.member name (scopeFunctions scope) of
+                          True  -> Just (Defn name)
+                          False -> Nothing
 
 
 -- Every error in a module's functions and graphs, in source order, with the modules it
@@ -115,33 +151,77 @@ analyseModule imported ouroModule =
     Found errs calls = foldMap function (Map.elems (ouroModule ^. functionRegistry))
                     <> foldMap graph    (Map.elems (ouroModule ^. graphRegistry))
 
-    root = Scope Map.empty (ouroModule ^. functionRegistry) imported Nothing
+    root = Scope Map.empty (ouroModule ^. functionRegistry) imported Nothing Map.empty
 
     -- A body the parser rejected is reported by the parser
     function :: HigherExpression 'FunctionExpr -> Found
     function (Function pos name _ params body) =
         case body of
-            S.Form _ exprs | Right result <- functionBody name pos exprs -> parameters (inside (Defn name) root) params result
+            S.Form _ exprs | Right result <- functionBody name pos exprs -> parameters (inside (Defn name) root) ownParameters params result
             _rejected                                                     -> mempty
 
     graph :: HigherExpression 'GraphExpr -> Found
     graph (Graph _ _ body) = names root body
 
+-- Each parameter of a function, as its own body sees it: itself
+ownParameters :: [Size]
+ownParameters = [ Map.singleton i NoLarger | i <- [0 ..] ]
 
--- A function that reaches itself by its name, directly or through others, is recursion,
--- reported once for each circle of functions, at the name that closes it: the last written.
--- A function reached through a value, a parameter, or a function a call returns, is the
--- evaluator's to check, when it is called.
+
+-- A function that reaches itself by its name, directly or through others, must go down into a
+-- value each time round: Lee, Jones and Ben-Amram's size-change termination (2001). Each call
+-- in a circle of functions relates the arguments it passes to the caller's parameters; the
+-- circle finishes when every way round it, followed until it repeats itself, passes some
+-- parameter a part of itself. One that might not finish is reported once, at the name that
+-- closes it: the last written. A function reached through a value, a parameter, or a
+-- function a call returns, is the evaluator's to check, when it is called.
 recursion :: [Call] -> [OuroError]
 recursion calls =
     [ OuroError (callPos closing) (recursiveCall (map nodeName (route next (callTo closing) (callFrom closing) <> [callTo closing])))
     | CyclicSCC circle <- stronglyConnComp [ (node, node, Map.findWithDefault [] node next) | node <- Map.keys next ]
     , let members = Set.fromList circle
           within' = [ call | call <- calls, callFrom call `Set.member` members, callTo call `Set.member` members ]
+    , not (finishes within')
     , closing : _ <- [reverse (sortOn callPos within')]
     ]
     where
     next = Map.fromListWith (<>) ([ (callFrom call, [callTo call]) | call <- calls ] <> [ (callTo call, []) | call <- calls ])
+
+
+-- How one call, or a run of calls, relates the parameters of the function it starts in to
+-- those of the function it ends in: an arc from a parameter to one, when the argument passed
+-- for it is known against the first
+data Change = Change Node Node (Map.Map (Int, Int) Rel)
+    deriving (Eq, Ord)
+
+-- Whether every way round a circle of calls finishes: of the changes its runs of calls make,
+-- each that starts and ends in one function and stays the same when run twice passes some
+-- parameter a part of itself
+finishes :: [Call] -> Bool
+finishes calls = and [ descends arcs | change@(Change from to arcs) <- Set.toList (closure (Set.fromList (map changeOf calls)))
+                                     , from == to
+                                     , andThen change change == Just change ]
+    where
+    changeOf call = Change (callFrom call) (callTo call) $
+                    Map.fromListWith max [ ((i, j), rel) | (j, argument) <- zip [0 ..] (fromMaybe [] (callArgs call))
+                                                         , (i, rel) <- Map.toList argument ]
+
+    descends arcs = or [ rel == Smaller | ((i, j), rel) <- Map.toList arcs, i == j ]
+
+    -- Every run of calls, until no new change is made: finitely many, since a change is two
+    -- functions and arcs between their parameters
+    closure changes = case changes <> Set.fromList (mapMaybe (uncurry andThen) [ (a, b) | a <- Set.toList changes, b <- Set.toList changes ]) of
+                          more | more == changes -> changes
+                               | otherwise       -> closure more
+
+-- One run of calls, then another that starts where it ends
+andThen :: Change -> Change -> Maybe Change
+andThen (Change from middle arcs) (Change middle' to arcs') =
+    case middle == middle' of
+        True  -> Just (Change from to (Map.fromListWith max [ ((i, k), max rel rel') | ((i, j), rel) <- Map.toList arcs
+                                                                                     , ((j', k), rel') <- Map.toList arcs'
+                                                                                     , j == j' ]))
+        False -> Nothing
 
 
 -- The functions from one to another, both included, following calls
@@ -154,15 +234,18 @@ route next start goal = fromMaybe [start, goal] (search Set.empty start)
         | otherwise                = (node :) <$> asum (map (search (Set.insert node seen)) (Map.findWithDefault [] node next))
 
 
--- A function's parameters, and the holes of their patterns, are bound around its body. The
--- values in a pattern are read in the scope the function is written in, which cannot see
--- its parameters. A malformed pattern stops the call before the body, so the body is not
--- looked into.
-parameters :: Scope -> [S.Param] -> S.Expr -> Found
-parameters closure params body =
+-- A function's parameters, and the holes of their patterns, are bound around its body, with
+-- each parameter's size, as the function is called. The values in a pattern are read in the
+-- scope the function is written in, which cannot see its parameters. A malformed pattern
+-- stops the call before the body, so the body is not looked into.
+parameters :: Scope -> [Size] -> [S.Param] -> S.Expr -> Found
+parameters closure sizes params body =
     case mconcat <$> traverse (pattern closure) [ p | Just p <- map S.paramPattern params ] of
         Nothing                    -> mempty
-        Just (patternFound, holes) -> patternFound <> names (within (Set.fromList (map S.paramName params) <> holes) closure) body
+        Just (patternFound, holes) -> patternFound <> names (sized given (within (Set.fromList (map S.paramName params) <> holes) closure)) body
+    where
+    given = Map.unions [ Map.insert (S.paramName p) argument (foldMap (`holeSizes` argument) (S.paramPattern p))
+                       | (p, argument) <- zip params (sizes <> repeat Map.empty) ]
 
 
 -- A case or parameter pattern, as 'matchPattern' reads it: what is found in the values it
@@ -203,6 +286,57 @@ pattern scope = \case
                     False -> Just (names scope p, Set.empty)
 
 
+-- The sizes of the holes of a pattern matched against a value of a known size: a hole in it
+-- is a part of the value, but for a hole that is the whole pattern, or a rest hole alone in
+-- its pattern, which may be all of it
+holeSizes :: S.Expr -> Size -> Map.Map Text Size
+holeSizes p argument = Map.map (\case Smaller -> partOf argument; NoLarger -> argument) (parts p)
+    where
+    parts = \case
+        S.Hole _ hole       -> named' NoLarger hole
+        S.Tagged _ _ inner  -> parts inner
+        S.Form _ elems      -> Map.unions (map (element (length elems)) elems)
+        _noHole             -> Map.empty
+
+    element count = \case
+        S.Hole _ hole
+            | isRestHole hole, count == 1 -> named' NoLarger hole
+            | otherwise                   -> named' Smaller hole
+        S.Tagged _ _ inner                -> element count inner
+        S.Form _ [S.Symbol _ "%attr", _, inner]
+                                          -> partOf (parts inner)
+        nested                            -> partOf (parts nested)
+
+    named' rel hole = foldMap (`Map.singleton` rel) (holeName hole)
+
+
+-- What is known of the size of an expression's value, against the parameters of the function
+-- it is written in: a name of known size; a path into a value, a part of it; and get-or with
+-- an empty fallback, image and filter, no larger than the value they look into
+size :: Scope -> S.Expr -> Size
+size scope = \case
+    S.Symbol _ name    -> Map.findWithDefault Map.empty name (scopeSizes scope)
+    S.Tagged _ _ inner -> size scope inner
+    S.Form _ items
+        | shadowsForm (bound scope) items                         -> Map.empty
+    S.Form _ (S.Symbol _ "get" : target : _ : _)                  -> partOf (size scope target)
+    S.Form _ (S.Symbol _ "get-or" : fallback : target : _ : _)
+        | empty fallback                                          -> noLargerThan (size scope target)
+    S.Form _ (S.Symbol _ "image" : target : _ : _)                -> noLargerThan (size scope target)
+    S.Form _ [S.Symbol _ "filter", _, xs]                         -> noLargerThan (size scope xs)
+    _unknown                                                      -> Map.empty
+    where
+    empty = \case
+        S.Literal _ S.EmptyArr -> True
+        S.Literal _ S.EmptyRec -> True
+        S.Form _ []            -> True
+        _notEmpty              -> False
+
+-- An element of an Array of known size is a part of it
+elementSize :: Scope -> S.Expr -> Size
+elementSize scope = partOf . size scope
+
+
 -- Every name in an expression resolves where it is written
 names :: Scope -> S.Expr -> Found
 names scope = \case
@@ -215,7 +349,7 @@ names scope = \case
 -- A name: one bound around it, a function of the module, or a built-in; or, qualified, a
 -- function an import exports. Unbound, it is SCP0000, with the nearest name in scope, the
 -- names Canon gives its own bindings ('%target', '%1') aside. A function's name, written in
--- a function, is a call of it (an import's cannot call back, since imports have no cycles).
+-- a function but not called there, names it with arguments unknown.
 resolve :: Scope -> SourcePos -> Text -> Found
 resolve scope pos name
     | Just (qualifier, unqualified) <- splitQualified name
@@ -227,20 +361,55 @@ resolve scope pos name
                   | otherwise                         -> problem (OuroError pos (notExported qualifier unqualified (Set.toList exported)))
                   where
                   exported = L.importedExports imported
-    | Just local <- Map.lookup name (scopeLocals scope)
-        = foldMap called local
-    | Map.member name (scopeFunctions scope)
-        = called (Defn name)
-    | Map.member name builtinRegistry
-        = mempty
+    | bound scope name || Map.member name builtinRegistry
+        = foldMap (\node -> naming scope node pos Nothing) (named scope name)
     | otherwise
         = problem (OuroError pos (unboundName name [ n | n <- inScope, not ("%" `T.isPrefixOf` n) ]))
     where
     inScope = Map.keys (scopeLocals scope) <> Map.keys (scopeFunctions scope)
 
-    called node = case scopeOwner scope of
-                      Just owner -> Found [] [Call owner node pos]
-                      Nothing    -> mempty
+-- A function named where it is written, from the function being written, if any
+naming :: Scope -> Node -> SourcePos -> Maybe [Size] -> Found
+naming scope node pos args = case scopeOwner scope of
+                                Just owner -> Found [] [Call owner node pos args]
+                                Nothing    -> mempty
+
+
+-- A call: the function its head names, with the size of each argument, or its head read as
+-- any other name
+callForm :: Scope -> [S.Expr] -> Found
+callForm scope = \case
+    S.Symbol pos name : args
+        | Just node <- named scope name -> naming scope node pos (Just (map (size scope) args)) <> foldMap (names scope) args
+    items                               -> foldMap (names scope) items
+
+-- A function map, exists, forall, omits, filter or '->' calls with one argument of a known
+-- size: one it names, or a fn written there, whose parameter is that argument
+applied :: Scope -> Size -> S.Expr -> Found
+applied scope argument = \case
+    S.Symbol pos name
+        | Just node <- named scope name -> naming scope node pos (Just [argument])
+    S.Form _ items
+        | Just found <- lambda scope [argument] items
+                                        -> found
+    f                                   -> names scope f
+
+-- A fn, with the sizes of its parameters as it is called; Nothing when the form is not one.
+-- Its parameters are checked when it is written, and one the evaluator rejects is its error.
+lambda :: Scope -> [Size] -> [S.Expr] -> Maybe Found
+lambda scope sizes items = case items of
+    _shadowed
+        | shadowsForm (bound scope) items                         -> Nothing
+    [S.Symbol fnPos (S.formName -> "fn"), S.Form _ params, body]
+        | Just typed <- traverse param (zip [1 ..] params)        -> Just (checked fnPos typed body)
+    [S.Symbol fnPos (S.formName -> "fn"), S.Tagged _ _ (S.Form _ params), body]
+        | Just typed <- traverse param (zip [1 ..] params)        -> Just (checked fnPos typed body)
+    S.Symbol _ (S.formName -> "fn") : _                           -> Just mempty
+    _notAFn                                                       -> Nothing
+    where
+    checked fnPos typed body = case checkParams fnPos typed of
+                                   Right () -> parameters scope sizes typed body
+                                   Left _   -> mempty
 
 
 -- A form, read as the evaluator reads it (see 'Engine.evalExpr'). A form the evaluator rejects
@@ -251,7 +420,7 @@ form scope pos items = case items of
     -- A special form's name that a binding around the form has is the binding's, as in Scheme:
     -- the form is an ordinary call of it
     _shadowed
-        | shadowsForm (bound scope) items             -> arity scope pos items <> foldMap (names scope) items
+        | shadowsForm (bound scope) items             -> arity scope pos items <> callForm scope items
 
     S.Symbol _ "context" : _                         -> mempty
     S.Symbol _ "attr" : _                            -> mempty
@@ -266,19 +435,19 @@ form scope pos items = case items of
     S.Symbol _ "image" : _                           -> mempty
 
     S.Symbol _ "list" : elements                     -> foldMap (names scope) elements
-    [S.Symbol _ "map", f, xs]                        -> names scope f <> names scope xs
+    [S.Symbol _ "map", f, xs]                        -> applied scope (elementSize scope xs) f <> names scope xs
     S.Symbol _ "map" : _                             -> mempty
     [S.Symbol _ quantifier, f, xs]
-        | quantifier `elem` quantifiers              -> names scope f <> names scope xs
+        | quantifier `elem` quantifiers              -> applied scope (elementSize scope xs) f <> names scope xs
     S.Symbol _ quantifier : _
         | quantifier `elem` quantifiers              -> mempty
-    [S.Symbol _ "%apply", f, x]                      -> names scope f <> names scope x
+    [S.Symbol _ "%apply", f, x]                      -> applied scope (size scope x) f <> names scope x
     [S.Symbol _ "->"]                                -> mempty
     [S.Symbol _ "with"]                              -> mempty
     [S.Symbol _ "adjoin"]                            -> mempty
 
     S.Symbol _ (S.formName -> "let") : [S.Form _ bindings, body]
-        | Right entries <- letBindings bindings      -> frame scope entries <> names (withinFrame (frameNames entries) scope) body
+        | Right entries <- letBindings bindings      -> frame scope entries <> names (sized (frameSizes scope entries) (withinFrame (frameNames entries) scope)) body
     S.Symbol _ (S.formName -> "let") : _             -> mempty
 
     S.Symbol _ "when" : _                            -> mempty
@@ -289,19 +458,13 @@ form scope pos items = case items of
         | isFunctionKeyword keyword                  -> mempty
     [S.Symbol _ "%binder", S.Literal _ (S.Str _)]    -> mempty
 
-    [S.Symbol fnPos (S.formName -> "fn"), S.Form _ params, body]
-        | Just typed <- traverse param (zip [1 ..] params)
-                                                     -> lambda fnPos typed body
-    [S.Symbol fnPos (S.formName -> "fn"), S.Tagged _ _ (S.Form _ params), body]
-        | Just typed <- traverse param (zip [1 ..] params)
-                                                     -> lambda fnPos typed body
-    S.Symbol _ (S.formName -> "fn") : _              -> mempty
+    S.Symbol _ (S.formName -> "fn") : _              -> fromMaybe mempty (lambda scope [] items)
 
     [S.Symbol _ "%attr", S.Literal _ (S.Str _), value]
                                                      -> names scope value
 
     S.Symbol _ (S.formName -> "case") : target : branches
-        | hasValidOtherwise branches                 -> names scope target <> foldMap (branch scope) branches
+        | hasValidOtherwise branches                 -> names scope target <> foldMap (branch scope (size scope target)) branches
         | otherwise                                  -> mempty
 
     S.Symbol _ "nth" : _                             -> mempty
@@ -312,15 +475,10 @@ form scope pos items = case items of
     _otherForm -> case determineBlockTarget items of
                       TargetRecord      -> record scope items
                       TargetList        -> array scope items
-                      TargetFunctionApp -> arity scope pos items <> foldMap (names scope) items
+                      TargetFunctionApp -> arity scope pos items <> callForm scope items
 
     where
     quantifiers = ["exists", "forall", "omits", "filter"]
-
-    -- A fn's parameters are checked when it is written; one the evaluator rejects is its error
-    lambda fnPos typed body = case checkParams fnPos typed of
-                                  Right () -> parameters scope typed body
-                                  Left _   -> mempty
 
 
 -- A call of a known function has as many arguments as the function has parameters (SCP0002),
@@ -333,7 +491,7 @@ arity scope pos = \case
         | Just (called, params) <- known scope name
         , length params /= length args
         -> incorrectArity called (length params) (length args)
-           & maybe id (\call -> withBlurb ("It is called " <> call <> ".")) (L.callTemplate called params)
+           & maybe id (\template -> withBlurb ("It is called " <> template <> ".")) (L.callTemplate called params)
            & OuroError pos
            & problem
     _otherCall
@@ -361,14 +519,14 @@ parametersOf registry called = Map.lookup called registry >>= \case
 
 
 -- A case branch: its condition, or its pattern's values, and its result, around which the
--- pattern's holes are bound
-branch :: Scope -> S.Expr -> Found
-branch scope = \case
+-- pattern's holes are bound, each a part of the target, of the size given
+branch :: Scope -> Size -> S.Expr -> Found
+branch scope target = \case
     S.Form _ [S.Symbol _ "otherwise", body]                   -> names scope body
     S.Form _ [S.Form _ [S.Symbol _ "%when", condition], body] -> names scope condition <> names scope body
     S.Form _ [p, body]
         | S.isPatternForm p                                   -> case pattern scope p of
-                                                                     Just (found, holes) -> found <> names (within holes scope) body
+                                                                     Just (found, holes) -> found <> names (sized (holeSizes p target) (within holes scope)) body
                                                                      Nothing             -> mempty
     S.Form _ [S.Literal _ _, body]                            -> names scope body
     _rejected                                                 -> mempty
@@ -379,7 +537,7 @@ branch scope = \case
 record :: Scope -> [S.Expr] -> Found
 record scope items = case collectBindings items of
     Left _rejected -> mempty
-    Right entries  -> let inner = withinFrame (frameNames entries) scope
+    Right entries  -> let inner = sized (frameSizes scope entries) (withinFrame (frameNames entries) scope)
                       in frame scope entries
                          <> mconcat (take 1 [ names inner e | S.Form _ [S.Symbol _ "%context", e] <- items ])
                          <> mconcat [ names inner e | S.Form _ inlay@[S.Symbol _ (S.formName -> "inlay"), e] <- items
@@ -406,18 +564,21 @@ array scope = foldMap $ \case
 -- The values of a frame's bindings, a record's attribute pairs or a let's bindings, each read
 -- with the frame's names but its own, which names what it names around the frame. A name
 -- bound twice is bound to its first binding, so only the first is hidden from itself. A
--- binding of a fn is a function of its own, whose body calls what it names.
+-- binding of a fn is a function of its own, whose parameters are its own.
 frame :: Scope -> [FrameEntry] -> Found
 frame scope entries =
-    mconcat [ names (owned (withinFrame (visible i entry) scope)) (entryExpr entry)
-            | (i, entry) <- zip [0 :: Int ..] entries
-            , let owned = maybe id inside (Map.findWithDefault Nothing (entryKey entry) bindings) ]
+    mconcat [ value (withinFrame (visible i entry) scope) entry | (i, entry) <- zip [0 :: Int ..] entries ]
     where
     bindings = frameNames entries
 
     visible i entry = case entryKey entry `elem` map entryKey (take i entries) of
                           True  -> bindings
                           False -> Map.delete (entryKey entry) bindings
+
+    value scope' entry = case (Map.findWithDefault Nothing (entryKey entry) bindings, entryExpr entry) of
+                             (Just node, S.Form _ items)
+                                 | Just found <- lambda (inside node scope') ownParameters items -> found
+                             _otherValue                                                         -> names scope' (entryExpr entry)
 
 -- A frame's names, each bound to its first binding, with the function it names if that
 -- binding is a fn
@@ -427,6 +588,14 @@ frameNames entries = Map.fromListWith (\_later first -> first) [ (entryKey entry
     fnNode entry = case entryExpr entry of
                        S.Form _ (S.Symbol _ (S.formName -> "fn") : _) -> Just (Bound (entryKey entry) (entryPos entry))
                        _notAFn                                        -> Nothing
+
+-- The sizes of a frame's bindings, known against the function they are written in, each bound
+-- to its first binding. A name the frame binds is of no known size in them, whether it names
+-- a sibling or, in its own binding, the name around the frame.
+frameSizes :: Scope -> [FrameEntry] -> Map.Map Text Size
+frameSizes scope entries = Map.fromListWith (\_later first -> first) [ (entryKey entry, size framed (entryExpr entry)) | entry <- entries ]
+    where
+    framed = withinFrame (frameNames entries) scope
 
 
 -- Whether an expression is a form its elements make a record or an array

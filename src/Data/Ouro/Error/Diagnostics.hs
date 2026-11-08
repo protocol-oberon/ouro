@@ -148,12 +148,14 @@ incorrectArity name argNo actNo = Scope $ IncorrectArity
     }
 
 
--- A function that reaches itself by its name: the circle of functions, from the one called
--- back to it, as the evaluator's recursion check reports a call of a function already called
+-- A function that reaches itself by its name without going down into a value each time round:
+-- the circle of functions, from the one called back to it
 recursiveCall :: [Text] -> ErrorContext
 recursiveCall circle =
-    withBlurb ( "Recursion is strictly forbidden in Ouro: '" <> T.concat (take 1 circle) <> "' calls itself" <> through <> ". "
-             <> "Perhaps write each level out, with a function for each."
+    withBlurb ( "'" <> T.concat (take 1 circle) <> "' calls itself" <> through <> ", and might never finish. "
+             <> "Recursion must go down into a value: each time round, some call passes on a part of one of its "
+             <> "parameters, such as a path into it, (get x part), a hole of its pattern, or an element of it, through map. "
+             <> "A number counting down is not a part."
               )
               (typeMismatch "a terminating function call" "a recursive function call")
     where

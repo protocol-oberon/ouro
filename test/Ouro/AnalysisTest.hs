@@ -73,28 +73,28 @@ calls = Group "Static analysis: a call of a known function has its arity"
     ]
 
 
--- A function that reaches itself by its name, a defn or a fn bound by name, is recursion,
--- reported once for each circle of functions, at the name that closes it, whether or not
--- anything calls it. A function reached through a value is the evaluator's to check.
+-- A function that reaches itself by its name, a defn or a fn bound by name, must go down into
+-- a value each time round, so it finishes: some call on every way round passes a part of one
+-- of its parameters. One that might not is reported once for each circle of functions, at the
+-- name that closes it, whether or not anything calls it. A function reached through a value
+-- is the evaluator's to check.
 recursion :: Group
-recursion = Group "Static analysis: no function reaches itself by its name"
-    [ ("an uncalled function's recursion",        importsFailAt "TYP0000" ("inline-test", 1, 13) ["Recursion is strictly forbidden in Ouro: 'f' calls itself."] []
+recursion = Group "Static analysis: recursion goes down into a value"
+    [ ("an uncalled function's recursion",        importsFailAt "TYP0000" ("inline-test", 1, 13) ["'f' calls itself, and might never finish."] []
                                                                 "(defn f () (f)) (graph g (:r 1))")
     , ("mutual recursion, at the name that closes it", importsFailAt "TYP0000" ("inline-test", 1, 33) ["'f' calls itself, through f "] []
                                                                 "(defn f (n) (h n)) (defn h (n) (f n)) (graph g (:r 1))")
     , ("once for each circle",                    importsFailTimes 1 []
                                                                 "(defn f (n) (h n)) (defn h (n) (f n)) (graph g (:r 1))")
-    , ("a constant naming itself",                importsFailAt "TYP0000" ("inline-test", 1, 12) ["'a' calls itself."] []
+    , ("a constant naming itself",                importsFailAt "TYP0000" ("inline-test", 1, 12) ["'a' calls itself, and might never finish."] []
                                                                 "(defn a () a) (graph g (:r 1))")
-    , ("a function passed to map by its name",    failsWith "'f' calls itself."
-                                                                "(defn f (x) (map f x)) (graph g (:r 1))")
-    , ("a function in its own pattern",           failsWith "'f' calls itself."
+    , ("a function in its own pattern",           failsWith "'f' calls itself, and might never finish."
                                                                 "(defn f (((f 1) ?x)) x) (graph g (:r 1))")
     , ("let-bound fns naming each other",         importsFailAt "TYP0000" ("inline-test", 1, 46) ["'a' calls itself, through a "] []
                                                                 "(graph g (let ($a (fn (x) (b x)) $b (fn (x) (a x))) (:r 1)))")
     , ("a function and the fn it binds",          failsWith "'g' calls itself, through g "
                                                                 "(defn f (x) (let ($g (fn (y) (f y))) (g x))) (graph g (:r 1))")
-    , ("a fn it returns may not name it either",  failsWith "'f' calls itself."
+    , ("a fn it returns may not name it either",  failsWith "'f' calls itself, and might never finish."
                                                                 "(defn f () (fn () (f))) (graph g (:r 1))")
 
       -- Only the function itself: names are resolved as the evaluator resolves them
@@ -106,4 +106,48 @@ recursion = Group "Static analysis: no function reaches itself by its name"
                                                                  "{\"r\": 1}")
     , ("a self-application is the evaluator's",   failsWith "attempted to call itself"
                                                                 "(defn w (x) (x x)) (graph g (:r (w w)))")
+
+      -- What goes down: a part of a parameter, passed on
+    , ("a hole of a case pattern",                compilesToJSON "(defn f (n) (case n ((?h ?..t) (f t)) (otherwise 0))) (graph g (:r 1))"
+                                                                 "{\"r\": 1}")
+    , ("a hole of a parameter's pattern",         compilesToJSON "(defn f ((?h ?..t)) (f t)) (graph g (:r 1))"
+                                                                 "{\"r\": 1}")
+    , ("a path into it",                          compilesToJSON "(defn f (n) (f (get n part))) (graph g (:r 1))"
+                                                                 "{\"r\": 1}")
+    , ("a let binding of a part",                 compilesToJSON "(defn f (n) (let ($p (get n part)) (f p))) (graph g (:r 1))"
+                                                                 "{\"r\": 1}")
+    , ("an element, through map by name",         compilesToJSON "(defn f (x) (map f x)) (graph g (:r 1))"
+                                                                 "{\"r\": 1}")
+    , ("an element of get-or, through a fn",      compilesToJSON "(defn walk (n) (map (fn (p) (walk p)) (get-or () n part))) (graph g (:r 1))"
+                                                                 "{\"r\": 1}")
+    , ("an element of image, through forall",     compilesToJSON "(defn named (n) (forall named (image n part))) (graph g (:r 1))"
+                                                                 "{\"r\": 1}")
+    , ("mutual, one call going down is enough",   compilesToJSON "(defn f (n) (h n)) (defn h (n) (f (get n b))) (graph g (:r 1))"
+                                                                 "{\"r\": 1}")
+    , ("one parameter going down is enough",      compilesToJSON "(defn f (n acc) (f (get n part) (+ acc 1))) (graph g (:r 1))"
+                                                                 "{\"r\": 1}")
+    , ("arguments that change places",            compilesToJSON "(defn f (a b) (f b (get a k))) (graph g (:r 1))"
+                                                                 "{\"r\": 1}")
+
+      -- What does not: the same value, a value computed, or one no part of a parameter
+    , ("the same argument again",                 failsWith "'f' calls itself, and might never finish."
+                                                                "(defn f (n) (f n)) (graph g (:r 1))")
+    , ("a computed argument",                     failsWith "'f' calls itself, and might never finish."
+                                                                "(defn f (n) (f (+ n 1))) (graph g (:r 1))")
+    , ("a number counting down",                  failsWith "A number counting down is not a part."
+                                                                "(defn f (n) (case n (0 0) (otherwise (f (- n 1))))) (graph g (:r 1))")
+    , ("get-or may pass its fallback, again",     failsWith "'f' calls itself, and might never finish."
+                                                                "(defn f (n) (f (get-or () n part))) (graph g (:r 1))")
+    , ("a rest hole alone may be all of it",      failsWith "'f' calls itself, and might never finish."
+                                                                "(defn f ((?..t)) (f t)) (graph g (:r 1))")
+    , ("a let binding of the whole",              failsWith "'f' calls itself, and might never finish."
+                                                                "(defn f (n) (let ($m n) (f m))) (graph g (:r 1))")
+    , ("a sibling of the parameter's name is not it", failsWith "'f' calls itself, and might never finish."
+                                                                "(defn f (n) (let ($n 1 $m (get n k)) (f m))) (graph g (:r 1))")
+    , ("one way round that does not go down",     failsWith "'f' calls itself, and might never finish."
+                                                                "(defn f (n) (case n ((?h ?..t) (f t)) (otherwise (f n)))) (graph g (:r 1))")
+    , ("arguments that change places, neither going down", failsWith "'f' calls itself, and might never finish."
+                                                                "(defn f (a b) (f b a)) (graph g (:r 1))")
+    , ("a part captured by a fn is not the fn's parameter", failsWith "'g' calls itself, through g "
+                                                                "(defn f (n) (let ($g (fn (y) (f (get n k)))) (g 1))) (graph g (:r 1))")
     ]

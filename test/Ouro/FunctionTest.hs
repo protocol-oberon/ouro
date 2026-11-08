@@ -477,9 +477,9 @@ constants = Group "Functions: a function of no parameters, named, is its value"
                                                             "(defn c #string () 1) (graph g (:r c))")
     , ("an error in its body is reported there",  importsFailAt "TYP0000" ("inline-test", 1, 12) ["a Number + a String"] []
                                                                  "(defn c () (+ 1 \"a\")) (graph g (:r c))")
-    , ("a constant naming itself is recursion",   failsWith "Recursion is strictly forbidden"
+    , ("a constant naming itself is recursion",   failsWith "might never finish"
                                                             "(defn a () a) (graph g (:r a))")
-    , ("as are two naming each other",            failsWith "Recursion is strictly forbidden"
+    , ("as are two naming each other",            failsWith "might never finish"
                                                             "(defn a () b) (defn b () a) (graph g (:r a))")
 
       -- What it costs: a function of no parameters cannot be passed as a function
