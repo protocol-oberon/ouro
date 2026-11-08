@@ -457,8 +457,8 @@ applyDuration utc unit amt = case unit of
 -- handleLength.
 --
 -- The number of elements in an array, or of characters in a string. Characters are Unicode
--- code points, not bytes, so "Málaga" has 6. Recursion is banned, so a length cannot be
--- written in Ouro itself.
+-- code points, not bytes, so "Málaga" has 6. A string cannot be taken apart in Ouro, so its
+-- length cannot be written in Ouro itself.
 handleLength :: SourcePos -> [L.Expr] -> Reader Env L.Expr
 handleLength pos =
     \case

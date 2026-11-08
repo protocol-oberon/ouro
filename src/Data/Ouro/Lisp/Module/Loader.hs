@@ -36,13 +36,13 @@ import qualified Data.Ouro.Lisp.Canon         as Canon
 import qualified Data.Ouro.Lisp.Eval.Types    as L
 import qualified Data.Ouro.Lisp.Lexer         as LX
 import           Data.Ouro.Lisp.Module.Bundled (bundled)
-import           Data.Ouro.Lisp.Module.Types  (Import (..), Module, exports,
-                                               imports, qualifierOf)
+import           Data.Ouro.Lisp.Module.Types  (Import (..), Module, acceptedCalls,
+                                               exports, imports, qualifierOf)
 import qualified Data.Ouro.Lisp.Parser        as LP
 import qualified Data.Set                     as Set
 import           Data.Text                    (Text)
 import qualified Data.Text                    as T
-import           Lens.Micro                   ((^.))
+import           Lens.Micro                   ((&), (.~), (^.))
 import           Text.Megaparsec              (SourcePos)
 
 
@@ -159,7 +159,7 @@ loadModules = traverse (\(pos, path) -> resolve pos path >>= loadKey pos path)
 
 
 -- One import: the module, loaded and linked the first time it is imported. A module that is
--- still being loaded is a cycle, since Ouro has no recursion across files either: the cycle is
+-- still being loaded is a cycle, since imports go one way: the cycle is
 -- named from that module, without the modules whose loading led to it.
 loadImport :: Monad m => Import -> LoaderT m L.Imported
 loadImport imp = do
@@ -226,13 +226,15 @@ loadKey pos path key = gets (Map.lookup key) >>= \case
                    let canonical = Canon.canonicalModule parsed
                    dependencies <- local (\env -> env { importStack = key : importStack env })
                                          (loadImports canonical)
-                   traverse_ refute (NE.nonEmpty (analyseModule dependencies canonical))
+                   let (problems, accepted) = analyseModule dependencies canonical
+                       analysed             = canonical & acceptedCalls .~ accepted
+                   traverse_ refute (NE.nonEmpty problems)
                    let linked = Linked
-                                    { linkedModule  = canonical
+                                    { linkedModule  = analysed
                                     , linkedImports = dependencies
                                     , linkedRoot    = L.Imported
-                                                          { L.importedRoot    = L.defaultEnv dependencies canonical
-                                                          , L.importedExports = Set.fromList (map fst (canonical ^. exports))
+                                                          { L.importedRoot    = L.defaultEnv dependencies analysed
+                                                          , L.importedExports = Set.fromList (map fst (analysed ^. exports))
                                                           }
                                     }
                    pure linked

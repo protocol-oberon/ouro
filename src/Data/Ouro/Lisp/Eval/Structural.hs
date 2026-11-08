@@ -7,6 +7,7 @@ import           Control.Monad.Reader        (ask, local)
 import           Data.Functor                ((<&>))
 import           Data.Function               ((&))
 import qualified Data.Map                    as Map
+import           Data.Maybe                  (listToMaybe)
 import           Data.Ouro.Error.Diagnostics (incorrectArity, lexicalError,
                                               typeMismatch, typeMismatchBlurb,
                                               withBlurb)
@@ -378,41 +379,50 @@ compileArray evaluator env pos elements = Array <$> compileElements env elements
 -- typed parameter's argument is checked under its tag. The body runs in the function's
 -- closure (the frame it was defined in) extended with a frame for the parameters.
 --
--- Recursion is forbidden: the call stack comes from the caller and records each
--- function by identity, so nesting a call, like (f (f x)), is not recursion.
+-- Recursion goes down into a value. The call stack comes from the caller and records each
+-- function by identity, so nesting a call, like (f (f x)), is not recursion. A call of a
+-- function already being called is let through only where the static analysis found it goes
+-- down into a value, by where the function's name is written: its arguments are evaluated
+-- first, and an error in one is the call's value, since an error is no part of a value. Each
+-- argument is then a part, or no larger, as the analysis found, so the calls reach the
+-- leaves. Anything else that calls a function already being called is an error.
 evalFunction
     :: (S.Expr -> EvalM L.Expr)       -- Core evaluator function
     -> Env                            -- The function's closure: the frame it is defined in
     -> SourcePos                      -- Callsite position
+    -> SourcePos                      -- Where the function's name, or what gives it, is written
     -> L.FunctionId                   -- The function's name and definition position
     -> [S.Param]                      -- The function's formal parameters (e.g., (name #number year))
     -> [S.Expr]                       -- The un-evaluated body expressions of the function
     -> [S.Expr]                       -- The actual arguments passed at the call site
     -> EvalM L.Expr                   -- The returned evaluated expr
-evalFunction evaluator closureEnv pos fnId@(name, _) params bodyExprs actualArgs = do
+evalFunction evaluator closureEnv pos site fnId@(name, _) params bodyExprs actualArgs = do
     callerEnv <- ask
     let parLen      = length params
         actLen      = length actualArgs
         callerStack = callerEnv ^. L.callStack
+        again       = Set.member fnId callerStack
 
-    case (parLen == actLen, Set.member fnId callerStack) of
-        (False, _)
+    case (parLen == actLen, again, Set.member site (callerEnv ^. L.acceptedCalls)) of
+        (False, _, _)
             -> incorrectArity name parLen actLen
                & maybe id (\call -> withBlurb ("It is called " <> call <> ".")) (L.callTemplate name params)
                & OuroError pos
                & L.EvalError
                & pure
 
-        (True, True)
+        (True, True, False)
             -> typeMismatch
                    "a terminating function call"
                    "a recursive function call"
-               & withBlurb ("Recursion is strictly forbidden in Ouro. The function '" <> name <> "' attempted to call itself.")
+               & withBlurb ( "The function '" <> name <> "' called itself through a value, such as a parameter or a function a call returned. "
+                          <> "Recursion is checked to go down into a value only where a function calls itself by its name."
+                           )
                & OuroError pos
                & EvalError
                & pure
 
-        (True, False)
+        (True, _, _)
             -> do
                -- The arguments' promises close over the caller's environment. A typed
                -- parameter's argument is checked under its tag, where the call is written.
@@ -420,7 +430,22 @@ evalFunction evaluator closureEnv pos fnId@(name, _) params bodyExprs actualArgs
                                     [ FrameEntry (S.paramName param) (S.exprPos arg) (typedArgument param arg) False
                                     | (param, arg) <- zip params actualArgs ]
 
-               let functionEnv = closureEnv
+               -- A call of a function already being called evaluates its arguments first: an
+               -- error in one ends the recursion, as its value
+               stopped <- case again of
+                              True  -> (\values -> listToMaybe [ err | err@(EvalError _) <- values ]) <$> traverse (force evaluator pos) argAddrs
+                              False -> pure Nothing
+
+               case stopped of
+                   Just err -> pure err
+                   Nothing  -> enter argAddrs
+
+    where
+    -- The body, in the closure with a frame of the parameters, this call on the stack
+    enter argAddrs = do
+               callerEnv <- ask
+               let callerStack = callerEnv ^. L.callStack
+                   functionEnv = closureEnv
                                & L.localScope       .~ Map.fromList (zip (map S.paramName params) (map Promised argAddrs))
                                & L.functionRegistry .~ Map.empty
                                & L.parentEnv        .~ Just closureEnv

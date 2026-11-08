@@ -67,6 +67,7 @@ main = withUtf8Console $ do
         , Analysis.names
         , Analysis.calls
         , Analysis.recursion
+        , Analysis.descending
         -- Bindings: let, fn and defn replace define and defun
         , Let.letAndFn
         -- The language as specified: what reaches the output, special forms and built-ins

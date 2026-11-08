@@ -246,7 +246,7 @@ mapping = Group "Functions: map calls a function on each element"
                                                             "(graph g (:r (map (+ ? 1))))")
     , ("map can name a function, which shadows it", compilesToJSON "(defn map (x) x) (graph g (:r (map 1)))"
                                                             "{\"r\": 1}")
-    , ("a function cannot map itself",            failsWith "a recursive function call"
+    , ("a function maps itself until an element is no Array", failsWith "an Array to map over"
                                                             "(defn f (x) (map f x)) (graph g (:r (f (1))))")
     ]
 

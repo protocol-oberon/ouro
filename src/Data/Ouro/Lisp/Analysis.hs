@@ -143,11 +143,14 @@ named scope name =
 
 
 -- Every error in a module's functions and graphs, in source order, with the modules it
--- imports, by qualifier
-analyseModule :: Map.Map Text L.Imported -> Module -> [OuroError]
+-- imports, by qualifier; and the calls by name found to go down into a value, by where their
+-- function's name is written, which the evaluator lets call a function already being called
+analyseModule :: Map.Map Text L.Imported -> Module -> ([OuroError], Set.Set SourcePos)
 analyseModule imported ouroModule =
-    sortOn errPos . nubOrd $ errs <> recursion calls
+    (sortOn errPos (nubOrd (errs <> circleErrors)), accepted)
     where
+    (circleErrors, accepted) = recursion calls
+
     Found errs calls = foldMap function (Map.elems (ouroModule ^. functionRegistry))
                     <> foldMap graph    (Map.elems (ouroModule ^. graphRegistry))
 
@@ -173,18 +176,24 @@ ownParameters = [ Map.singleton i NoLarger | i <- [0 ..] ]
 -- in a circle of functions relates the arguments it passes to the caller's parameters; the
 -- circle finishes when every way round it, followed until it repeats itself, passes some
 -- parameter a part of itself. One that might not finish is reported once, at the name that
--- closes it: the last written. A function reached through a value, a parameter, or a
--- function a call returns, is the evaluator's to check, when it is called.
-recursion :: [Call] -> [OuroError]
+-- closes it: the last written. The calls of the circles that finish are accepted, by where
+-- they are written. A function reached through a value, a parameter, or a function a call
+-- returns, is the evaluator's to check, when it is called.
+recursion :: [Call] -> ([OuroError], Set.Set SourcePos)
 recursion calls =
-    [ OuroError (callPos closing) (recursiveCall (map nodeName (route next (callTo closing) (callFrom closing) <> [callTo closing])))
-    | CyclicSCC circle <- stronglyConnComp [ (node, node, Map.findWithDefault [] node next) | node <- Map.keys next ]
-    , let members = Set.fromList circle
-          within' = [ call | call <- calls, callFrom call `Set.member` members, callTo call `Set.member` members ]
-    , not (finishes within')
-    , closing : _ <- [reverse (sortOn callPos within')]
-    ]
+    ( [ OuroError (callPos closing) (recursiveCall (map nodeName (route next (callTo closing) (callFrom closing) <> [callTo closing])))
+      | (False, within') <- circles
+      , closing : _ <- [reverse (sortOn callPos within')]
+      ]
+    , Set.fromList [ callPos call | (True, within') <- circles, call <- within' ]
+    )
     where
+    circles = [ (finishes within', within')
+              | CyclicSCC circle <- stronglyConnComp [ (node, node, Map.findWithDefault [] node next) | node <- Map.keys next ]
+              , let members = Set.fromList circle
+                    within' = [ call | call <- calls, callFrom call `Set.member` members, callTo call `Set.member` members ]
+              ]
+
     next = Map.fromListWith (<>) ([ (callFrom call, [callTo call]) | call <- calls ] <> [ (callTo call, []) | call <- calls ])
 
 

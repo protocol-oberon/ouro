@@ -49,6 +49,7 @@ data Env = Env
     , _functionRegistry :: FunctionRegistry   -- Functions defined in this frame only
     , _moduleImports    :: Map.Map Text Imported   -- The module's imports, by qualifier
     , _callStack        :: Set FunctionId   -- The functions currently being called
+    , _acceptedCalls    :: Set SourcePos    -- The module's calls that may call a function being called
     }
 
 
@@ -68,6 +69,7 @@ defaultEnv imported moduleEnv = Env
     , _functionRegistry = (moduleEnv ^. M.functionRegistry)
     , _moduleImports    = imported
     , _callStack        = Set.empty
+    , _acceptedCalls    = moduleEnv ^. M.acceptedCalls
     }
 
 
@@ -78,6 +80,7 @@ emptyEnv = Env
     , _functionRegistry = Map.empty
     , _moduleImports    = Map.empty
     , _callStack        = Set.empty
+    , _acceptedCalls    = Set.empty
     }
 
 

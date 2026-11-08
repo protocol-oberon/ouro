@@ -162,6 +162,8 @@ formsAndBuiltins = Group "Special forms and built-ins"
                                                                    "{\"r\": [2, 3]}")
     , ("comparisons chain, and null is a value",    compilesToJSON "(graph g (:a (eq 1 1 1) :b (neq 1 2) :c null))"
                                                                    "{\"a\": true, \"b\": true, \"c\": null}")
+    , ("a pair whose value is null is there",       compilesToJSON "(graph g (:a (has (:k null) k) :b (eq null null)))"
+                                                                   "{\"a\": true, \"b\": true}")
     , ("#string asserts a string",                  failsWith "expectedProperty = \"#string\", actualProperty = \"#number\""
                                                               "(graph g (:a #string 1))")
     , ("recursion is an error",                     failsWith "a recursive function call"
@@ -1024,4 +1026,12 @@ knownGaps = Group "Known gaps: current and fixed"
                                                                    "{\"r\": {\"a\": 1, \"b\": 2}}")
     , ("gap 46: an unknown top-level form is named by its Haskell constructor", importsFailAt "SYN0000" ("inline-test", 1, 2) ["Invalid top-level keyword: Symbol"] []
                                                                    "(foo f () 1)\n(graph g (:r 1))")
+    , ("gap 47: a name that begins with null is read as null and a name", failsWith "Expected a function name"
+                                                                   "(defn null-result (x) x) (graph g (:r (null-result 1)))")
+    , ("gap 47: and one that begins with true",      failsWith "Expected a function name"
+                                                                   "(defn truer (x) x) (graph g (:r (truer 1)))")
+    , ("gap 47: and a graph named so",              failsWith "Expected graph name"
+                                                                   "(graph null-results (:r 1))")
+    , ("gap 47: and an attribute named so, read where it is used", failsWith "an unbound expression"
+                                                                   "(graph g (:null-ish 1 :r null-ish))")
     ]

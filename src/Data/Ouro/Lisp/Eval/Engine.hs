@@ -126,7 +126,7 @@ evalExpr expr = do
         -- name is the function itself (see applyFunction)
         S.Symbol pos name          -> lookupVar evalExpr pos name env >>= \case
                                           FunctionClosure closureEnv fnId [] bodyExprs
-                                              -> evalFunction evalExpr closureEnv pos fnId [] bodyExprs []
+                                              -> evalFunction evalExpr closureEnv pos pos fnId [] bodyExprs []
                                           value
                                               -> pure value
 
@@ -641,7 +641,7 @@ applyFunction pos exprs =
 
                case resolvedOp of
                    FunctionClosure closureEnv name params bodyExprs
-                       -> evalFunction evalExpr closureEnv pos name params bodyExprs argumentExprs
+                       -> evalFunction evalExpr closureEnv pos (S.exprPos operatorExpr) name params bodyExprs argumentExprs
 
                    PrimitiveOp nativeFunc
                        -> do

@@ -87,12 +87,12 @@ import           Data.Ouro.Lisp.Module.Loader (LoadEnv, fromSources,
                                               loadImports, runLoader)
 import           Data.Ouro.Lisp.Module.Types (Declaration (..),
                                               HigherExpression (..), Module,
-                                              graphRegistry)
+                                              acceptedCalls, graphRegistry)
 import qualified Data.Ouro.Lisp.Parser       as LP
 import           Data.Text                   (Text)
 import qualified Data.Text                   as T
 import qualified Data.Text.Lazy              as TL
-import           Lens.Micro.Platform         ((^.))
+import           Lens.Micro.Platform         ((.~), (^.))
 import qualified Text.Megaparsec             as M
 import           Text.Megaparsec             (errorBundlePretty)
 
@@ -142,8 +142,11 @@ compileUsing loader filename trgt content = compilationResult <$> runWriterT (ru
                imported <- runLoader loader (loadImports desugaredModule)
 
                -- Pass 3.3: Static analysis: every function and graph checked as written, before
-               -- any is evaluated. Its errors end the compile, as the parser's do.
-               traverse_ refute (NE.nonEmpty (analyseModule imported desugaredModule))
+               -- any is evaluated. Its errors end the compile, as the parser's do; the calls it
+               -- accepted, which may call a function already being called, stay with the module.
+               let (problems, accepted) = analyseModule imported desugaredModule
+                   analysedModule       = desugaredModule & acceptedCalls .~ accepted
+               traverse_ refute (NE.nonEmpty problems)
 
                -- Pass 3.4: Find target graph
                graph <- case Map.lookup (T.pack trgt) (desugaredModule ^. graphRegistry) of
@@ -164,7 +167,7 @@ compileUsing loader filename trgt content = compilationResult <$> runWriterT (ru
                                               & pure
                                               & refute
                -- Pass 4: Evaluation
-               either refute (pure . freeze) (evaluateGraph imported desugaredModule graph)
+               either refute (pure . freeze) (evaluateGraph imported analysedModule graph)
 
     compilationResult :: (Either(NonEmpty OuroError) (I.Expr 'JLD.Primitive), [OuroWarning]) -> CompilationResult
     compilationResult = \case

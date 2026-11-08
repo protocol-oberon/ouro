@@ -150,7 +150,7 @@ importedModules = Group "Modules: imported modules, in memory"
     , ("a module imported twice is loaded once",   importsWarnTimes 1 "badName" [badlyNamed, usesBadly "one", usesBadly "two"]
                                                                     "(import one) (import two) (graph g (:r (+ (one/f) (two/f))))")
 
-      -- Cycles: Ouro has no recursion, across files as within one
+      -- Cycles: imports go one way
     , ("a module cannot import itself",            importsFailWith ["cyclePath = [\"a\",\"a\"]"] [("a", "(import a)\n(export f)\n(defn f () 1)")]
                                                                    "(import a) (graph g (:r (a/f)))")
     , ("nor two each other",                       importsFailIn "b.ouro" ["cyclePath = [\"a\",\"b\",\"a\"]"]
@@ -384,7 +384,7 @@ moduleErrors = Group "Modules: every error, with its code, place and hint"
                                                                  "(import needy) (graph g (:r 1))")
 
       -- Cycles
-    , ("a module importing itself",                importsFailAt "SCP0009" ("a.ouro", 1, 1) ["cyclePath = [\"a\",\"a\"]", "Modules cannot import each other in a circle", "Ouro has no recursion"] [("a", "(import a)\n(export f)\n(defn f () 1)")]
+    , ("a module importing itself",                importsFailAt "SCP0009" ("a.ouro", 1, 1) ["cyclePath = [\"a\",\"a\"]", "Modules cannot import each other in a circle", "Imports go one way"] [("a", "(import a)\n(export f)\n(defn f () 1)")]
                                                                  "(import a) (graph g (:r (a/f)))")
     , ("two modules importing each other",         importsFailAt "SCP0009" ("b.ouro", 1, 1) ["cyclePath = [\"a\",\"b\",\"a\"]", "Perhaps move what they share into a module of its own"] [("a", "(import b)\n(export f)\n(defn f () 1)"), ("b", "(import a)\n(export f)\n(defn f () 2)")]
                                                                  "(import a) (graph g (:r (a/f)))")

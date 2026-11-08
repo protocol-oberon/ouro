@@ -3,3 +3,4 @@ dist-newstyle/
 .envrc
 test/fixtures/ouro/test.ouro
 test/fixtures/json/test.json
+out/

@@ -1,5 +1,6 @@
 module Ouro.AnalysisTest
 ( calls
+, descending
 , names
 , recursion
 ) where
@@ -104,7 +105,7 @@ recursion = Group "Static analysis: recursion goes down into a value"
                                                                 "(defn f (x) (let ($f (fn (y) (f y))) (f x))) (graph g (:r 1))")
     , ("nesting a call is not recursion",         compilesToJSON "(defn id (a) a) (graph g (:r (id (id 1))))"
                                                                  "{\"r\": 1}")
-    , ("a self-application is the evaluator's",   failsWith "attempted to call itself"
+    , ("a self-application is the evaluator's",   failsWith "called itself through a value"
                                                                 "(defn w (x) (x x)) (graph g (:r (w w)))")
 
       -- What goes down: a part of a parameter, passed on
@@ -150,4 +151,34 @@ recursion = Group "Static analysis: recursion goes down into a value"
                                                                 "(defn f (a b) (f b a)) (graph g (:r 1))")
     , ("a part captured by a fn is not the fn's parameter", failsWith "'g' calls itself, through g "
                                                                 "(defn f (n) (let ($g (fn (y) (f (get n k)))) (g 1))) (graph g (:r 1))")
+    ]
+
+
+-- A call the analysis found to go down into a value runs, though its function is already
+-- being called. Its arguments are evaluated first, and an error in one ends the recursion, as
+-- its value. A function calling itself any other way is still stopped when it does.
+descending :: Group
+descending = Group "Recursion: a call that goes down into a value runs"
+    [ ("a tree, at every depth",                  compilesToJSON "(defn outline (n) (:label (get n _label) :parts (map outline (get-or () n part)))) (graph g (:r (outline (:_label \"Altarpiece\" :part ((:_label \"Panel\") (:_label \"Predella\" :part ((:_label \"Scene\"))))))))"
+                                                                 "{\"r\": {\"label\": \"Altarpiece\", \"parts\": [{\"label\": \"Panel\", \"parts\": []}, {\"label\": \"Predella\", \"parts\": [{\"label\": \"Scene\", \"parts\": []}]}]}}")
+    , ("the rest of an Array",                    compilesToJSON "(defn final (xs) (case xs ((?x) x) ((?h ?..t) (final t)) (otherwise null))) (graph g (:r (final (1 2 3))))"
+                                                                 "{\"r\": 3}")
+    , ("through a fn given to map",               compilesToJSON "(defn depth (n) (map (fn (p) (depth p)) (get-or () n part))) (graph g (:r (depth (:part ((:part ()))))))"
+                                                                 "{\"r\": [[]]}")
+    , ("mutual recursion",                        compilesToJSON "(defn a (n) (case n ((?h ?..t) (b t)) (otherwise \"a\"))) (defn b (n) (case n ((?h ?..t) (a t)) (otherwise \"b\"))) (graph g (:r (a (1 2 3))))"
+                                                                 "{\"r\": \"b\"}")
+    , ("arguments that change places",            compilesToJSON "(defn f (a b) (case a ((?h ?..t) (f b t)) (otherwise b))) (graph g (:r (f (1 2) (3 4 5))))"
+                                                                 "{\"r\": [5]}")
+    , ("a let-bound fn through its sibling",      compilesToJSON "(graph g (let ($a (fn (n) (case n ((?h ?..t) (b t)) (otherwise 1))) $b (fn (n) (a n))) (:r (a (1 2)))))"
+                                                                 "{\"r\": 1}")
+
+      -- An error is no part of a value, so it ends the recursion
+    , ("a path past a leaf ends at its error",    failsWithout "a recursive function call"
+                                                                "(defn f (n) (f (get n part))) (graph g (:r (f (:part (:part 1)))))")
+    , ("an error in an argument ends it",         failsWith "a Number + a String"
+                                                                "(defn f (n junk) (case n ((?h ?..t) (f t (+ 1 \"a\"))) (otherwise 0))) (graph g (:r (f (1 2) 0)))")
+
+      -- Only the calls the analysis accepted
+    , ("a descending function given itself is stopped", failsWith "called itself through a value"
+                                                                "(defn walk (n k) (case n ((?h ?..t) (walk t k)) (otherwise (k n k)))) (graph g (:r (walk (1 2) walk)))")
     ]

@@ -7,6 +7,7 @@ module Data.Ouro.Lisp.Module.Types where
 
 import qualified Data.Map.Strict        as Map
 import           Data.Maybe             (fromMaybe)
+import qualified Data.Set               as Set
 import           Data.Ouro.Lisp.Surface (Expr, Param (..))
 import           Data.Text              (Text)
 import qualified Data.Text              as T
@@ -65,11 +66,14 @@ splitQualified name =
 
 -- Module Environment, mathematically proven to be segregated. A module's imports and
 -- exports are written first in its file; the exports name functions of this module only.
+-- The static analysis adds the calls by name it found to go down into a value, by where
+-- their function's name is written, which may call a function already being called.
 data Module = Module
     { _functionRegistry :: Map.Map Text (HigherExpression 'FunctionExpr)
     , _graphRegistry    :: Map.Map Text (HigherExpression 'GraphExpr)
     , _imports          :: [Import]
     , _exports          :: [(Text, SourcePos)]
+    , _acceptedCalls    :: Set.Set SourcePos
     } deriving (Show, Eq)
 
 

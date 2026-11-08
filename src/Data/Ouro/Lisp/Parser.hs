@@ -92,7 +92,7 @@ parseModule tokens = do
 buildModuleRegistry :: [ParsedDecl] -> Either OuroError Module
 buildModuleRegistry = foldM insertDecl emptyModule
     where
-    emptyModule = Module Map.empty Map.empty [] []
+    emptyModule = Module Map.empty Map.empty [] [] Set.empty
 
     insertDecl :: Module -> ParsedDecl -> Either OuroError Module
     insertDecl m = \case

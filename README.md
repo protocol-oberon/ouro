@@ -709,13 +709,23 @@ Because parentheses around values make an Array, `(fn () ("hello"))` returns `["
 
 Semantics of a call:
 
-- *Arity* is checked: a call with the wrong number of arguments is an error. Functions are not curried.
+- *Arity* is checked: a call with the wrong number of arguments is an error. A call written with a function's name is checked where it is written, before anything is evaluated, so in a function no graph calls too; a call through a value is checked when it is made. Functions are not curried.
 
 - *Arguments are call-by-need:* each argument becomes a promise over the caller's scope. It is evaluated at most once, when the function first uses it, and always means what it meant at the call site, so a function's own bindings can never capture it. An argument the function never uses is still checked for errors.
 
 - *The body is evaluated in the function's closure*, extended with a frame for the parameters. For a `defn` the closure is the module, for a `fn` it is the scope where the `fn` was written. A function cannot see its caller's bindings.
 
-- *Recursion is forbidden.* Calling a function that is already being called (identified by name and definition position) is an error. Nesting a call, `(f (f x))`, is two calls, not recursion.
+- *Recursion goes down into a value.* A function may call itself, directly or through other functions, only if each time round it passes on a part of one of its parameters, so it finishes: values are finite, so taking parts of one reaches its leaves. A part is a path into a parameter, `(get n part)`, a hole of a pattern matched against it, or an element of it given to `map`, `exists`, `forall`, `omits` or `filter`:
+
+  ``` clojure
+  (defn outline (n)
+    (:label (get n _label)
+     :parts (map outline (get-or () n part))))
+  ```
+
+  A recursion that might not finish is an error wherever it is written, whether or not a graph calls it: `(defn f (n) (f n))` is reported as `'f' calls itself, and might never finish`. The check is size-change termination (Lee, Jones and Ben-Amram, 2001), and it errs on the safe side: a number counting down is not a part, and neither is `(get-or () n part)` passed straight on, which may be its fallback each time. Finishing is not speed: a function that calls itself twice on the same part finishes, but in time exponential in the value's depth.
+
+  A function reached through a value, as in `(w w)`, is checked when it is called: calling it while it is already being called is an error. Nesting a call, `(f (f x))`, is two calls, not recursion.
 
 - *Functions are values:* they can be passed as arguments and returned, but cannot be compared (`eq` on functions is a type error) or serialised.
 
@@ -906,6 +916,8 @@ Ouro uses Scheme style lexical scoping, this means that scope is defined by the 
      :_label who)))
 ```
 
+Every name is resolved as it is written, before anything is evaluated, so an unbound name is an error even in a function no graph calls or a `case` branch that is not taken. Its "Perhaps you meant" suggestion is ranked over every name in scope where it is written, local bindings included.
+
 # Modules
 
 A file uses another's functions by importing it, and offers its own by exporting them. Both are written first in the file:
@@ -920,7 +932,7 @@ A file uses another's functions by importing it, and offers its own by exporting
 - A file has one `(export f g ...)`, naming its own functions. Only functions cross files, never graphs or values, so modules hold no state.
 - `(import a/b)` reads `a/b.ouro` under the project's source folder (see [Builds](#builds)), or, when `a` names a library in `vendor/`, `b.ouro` from that library (see [Libraries](#libraries)). Each module is read, checked and desugared on its own, loaded once however often it is imported, and its functions close over its own module, never the importer.
 
-- Modules cannot import each other in a circle (`SCP0009`): Ouro has no recursion, across files as within one.
+- Modules cannot import each other in a circle (`SCP0009`): imports go one way, so a module is checked before the modules that import it.
 
 - An error inside an imported module is reported, and shown, in that module's file and line.
 
@@ -1179,7 +1191,7 @@ These are agreed directions for Ouro, roughly in the order they will be built. N
   (defn exhibit #record (#titled r) ...)
   ```
 
-- **Static analysis:** every module checked as written, all of it, before anything is evaluated, so a mistake in a function no graph calls, or in a branch not taken, is reported too; and, with properties, a check that a recursive property always descends into the value it checks, so it ends. Whether an expression is a call, a record or an array is decided there too, once, by the same rules as now.
+- **The rest of the static analysis:** names, arity and recursion are already checked as written (see [Functions](#functions) and [Lexical Scoping](#lexical-scoping)). Still to come: warnings for unused bindings, imports and functions, once the error codes are redesigned; with properties, property names checked as written too, a recursive property under the same rule as any function; and whether an expression is a call, a record or an array decided there, once, for the evaluator to follow, by the same rules as now.
 - **A REPL and a language server,** bundled with the compiler, as `std` is, so that they run the same parser and evaluator as `build`. The language server is where spelling belongs: a key or class that is not a term of the record's context can be underlined as it is written, with the nearest term offered, without ever stopping a compile.
 - **Search:** an Ouro Hoogle, finding functions by name, by signature and by their documentation.
 - **Geometry** (on hold): a `#wkt` property for the WKT string of a place's `defined_by`, and functions that build it from numbers, `(place/point 4.9 52.37)`, which first need a way to turn a number into a string.

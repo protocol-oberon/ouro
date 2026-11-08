@@ -6,5 +6,6 @@ Error [SCP0009]: Import Cycle
   │ Cycle: a.ouro → b.ouro → a.ouro
   │ 
 
-Modules cannot import each other in a circle: a.ouro → b.ouro → a.ouro. Ouro has no recursion, across
-files as within one. Perhaps move what they share into a module of its own, which each imports.
+Modules cannot import each other in a circle: a.ouro → b.ouro → a.ouro. Imports go one way, so a
+module is checked before the modules that import it. Perhaps move what they share into a module of
+its own, which each imports.
