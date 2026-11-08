@@ -6,13 +6,13 @@ Compiled Ouro is always well-formed JSON. A graph compiles only when every value
 
 # Syntax
 
-Ouro like any other lisp is anchored around the opening parentheses of an expression `()`. Its compiler uses a lookahead to determine the target JSON-LD structure of incoming Ouro source code, whether it maps to a JSON-LD Array, Record or is an Ouro specific function application. Ouro also makes use of lisp key words to match the classic JSON *key* : *value* syntax (these are referred to as **Attributes**). This allows for an Ouro file's source code to roughly match the topology of JSON that it compiles to. 
+Ouro, like any other Lisp, is anchored around the opening parenthesis of an expression, `()`. Its compiler uses a lookahead to determine the target JSON-LD structure of incoming Ouro source code, whether it maps to a JSON-LD Array, Record or is an Ouro specific function application. Ouro also makes use of Lisp keywords to match the classic JSON *key* : *value* syntax (these are referred to as **Attributes**). This allows for an Ouro file's source code to roughly match the topology of JSON that it compiles to.
 
-A Ouro file consists of a collection of top-level, _higher expressions_. There are three types of higher expressions:
+An Ouro file consists of a collection of top-level, _higher expressions_. There are three types of higher expressions:
 
 1. `(import path)` and `(export name ...)`: the modules a file uses and the functions it offers, written first in the file (see [Modules](#modules)).
 2. `(graph name expr)`: Expressions that encode JSON-LD graphs. A graph is one expression, usually a record.
-3. `(defn name (args) expr)`: Ouro supports _higher order functions_,  `(defn)` is a named function. `(fn (x y) expr)` is a lambda function. 
+3. `(defn name (args) expr)`: Ouro supports _higher order functions_: `(defn)` is a named function. `(fn (x y) expr)` is a lambda function. 
 
 The target structure of Ouro code is determined by a few simple rules, which only look at an expression's direct elements, never at their types:
 
@@ -20,7 +20,7 @@ The target structure of Ouro code is determined by a few simple rules, which onl
 2. Otherwise, an expression that contains an attribute pair `(:key value)` will compile to a JSON-LD **Object**.
 3. Anything else, such as `(1 2 3)` or `()`, will compile to a JSON-LD **Array**.
 
-Through composition of these rules it is possible to ergonomically express any JSON-LD structure in Ouro with just parentheses. For example to make an nested list of records the following syntax would be used `((:key val) (:key val))`.
+Through composition of these rules it is possible to ergonomically express any JSON-LD structure in Ouro with just parentheses. For example, to make an array of records the following syntax would be used `((:key val) (:key val))`.
 
 - Arrays in Ouro, like JSON arrays, may contain values of mixed types, `(1 "a" (:k 1))`. `(insert)` can put any value into an Array, but not a `:key value` attribute pair.
 
@@ -916,8 +916,10 @@ A file uses another's functions by importing it, and offers its own by exporting
 
 - An imported function is always written with a qualifier, `qualifier/name`: the path's last part (`base`, `people`), or the name given after `as`. A file's own functions are written without one, so a local `name` and `base/name` are different functions.
 - A file has one `(export f g ...)`, naming its own functions. Only functions cross files, never graphs or values, so modules hold no state.
-- `(import a/b)` reads `a/b.ouro` under the project's source folders, the `:sources` of its `build.ouro` (see [Builds](#builds)), or beside the file being compiled when there is none. Each module is read, checked and desugared on its own, loaded once however often it is imported, and its functions close over its own module, never the importer.
+- `(import a/b)` reads `a/b.ouro` under the project's source folder (see [Builds](#builds)), or, when `a` names a library in `vendor/`, `b.ouro` from that library (see [Libraries](#libraries)). Each module is read, checked and desugared on its own, loaded once however often it is imported, and its functions close over its own module, never the importer.
+
 - Modules cannot import each other in a circle (`SCP0009`): Ouro has no recursion, across files as within one.
+
 - An error inside an imported module is reported, and shown, in that module's file and line.
 
 `std` is a folder of modules bundled with the compiler, so they need no file. They hold Linked Art's own patterns, and each mirrors a section of [Linked Art's model](https://linked.art/model/), so `provenance/acquisition` is what linked.art/model/provenance describes. Importing a `std/` module says that its functions build Linked Art's nodes. Each function takes values and builds a node; none extends a record, which is written as a literal or threaded through `with` and `adjoin`:
@@ -933,7 +935,7 @@ A file uses another's functions by importing it, and offers its own by exporting
 | `std/exhibition` | `exhibiting`, `concept` and `set`                                                                                      |
 | `std/digital`    | `picture`, an image for `representation`, and `web-page`, for `subject_of`                                             |
 
-For example, `(base/name vocab/primary-name "Spring")` is a Primary Name, and `(time/year "1881")` runs from its first second to 23:59:59 on 31 December. `(import std)` on its own is an error that lists `std`'s modules. A module of the project with a bundled module's name is imported in its place, with a warning (`WRN0005`), so a project can replace one on purpose.
+For example, `(base/name vocab/primary-name "Spring")` is a *Primary Name**, and `(time/year "1881")` runs from its first second to 23:59:59 on 31 December. `(import std)` on its own is an error that lists `std`'s modules. An import that starts with `std` or `aat` always means the bundled module, so `std/base` means the same in every project; a module of the project under a `std` or `aat` folder is an error (`BLD0009`).
 
 `aat` is a second folder of bundled modules: the terms Linked Art [recommends](https://linked.art/model/vocab/recommended/), one module per section of its list, 195 terms in all. Each is a constant, built with `std`'s pattern for its kind, so a nationality is classified as Nationality and an object type as Type of Work, as Linked Art requires:
 
@@ -1087,7 +1089,7 @@ If you prefer a traditional Haskell environment, you can build Ouro directly fro
 The ouro compiler has the following commands (shown via running `ouro -h`):
 
 ``` bash
-Ouro v0.0.0.1
+Ouro v0.5.0.0
 
 Usage: ouro COMMAND [-v|--version]
 
@@ -1096,47 +1098,71 @@ Available options:
   -v,--version             Show Ouro version
 
 Available commands:
-  compile                  Compile Ouro to JSON-LD
-  build                    Build every graph of the project described by
-                           build.ouro
+  build                    Build the graphs of the project in a folder, with the
+                           settings of its package.ouro, if it has one
   validate                 Validate JSON-LD
 ```
 
-The options of each command are shown with the `-h` flag once more (`ouro compile -h`):
+The options of each command are shown with the `-h` flag once more (`ouro build -h`):
 
 ``` bash
-Usage: ouro compile SOURCE_FILE (-t|--trgt STRING) [-o|--output DIR]
+Usage: ouro build [DIR] [-g|--graph MODULE/GRAPH]
 
-  Compile Ouro to JSON-LD
+  Build the graphs of the project in a folder, with the settings of its
+  package.ouro, if it has one
 
 Available options:
-  -t,--trgt STRING         Target graph name within the module
-  -o,--output DIR          Output directory
+  DIR                      The project's folder, the current one when not given
+  -g,--graph MODULE/GRAPH  A graph to build, as people/person; may be given more
+                           than once, and replaces :graphs
   -h,--help                Show this help text
 ```
 
-For compile, if the `-o` path has a file extension then that is the file the compiled JSON will be written to. Otherwise the path is a directory, made if it does not exist, and the name of the graph expression will be the name of the resulting JSON file in it. Without `-o`, the file is written to the current directory. For example, `ouro compile purchase.ouro -t purchase-of-spring -o out` writes `out/purchase-of-spring.json`.
-
-A file's imports are read from the files beside it: compiling `places/amsterdam.ouro` with `(import people)` reads `places/people.ouro`. In a project, they are read from its source folders instead. The bundled `std` modules need no file.
-
 ## Builds
 
-A project is described by a `build.ouro`, which holds one graph, named `build`, and nothing else:
+Ouro's build system, or lack thereof, is heavily inspired by the programming language *Odin*.
 
-``` clojure
-(graph build
-  (:name    "christies"
-   :sources ("src" "lib")
-   :out     "out"))
+Like Odin, `ouro build` is how Ouro is compiled. A folder of `.ouro` files is a project as it is, with no file to describe it: `ouro build` builds every graph of every module in the current folder, or in the folder given, `ouro build christies`, to `out/<module>/<graph>.json`. A module is named by its path, written with `/`: the graph `purchase-of-spring` in `provenance/spring.ouro` is written to `out/provenance/spring/purchase-of-spring.json`. If any graph fails, nothing is written, and every error is reported.
+
+`-g` builds only the graphs it names, by module and name, and may be given more than once:
+
+``` bash
+ouro build -g provenance/spring/purchase-of-spring
 ```
 
-`ouro build` finds the `build.ouro` in the current directory, or the nearest one above it, and builds every graph of every module under its `:sources` to `out/<module>/<graph>.json`: the graph `purchase-of-spring` in `src/provenance/spring.ouro` is written to `out/provenance/spring/purchase-of-spring.json`. If any graph fails, nothing is written, and every error is reported.
+Only the modules of the graphs named, and what they import, are compiled, so a module not chosen cannot fail the build. A graph its module does not have is an error that suggests the module's closest graph.
 
-- `:name` is required. `:sources` is the build file's own folder, and `:out` is `"out"`, when they are not given.
-- A build file is data: its settings are Ouro values, but it cannot import, define functions, or hold another graph. A setting it does not have is an error that suggests the nearest, `:sources` for `:sorces`.
-- A module's name is its path under its source folder, and it must be in only one of them.
-- `ouro compile`, run on a file inside a project, reads its imports from the project's `:sources` too, so a module compiles as it would in the build.
-- Hidden folders (`.git`, `.jj`) and the `:out` folder are skipped, but every other `.ouro` file is built, so a scratch file under a source folder is built too.
+A `package.ouro` in the project's folder changes the defaults. It holds one function, `package`, whose value is the project's settings, none of them required:
+
+``` clojure
+(defn package ()
+  (:sources "src"
+   :outputs "dist"
+   :graphs  ("provenance/spring/purchase-of-spring")
+   :ouro    "0.5"))
+```
+
+- `:sources` is the folder the modules are in, `"."` when not given; `:outputs` is where the graphs are written, `"out"` when not given.
+
+- `:graphs` chooses the graphs built, as `-g` does, every one when not given; `-g` replaces it.
+
+- `:ouro` is the version of Ouro the project needs: a newer one than the compiler's is an error that names both.
+
+- The settings are Ouro values, so `(+ "di" "st")` is a folder name too. A setting `package.ouro` does not have is an error that suggests the nearest, `:sources` for `:sorces`. Besides its function, `package.ouro` can import only the bundled modules, and holds nothing else.
+
+- The folder is the project: `ouro build` never looks above it, and a folder that does not exist is a message, not the build of a project above it.
+
+- Hidden folders (`.git`, `.jj`), the outputs folder, `vendor/`, and any folder with a `package.ouro` of its own are skipped, but every other `.ouro` file is built, so a scratch file under the source folder is built too.
+
+## Libraries
+
+A library is used by copying it into `vendor/`, in the project's folder, beside `package.ouro`: each folder of `vendor/` is a library, named after its folder, and is imported by that name, `(import tate/people)`. There is no other place for libraries, and nothing is fetched.
+
+- A library's own imports are read from the library, so it works unchanged once copied in: its `people` and the project's `people` are different modules.
+- A library that needs another imports it by the other's name, so the libraries a library needs are vendored beside it, in the project's `vendor/`; a library with a `vendor/` of its own is an error.
+- A library's modules are compiled only when imported, and its graphs are never written.
+- A library cannot be named `std` or `aat`, nor share its name with a folder or module of the project, so `(import tate/…)` never has two meanings.
+- An import spelt in another case than its file, `(import People)` for `people.ouro`, is an error everywhere, since a file system that ignores case would find it and one that does not would not.
 
 # Planned
 
@@ -1151,8 +1177,8 @@ These are agreed directions for Ouro, roughly in the order they will be built. N
   (defn exhibit #record (#titled r) ...)
   ```
 
-- **Dependencies:** `:depends` in `build.ouro`, pinned to commits, as Nix pins them, each dependency's modules named after it, `(import la-people/people)`; and `:graphs`, choosing which graphs a build writes.
-- **A REPL and a language server,** bundled with the compiler, as `std` is, so that they run the same parser and evaluator as `compile`. The language server is where spelling belongs: a key or class that is not a term of the record's context can be underlined as it is written, with the nearest term offered, without ever stopping a compile.
+- **Static analysis:** every module checked as written, all of it, before anything is evaluated, so a mistake in a function no graph calls, or in a branch not taken, is reported too; and, with properties, a check that a recursive property always descends into the value it checks, so it ends. Whether an expression is a call, a record or an array is decided there too, once, by the same rules as now.
+- **A REPL and a language server,** bundled with the compiler, as `std` is, so that they run the same parser and evaluator as `build`. The language server is where spelling belongs: a key or class that is not a term of the record's context can be underlined as it is written, with the nearest term offered, without ever stopping a compile.
 - **Search:** an Ouro Hoogle, finding functions by name, by signature and by their documentation.
 - **Geometry** (on hold): a `#wkt` property for the WKT string of a place's `defined_by`, and functions that build it from numbers, `(place/point 4.9 52.37)`, which first need a way to turn a number into a string.
 - **Error codes:** codes generated from what each error is, so that a code alone says what happened, and the same mistake is always worded the same way.
