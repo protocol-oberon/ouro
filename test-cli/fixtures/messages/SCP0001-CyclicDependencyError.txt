@@ -3,7 +3,7 @@ Error [SCP0001]: Circular Reference
   │
 1 │ (graph g (:a b :b a))
   │              ^
-  │              Expected :an independent expression or an outer-scope identifier
+  │              Expected: an independent expression or an outer-scope identifier
   │              Got:      b
   │ 
 

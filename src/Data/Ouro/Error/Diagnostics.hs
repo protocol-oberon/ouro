@@ -480,9 +480,8 @@ binaryOpMismatchBlurb base modif = "The provided operands " <> humanReadableType
 
 
 shadowedVariableBlurb :: Text -> Text
-shadowedVariableBlurb keyword = "The identifier '" <> keyword <> "' cannot be used as a local binding name "
-                             <> "because it is strictly reserved as a core system primitive. "
-                             <> "Please choose a unique, non-reserved name for your attribute."
+shadowedVariableBlurb keyword = "'" <> keyword <> "' is reserved by Ouro, so it cannot name an attribute key or a let binding. "
+                             <> "Perhaps choose another name."
 
 
 inexhaustiveCaseBlurb :: Int -> Text
@@ -584,7 +583,7 @@ warningBlurb = \case
         -> "Ouro evaluates floating values inside array and record layers as unanchored literals. "
         <> "Because this value is positioned directly next to " <> tag <> ", it has no semantic binding key "
         <> "and will be completely erased from properties at compile time.\n\n"
-        <> "Perhaps assign it to a property attribute key (e.g., :label " <> formatSmartLiteral val <> "), if it is intendented to be saved."
+        <> "Perhaps assign it to a property attribute key (e.g., :label " <> formatSmartLiteral val <> "), if it is intended to be saved."
 
     Lint (DeprecatedSyntax feature)
         -> "The structural pattern '" <> feature <> "' has been designated as obsolete legacy syntax. "

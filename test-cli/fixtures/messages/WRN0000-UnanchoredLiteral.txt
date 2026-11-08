@@ -7,10 +7,10 @@ Warning [WRN0000]: Unanchored primitive literal "x" detected
   │ 
 
 Ouro evaluates floating values inside array and record layers as unanchored literals. Because this value is
-positioned directly next to #obj-empty, it has no semantic binding key and will be completely erased from
+positioned directly next to #record-empty, it has no semantic binding key and will be completely erased from
 properties at compile time.
 
-Perhaps assign it to a property attribute key (e.g., :label "x"), if it is intendented to be saved.
+Perhaps assign it to a property attribute key (e.g., :label "x"), if it is intended to be saved.
 Error [TYP0000]: Type Mismatch
   ┌── │WRN0000-UnanchoredLiteral.ouro:1:28│
   │

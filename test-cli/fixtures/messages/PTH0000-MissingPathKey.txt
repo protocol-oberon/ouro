@@ -8,5 +8,3 @@ Error [PTH0000]: Missing Path Key
   │ 
 
 The Record has no attribute 'b'.
-
-Values written in a 'define' are private to their block and cannot be reached with 'get'.

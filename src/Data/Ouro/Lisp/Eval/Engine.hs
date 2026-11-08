@@ -846,7 +846,7 @@ validatePath = traverse $ \case
 -- getPath.
 --
 -- Walks a path through an evaluated value: a key into a Record, an index into an Array.
--- Only a Record's attribute pairs can be reached: a 'define' is private to the block it is written in.
+-- Only a Record's attribute pairs can be reached by key, and an Array's elements by index.
 getPath :: L.Expr -> [(PathStep, SourcePos)] -> L.Expr
 getPath value = \case
     [] -> value
@@ -884,9 +884,7 @@ getPath value = \case
         case found of
             Just attrValue -> getPath attrValue rest
             Nothing         -> missingPathKey key available
-                               & withBlurb ( "The Record has no attribute '" <> key <> "'."
-                                          <> "\n\nValues written in a 'define' are private to their block and cannot be reached with 'get'."
-                                           )
+                               & withBlurb ("The Record has no attribute '" <> key <> "'.")
                                & OuroError keyPos
                                & EvalError
 

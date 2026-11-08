@@ -9,14 +9,3 @@ Error [SCP0010]: Module Unreadable
 
 'test-cli/fixtures/messages/SCP0010-ModuleUnreadable/latin.ouro' is not valid UTF-8. Ouro source
 files are read as UTF-8: perhaps save it with that encoding.
-Error [SCP0010]: Module Unreadable
-  ┌── │test-cli/fixtures/messages/SCP0010-ModuleUnreadable/main.ouro:1:1│
-  │
-1 │ (import latin)
-  │ ^
-  │ Module: latin
-  │ File:   test-cli/fixtures/messages/SCP0010-ModuleUnreadable/latin.ouro
-  │ 
-
-'test-cli/fixtures/messages/SCP0010-ModuleUnreadable/latin.ouro' is not valid UTF-8. Ouro source
-files are read as UTF-8: perhaps save it with that encoding.

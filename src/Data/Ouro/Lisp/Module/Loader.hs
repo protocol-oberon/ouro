@@ -15,11 +15,13 @@ module Data.Ouro.Lisp.Module.Loader
 , runLoader
 ) where
 
-import           Control.Monad.Reader         (ReaderT, asks, local, runReaderT)
+import           Control.Monad.Reader         (ReaderT (..), asks, local)
 import           Control.Monad.State.Strict   (StateT, gets, modify, runStateT)
 import           Control.Monad.Trans          (lift)
 import           Control.Monad.Validate       (refute, runValidateT)
 import           Control.Monad.Writer         (runWriterT, tell)
+import           Data.List.NonEmpty           (NonEmpty)
+import qualified Data.List.NonEmpty           as NE
 import qualified Data.Map.Strict              as Map
 import           Data.Ouro.Error.Diagnostics  (ambiguousModule, importCycle,
                                                moduleNotFound,
@@ -89,8 +91,8 @@ data Linked = Linked
     }
 
 
--- The modules loaded so far, by key
-type Loaded = Map.Map ModuleKey Linked
+-- The modules loaded so far, by key, each linked, or the errors it failed with
+type Loaded = Map.Map ModuleKey (Either (NonEmpty OuroError) Linked)
 
 -- The cache of loaded modules is a State *under* ValidateT. A StateT above it would build
 -- its <*> from >>=, and stop at the first error, so two missing imports would report one
@@ -99,12 +101,19 @@ type Loaded = Map.Map ModuleKey Linked
 type LoaderT m = ReaderT (LoadEnv m) (CompilerT (StateT Loaded m))
 
 
--- Runs a loader as part of a compile: its warnings are told, and its errors raised
+-- Runs a loader as part of a compile: its warnings are told, and its errors raised, each once.
+-- A module that failed fails every module that imports it with the same errors (see 'loadKey').
 runLoader :: Monad m => LoadEnv m -> LoaderT m a -> CompilerT m a
 runLoader env loader = do
     ((result, warnings), _loaded) <- lift (lift (runStateT (runWriterT (runValidateT (runReaderT loader env))) Map.empty))
     tell warnings
-    either refute pure result
+    either (refute . NE.nub) pure result
+
+
+-- A load run on its own, its errors returned rather than raised, so they can be kept. The
+-- warnings it tells and the modules it loads are kept as ever, being below the errors.
+attempt :: Monad m => LoaderT m a -> LoaderT m (Either (NonEmpty OuroError) a)
+attempt loader = ReaderT (lift . runValidateT . runReaderT loader)
 
 
 -- The bundled modules' folders, std and aat. An import whose first segment is one of them
@@ -147,13 +156,14 @@ loadModules = traverse (\(pos, path) -> resolve pos path >>= loadKey pos path)
 
 
 -- One import: the module, loaded and linked the first time it is imported. A module that is
--- still being loaded is a cycle, since Ouro has no recursion across files either.
+-- still being loaded is a cycle, since Ouro has no recursion across files either: the cycle is
+-- named from that module, without the modules whose loading led to it.
 loadImport :: Monad m => Import -> LoaderT m L.Imported
 loadImport imp = do
     key   <- resolve (importPos imp) (importPath imp)
     stack <- asks importStack
     case key `elem` stack of
-        True  -> refute (pure (OuroError (importPos imp) (importCycle (reverse (map keyText (key : stack))))))
+        True  -> refute (pure (OuroError (importPos imp) (importCycle (map keyText (dropWhile (/= key) (reverse (key : stack)))))))
         False -> linkedRoot <$> loadKey (importPos imp) (importPath imp) key
 
 
@@ -183,10 +193,18 @@ resolve pos path
     notFound searched = refute (pure (OuroError pos (moduleNotFound path searched (Map.keys bundled))))
 
 
--- The module with a key, loaded and linked the first time it is asked for. A file that cannot
--- be read is reported at the given position, by the path imported.
+-- The module with a key, loaded and linked the first time it is asked for, or the errors it
+-- failed with then, raised again, so a module that cannot be loaded is reported once, however
+-- many import it. Who asks does not change a failure: a module that fails through one still
+-- being loaded is on a cycle with it. A file that cannot be read is reported at the position
+-- given the first time, by the path imported.
 loadKey :: Monad m => SourcePos -> Text -> ModuleKey -> LoaderT m Linked
-loadKey pos path key = gets (Map.lookup key) >>= maybe load pure
+loadKey pos path key = gets (Map.lookup key) >>= \case
+    Just loaded -> either refute pure loaded
+    Nothing     -> do
+                   loaded <- attempt load
+                   modify (Map.insert key loaded)
+                   either refute pure loaded
     where
     load = do
         found <- case key of
@@ -213,7 +231,6 @@ loadKey pos path key = gets (Map.lookup key) >>= maybe load pure
                                                           , L.importedExports = Set.fromList (map fst (canonical ^. exports))
                                                           }
                                     }
-                   modify (Map.insert key linked)
                    pure linked
 
 

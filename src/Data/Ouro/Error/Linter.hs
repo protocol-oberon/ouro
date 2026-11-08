@@ -24,7 +24,7 @@ lintExpression =
     \case
      -- MATCH: UNANCHORED OBJECT LITERALS
      (Tkn.Token pos Tkn.TagRecordEmpty : Tkn.Token _ (Tkn.String val) : rest)
-         -> OuroWarning pos (unanchoredLiteral "#obj-empty" val) : lintExpression rest
+         -> OuroWarning pos (unanchoredLiteral "#record-empty" val) : lintExpression rest
 
      -- MATCH: UNANCHORED ARRAY LITERALS
      (Tkn.Token pos Tkn.TagArrayEmpty : Tkn.Token _ (Tkn.String val) : rest)

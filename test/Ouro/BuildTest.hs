@@ -29,6 +29,11 @@ builds = Group "Builds: every graph of every module"
     , ("every failing module is reported",          buildFailsTimes 2 [("one", "(graph g (:r (get () 5)))"), ("two", "(graph g (:r (get () 6)))"), ("fine", "(graph g (:r 1))")])
     , ("a module imported by many warns once",      buildWarnsTimes 1 "badName" [("badly-named", "(export badName)\n(defn badName () 1)"), ("one", "(import badly-named)\n(graph g (:r (badly-named/badName)))"), ("two", "(import badly-named)\n(graph g (:r (badly-named/badName)))")])
     , ("an import cycle among modules",             buildFailsWith [("a", "(import b)\n(export f)\n(defn f () 1)"), ("b", "(import a)\n(export f)\n(defn f () 2)")] ["ImportCycle"])
+      -- A module that fails is reported once, however many modules reach it (gap 40, fixed)
+    , ("is reported once",                          buildFailsTimes 1 [("main", "(import a)\n(graph g (:r (a/f)))"), ("a", "(import b)\n(export f)\n(defn f () 1)"), ("b", "(import a)\n(export f)\n(defn f () 2)")])
+    , ("named by its own modules, not the one built", chosenFailsWith [("main", "(import a)\n(graph g (:r (a/f)))"), ("a", "(import b)\n(export f)\n(defn f () 1)"), ("b", "(import a)\n(export f)\n(defn f () 2)")] [("main", AllGraphs)]
+                                                             ["cyclePath = [\"a\",\"b\",\"a\"]"])
+    , ("a module imported by many fails once",      buildFailsTimes 1 [("main", "(import bad)\n(import other)\n(graph g (:r (other/f)))"), ("other", "(import bad)\n(export f)\n(defn f () 1)"), ("bad", "(graph g (:r \"open))")])
     ]
 
 

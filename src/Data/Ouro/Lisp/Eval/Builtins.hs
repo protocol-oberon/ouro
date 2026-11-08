@@ -129,7 +129,7 @@ handleSubtraction pos =
                    (_, err@(L.EvalError _)) -> pure err
 
                    _typeMismatch
-                       -> Data.Ouro.Error.Diagnostics.typeMismatch "Matching numeric values or a Date minus a L.Duration"
+                       -> Data.Ouro.Error.Diagnostics.typeMismatch "Matching numeric values or a Date minus a Duration"
                                (humanReadableType a <> " - " <> humanReadableType b)
                           & Data.Ouro.Error.Diagnostics.withBlurb (Data.Ouro.Error.Diagnostics.binaryOpMismatchBlurb a b)
                           & OuroError pos

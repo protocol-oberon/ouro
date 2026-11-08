@@ -239,6 +239,9 @@ modulesOnDisk = Group "Modules: imported from files on disk"
                                                                (\dir -> ("SCP0009", dir </> "b.ouro", 1, 1, ["cyclePath = [\"a\",\"b\",\"a\"]"])))
     , ("a module that is not UTF-8",               onDiskFails "not-utf8" [("latin.ouro", "(export f)\n(defn f () \"caf\xE9\")"), main' "(import latin)\n(graph g (:r (latin/f)))"]
                                                                (\dir -> ("SCP0010", dir </> "main.ouro", 1, 1, ["unreadableModule = \"latin\"", "is not valid UTF-8"])))
+      -- A module that fails is reported once, however many modules of the project reach it (gap 40, fixed)
+    , ("a project's cycle is reported once",       projectFailsTimes "cycle-once" 1 [ ("main.ouro", "(import a)\n(graph g (:r (a/f)))"), ("a.ouro", "(import b)\n(export f)\n(defn f () 1)"), ("b.ouro", "(import a)\n(export f)\n(defn f () 2)") ])
+    , ("and an unreadable module",                 projectFailsTimes "unreadable-once" 1 [ ("main.ouro", "(import latin)\n(graph g (:r (latin/f)))"), ("latin.ouro", "(export f)\n(defn f () \"caf\xE9\")") ])
     , ("a path written with / has one separator",  slashedPath)
     ]
 
@@ -295,8 +298,8 @@ knownGaps = Group "Known gaps: the project, current and fixed"
                                                     evalIO (buildProject (dir </> "typo") []) >>= \case
                                                         Right _ -> success
                                                         Left _  -> failure)
-    , ("gap 40: one import cycle is reported three times", projectFailsTimes "gap-40-cycle" 3 [ ("main.ouro", "(import a)\n(graph g (:r (a/f)))"), ("a.ouro", "(import b)\n(export f)\n(defn f () 1)"), ("b.ouro", "(import a)\n(export f)\n(defn f () 2)") ])
-    , ("gap 40: an unreadable module is reported twice", projectFailsTimes "gap-40-unreadable" 2 [ ("main.ouro", "(import latin)\n(graph g (:r (latin/f)))"), ("latin.ouro", "(export f)\n(defn f () \"caf\xE9\")") ])
+    , ("gap 40 (fixed): one import cycle is reported three times", fixedGap $ projectFailsTimes "gap-40-cycle" 3 [ ("main.ouro", "(import a)\n(graph g (:r (a/f)))"), ("a.ouro", "(import b)\n(export f)\n(defn f () 1)"), ("b.ouro", "(import a)\n(export f)\n(defn f () 2)") ])
+    , ("gap 40 (fixed): an unreadable module is reported twice", fixedGap $ projectFailsTimes "gap-40-unreadable" 2 [ ("main.ouro", "(import latin)\n(graph g (:r (latin/f)))"), ("latin.ouro", "(export f)\n(defn f () \"caf\xE9\")") ])
     ]
 
 

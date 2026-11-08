@@ -232,9 +232,9 @@ splitErrorContext = \case
            , Nothing
            )
 
-    Syntax (ShadowedVariableError _shadow)
-        -> ("Shadowed Attribute"
-           , [ labeled "This attribute key shadows a core language primative" ""]
+    Syntax (ShadowedVariableError shadow)
+        -> ("Reserved Name"
+           , [ labeled "Reserved: " (pretty shadow) ]
            , Nothing
            )
 
@@ -304,7 +304,7 @@ splitErrorContext = \case
 
     Scope (CyclicDependencyError var)
         -> ("Circular Reference"
-           , [ labeled "Expected :" "an independent expression or an outer-scope identifier"
+           , [ labeled "Expected: " "an independent expression or an outer-scope identifier"
              , labeled "Got:      " (pretty var)
              ]
            , Nothing

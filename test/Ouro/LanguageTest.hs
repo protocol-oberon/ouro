@@ -38,9 +38,10 @@ import qualified Hedgehog.Gen              as Gen
 import qualified Hedgehog.Range            as Range
 import qualified Text.URI                  as URI
 import           Utils                     (compilesToJSON, emitsExactly,
-                                            failsWith, failsWithout, fixture,
-                                            importsFailAt, readSourceFile,
-                                            shouldCompileTo)
+                                            failsWith, failsWithout, fixedGap,
+                                            fixture, importsFailAt,
+                                            readSourceFile, shouldCompileTo,
+                                            warnsWith)
 
 
 -- Only attribute pairs and elements reach the output. Functions, built-ins and other
@@ -88,6 +89,16 @@ serialisation = Group "Serialisation: only values reach the output"
                                                               "(defn aat (id label) 1) (graph g (:r (aat 1)))")
     , ("and to a function of none",                 failsWith "It is called (c)."
                                                               "(defn c () 1) (graph g (:r (c 1)))")
+
+      -- The rest of gap 10's stale wording, fixed
+    , ("get's missing key: the record has no such attribute", failsWith "The Record has no attribute 'b'.\""
+                                                              "(graph g (:p (:a 1) :r (get p b)))")
+    , ("subtraction's hint names a Duration",       failsWith "or a Date minus a Duration"
+                                                              "(graph g (:r (- \"a\" 1)))")
+    , ("a reserved $ name is reserved",             failsWith "'get' is reserved by Ouro, so it cannot name an attribute key or a let binding."
+                                                              "(graph g (let ($get 1) (:r get)))")
+    , ("and so is a reserved key",                  failsWith "'case' is reserved by Ouro, so it cannot name an attribute key or a let binding."
+                                                              "(graph g (:case 1))")
 
       -- Pinned limits: the call is shown by the function's own name, not as it was qualified,
       -- and a function inside an array is reported at the graph, where its position is lost
@@ -889,16 +900,17 @@ contextAlgebra = Group "Contexts: combining them is a monoid"
 
 
 -- Known gaps, numbered as in the specification's Appendix B. Each test pins the current,
--- incorrect behaviour; the change that fixes a gap flips its test to the correct one.
+-- incorrect behaviour; the change that fixes a gap adds a test of the correct behaviour and
+-- keeps the pin, run negated (fixedGap), so the old behaviour coming back fails the suite.
 knownGaps :: Group
-knownGaps = Group "Known gaps: current, incorrect behaviour"
+knownGaps = Group "Known gaps: current and fixed"
     [ ("gap 9: no suggestion for a local name",     failsWithout "Perhaps you meant"
                                                                  "(graph g (let ($artist 1) (:r artst)))")
-    , ("gap 10: get's missing-key hint mentions define", failsWith "'define'"
+    , ("gap 10 (fixed): get's missing-key hint mentions define", fixedGap $ failsWith "'define'"
                                                               "(graph g (:p (:a 1) :r (get p b)))")
-    , ("gap 10: subtraction's hint names L.Duration", failsWith "L.Duration"
+    , ("gap 10 (fixed): subtraction's hint names L.Duration", fixedGap $ failsWith "L.Duration"
                                                               "(graph g (:r (- \"a\" 1)))")
-    , ("gap 10: a reserved $ name is called an attribute key", failsWith "for your attribute"
+    , ("gap 10 (fixed): a reserved $ name is called an attribute key", fixedGap $ failsWith "for your attribute"
                                                               "(graph g (let ($get 1) (:r get)))")
     , ("gap 11: a parameter named fn",              failsWith "A fn is written"
                                                               "(defn call (fn) (fn)) (graph g (:r (call 1)))")
@@ -941,4 +953,12 @@ knownGaps = Group "Known gaps: current, incorrect behaviour"
                                                                      "(graph g (:ex:a#b 1 :y 2))")
     , ("gap 39: insert floors a fractional index",   compilesToJSON "(graph g (:r (insert 1.5 \"x\" (1 2))))"
                                                                    "{\"r\": [1, \"x\", 2]}")
+    , ("gap 41: WRN0000 says a value is erased",     warnsWith "will be completely erased"
+                                                               "(graph g (:r (#record-empty \"x\")))")
+    , ("gap 41: though it is kept",                  compilesToJSON "(graph g (:r (#record-empty \"x\")))"
+                                                                   "{\"r\": [{}, \"x\"]}")
+    , ("gap 42: a removed form's name is reserved as a key", failsWith "ShadowedVariableError"
+                                                                   "(graph g (:a (:attr 1)))")
+    , ("gap 42: and as a binding",                   failsWith "ShadowedVariableError"
+                                                              "(graph g (let ($defun 1) (:r defun)))")
     ]
