@@ -1,5 +1,6 @@
 module Ouro.AnalysisTest
-( names
+( calls
+, names
 ) where
 
 import           Hedgehog
@@ -49,5 +50,23 @@ names = Group "Static analysis: names are checked where they are written"
     , ("a let binding never sees itself",         importsFailAt "SCP0000" ("inline-test", 1, 21) ["variableName = \"x\""] []
                                                                 "(defn f () (let ($x x) x)) (graph g (:r 1))")
     , ("a path's keys are not names",             compilesToJSON "(defn f (r) (get r nope)) (graph g (:r 1))"
+                                                                 "{\"r\": 1}")
+    ]
+
+
+-- A call written with a function's name, of the module or exported by an import, has as many
+-- arguments as the function has parameters, wherever it is written
+calls :: Group
+calls = Group "Static analysis: a call of a known function has its arity"
+    [ ("an uncalled function's wrong arity",      importsFailAt "SCP0002" ("inline-test", 1, 27) ["nameOfFunc = \"f\"", "It is called (f x)."] []
+                                                                "(defn f (x) x) (defn h () (f 1 2)) (graph g (:r 1))")
+    , ("an imported function's, by its own name", importsFailAt "SCP0002" ("inline-test", 2, 12) ["nameOfFunc = \"f\"", "It is called (f x)."]
+                                                                [("lib", "(export f)\n(defn f (x) x)")]
+                                                                "(import lib)\n(defn h () (lib/f 1 2))\n(graph g (:r 1))")
+    , ("in a branch not taken",                   failsWith "IncorrectArity"
+                                                                "(defn f (x) x) (graph g (:r (case 1 ((= 1) 1) (otherwise (f)))))")
+    , ("a constant called with an argument",      failsWith "IncorrectArity"
+                                                                "(defn c () 1) (defn h () (c 1)) (graph g (:r 1))")
+    , ("a name bound around the call is its own", compilesToJSON "(defn f (x) x) (graph g (let ($f (fn (a b) a)) (:r (f 1 2))))"
                                                                  "{\"r\": 1}")
     ]

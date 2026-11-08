@@ -3,18 +3,21 @@
 
 -- The static analysis: every module checked as written, all of it, before anything is
 -- evaluated, so a mistake in a function no graph calls, or in a branch not taken, is reported
--- too (see the org note, "Static analysis"). Its first check is names: every name resolves
--- where it is written. The scope rules are the evaluator's, and what a form is and what it
--- binds come from 'Analysis.Forms', which the evaluator uses too.
+-- too (see the org note, "Static analysis"). It checks names, that every name resolves where
+-- it is written, and calls, that a call of a known function has its arity. The scope rules are
+-- the evaluator's, and what a form is and what it binds come from 'Analysis.Forms', which the
+-- evaluator uses too.
 module Data.Ouro.Lisp.Analysis
 ( analyseModule
 ) where
 
 import           Data.Containers.ListUtils     (nubOrd)
+import           Data.Function                 ((&))
 import           Data.List                     (sortOn)
 import qualified Data.Map.Strict               as Map
-import           Data.Ouro.Error.Diagnostics   (notExported, unboundName,
-                                                unknownQualifier)
+import           Data.Ouro.Error.Diagnostics   (incorrectArity, notExported,
+                                                unboundName, unknownQualifier,
+                                                withBlurb)
 import           Data.Ouro.Error.Types         (OuroError (..))
 import           Data.Ouro.Lisp.Analysis.Forms (BlockTarget (..), FrameEntry (..),
                                                 collectBindings,
@@ -23,6 +26,7 @@ import           Data.Ouro.Lisp.Analysis.Forms (BlockTarget (..), FrameEntry (..
                                                 isRestHole, isSubjectHole,
                                                 letBindings, param)
 import           Data.Ouro.Lisp.Eval.Builtins  (builtinRegistry)
+import qualified Data.Ouro.Lisp.Eval.Types     as L
 import           Data.Ouro.Lisp.Function       (checkParams, functionBody,
                                                 isFunctionKeyword)
 import           Data.Ouro.Lisp.Module.Bundled (bundled)
@@ -39,12 +43,12 @@ import           Text.Megaparsec               (SourcePos)
 
 
 -- What a name can refer to where it is written: the names bound around it (attribute pairs,
--- let bindings, parameters, holes), the module's own functions, and the functions each import
--- exports, by qualifier. The built-ins come after them all.
+-- let bindings, parameters, holes), the module's own functions, and the modules it imports, by
+-- qualifier. The built-ins come after them all.
 data Scope = Scope
     { scopeLocals    :: Set.Set Text
-    , scopeFunctions :: Set.Set Text
-    , scopeImports   :: Map.Map Text (Set.Set Text)
+    , scopeFunctions :: L.FunctionRegistry
+    , scopeImports   :: Map.Map Text L.Imported
     }
 
 -- The scope with more names bound around it
@@ -52,14 +56,14 @@ within :: Set.Set Text -> Scope -> Scope
 within bound scope = scope { scopeLocals = bound <> scopeLocals scope }
 
 
--- Every error in a module's functions and graphs, in source order. Its imports are given by
--- qualifier, each with the names it exports.
-analyseModule :: Map.Map Text (Set.Set Text) -> Module -> [OuroError]
+-- Every error in a module's functions and graphs, in source order, with the modules it
+-- imports, by qualifier
+analyseModule :: Map.Map Text L.Imported -> Module -> [OuroError]
 analyseModule imported ouroModule =
     sortOn errPos . nubOrd $ concatMap function (Map.elems (ouroModule ^. functionRegistry))
                           <> concatMap graph    (Map.elems (ouroModule ^. graphRegistry))
     where
-    root = Scope Set.empty (Map.keysSet (ouroModule ^. functionRegistry)) imported
+    root = Scope Set.empty (ouroModule ^. functionRegistry) imported
 
     -- A body the parser rejected is reported by the parser
     function :: HigherExpression 'FunctionExpr -> [OuroError]
@@ -126,7 +130,7 @@ names :: Scope -> S.Expr -> [OuroError]
 names scope = \case
     S.Symbol pos name  -> resolve scope pos name
     S.Tagged _ _ inner -> names scope inner
-    S.Form _ items     -> form scope items
+    S.Form pos items   -> form scope pos items
     _leaf              -> []
 
 
@@ -139,20 +143,24 @@ resolve scope pos name
         = case Map.lookup qualifier (scopeImports scope) of
               Nothing
                   -> [OuroError pos (unknownQualifier qualifier (Map.keys (scopeImports scope)) (Map.keys bundled))]
-              Just exported
+              Just imported
                   | unqualified `Set.member` exported -> []
                   | otherwise                         -> [OuroError pos (notExported qualifier unqualified (Set.toList exported))]
-    | name `Set.member` scopeLocals scope || name `Set.member` scopeFunctions scope || Map.member name builtinRegistry
+                  where
+                  exported = L.importedExports imported
+    | name `Set.member` scopeLocals scope || Map.member name (scopeFunctions scope) || Map.member name builtinRegistry
         = []
     | otherwise
-        = [OuroError pos (unboundName name [ n | n <- Set.toList (scopeLocals scope <> scopeFunctions scope), not ("%" `T.isPrefixOf` n) ])]
+        = [OuroError pos (unboundName name [ n | n <- inScope, not ("%" `T.isPrefixOf` n) ])]
+    where
+    inScope = Set.toList (scopeLocals scope) <> Map.keys (scopeFunctions scope)
 
 
 -- A form, read as the evaluator reads it (see 'Engine.evalExpr'). A form the evaluator rejects
 -- whole, without evaluating what is in it, is not looked into: its own error is the
 -- evaluator's, where it is evaluated.
-form :: Scope -> [S.Expr] -> [OuroError]
-form scope items = case items of
+form :: Scope -> SourcePos -> [S.Expr] -> [OuroError]
+form scope pos items = case items of
     S.Symbol _ "context" : _                         -> []
     S.Symbol _ "attr" : _                            -> []
 
@@ -190,12 +198,12 @@ form scope items = case items of
         | isFunctionKeyword keyword                  -> []
     [S.Symbol _ "%binder", S.Literal _ (S.Str _)]    -> []
 
-    [S.Symbol pos "fn", S.Form _ params, body]
+    [S.Symbol fnPos "fn", S.Form _ params, body]
         | Just typed <- traverse param (zip [1 ..] params)
-                                                     -> lambda pos typed body
-    [S.Symbol pos "fn", S.Tagged _ _ (S.Form _ params), body]
+                                                     -> lambda fnPos typed body
+    [S.Symbol fnPos "fn", S.Tagged _ _ (S.Form _ params), body]
         | Just typed <- traverse param (zip [1 ..] params)
-                                                     -> lambda pos typed body
+                                                     -> lambda fnPos typed body
     S.Symbol _ "fn" : _                              -> []
 
     [S.Symbol _ "%attr", S.Literal _ (S.Str _), value]
@@ -213,15 +221,51 @@ form scope items = case items of
     _otherForm -> case determineBlockTarget items of
                       TargetRecord      -> record scope items
                       TargetList        -> array scope items
-                      TargetFunctionApp -> concatMap (names scope) items
+                      TargetFunctionApp -> arity scope pos items <> concatMap (names scope) items
 
     where
     quantifiers = ["exists", "forall", "omits", "filter"]
 
     -- A fn's parameters are checked when it is written; one the evaluator rejects is its error
-    lambda pos typed body = case checkParams pos typed of
-                                Right () -> parameters scope typed body
-                                Left _   -> []
+    lambda fnPos typed body = case checkParams fnPos typed of
+                                  Right () -> parameters scope typed body
+                                  Left _   -> []
+
+
+-- A call of a known function has as many arguments as the function has parameters (SCP0002),
+-- reported at the call with how the function is called, as the evaluator reports it. Only a
+-- call written with the function's name is known here: a function reached through a value, a
+-- parameter, a let binding or map, is checked when it is called.
+arity :: Scope -> SourcePos -> [S.Expr] -> [OuroError]
+arity scope pos = \case
+    S.Symbol _ name : args
+        | Just (called, params) <- known scope name
+        , length params /= length args
+        -> [ incorrectArity called (length params) (length args)
+             & maybe id (\call -> withBlurb ("It is called " <> call <> ".")) (L.callTemplate called params)
+             & OuroError pos ]
+    _otherCall
+        -> []
+
+
+-- The function a name at the head of a call names, by its own name, with its parameters: one
+-- of the module, unless a binding around the call has the name, or one an import exports
+known :: Scope -> Text -> Maybe (Text, [S.Param])
+known scope name =
+    case splitQualified name of
+        Just (qualifier, unqualified)
+            -> Map.lookup qualifier (scopeImports scope) >>= \imported ->
+                   case unqualified `Set.member` L.importedExports imported of
+                       True  -> (unqualified,) <$> parametersOf (L.importedRoot imported ^. L.functionRegistry) unqualified
+                       False -> Nothing
+        Nothing
+            -> case name `Set.member` scopeLocals scope of
+                   True  -> Nothing
+                   False -> (name,) <$> parametersOf (scopeFunctions scope) name
+
+parametersOf :: L.FunctionRegistry -> Text -> Maybe [S.Param]
+parametersOf registry called = Map.lookup called registry >>= \case
+    Function _ _ _ params _ -> Just params
 
 
 -- A case branch: its condition, or its pattern's values, and its result, around which the

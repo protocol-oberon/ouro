@@ -226,7 +226,7 @@ loadKey pos path key = gets (Map.lookup key) >>= \case
                    let canonical = Canon.canonicalModule parsed
                    dependencies <- local (\env -> env { importStack = key : importStack env })
                                          (loadImports canonical)
-                   traverse_ refute (NE.nonEmpty (analyseModule (Map.map L.importedExports dependencies) canonical))
+                   traverse_ refute (NE.nonEmpty (analyseModule dependencies canonical))
                    let linked = Linked
                                     { linkedModule  = canonical
                                     , linkedImports = dependencies

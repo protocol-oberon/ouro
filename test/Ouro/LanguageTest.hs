@@ -980,7 +980,7 @@ knownGaps = Group "Known gaps: current and fixed"
                                                               "(graph g (let ($map (fn (x) x)) (:r (map 1))))")
     , ("gap 44 (fixed for names): an uncalled function's unbound name", fixedGap $ compilesToJSON "(defn f () nope) (graph g (:r 1))"
                                                                    "{\"r\": 1}")
-    , ("gap 44: and its wrong arity",                compilesToJSON "(defn f (x) x) (defn h () (f 1 2)) (graph g (:r 1))"
+    , ("gap 44 (fixed for arity): and its wrong arity", fixedGap $ compilesToJSON "(defn f (x) x) (defn h () (f 1 2)) (graph g (:r 1))"
                                                                    "{\"r\": 1}")
     , ("gap 44 (fixed for names): an untaken branch's unbound name", fixedGap $ compilesToJSON "(graph g (:r (case 1 ((= 1) \"a\") (otherwise nope))))"
                                                                    "{\"r\": \"a\"}")

@@ -143,7 +143,7 @@ compileUsing loader filename trgt content = compilationResult <$> runWriterT (ru
 
                -- Pass 3.3: Static analysis: every function and graph checked as written, before
                -- any is evaluated. Its errors end the compile, as the parser's do.
-               traverse_ refute (NE.nonEmpty (analyseModule (Map.map L.importedExports imported) desugaredModule))
+               traverse_ refute (NE.nonEmpty (analyseModule imported desugaredModule))
 
                -- Pass 3.4: Find target graph
                graph <- case Map.lookup (T.pack trgt) (desugaredModule ^. graphRegistry) of
