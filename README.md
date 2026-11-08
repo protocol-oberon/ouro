@@ -62,6 +62,8 @@ Two further `#` forms are values rather than properties, written in place of an 
 
 Ouro contains special forms designed for increased ergonomics for creating JSON-LD graphs. These forms interact with the JSON-LD graph in different ways.
 
+Their names are not reserved. As in Scheme, a binding of the same name, whether an attribute key, a `let` binding, a parameter or a `defn`, shadows the form where it is in scope, and the form is then a call of the binding: `(let ($list (fn (x) (+ x 1))) (list 1))` is `2`. The forms rewritten before any name is bound, `and`, `or`, `->`, `with`, `adjoin` and `thru`, are the exception, for now: a binding of their names is ignored where they are called.
+
 ### Let
 
 In Ouro there are two ways to bind a name, with difference in serialisation.
@@ -729,7 +731,7 @@ Semantics of a call:
 
   ...compiles to `{"r": 3}`.
 
-A `defn` body is checked when the file is parsed: it must be one expression and cannot be a spliced record (`(defn f (x) :k v)`). A `define` or a nested `defn` in it is reported with its replacement, `let` or a `let`-bound `fn`.
+A `defn` body is checked when the file is parsed: it must be one expression and cannot be a spliced record (`(defn f (x) :k v)`). A nested `defn` in it is reported with its replacement, a `let`-bound `fn`.
 
 A function is documented with a `(doc "...")` among the direct elements of its body, before or after its result. It is never evaluated and is not part of the result:
 
@@ -744,7 +746,7 @@ A function of no parameters is a constant: named as a value, it is its result, s
 Names:
 
 - Functions and graphs are named in kebab-case, `make-place`. A name with a capital or an underscore is a warning (`WRN0004`) that suggests the kebab-case spelling. Attribute keys and local bindings are exempt, since keys follow the data's vocabulary (`:_label`).
-- A `defn` may take the name of a built-in, as in Scheme, and replaces it throughout the file, with a warning (`WRN0003`). A special form's name cannot be taken.
+- A `defn` may take the name of a built-in or a special form, as in Scheme, and replaces it throughout the file, with a warning (`WRN0003`). The names read before any name is bound cannot be taken (`SYN0008`), since such a function could never be called: `defn`, `graph`, `doc`, `and`, `or`, `->`, `with`, `adjoin` and `thru`.
 - A `/` qualifies an imported name, `base/aat`, so no function, parameter or `let` binding can have one. The operators `/` and `/=` are names like any other.
 
 ### Signatures
@@ -946,7 +948,7 @@ For example, `(base/name vocab/primary-name "Spring")` is a *Primary Name**, and
 (import aat/unit)          ; unit/centimeters
 ```
 
-The modules are `name-type`, `identifier-type`, `statement-type`, `object-type`, `place-type`, `group-type`, `digital-type`, `set-type`, `dimension-type`, `language`, `unit`, `material`, `currency`, `nationality`, `occupation` and `shape`. A term is named as Linked Art names it, and labelled as Linked Art describes it, capitalised: `(occupation/collector)` is "Art Collector". Seven names are taken: the six time units are `unit/year-unit`, `unit/month-unit` and so on, since `years` and its kin are built-ins, and Map is `object-type/map-object`, since `map` is a special form. The modules are generated from Linked Art's list by `scripts/aat/generate.pl`, never written by hand.
+The modules are `name-type`, `identifier-type`, `statement-type`, `object-type`, `place-type`, `group-type`, `digital-type`, `set-type`, `dimension-type`, `language`, `unit`, `material`, `currency`, `nationality`, `occupation` and `shape`. A term is named as Linked Art names it, and labelled as Linked Art describes it, capitalised: `(occupation/collector)` is "Art Collector". Seven names are taken: the six time units are `unit/year-unit`, `unit/month-unit` and so on, since `years` and its kin are built-ins, and Map is `object-type/map-object`, since a `map` would shadow the special form throughout its module. The modules are generated from Linked Art's list by `scripts/aat/generate.pl`, never written by hand.
 
 Module paths are written with `/` on every platform, Windows included.
 
