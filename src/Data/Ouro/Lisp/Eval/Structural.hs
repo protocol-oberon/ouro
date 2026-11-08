@@ -13,11 +13,12 @@ import           Data.Ouro.Error.Diagnostics (incorrectArity, lexicalError,
 import           Data.Ouro.Error.Types       (OuroError (..))
 import qualified Data.Ouro.Internal.Expr     as I
 import qualified Data.Ouro.Internal.Kinds    as JLD
+import           Data.Ouro.Lisp.Analysis.Forms (BlockTarget (..), FrameEntry (..),
+                                              bindableAttr, collectBindings,
+                                              determineBlockTarget)
 import           Data.Ouro.Lisp.Eval.Pattern (matchPattern)
 import           Data.Ouro.Lisp.Eval.Schema  (contextFromValue)
-import           Data.Ouro.Lisp.Eval.Scope   (FrameEntry (..), allocFrame,
-                                              allocValues, bindableAttr,
-                                              collectBindings, force)
+import           Data.Ouro.Lisp.Eval.Scope   (allocFrame, allocValues, force)
 import           Data.Ouro.Lisp.Eval.Types   (Binding (..), Env (..), EvalM, Expr (..),
                                               humanReadableType)
 import qualified Data.Ouro.Lisp.Eval.Types   as L
@@ -368,39 +369,6 @@ compileArray evaluator env pos elements = Array <$> compileElements env elements
                                                 & withBlurb (typeMismatchBlurb otherVal)
                                                 & OuroError (S.exprPos otherExpr)
                                     in EvalError err : restL
-
-
--- Data type representing the structural target resolved by lookahead routing.
-data BlockTarget
-    = TargetRecord
-    | TargetList
-    | TargetFunctionApp
-    deriving (Show, Eq)
-
--- Inspects incoming form tokens to determine if they compose an Record or a List.
-determineBlockTarget :: [S.Expr] -> BlockTarget
-determineBlockTarget items =
-    case items of
-        []       -> TargetList
-        (x : xs) -> case isFunctionApplication (x : xs) of
-                        True -> TargetFunctionApp
-                        False -> case any isStructuralAttr items of
-                                         True  -> TargetRecord
-                                         False -> TargetList
-
-    where
-    isFunctionApplication :: [S.Expr] -> Bool
-    isFunctionApplication =
-        \case
-         (S.Symbol _ name : _) -> not (isFunctionKeyword name || name == "define")
-         _NotaFunc             -> False
-
-    isStructuralAttr :: S.Expr -> Bool
-    isStructuralAttr =
-        \case
-         S.Form _ (S.Symbol _ "%attr"    : _) -> True
-         S.Form _ (S.Symbol _ "%context" : _) -> True
-         _other                               -> False
 
 
 -- evalFunction

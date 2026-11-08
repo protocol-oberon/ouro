@@ -1,7 +1,7 @@
 
 module Ouro.StructuralTest (tests) where
 
-import           Data.Ouro.Lisp.Eval.Structural (BlockTarget (..),
+import           Data.Ouro.Lisp.Analysis.Forms  (BlockTarget (..),
                                                  determineBlockTarget)
 import qualified Data.Ouro.Lisp.Surface         as S
 import           Hedgehog

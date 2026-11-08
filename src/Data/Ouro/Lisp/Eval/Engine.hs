@@ -27,14 +27,15 @@ import           Data.Ouro.Error.Diagnostics    (astCorruption,
 import           Data.Ouro.Error.Types          (ErrorContext (..),
                                                  OuroError (..), TypeError (..))
 import qualified Data.Ouro.Internal.Expr        as I
+import           Data.Ouro.Lisp.Analysis.Forms  (BlockTarget (..),
+                                                 determineBlockTarget,
+                                                 letBindings)
 import           Data.Ouro.Lisp.Eval.Builtins   (builtinRegistry, distinctValues, parseISO8601)
 import           Data.Ouro.Lisp.Eval.Pattern    (matchPattern)
 import           Data.Ouro.Lisp.Eval.Scope      (allocFrame, allocValues, force,
-                                                 letBindings, lookupVar)
-import           Data.Ouro.Lisp.Eval.Structural (BlockTarget (..), alreadyAField,
-                                                 compileArray, compileRecord,
-                                                 determineBlockTarget,
-                                                 evalFunction)
+                                                 lookupVar)
+import           Data.Ouro.Lisp.Eval.Structural (alreadyAField, compileArray,
+                                                 compileRecord, evalFunction)
 import           Data.Ouro.Lisp.Eval.Types      (Env (..), EvalM, Expr (..),
                                                  humanReadableType, propertyOf)
 import qualified Data.Ouro.Lisp.Eval.Types      as L
