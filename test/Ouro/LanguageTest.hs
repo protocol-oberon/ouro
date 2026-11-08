@@ -978,4 +978,12 @@ knownGaps = Group "Known gaps: current and fixed"
                                                               "(graph g (let ($list 1) (:r list)))")
     , ("gap 43: and a bound map is not called",      failsWith "LexicalError"
                                                               "(graph g (let ($map (fn (x) x)) (:r (map 1))))")
+    , ("gap 44: an uncalled function's unbound name", compilesToJSON "(defn f () nope) (graph g (:r 1))"
+                                                                   "{\"r\": 1}")
+    , ("gap 44: and its wrong arity",                compilesToJSON "(defn f (x) x) (defn h () (f 1 2)) (graph g (:r 1))"
+                                                                   "{\"r\": 1}")
+    , ("gap 44: an untaken branch's unbound name",   compilesToJSON "(graph g (:r (case 1 ((= 1) \"a\") (otherwise nope))))"
+                                                                   "{\"r\": \"a\"}")
+    , ("gap 44: an uncalled function's recursion",   compilesToJSON "(defn f () (f)) (graph g (:r 1))"
+                                                                   "{\"r\": 1}")
     ]

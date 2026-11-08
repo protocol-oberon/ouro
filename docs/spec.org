@@ -1249,4 +1249,6 @@ Recorded 2026-10-12 and kept up to date since; none were caused by the scoping r
 
 43. *Which special forms' names are reserved is inconsistent:* a key or a =let= binding named after =list=, =case=, =get=, =context=, =inlay=, =insert=, =defn=, =let= or =fn= is =SYN0004=, but one named after any other special form, such as =map=, =with=, =when=, =image= or =->=, is accepted: ~(let ($map 1) (:r map))~ is ={"r": 1}=. A special form is recognised by its head symbol, so a binding named after one can be read as a value but never called: ~(let ($map (fn (x) x)) (:r (map 1)))~ is =map='s own error, =SYN0000=. A key is data, so whether keys should be reserved at all is part of the question. Found while fixing gap 42 (2026-11-08).
 
+44. *Code that is not evaluated is not checked:* compiling evaluates the graphs, so a mistake off their path is never reported. An unbound name in a function no graph calls, ~(defn f () nope)~, a call with the wrong number of arguments in one, an unbound name in a =case= branch that is not taken, and even a function that calls itself, ~(defn f () (f))~, all compile, while an unused =let= binding's unbound name is =SCP0000=. A library's broken function is found by whoever first calls it. Found while weighing static analysis (2026-11-08).
+
 #  LocalWords:  Ouro LD
