@@ -78,6 +78,16 @@ letAndFn = Group "Bindings: let, fn and defn"
                                                                   "{\"r\": 1}")
     , ("a name may start with defn",               compilesToJSON "(defn defnode (defnx) defnx) (graph g (:r (defnode 1)))"
                                                                   "{\"r\": 1}")
+    , ("a name may start with null",               compilesToJSON "(defn null-result (x) x) (graph g (:r (null-result 1)))"
+                                                                  "{\"r\": 1}")
+    , ("or with true or false",                    compilesToJSON "(defn truer (x) x) (defn falsey (x) x) (graph g (:r (truer (falsey 1))))"
+                                                                  "{\"r\": 1}")
+    , ("a graph may start with null",              compilesToJSON "(graph null-results (:r 2)) (graph g (:r 1))"
+                                                                  "{\"r\": 1}")
+    , ("and so may a key, read where it is used",  compilesToJSON "(graph g (:null-ish 1 :r null-ish))"
+                                                                  "{\"null-ish\": 1, \"r\": 1}")
+    , ("a literal still ends at a delimiter or a comment", compilesToJSON "(graph g (:a (true false) :b null;c\n))"
+                                                                  "{\"a\": [true, false], \"b\": null}")
     , ("defun is an ordinary name",                failsWith "Invalid top-level keyword"
                                                              "(defun f () 1) (graph g (:r (f)))")
     , ("a local defun is a call",                  failsWith "'defun' is not bound here"

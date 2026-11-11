@@ -9,7 +9,7 @@ import           Data.Text                  (Text)
 import qualified Data.Text                  as T
 import           Data.Void                  (Void)
 import qualified Text.Megaparsec            as M
-import           Text.Megaparsec            (MonadParsec (eof, lookAhead),
+import           Text.Megaparsec            (MonadParsec (eof, lookAhead, notFollowedBy),
                                              ParseError (..), Parsec, choice,
                                              getSourcePos, many, manyTill,
                                              oneOf, option, optional, runParser,
@@ -121,13 +121,14 @@ pHole = lexeme . withPos $ do
 
                            pure (Tkn.Hole (T.pack (prefix ++ rest)))
 
--- Standard Data Literals (Strings, Numbers, Bools, Null)
+-- Standard Data Literals (Strings, Numbers, Bools, Null). A word literal that only begins a
+-- longer name ('null-result', 'truer') backtracks, so the name is read as a symbol.
 pLiterals :: Parser Tkn.Token
 pLiterals = lexeme . withPos $ choice
                                [ pString
                                , try pNumber
-                               , pBoolean
-                               , Tkn.Null <$ string "null"
+                               , try (pBoolean <* endOfName)
+                               , try (Tkn.Null <$ string "null" <* endOfName)
                                ]
 
    where
@@ -151,6 +152,9 @@ pLiterals = lexeme . withPos $ choice
               , Tkn.Boolean False <$ string "false"
               ]
 
+   endOfName :: Parser ()
+   endOfName = notFollowedBy symbolChar
+
 
 
 -- Fallback General Symbols (Variables, functions, operations)
@@ -172,7 +176,7 @@ pBinding = lexeme . withPos $ Tkn.Binding <$> (char '$' *> symbolName)
 symbolName :: Parser Text
 symbolName = do
              first <- letterChar <|> oneOf ("_+-*/<>=!&|~" :: String) <|> oneOf mathSymbols
-             rest  <- many (alphaNumChar <|> oneOf ("_-+*/<>=!?&|~':" :: String))
+             rest  <- many symbolChar
              pure $ case first : rest of
                         "λ"   -> "fn"
                         "="   -> "eq"
@@ -195,6 +199,11 @@ symbolName = do
     where
     -- They are not letters, so each is allowed to begin a symbol by name
     mathSymbols = "¬∧∨∀∃∄∪∩∖⊆⋃⋂⊨" :: String
+
+
+-- A character a symbol may hold after its first
+symbolChar :: Parser Char
+symbolChar = alphaNumChar <|> oneOf ("_-+*/<>=!?&|~':" :: String)
 
 
 pSingleToken :: Parser Tkn.Token
