@@ -1,6 +1,7 @@
 
 module Data.Ouro.Lisp.Lexer where
 
+import           Data.Char                  (isLetter)
 import qualified Data.List.NonEmpty         as NE
 import           Data.Ouro.Error.Types      (ErrorContext (..), OuroError (..),
                                              SyntaxError (..))
@@ -85,14 +86,16 @@ pAttributes = lexeme . withPos $ do
     keyChar = alphaNumChar <|> oneOf ("-_" :: String)
 
 
--- Reader Macros starting with '#'
+-- Reader Macros starting with '#'. A name that is not a built-in property, but begins with a
+-- letter, is a property defined in Ouro, #titled, or imported, #people/titled: it is read as
+-- any name is.
 pReaderTags :: Parser Tkn.Token
 pReaderTags = lexeme . withPos $ do
                                  -- Grab the absolute stream offset BEFORE we consume any characters
                                  startOffset <- M.getOffset
 
                                  _      <- try (char '#')
-                                 rawTag <- some (alphaNumChar <|> char '-')
+                                 rawTag <- some symbolChar
                                  case rawTag of
                                      "uri"          -> pure Tkn.TagUri
                                      "date"         -> pure Tkn.TagDate
@@ -104,6 +107,9 @@ pReaderTags = lexeme . withPos $ do
                                      "function"     -> pure Tkn.TagFunction
                                      "record-empty" -> pure Tkn.TagRecordEmpty
                                      "array-empty"  -> pure Tkn.TagArrayEmpty
+                                     name@(first : _)
+                                         | isLetter first
+                                                    -> pure (Tkn.TagProperty (T.pack name))
                                      other          -> M.region (\err -> M.setErrorOffset startOffset err)
                                                              (fail ("Unknown property: #" ++ other))
 
@@ -225,10 +231,18 @@ pSingleToken =  pDelims
 tokenize :: String -> Text -> Either OuroError [Tkn.Token]
 tokenize filename input =
     case runParser (sc *> many pSingleToken <* eof) filename input of
-        Right tokens -> Right tokens
+        Right tokens -> unchecked tokens
         Left bundle  -> Left (translateLexError bundle)
 
     where
+    -- A property defined in Ouro is read, but nothing checks one yet, so the first is an
+    -- error, as an unknown property always was. It goes when the parser reads them.
+    unchecked :: [Tkn.Token] -> Either OuroError [Tkn.Token]
+    unchecked tokens =
+        case [ (pos, name) | Tkn.Token pos (Tkn.TagProperty name) <- tokens ] of
+            (pos, name) : _ -> Left (OuroError pos (Syntax LexicalError { rawLexeme = "Unknown property: #" <> name }))
+            []              -> Right tokens
+
     translateLexError :: ParseErrorBundle T.Text Void -> OuroError
     translateLexError bundle =
         let -- Extract the primary parsing error sequence

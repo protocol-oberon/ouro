@@ -209,7 +209,7 @@ A module uses another's functions by importing it, and offers its own by exporti
 | Symbol         | =artist=, =type-node=, =+=, =∧=, =legacy!= | starts with a letter, an operator character or a symbol of logic or sets (see below the table); may hold =:= after its first character |
 | Attribute      | =:key=, =:@vocab=, =:crm:P2_has_type=    | letters, digits, =-= and =_=, after an optional =@=, and =:= after the first, so a compact IRI is one key; a pair's key |
 | Binding        | =$name=                                  | any symbol; a private binding, only inside a =let=                  |
-| Property       | =#uri=, =#date=, =#string=, =#number=, =#boolean= | a built-in property of what follows; also =#record=, =#array=, =#function= |
+| Property       | =#uri=, =#date=, =#string=, =#number=, =#boolean= | a built-in property of what follows; also =#record=, =#array=, =#function=. Any other name that begins with a letter, =#titled=, or is qualified, =#people/titled=, is read whole as a property defined in Ouro; nothing checks one yet, so it is =Unknown property: #people/titled= |
 | Empty values   | =#record-empty=, =#array-empty=, =()=    | ={}=, =[]= and =[]=                                                 |
 | Hole           | =?=, =?name=, =?..name=                  | a placeholder in a call, or part of a pattern                       |
 | Delimiters     | =( )=                                    | =[ ]= is reserved: it parses, but has no meaning yet                |
