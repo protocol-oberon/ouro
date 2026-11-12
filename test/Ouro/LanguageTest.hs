@@ -693,6 +693,12 @@ logicAndCollections = Group "Built-ins: logic, arrays and records"
                                                                      "{\"r\": 1}")
     , ("a malformed get-or is an error",         failsWith "get-or is written (get-or record default key ...)"
                                                            "(graph g (:r (get-or (:x 1) 1)))")
+      -- A default cannot tell a missing key from one that holds it, so a check that a value is
+      -- empty reads a missing key as empty; has, under and, tells them apart without reading it
+    , ("get-or reads a missing key as its default", compilesToJSON "(graph g (:a (eq (get-or (:x 1) () found) ()) :b (eq (get-or (:found ()) () found) ())))"
+                                                                 "{\"a\": true, \"b\": true}")
+    , ("has under and tells them apart",         compilesToJSON "(define/procedure found-nothing #boolean (#record s) (and (has s found) (eq (get s found) ()))) (graph g (:a (found-nothing (:x 1)) :b (found-nothing (:found ())) :c (found-nothing (:found (\"A. Reid\")))))"
+                                                                "{\"a\": false, \"b\": true, \"c\": false}")
 
       -- indexes in paths
     , ("get takes an index into an Array",       compilesToJSON "(graph g (:r (get (:k ((:a 1) (:a 2))) k 1 a)))"

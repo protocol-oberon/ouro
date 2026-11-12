@@ -261,6 +261,12 @@ destructuring = Group "Functions: a parameter can be a pattern"
                                                                  "{\"r\": \"Beauty\"}")
     , ("a rest hole in a parameter",              compilesToJSON "(graph g (let ($tail (fn ((?h ?..t)) t)) (:r (tail (1 2 3)))))"
                                                                  "{\"r\": [2, 3]}")
+      -- A head before the rest hole makes a parameter that takes at least one element, as a
+      -- null result needs at least one source; the whole is rebuilt with ∪, as a set
+    , ("so a parameter can take at least one element", failsWith "the shape of the parameter's pattern"
+                                                            "(define/procedure sources (#string s (?first ?..rest)) s) (graph g (:r (sources \"a\" ())))")
+    , ("and is rebuilt with ∪",                   compilesToJSON "(define/procedure sources ((?first ?..rest)) (∪ (list first) rest)) (graph g (:a (sources (1)) :b (sources (1 2 3)) :c (sources (1 2 1))))"
+                                                                 "{\"a\": [1], \"b\": [1, 2, 3], \"c\": [1, 2]}")
     , ("a literal in a pattern is compared",      compilesToJSON "(graph g (let ($f (fn ((\"Person\" ?l)) l)) (:r (f (\"Person\" \"Manet\")))))"
                                                                  "{\"r\": \"Manet\"}")
     , ("a pattern beside a named parameter",      compilesToJSON "(define/procedure sum (base (?a ?b)) (+ base (+ a b))) (graph g (:r (sum 1 (2 3))))"
