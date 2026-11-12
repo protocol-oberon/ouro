@@ -28,7 +28,6 @@ tests = Group "Evaluation Tests (Surface to Higher IR)"
     [ ("lowers String syntax to Primitive I.String",   prop_lower_string)
     , ("lowers Number syntax to Primitive I.Number",   prop_lower_number)
     , ("lowers Boolean syntax to Primitive I.Boolean", prop_lower_boolean)
-    , ("lowers Null syntax to Primitive I.Null",       prop_lower_null)
     , ("lowers Empty collections correctly",           prop_lower_empty)
 
     , ("evaluates (list ...) forms",                   prop_list_form)
@@ -73,10 +72,6 @@ prop_lower_boolean :: Property
 prop_lower_boolean = property $ do
     b <- forAll Gen.bool
     runEval (S.Literal dummyPos (S.Bool b)) === L.Primitive (I.Boolean b)
-
-prop_lower_null :: Property
-prop_lower_null = withTests 1 . property $ do
-    runEval (S.Literal dummyPos S.Null) === L.Primitive I.Null
 
 prop_lower_empty :: Property
 prop_lower_empty = withTests 1 . property $ do

@@ -98,7 +98,6 @@ lintResult owner = \case
         S.Num  n     -> Just (renderNum n)
         S.Bool True  -> Just "true"
         S.Bool False -> Just "false"
-        S.Null       -> Just "null"
         _emptyTag    -> Nothing
 
     renderNum :: Double -> Text

@@ -161,7 +161,7 @@ descending :: Group
 descending = Group "Recursion: a call that goes down into a value runs"
     [ ("a tree, at every depth",                  compilesToJSON "(defn outline (n) (:label (get n _label) :parts (map outline (get-or () n part)))) (graph g (:r (outline (:_label \"Altarpiece\" :part ((:_label \"Panel\") (:_label \"Predella\" :part ((:_label \"Scene\"))))))))"
                                                                  "{\"r\": {\"label\": \"Altarpiece\", \"parts\": [{\"label\": \"Panel\", \"parts\": []}, {\"label\": \"Predella\", \"parts\": [{\"label\": \"Scene\", \"parts\": []}]}]}}")
-    , ("the rest of an Array",                    compilesToJSON "(defn final (xs) (case xs ((?x) x) ((?h ?..t) (final t)) (otherwise null))) (graph g (:r (final (1 2 3))))"
+    , ("the rest of an Array",                    compilesToJSON "(defn final (xs) (case xs ((?x) x) ((?h ?..t) (final t)) (otherwise 0))) (graph g (:r (final (1 2 3))))"
                                                                  "{\"r\": 3}")
     , ("through a fn given to map",               compilesToJSON "(defn depth (n) (map (fn (p) (depth p)) (get-or () n part))) (graph g (:r (depth (:part ((:part ()))))))"
                                                                  "{\"r\": [[]]}")

@@ -25,7 +25,7 @@ import           Text.Megaparsec (SourcePos)
 --     parent frames, or native primitive operation registry fallbacks.
 --
 -- Atomic leaves are grouped homogeneously under Literal. By packaging raw values (Strings, Numbers,
--- Booleans, and Null structures) into an un-indexed payload wrapper, the parser can handle scalar
+-- Booleans, and empty structures) into an un-indexed payload wrapper, the parser can handle scalar
 -- primitives flexibly as generic data tokens prior to evaluation.
 --
 -- Type assertions are injected via the Tagged constructor '#'. This allows for explicit validation of types
@@ -44,7 +44,7 @@ import           Text.Megaparsec (SourcePos)
 data Expr
     = Symbol      SourcePos Text            -- variable names and functions
     | DefunSymbol SourcePos Text            -- function identifiers
-    | Literal     SourcePos LiteralValue    -- Raw String, Number, Boolean, Null
+    | Literal     SourcePos LiteralValue    -- Raw String, Number, Boolean, empty Array/Record
     | Tagged      SourcePos ReaderTag Expr  -- #uri "...", #date "..."
     | Hole        SourcePos Text            -- ?, ?name or ?..name in a case pattern
     | Form        SourcePos [Expr]          -- (...) nested lists
@@ -59,7 +59,6 @@ data LiteralValue
     | Bool Bool
     | EmptyArr
     | EmptyRec
-    | Null
     | Num Double
     deriving (Show, Eq)
 

@@ -160,9 +160,7 @@ formsAndBuiltins = Group "Special forms and built-ins"
                                                               "(graph g (:r (len (1) (2))))")
     , ("len is an ordinary function value",         compilesToJSON "(graph g (:r (map len (\"ab\" (1 2 3)))))"
                                                                    "{\"r\": [2, 3]}")
-    , ("comparisons chain, and null is a value",    compilesToJSON "(graph g (:a (eq 1 1 1) :b (neq 1 2) :c null))"
-                                                                   "{\"a\": true, \"b\": true, \"c\": null}")
-    , ("a pair whose value is null is there",       compilesToJSON "(graph g (:a (has (:k null) k) :b (eq null null)))"
+    , ("comparisons chain",                         compilesToJSON "(graph g (:a (eq 1 1 1) :b (neq 1 2)))"
                                                                    "{\"a\": true, \"b\": true}")
     , ("#string asserts a string",                  failsWith "expectedProperty = \"#string\", actualProperty = \"#number\""
                                                               "(graph g (:a #string 1))")
@@ -304,6 +302,15 @@ types = Group "Types: the rules as they are"
     , ("#rec is not a property: #record is",        failsWith "Unknown property: #rec"       "(graph g (:r #rec (:a 1)))")
     , ("#arr is not a property: #array is",         failsWith "Unknown property: #arr"       "(graph g (:r #arr (1)))")
     , ("#fn is not a property: #function is",       failsWith "Unknown property: #fn"        "(graph g (:r #fn 1))")
+      -- Ouro has no null: absence is a key left out, or a statement of why
+    , ("Ouro has no null",                          failsWith "Ouro has no null: leave the attribute out, or state why the value is absent"
+                                                              "(graph g (:r null))")
+    , ("it is reported where it is written",        failsWith "line 1, col 14"
+                                                              "(graph g (:r null))")
+    , ("in an array too",                           failsWith "Ouro has no null"
+                                                              "(graph g (:r (1 null)))")
+    , ("and null is no name",                       failsWith "Ouro has no null"
+                                                              "(defn null (x) x) (graph g (:r 1))")
     , ("#rec-empty is not a value: #record-empty is", failsWith "Unknown property: #rec-empty" "(graph g (:r #rec-empty))")
     , ("#arr-empty is not a value: #array-empty is", failsWith "Unknown property: #arr-empty" "(graph g (:r #arr-empty))")
       -- A property defined in Ouro is read by its whole name, qualified or not, but is not checked yet
@@ -347,8 +354,6 @@ types = Group "Types: the rules as they are"
                                                               "(graph g (:r (+ #uri \"https://a.org/\" \"x\")))")
     , ("durations do not add",                      failsWith "a Duration time period + a Duration time period"
                                                               "(graph g (:r (+ (days 1) (days 2))))")
-    , ("null has no arithmetic",                    failsWith "a Null value + a Number"
-                                                              "(graph g (:r (+ null 1)))")
 
       -- Assertions check, and only #uri and #date convert a String
     , ("#number does not convert a string",         failsWith "expectedProperty = \"#number\", actualProperty = \"#string\""
@@ -361,8 +366,6 @@ types = Group "Types: the rules as they are"
                                                               "(graph g (:r #uri \"nope\"))")
     , ("a date needs ISO-8601 form",                failsWith "actualProperty = \"a #string that is not a date\""
                                                               "(graph g (:r #date \"1642\"))")
-    , ("null has no built-in property",             failsWith "expectedProperty = \"#string\", actualProperty = \"null\""
-                                                              "(graph g (:r #string null))")
 
       -- A URI keeps the slashes of its path; gaps 17 and 22 are the exceptions
     , ("#uri keeps a trailing slash",               compilesToJSON "(graph g (:u #uri \"https://a.org/x/\"))"
@@ -415,8 +418,8 @@ operators = Group "Operators: operands and desugaring"
 -- and an array otherwise. A record inside an array has its own parentheses.
 classification :: Group
 classification = Group "Classification: records, arrays and calls"
-    [ ("an array holds values of any type",         compilesToJSON "(graph g (:r (1 \"a\" true (:k 1) (2 3) null)))"
-                                                                   "{\"r\": [1, \"a\", true, {\"k\": 1}, [2, 3], null]}")
+    [ ("an array holds values of any type",         compilesToJSON "(graph g (:r (1 \"a\" true (:k 1) (2 3))))"
+                                                                   "{\"r\": [1, \"a\", true, {\"k\": 1}, [2, 3]]}")
     , ("a record in an array has its own parentheses", compilesToJSON "(graph g (:r ((:k 1) \"x\" 3)))"
                                                                    "{\"r\": [{\"k\": 1}, \"x\", 3]}")
     , ("an array of one record",                    compilesToJSON "(graph g (:r ((:a 1))))"
@@ -767,7 +770,7 @@ conditions = Group "Case: conditions"
 
 
 -- A record's context is an ordinary value, written as JSON-LD writes it: a remote context's
--- URL, a local context record, null, or an array of them, applied in order. It is checked
+-- URL, a local context record, or an array of them, applied in order. It is checked
 -- where it is written.
 contexts :: Group
 contexts = Group "Contexts: a context is a value"
@@ -777,8 +780,12 @@ contexts = Group "Contexts: a context is a value"
                                                                    "{\"@context\": {\"@vocab\": \"https://example.org/\", \"@language\": \"en\"}, \"a\": 1}")
     , ("an expanded term definition",               compilesToJSON "(graph g (:context (:condition (:@id \"ex:condition\" :@type \"@id\" :@container (\"@set\"))) :a 1))"
                                                                    "{\"@context\": {\"condition\": {\"@id\": \"ex:condition\", \"@type\": \"@id\", \"@container\": [\"@set\"]}}, \"a\": 1}")
-    , ("null clears the context",                   compilesToJSON "(graph g (:context null :a 1))"
-                                                                   "{\"@context\": null, \"a\": 1}")
+    , ("Ouro has no null, so no context clears another", failsWith "Ouro has no null"
+                                                              "(graph g (:context null :a 1))")
+    , ("nor sets a keyword to null",                failsWith "Ouro has no null"
+                                                              "(graph g (:context (:@vocab null) :a 1))")
+    , ("nor maps a term to it",                     failsWith "Ouro has no null"
+                                                              "(graph g (:context (:ex null) :a 1))")
     , ("a record can be only a context",            compilesToJSON "(graph g (:r (:context \"https://a.org/c.json\")))"
                                                                    "{\"r\": {\"@context\": \"https://a.org/c.json\"}}")
     , ("a context can be computed",                 compilesToJSON "(defn linked-art () \"https://linked.art/ns/v1/linked-art.json\") (graph g (:context ((linked-art) (:ex \"https://e.org/\")) :a 1))"

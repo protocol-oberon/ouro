@@ -130,17 +130,25 @@ pHole = lexeme . withPos $ do
 
                            pure (Tkn.Hole (T.pack (prefix ++ rest)))
 
--- Standard Data Literals (Strings, Numbers, Bools, Null). A word literal that only begins a
--- longer name ('null-result', 'truer') backtracks, so the name is read as a symbol.
+-- Standard Data Literals (Strings, Numbers, Bools). A word literal that only begins a longer
+-- name ('truer') backtracks, so the name is read as a symbol. Ouro has no null: the word is an
+-- error where it is written, and a name that only begins with it ('null-result') is a name.
 pLiterals :: Parser Tkn.Token
 pLiterals = lexeme . withPos $ choice
                                [ pString
                                , try pNumber
                                , try (pBoolean <* endOfName)
-                               , try (Tkn.Null <$ string "null" <* endOfName)
+                               , noNull
                                ]
 
    where
+   noNull :: Parser Tkn.TokenType
+   noNull = do
+            startOffset <- M.getOffset
+            _           <- try (string "null" <* endOfName)
+            M.region (\err -> M.setErrorOffset startOffset err)
+                     (fail "Ouro has no null: leave the attribute out, or state why the value is absent")
+
    pString :: Parser Tkn.TokenType
    pString = do
              _   <- char '"'

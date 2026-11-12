@@ -86,8 +86,8 @@ letAndFn = Group "Bindings: let, fn and defn"
                                                                   "{\"r\": 1}")
     , ("and so may a key, read where it is used",  compilesToJSON "(graph g (:null-ish 1 :r null-ish))"
                                                                   "{\"null-ish\": 1, \"r\": 1}")
-    , ("a literal still ends at a delimiter or a comment", compilesToJSON "(graph g (:a (true false) :b null;c\n))"
-                                                                  "{\"a\": [true, false], \"b\": null}")
+    , ("a literal still ends at a delimiter or a comment", compilesToJSON "(graph g (:a (true false) :b true;c\n))"
+                                                                  "{\"a\": [true, false], \"b\": true}")
     , ("defun is an ordinary name",                failsWith "Invalid top-level keyword"
                                                              "(defun f () 1) (graph g (:r (f)))")
     , ("a local defun is a call",                  failsWith "'defun' is not bound here"

@@ -211,7 +211,7 @@ validateAST' gPos path valueGraph = case valueGraph of
                               Primitive _              -> []
                               -- Compile-time only values (Durations, functions, schemas...) have no JSON form
                               unserialisable           -> typeMismatch
-                                                              "a JSON value (String, Number, Boolean, Null, URI, Date, Record or Array)"
+                                                              "a JSON value (String, Number, Boolean, URI, Date, Record or Array)"
                                                               (L.humanReadableType unserialisable)
                                                           & withBlurb (unserialisableBlurb location unserialisable)
                                                           & OuroError gPos

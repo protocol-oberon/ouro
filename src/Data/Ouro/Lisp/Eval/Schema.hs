@@ -47,7 +47,6 @@ contextFromValue pos = \case
         EvalError err          -> Left err
         Primitive (I.String t) -> remote t
         Primitive (I.URI uri)  -> remote (URI.render uri)
-        Primitive I.Null       -> Right (Schema [ClearContext])
         Primitive I.EmptyRec   -> Right (Schema [LocalContext mempty])
         Record _ pairs         -> Schema . pure . LocalContext <$> localContext pairs
         Array _                -> problem "A context array cannot hold another array."
@@ -116,12 +115,11 @@ data Accepts = Accepts
     , describe       :: Text
     }
 
-data Shape = AString | ANull | ABool | ANumber | AStringArray | AnyContext
+data Shape = AString | ABool | ANumber | AStringArray | AnyContext
 
 fits :: ContextValue -> Shape -> Bool
 fits value shape = case (shape, value) of
     (AString,      CString _) -> True
-    (ANull,        CNull)     -> True
     (ABool,        CBool _)   -> True
     (ANumber,      CNumber _) -> True
     (AStringArray, CArray vs) -> all (\case CString _ -> True; _ -> False) vs
@@ -130,36 +128,36 @@ fits value shape = case (shape, value) of
 
 -- What a term maps to, when it is not an expanded definition record
 termValue :: Accepts
-termValue = Accepts [AString, ANull] "a String (an IRI, a compact IRI or a term), null, or an expanded definition record"
+termValue = Accepts [AString] "a String (an IRI, a compact IRI or a term), or an expanded definition record"
 
 
 -- The keywords a local context can set, from JSON-LD 1.1
 contextKeywords :: [(Text, Accepts)]
 contextKeywords =
-    [ ("@vocab",     Accepts [AString, ANull] "a String (an IRI) or null")
-    , ("@base",      Accepts [AString, ANull] "a String (an IRI) or null")
-    , ("@language",  Accepts [AString, ANull] "a String (a language tag such as \"en\") or null")
-    , ("@direction", Accepts [AString, ANull] "\"ltr\", \"rtl\" or null")
-    , ("@version",   Accepts [ANumber]        "the Number 1.1")
-    , ("@protected", Accepts [ABool]          "a Boolean")
-    , ("@propagate", Accepts [ABool]          "a Boolean")
-    , ("@import",    Accepts [AString]        "a String (the URL of a context to import)")
+    [ ("@vocab",     Accepts [AString] "a String (an IRI)")
+    , ("@base",      Accepts [AString] "a String (an IRI)")
+    , ("@language",  Accepts [AString] "a String (a language tag such as \"en\")")
+    , ("@direction", Accepts [AString] "\"ltr\" or \"rtl\"")
+    , ("@version",   Accepts [ANumber] "the Number 1.1")
+    , ("@protected", Accepts [ABool]   "a Boolean")
+    , ("@propagate", Accepts [ABool]   "a Boolean")
+    , ("@import",    Accepts [AString] "a String (the URL of a context to import)")
     ]
 
 -- The keywords of an expanded term definition, from JSON-LD 1.1
 termKeywords :: [(Text, Accepts)]
 termKeywords =
-    [ ("@id",        Accepts [AString, ANull]      "a String (an IRI) or null")
-    , ("@type",      Accepts [AString]             "a String (an IRI, \"@id\" or \"@vocab\")")
-    , ("@container", Accepts [AString, AStringArray, ANull] "a String such as \"@set\" or \"@list\", an Array of them, or null")
-    , ("@language",  Accepts [AString, ANull]      "a String (a language tag) or null")
-    , ("@direction", Accepts [AString, ANull]      "\"ltr\", \"rtl\" or null")
-    , ("@reverse",   Accepts [AString]             "a String (an IRI)")
-    , ("@index",     Accepts [AString]             "a String")
-    , ("@nest",      Accepts [AString]             "a String")
-    , ("@prefix",    Accepts [ABool]               "a Boolean")
-    , ("@protected", Accepts [ABool]               "a Boolean")
-    , ("@context",   Accepts [AnyContext]          "a context")
+    [ ("@id",        Accepts [AString]               "a String (an IRI)")
+    , ("@type",      Accepts [AString]               "a String (an IRI, \"@id\" or \"@vocab\")")
+    , ("@container", Accepts [AString, AStringArray] "a String such as \"@set\" or \"@list\", or an Array of them")
+    , ("@language",  Accepts [AString]               "a String (a language tag)")
+    , ("@direction", Accepts [AString]               "\"ltr\" or \"rtl\"")
+    , ("@reverse",   Accepts [AString]               "a String (an IRI)")
+    , ("@index",     Accepts [AString]               "a String")
+    , ("@nest",      Accepts [AString]               "a String")
+    , ("@prefix",    Accepts [ABool]                 "a Boolean")
+    , ("@protected", Accepts [ABool]                 "a Boolean")
+    , ("@context",   Accepts [AnyContext]            "a context")
     ]
 
 
@@ -171,7 +169,6 @@ jsonValue = \case
     Primitive (I.URI uri)   -> Right (CString (URI.render uri))
     Primitive (I.Number n)  -> Right (CNumber n)
     Primitive (I.Boolean b) -> Right (CBool b)
-    Primitive I.Null        -> Right CNull
     Primitive I.EmptyArr    -> Right (CArray [])
     Primitive I.EmptyRec    -> Right (CObject [])
     Array values            -> CArray  <$> traverse jsonValue values

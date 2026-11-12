@@ -36,7 +36,6 @@ data TokenType
     | String  !Text    -- "Update", "Core aggregation update for Van Gogh..."
     | Number  !Double  -- 42, 3.14159
     | Boolean !Bool    -- true, false
-    | Null             -- null
     -- Type Assertions
     | TagUri           -- '#uri'          (asserts or enforces a valid URI string layout)
     | TagDate          -- '#date'         (asserts or enforces a valid UTC timestamp layout)

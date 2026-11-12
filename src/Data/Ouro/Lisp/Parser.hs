@@ -433,7 +433,6 @@ pExpr = do
                              Tkn.String txt     -> capture (S.Literal (Tkn.pos t) (S.Str txt))
                              Tkn.Number val     -> capture (S.Literal (Tkn.pos t) (S.Num val))
                              Tkn.Boolean b      -> capture (S.Literal (Tkn.pos t) (S.Bool b))
-                             Tkn.Null           -> capture (S.Literal (Tkn.pos t) S.Null)
 
                              -- Reader Macros & Type Assertions
                              -- Note: We intentionally pop 'ts' here to advance past the macro tag

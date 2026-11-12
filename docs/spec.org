@@ -205,7 +205,7 @@ A module uses another's functions by importing it, and offers its own by exporti
 | Block comment  | see below the table                      | may span lines                                                      |
 | String         | ="text"=                                 | Haskell-style character escapes                                     |
 | Number         | =42=, =-3.5=, =1e3=                      | a Double: integers are exact up to 2^53                             |
-| Boolean / null | =true=, =false=, =null=                  |                                                                     |
+| Boolean        | =true=, =false=                          | Ouro has no null: =null= is an error where it is written, and no name; a name that only begins with it, =null-result=, is a name |
 | Symbol         | =artist=, =type-node=, =+=, =∧=, =legacy!= | starts with a letter, an operator character or a symbol of logic or sets (see below the table); may hold =:= after its first character |
 | Attribute      | =:key=, =:@vocab=, =:crm:P2_has_type=    | letters, digits, =-= and =_=, after an optional =@=, and =:= after the first, so a compact IRI is one key; a pair's key |
 | Binding        | =$name=                                  | any symbol; a private binding, only inside a =let=                  |
@@ -241,7 +241,7 @@ param-pattern = record-pattern | array-pattern ;     (* binds the parts of one a
 (* ---------- Expressions ---------- *)
 expression   = literal | asserted | symbol | record | array | call | special-form ;
 
-literal      = string | number | "true" | "false" | "null"
+literal      = string | number | "true" | "false"
              | "#record-empty" | "#array-empty" | "(" , ")" ;
 asserted     = property , expression ;
 property     = "#uri" | "#date" | "#string" | "#number" | "#boolean" | "#record" | "#array" | "#function" ;
@@ -304,7 +304,6 @@ sub-pattern  = hole | record-pattern | array-pattern | expression ;
 | String   | ="Manet"=, =#string expr=                      | string  |
 | Number   | =3000=, =#number expr=                         | number  |
 | Boolean  | =true=, =#boolean expr=                        | boolean |
-| Null     | =null=                                         | null    |
 | URI      | =#uri "https://..."=                           | string  |
 | Date     | =#date "1881-01-01T00:00:00Z"=                 | string  |
 | Record   | =(:key value ...)=, =#record expr=             | object  |
@@ -667,13 +666,12 @@ A record's JSON-LD context is written =:context value=. The value is an ordinary
            (:ex        "https://example.org/ns/"
             :condition (:@id "ex:condition" :@type "@id")))
  ...)
-(:context null ...)                                                 ; clears the context
 #+END_SRC
 
-- *A context is a value:* a remote context's URL (a String or a =#uri=), a local context record, =null=, or an array of them. Because it is evaluated like any other value, a function can build one: ~(defn linked-art () "https://linked.art/ns/v1/linked-art.json")~ and ~(:context ((linked-art) (:ex "https://example.org/ns/")) ...)~.
-- *A local context* holds keywords and term definitions. A key starting with =@= is a JSON-LD keyword, written =:@vocab=. The context keywords are =@vocab=, =@base=, =@language=, =@direction=, =@version=, =@protected=, =@propagate= and =@import=. Any other key defines a term, which maps to an IRI (a String: an IRI, a compact IRI such as ="ex:condition"=, or another term), to =null=, or to an expanded definition, a record whose keys are =@id=, =@type=, =@container=, =@language=, =@direction=, =@reverse=, =@index=, =@nest=, =@prefix=, =@protected= or =@context=.
+- *A context is a value:* a remote context's URL (a String or a =#uri=), a local context record, or an array of them. Ouro has no null, so a context cannot clear another (=@context: null=), and no keyword or term is set to null. Because it is evaluated like any other value, a function can build one: ~(defn linked-art () "https://linked.art/ns/v1/linked-art.json")~ and ~(:context ((linked-art) (:ex "https://example.org/ns/")) ...)~.
+- *A local context* holds keywords and term definitions. A key starting with =@= is a JSON-LD keyword, written =:@vocab=. The context keywords are =@vocab=, =@base=, =@language=, =@direction=, =@version=, =@protected=, =@propagate= and =@import=. Any other key defines a term, which maps to an IRI (a String: an IRI, a compact IRI such as ="ex:condition"=, or another term), or to an expanded definition, a record whose keys are =@id=, =@type=, =@container=, =@language=, =@direction=, =@reverse=, =@index=, =@nest=, =@prefix=, =@protected= or =@context=.
 - *Several contexts* are written as an array and serialised as one, applied in order, as JSON-LD processes them. A context with one entry is serialised as that entry.
-- *A malformed context is an error where it is written:* a remote context that is not an absolute URL, an unknown =@= keyword, a term mapped to something other than an IRI, =null= or a definition, a key in a definition that is not one of its keywords, an array inside the context's array, or a value with no place in JSON, such as a Date. Each is a "Malformed Context" error at the context's expression.
+- *A malformed context is an error where it is written:* a remote context that is not an absolute URL, an unknown =@= keyword, a term mapped to something other than an IRI or a definition, a key in a definition that is not one of its keywords, an array inside the context's array, or a value with no place in JSON, such as a Date. Each is a "Malformed Context" error at the context's expression.
 - *=:@context=* is JSON-LD's own name for the key, and means the same as =:context=. Any other key may also start with =@=, so =:@id= and =:@type= can be written in a record.
 - A record has one context: writing it twice is an error. A record can hold only a context, ~(:context "https://...")~.
 
@@ -686,7 +684,7 @@ The parser produces an untyped tree, ~S.Expr~, that mirrors the source. Every no
 data Expr
     = Symbol      SourcePos Text            -- names, functions and special-form heads
     | DefunSymbol SourcePos Text            -- function identifiers (unused by the parser)
-    | Literal     SourcePos LiteralValue    -- String, Number, Boolean, Null, empty Array/Record
+    | Literal     SourcePos LiteralValue    -- String, Number, Boolean, empty Array/Record
     | Tagged      SourcePos ReaderTag Expr  -- #uri "...", #date "...", #record (...)
     | Hole        SourcePos Text            -- ?, ?name or ?..name: a placeholder, or in a case pattern
     | Form        SourcePos [Expr]          -- (...)
@@ -1051,7 +1049,7 @@ data Expr (t :: JLD.Type) where
 | string                  | ="text"=            | ~String~                | ~Text~         | Primitive |
 | number                  | =42=                | ~Number~                | ~Double~       | Primitive |
 | boolean                 | =true=              | ~Boolean~               | ~Bool~         | Primitive |
-| null                    | =null=              | ~Null~                  | none           | Primitive |
+| null                    | none: an error      | ~Null~, read by =validate= only | none     | Primitive |
 | IRI                     | =#uri "..."=        | ~URI~                   | ~Text.URI.URI~ | Primitive |
 | xsd:dateTime            | =#date "..."=       | ~Date~                  | ~UTCTime~      | Primitive |
 | blank node              | not yet written     | ~BlankNode~             | ~Text~         | Primitive |

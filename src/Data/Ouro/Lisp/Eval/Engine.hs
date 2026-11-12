@@ -127,7 +127,6 @@ evalExpr expr = do
         S.Literal _ (S.Str txt) -> pure $ Primitive (I.String txt)
         S.Literal _ (S.Num val) -> pure $ Primitive (I.Number val)
         S.Literal _ (S.Bool b)  -> pure $ Primitive (I.Boolean b)
-        S.Literal _ S.Null      -> pure $ Primitive I.Null
         S.Literal _ S.EmptyArr  -> pure $ Primitive I.EmptyArr
         S.Literal _ S.EmptyRec  -> pure $ Primitive I.EmptyRec
 
