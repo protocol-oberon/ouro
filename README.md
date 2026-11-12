@@ -751,7 +751,15 @@ A function is documented with a `(doc "...")` among the direct elements of its b
   (:id (example (+ "place/" slug)) :type "Place" :_label label))
 ```
 
-A function of no parameters is a constant: named as a value, it is its result, so `vocab/artwork` is `(vocab/artwork)`. Ouro has no effects, so such a function cannot be told from its value; `(c)` still calls it. A constant cannot be passed on as a function, and an error in it is reported where it is defined.
+A function of no parameters is a constant: named as a value, it is its result, so `vocab/artwork` is `(vocab/artwork)`. Ouro has no effects, so such a function cannot be told from its value; `(c)` still calls it. A constant cannot be passed on as a function, and an error in it is reported where it is defined. A `defn`'s value is worked out the first time a graph names it, and reused after that.
+
+`defn/const` writes a constant without the empty parameter list, and takes a return type and a `doc` as `defn` does:
+
+``` clojure
+(defn/const museum-label #string
+  (doc "How the museum is named in every record.")
+  "Rijksmuseum")
+```
 
 Names:
 
@@ -928,7 +936,7 @@ A file uses another's functions by importing it, and offers its own by exporting
 (export place named part-of)
 ```
 
-- An imported function is always written with a qualifier, `qualifier/name`: the path's last part (`base`, `people`), or the name given after `as`. A file's own functions are written without one, so a local `name` and `base/name` are different functions.
+- An imported function is always written with a qualifier, `qualifier/name`: the path's last part (`base`, `people`), or the name given after `as`. A file's own functions are written without one, so a local `name` and `base/name` are different functions. No import is qualified `defn`, since its functions would read as `defn/const` and `defn/property`: name such a module with `as`.
 - A file has one `(export f g ...)`, naming its own functions. Only functions cross files, never graphs or values, so modules hold no state.
 - `(import a/b)` reads `a/b.ouro` under the project's source folder (see [Builds](#builds)), or, when `a` names a library in `vendor/`, `b.ouro` from that library (see [Libraries](#libraries)). Each module is read, checked and desugared on its own, loaded once however often it is imported, and its functions close over its own module, never the importer.
 
@@ -1182,10 +1190,10 @@ A library is used by copying it into `vendor/`, in the project's folder, beside 
 
 These are agreed directions for Ouro, roughly in the order they will be built. None of them is implemented yet.
 
-- **Properties:** user-defined properties, with the same standing as `#string`. A property is a function marked `#property` whose body is any Boolean expression. Called, it answers `true` or `false`; written before a value, `#titled x`, it asserts; and in a signature it is a requirement, whose failure is reported with blame, naming who broke it, as Racket's contracts do:
+- **Properties:** user-defined properties, with the same standing as `#string`. A property is a function written with `defn/property`, whose body is any Boolean expression. Called, it answers `true` or `false`; written before a value, `#titled x`, it asserts; and in a signature it is a requirement, whose failure is reported with blame, naming who broke it, as Racket's contracts do:
 
   ``` clojure
-  (defn titled #property (#record r)
+  (defn/property titled (#record r)
     (has r _label))
 
   (defn exhibit #record (#titled r) ...)
