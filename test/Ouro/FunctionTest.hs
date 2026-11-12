@@ -465,6 +465,20 @@ constants = Group "Functions: a function of no parameters, named, is its value"
                                                                  "{\"r\": 1}")
     , ("a let-bound fn of no parameters",         compilesToJSON "(graph g (let ($c (fn () 2)) (:a c :b (c))))"
                                                                  "{\"a\": 2, \"b\": 2}")
+    , ("one inside a function is evaluated for each call", compilesToJSON "(defn make (x) (let ($k (fn () x)) k)) (graph g (:a (make 1) :b (make 2)))"
+                                                                 "{\"a\": 1, \"b\": 2}")
+    , ("a constant named again is the same value", compilesToJSON "(defn c () (:n 1)) (defn f (x) (:in x :again c)) (graph g (:a c :b (f c) :d (c)))"
+                                                                 "{\"a\": {\"n\": 1}, \"b\": {\"in\": {\"n\": 1}, \"again\": {\"n\": 1}}, \"d\": {\"n\": 1}}")
+    , ("defn/const writes one",                   compilesToJSON "(defn/const c (:n 1)) (graph g (:a c :b (c)))"
+                                                                 "{\"a\": {\"n\": 1}, \"b\": {\"n\": 1}}")
+    , ("with a return type and a doc",            compilesToJSON "(defn/const c #string (doc \"A name.\") \"a\") (graph g (:r c))"
+                                                                 "{\"r\": \"a\"}")
+    , ("whose return type is checked",            failsWith "expectedProperty = \"#string\""
+                                                            "(defn/const c #string 1) (graph g (:r c))")
+    , ("a name that begins with defn/const is a name", failsWith "Invalid top-level keyword: Symbol"
+                                                            "(defn/constant c 1) (graph g (:r 1))")
+    , ("defn/property is read, but is not yet a form", failsWith "Invalid top-level keyword: DefnProperty"
+                                                            "(defn/property p (x) true) (graph g (:r 1))")
     , ("one constant from another",               compilesToJSON "(defn a () 1) (defn b () (+ a 1)) (graph g (:r b))"
                                                                  "{\"r\": 2}")
     , ("an imported constant",                    compilesToJSON "(import std/vocab) (graph g (:r vocab/artwork))"

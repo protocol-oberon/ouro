@@ -46,7 +46,7 @@ allocValues mkFrame pos bindings =
 
 allocate :: (Map.Map Text Binding -> Env) -> [(Text, SourcePos, S.Expr, L.PromiseState)] -> EvalM (Env, [L.Addr])
 allocate mkFrame entries = do
-    base <- gets IntMap.size
+    base <- gets (IntMap.size . (^. L.promises))
     let addrs  = take (length entries) [base ..]
         names  = Map.fromListWith (\_later first -> first)
                      [ (name, Promised addr) | ((name, _, _, _), addr) <- zip entries addrs ]
@@ -60,8 +60,8 @@ allocate mkFrame entries = do
                 Just (Promised bound) | bound == addr -> frame & L.localScope %~ Map.delete name
                 _otherBinding                         -> frame
 
-    modify $ IntMap.union $ IntMap.fromList
-        [ (addr, L.Promise (ownEnv name addr) expr name pos st) | ((name, pos, expr, st), addr) <- zip entries addrs ]
+    modify $ L.promises %~ IntMap.union (IntMap.fromList
+        [ (addr, L.Promise (ownEnv name addr) expr name pos st) | ((name, pos, expr, st), addr) <- zip entries addrs ])
     pure (frame, addrs)
 
 
@@ -72,7 +72,7 @@ allocate mkFrame entries = do
 -- depends on itself.
 force :: (S.Expr -> EvalM L.Expr) -> SourcePos -> L.Addr -> EvalM L.Expr
 force evaluator refPos addr = do
-    promise <- gets (IntMap.! addr)
+    promise <- gets ((IntMap.! addr) . (^. L.promises))
     case promise ^. L.promiseState of
         L.Forced value -> pure value
         L.Forcing      -> pure (cyclicLookup refPos (promise ^. L.promiseName))
@@ -82,7 +82,7 @@ force evaluator refPos addr = do
                           setState (L.Forced value)
                           pure value
     where
-    setState st = modify (IntMap.adjust (L.promiseState .~ st) addr)
+    setState st = modify (L.promises %~ IntMap.adjust (L.promiseState .~ st) addr)
 
 
 cyclicLookup :: SourcePos -> Text -> L.Expr

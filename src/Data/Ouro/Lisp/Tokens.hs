@@ -25,6 +25,8 @@ data TokenType
     | Import           -- Module imports
     | Export           -- Module exports, can only be functions
     | Defn             -- Named top-level functions
+    | DefnConst        -- (defn/const name value): a function of no parameters
+    | DefnProperty     -- (defn/property ...): read, but not yet a form
     | Graph            -- JSON-LD graph to compile
     -- Identifiers
     | Attr   !Text     -- ':id', ':type' (stores the string without the leading ':')

@@ -6,7 +6,7 @@ module Data.Ouro.Lisp.Eval.Engine where
 
 import           Control.Monad                  (foldM, unless)
 import           Control.Monad.Reader           (MonadReader (..), runReader)
-import           Control.Monad.State.Strict     (gets)
+import           Control.Monad.State.Strict     (gets, modify)
 import qualified Data.IntMap.Strict             as IntMap
 import           Data.Function                  ((&))
 import qualified Data.Map                       as Map
@@ -51,7 +51,7 @@ import qualified Data.Ouro.Lisp.Surface         as S
 import           Data.Text                      (Text)
 import qualified Data.Text                      as T
 import qualified Data.Vector                    as V
-import           Lens.Micro.Platform            ((.~), (^.))
+import           Lens.Micro.Platform            ((%~), (.~), (^.))
 import           Text.Megaparsec                (SourcePos)
 import qualified Text.URI                       as URI
 
@@ -65,14 +65,14 @@ evaluate :: Map.Map Text L.Imported -> Module -> S.Expr -> (L.Expr, [OuroError])
 evaluate imported moduleEnv rootExpr = L.runEvalM (L.defaultEnv imported moduleEnv) $ do
     graph <- evalExpr rootExpr
     forceRemaining
-    promises <- gets IntMap.elems
+    promises <- gets (IntMap.elems . (^. L.promises))
     pure (graph, concat [ L.errorsIn value | L.Forced value <- map (^. L.promiseState) promises ])
 
     where
     -- Forcing a promise can allocate new ones (e.g. a call's arguments), so repeat until none are left
     forceRemaining :: EvalM ()
     forceRemaining = do
-        unforced <- gets (IntMap.toList . IntMap.filter isUnforced)
+        unforced <- gets (IntMap.toList . IntMap.filter isUnforced . (^. L.promises))
         unless (null unforced) $ do
             mapM_ (\(addr, promise) -> force evalExpr (promise ^. L.promisePos) addr) unforced
             forceRemaining
@@ -80,6 +80,27 @@ evaluate imported moduleEnv rootExpr = L.runEvalM (L.defaultEnv imported moduleE
     isUnforced promise = case promise ^. L.promiseState of
                              L.Unforced -> True
                              _forced    -> False
+
+
+-- constant.
+--
+-- The value of a function of no parameters, named as a value. One that closes over its
+-- module's root frame alone, as every defn does, is evaluated the first time it is named in
+-- an evaluation, and that value is every later use's: nothing it can see varies, so it
+-- cannot differ. A fn of no parameters written inside a function closes over a frame that
+-- each call of that function binds afresh, so it is evaluated each time it is named.
+constant :: Env -> SourcePos -> L.FunctionId -> [S.Expr] -> EvalM L.Expr
+constant closureEnv pos fnId bodyExprs =
+    case closureEnv ^. L.parentEnv of
+        Just _  -> call
+        Nothing -> gets (Map.lookup fnId . (^. L.constants)) >>= \case
+                       Just value -> pure value
+                       Nothing    -> do
+                                     value <- call
+                                     modify (L.constants %~ Map.insert fnId value)
+                                     pure value
+    where
+    call = evalFunction evalExpr closureEnv pos pos fnId [] bodyExprs []
 
 
 -- evalExpr.
@@ -122,11 +143,11 @@ evalExpr expr = do
         S.Tagged _   tag   payload -> assertTag tag payload
         -- A name of a function of no parameters, written as a value, is its result: Ouro has no
         -- effects, so the function cannot be told from its value. It is called as (name) is,
-        -- so arity, signatures, blame and the recursion check apply. At the head of a call a
-        -- name is the function itself (see applyFunction)
+        -- so arity, signatures, blame and the recursion check apply, and a defn's value is kept
+        -- (see constant). At the head of a call a name is the function itself (see applyFunction)
         S.Symbol pos name          -> lookupVar evalExpr pos name env >>= \case
                                           FunctionClosure closureEnv fnId [] bodyExprs
-                                              -> evalFunction evalExpr closureEnv pos pos fnId [] bodyExprs []
+                                              -> constant closureEnv pos fnId bodyExprs
                                           value
                                               -> pure value
 

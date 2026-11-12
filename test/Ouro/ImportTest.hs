@@ -77,6 +77,10 @@ imports = Group "Modules: import, export and the bundled std"
                                                              "(import std/base) (import std/base) (graph g (:r 1))")
     , ("an alias is one name",                     failsWith "has a '/' in it"
                                                              "(import std/base as a/b) (graph g (:r 1))")
+    , ("no import is qualified defn",              failsWith "would be qualified 'defn', which begins the keywords defn/const and defn/property"
+                                                             "(import lib/defn) (graph g (:r 1))")
+    , ("and as defn is no name",                   failsWith "An import is written (import path) or (import path as name)"
+                                                             "(import std/base as defn) (graph g (:r 1))")
     , ("an export names a defn of the module",     failsWith "defines no function by that name"
                                                              "(export nope) (graph g (:r 1))")
     , ("and suggests a close one",                 failsWith "Perhaps you meant 'mine'"

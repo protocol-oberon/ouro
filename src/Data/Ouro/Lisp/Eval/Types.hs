@@ -146,9 +146,15 @@ type NativeFunction = SourcePos -> [Expr] -> Reader Env Expr
 -- was written in, and re-entering a promise that is still being forced is a cycle.
 type EvalM = ReaderT Env (State Store)
 
--- Promises allocated during evaluation, keyed by address. Addresses are never
--- reused, so the next free address is always the size of the store.
-type Store = IntMap Promise
+-- What an evaluation keeps as it goes: the promises allocated, keyed by address, and the
+-- value of each function of no parameters that closes over its module alone, once it has
+-- been named as a value (see 'Engine.constant'), so that such a constant is evaluated at
+-- most once. Addresses are never reused, so the next free address is always the number
+-- of promises.
+data Store = Store
+    { _promises  :: IntMap Promise
+    , _constants :: Map.Map FunctionId Expr
+    }
 
 data Promise = Promise
     { _promiseEnv   :: Env          -- The environment the binding was written in
@@ -177,7 +183,7 @@ type FunctionRegistry = Map.Map Text (M.HigherExpression 'M.FunctionExpr)
 
 
 runEvalM :: Env -> EvalM a -> a
-runEvalM env m = evalState (runReaderT m env) IntMap.empty
+runEvalM env m = evalState (runReaderT m env) (Store IntMap.empty Map.empty)
 
 
 -- The errors embedded anywhere in a value. Only error leaves count: a binding that
@@ -379,6 +385,7 @@ propertyOf =
 -- Generated last: Env refers to 'Binding' and 'Expr', and Expr to 'PeriodUnit'
 makeLenses ''Env
 makeLenses ''Promise
+makeLenses ''Store
 
 
 -- Traverses the entire environment scope chain to collect every active
