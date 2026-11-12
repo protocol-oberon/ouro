@@ -663,8 +663,6 @@ The keywords are =define/procedure=, =define/constant=, =define/property=, =grap
 
 - A name that only begins with one of them, =defined=, =defnode=, =defn/constant=, is a symbol.
 
-- =define/property= is read, but is not yet a form, so at the top level it is an error: ='define/property' cannot begin a form at the top level of a file=.
-
 - No import is qualified =define= or =defn=, since its functions would read as these.
   - ~(import lib/define)~ is an error, and ~as define~ and ~as defn~ are not names.
 
@@ -1080,6 +1078,27 @@ When it is evaluated:
   - ~(define/procedure make (x) (let ($k (fn () x)) k))~ gives =1= for ~(make 1)~ and =2= for ~(make 2)~;
 
 - each graph is evaluated on its own, so a constant is evaluated once per graph that names it.
+
+*** Properties: =define/property=
+
+A property is a function of the property kind, written ~(define/property name (#contract x) body)~, as ~(define/property titled (#record r) (has r _label))~.
+
+- It is about one value: it has exactly one parameter, which has a contract.
+  - A pattern's contract goes before it, =(#array (?a ?b))=.
+  - The contract is never =#function=, so a property is first-order.
+
+- Its result is always =#boolean=.
+  - No return type is written: one is an error at the type.
+  - A body that is not a Boolean is a property mismatch at the body.
+
+- Otherwise it is a function as any other:
+  - called, ~(titled x)~ answers =true= or =false=;
+  - it shares the =define/procedure=s' names, so a procedure and a property of one name are defined twice;
+  - it may call itself going down into its value;
+  - it is exported and imported as a function is, ~(people/titled x)~;
+  - warnings name it a property.
+
+- Asserting it, ~#titled x~, is not yet read: a property tag is still an unknown property.
 
 *** Arguments are call-by-need
 

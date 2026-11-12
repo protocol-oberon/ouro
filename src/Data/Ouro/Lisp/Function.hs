@@ -11,6 +11,8 @@ module Data.Ouro.Lisp.Function
 , misplacedBinding
 , misplacedDoc
 , patternParam
+, propertyParams
+, propertyResult
 , removedAttrForm
 , removedContextForm
 , removedLocalDefn
@@ -411,3 +413,44 @@ isHeadedBy :: Text -> S.Expr -> Bool
 isHeadedBy keyword = \case
                       S.Form _ (S.Symbol _ head' : _) -> head' == keyword
                       _otherExpr                      -> False
+
+
+-- A property always answers true or false: its return type is #boolean, and is never
+-- written. The tag, if one was written, is an error where it is.
+propertyResult :: SourcePos -> Maybe (SourcePos, S.ReaderTag) -> Either OuroError (Maybe (SourcePos, S.ReaderTag))
+propertyResult pos = \case
+    Nothing          -> Right $ Just (pos, S.BooleanTag)
+    Just (tagPos, _) -> lexicalError "A property always answers true or false, so it has no return type."
+                        & withBlurb "Write (define/property titled (#record r) ...): its result is checked as #boolean."
+                        & OuroError tagPos
+                        & Left
+
+
+-- A property is about one value, which it is given with a contract, never a function:
+-- (define/property titled (#record r) ...). A parameter has no position of its own, so one
+-- without a contract is reported at the property.
+propertyParams :: Text -> SourcePos -> [S.Param] -> Either OuroError ()
+propertyParams name pos = \case
+    [S.Param _ (Just (tagPos, S.FunctionTag)) _]
+        -> lexicalError "A property is about data, so its parameter cannot be #function."
+           & withBlurb "Give it the value it is about, with a contract: (define/property titled (#record r) ...)."
+           & OuroError tagPos
+           & Left
+    [S.Param _ (Just _) _]
+        -> Right ()
+    -- A pattern's name cannot be written in Ouro, so it is not named
+    [S.Param _ Nothing (Just _)]
+        -> lexicalError ("The pattern parameter of the property '" <> name <> "' has no contract.")
+           & withBlurb "Write the contract before the pattern: (define/property pair (#array (?a ?b)) ...)."
+           & OuroError pos
+           & Left
+    [S.Param param Nothing Nothing]
+        -> lexicalError ("The parameter '" <> param <> "' of the property '" <> name <> "' has no contract.")
+           & withBlurb ("Every parameter of a property has one, so the property is checked on data: a contract such as (#record " <> param <> ").")
+           & OuroError pos
+           & Left
+    _otherCount
+        -> lexicalError ("The property '" <> name <> "' takes one parameter, the value it is about.")
+           & withBlurb "A property is about one value, so it has one parameter: (define/property titled (#record r) ...)."
+           & OuroError pos
+           & Left

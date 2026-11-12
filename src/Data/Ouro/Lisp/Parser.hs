@@ -19,6 +19,7 @@ import           Data.Ouro.Lisp.Function     (checkFunctionName, checkParams,
                                               duplicateFunction, functionBody,
                                               functionDoc, graphBody,
                                               isFunctionKeyword, patternParam,
+                                              propertyParams, propertyResult,
                                               removedLocalDefn, typedResult)
 import           Data.Ouro.Lisp.Module.Types (Declaration (..),
                                               FunctionKind (..),
@@ -209,8 +210,9 @@ pHigherExpression = do
         Tkn.OpenParen -> within (Tkn.pos startTkn) ")" $ do
                          kwTkn <- popToken
                          case Tkn.tokenType kwTkn of
-                             Tkn.DefineProcedure -> pDefn pArgs (Tkn.pos startTkn)
-                             Tkn.DefineConstant  -> pDefn (pure []) (Tkn.pos startTkn)
+                             Tkn.DefineProcedure -> pDefn ProcedureKind pArgs     (Tkn.pos startTkn)
+                             Tkn.DefineConstant  -> pDefn ProcedureKind (pure []) (Tkn.pos startTkn)
+                             Tkn.DefineProperty  -> pDefn PropertyKind  pArgs     (Tkn.pos startTkn)
                              Tkn.Graph           -> pGraph (Tkn.pos startTkn)
                              Tkn.Import          -> pImport (Tkn.pos startTkn)
                              Tkn.Export          -> pExport (Tkn.pos startTkn)
@@ -230,15 +232,23 @@ pHigherExpression = do
 
 -- (define/procedure name (params) body), or (define/constant name body): a function of no
 -- parameters, with none written. Either may have a return type after its name.
-pDefn :: Parser [S.Param] -> SourcePos -> Parser ParsedDecl
-pDefn params pos = do
+-- (define/property name (params) body) is a property: a function of the property kind.
+pDefn :: FunctionKind k -> Parser [S.Param] -> SourcePos -> Parser ParsedDecl
+pDefn kind params pos = do
     name    <- expectSymbol "Expected a function name"
-    retType <- pReturnType
+    written <- pReturnType
     args    <- params
     body    <- collectUntil Tkn.CloseParen
 
     -- A pattern parameter binds something, and each name is bound once
     lift (checkParams pos args)
+
+    -- A property's result is #boolean, and its one parameter has a contract
+    retType <- case kind of
+                   ProcedureKind -> pure written
+                   PropertyKind  -> do
+                                    lift (propertyParams name pos args)
+                                    lift (propertyResult pos written)
 
     -- A (doc "...") among the body's direct elements is the function's documentation
     (doc, results) <- lift (functionDoc name body)
@@ -246,7 +256,7 @@ pDefn params pos = do
     -- A body is exactly one result expression, checked against the return type
     result <- lift (functionBody name pos results)
 
-    pure $ PFunction (SomeFunction (Function ProcedureKind pos name doc args (S.Form pos [typedResult retType result])))
+    pure $ PFunction (SomeFunction (Function kind pos name doc args (S.Form pos [typedResult retType result])))
 
 
 -- A type tag between a function's name and its parameters is its return type

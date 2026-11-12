@@ -632,7 +632,7 @@ splitWarningContext ctx =
                , [ labeled "Array of: " (highlightDiagnostic val) ]
                , Just blurb
                )
-        Lint (ShadowedBuiltin name)
+        Lint (ShadowedBuiltin _ name)
             -> ( title
                , [ labeled "Replaced Built-in: " (highlightDiagnostic name) ]
                , Just blurb

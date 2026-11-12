@@ -565,8 +565,8 @@ parenthesisedResult owner val = Lint $ ParenthesisedResult
     }
 
 -- Create a warning for a function that replaces a built-in
-shadowedBuiltin :: Text -> WarningContext
-shadowedBuiltin name = Lint $ ShadowedBuiltin { shadowedName = name }
+shadowedBuiltin :: Text -> Text -> WarningContext
+shadowedBuiltin kind name = Lint $ ShadowedBuiltin { shadowingKind = kind, shadowedName = name }
 
 -- Create a warning for a function or graph name that is not kebab-case
 notKebabCase :: Text -> Text -> Text -> WarningContext
@@ -630,11 +630,11 @@ warningBlurb = \case
         <> "(" <> val <> ") is [" <> val <> "].\n\n"
         <> "Perhaps remove the parentheses: " <> val <> ", if a single value is intended."
 
-    Lint (ShadowedBuiltin name)
+    Lint (ShadowedBuiltin kind name)
         -> "A function named after a built-in or a special form replaces it throughout the file, as a definition does in Scheme: "
         <> "a built-in in calls, in case guards and under any symbol it is also written with (= is eq, ∪ is union), "
         <> "a special form wherever it is called.\n\n"
-        <> "Perhaps choose another name for the function, unless replacing '" <> name <> "' is intended."
+        <> "Perhaps choose another name for the " <> kind <> ", unless replacing '" <> name <> "' is intended."
 
     Lint (NotKebabCase _ _ kebab)
         -> "Functions and graphs are named in kebab-case, as in other Lisps: lowercase words joined by '-'. "
@@ -667,7 +667,7 @@ warningSummary = \case
     Lint (UnanchoredLiteral _ val)      -> "Unanchored primitive literal " <> val <> " detected"
     Lint (DeprecatedSyntax feature new) -> "'" <> feature <> "' is now called '" <> new <> "'"
     Lint (ParenthesisedResult owner _)  -> "The result of '" <> owner <> "' is an array of one value"
-    Lint (ShadowedBuiltin name)         -> "The function '" <> name <> "' replaces the built-in '" <> name <> "'"
+    Lint (ShadowedBuiltin kind name)    -> "The " <> kind <> " '" <> name <> "' replaces the built-in '" <> name <> "'"
     Lint (NotKebabCase kind name _)     -> "The " <> kind <> " '" <> name <> "' is not named in kebab-case"
     Lint (ShadowedBundledModule name _) -> "The project's module '" <> name <> "' replaces the bundled '" <> name <> "'"
     Lint (ProcedureOfNoParameters name) -> "The procedure '" <> name <> "' takes no parameters, so it is a constant"

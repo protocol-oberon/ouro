@@ -126,6 +126,8 @@ importedModules = Group "Modules: imported modules, in memory"
                                                                           "{\"r\": \"Hello, Ann\"}")
     , ("not the importer's of the same name",      importsToJSON [helpers] "(import helpers) (define/procedure salutation () \"Bye, \") (graph g (:a (helpers/greet \"Ann\") :b (salutation)))"
                                                                           "{\"a\": \"Hello, Ann\", \"b\": \"Bye, \"}")
+    , ("an exported property is called with its qualifier", importsToJSON [people] "(import people) (graph g (:a (people/titled (:_label \"A\")) :b (people/titled (:x 1))))"
+                                                                          "{\"a\": true, \"b\": false}")
     , ("a module's own imports resolve in it",     importsToJSON [lower, middle] "(import middle) (graph g (:r (middle/call \"hi\")))"
                                                                                 "{\"r\": \"hi!\"}")
     , ("imports are not passed on to importers",   importsFailWith ["qualifierName = \"lower\""] [lower, middle]
@@ -235,6 +237,7 @@ importedModules = Group "Modules: imported modules, in memory"
 
     where
     helpers     = ("helpers", "(export greet)\n(define/procedure salutation () \"Hello, \")\n(define/procedure greet (n) (+ (salutation) n))")
+    people      = ("people", "(export titled)\n(define/property titled (#record r) (has r _label))")
     lower       = ("lower", "(export shout)\n(define/procedure shout (s) (+ s \"!\"))")
     middle      = ("middle", "(import lower)\n(export call)\n(define/procedure call (s) (lower/shout s))")
     unaware     = ("unaware", "(export call)\n(define/procedure call (s) (lower/shout s))")

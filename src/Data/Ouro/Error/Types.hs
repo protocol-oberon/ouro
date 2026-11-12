@@ -478,7 +478,8 @@ data LinterWarning
     --
     -- * Remediation: Issue warning. Suggest another name, unless the replacement is intended.
     | ShadowedBuiltin
-      { shadowedName :: Text -- The name of the built-in or special form the function replaces
+      { shadowingKind :: Text -- "function" or "property"
+      , shadowedName  :: Text -- The name of the built-in or special form the function replaces
       }
 
     -- LINT WARNING: NOT KEBAB CASE
@@ -488,7 +489,7 @@ data LinterWarning
     --
     -- * Remediation: Issue warning. Suggest the kebab-case name.
     | NotKebabCase
-      { declarationKind :: Text -- "function" or "graph"
+      { declarationKind :: Text -- "function", "property" or "graph"
       , declarationName :: Text -- The name as written
       , kebabName       :: Text -- The suggested kebab-case name
       }

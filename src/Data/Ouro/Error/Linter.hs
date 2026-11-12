@@ -68,11 +68,11 @@ lintModule ouroModule =
               | M.SomeFunction (M.Function _ _ name _ _ (S.Form _ [body])) <- Map.elems (ouroModule ^. M.functionRegistry) ]
     <> concat [ lintFns expr
               | M.Graph _ _ expr <- Map.elems (ouroModule ^. M.graphRegistry) ]
-    <> [ OuroWarning pos (shadowedBuiltin name)
-       | M.SomeFunction (M.Function _ pos name _ _ _) <- Map.elems (ouroModule ^. M.functionRegistry)
+    <> [ OuroWarning pos (shadowedBuiltin (kindName f) name)
+       | f@(M.SomeFunction (M.Function _ pos name _ _ _)) <- Map.elems (ouroModule ^. M.functionRegistry)
        , Map.member name builtinRegistry || name `elem` specialForms ]
-    <> [ OuroWarning pos (notKebabCase "function" name kebab)
-       | M.SomeFunction (M.Function _ pos name _ _ _) <- Map.elems (ouroModule ^. M.functionRegistry)
+    <> [ OuroWarning pos (notKebabCase (kindName f) name kebab)
+       | f@(M.SomeFunction (M.Function _ pos name _ _ _)) <- Map.elems (ouroModule ^. M.functionRegistry)
        , Just kebab <- [kebabCase name] ]
     <> [ OuroWarning pos (notKebabCase "graph" name kebab)
        | M.Graph pos name _ <- Map.elems (ouroModule ^. M.graphRegistry)
@@ -136,3 +136,10 @@ lintResult owner = \case
     renderNum n
         | n == fromInteger (round n) = T.pack (show (round n :: Integer))
         | otherwise                  = T.pack (show n)
+
+
+-- What a function is called in a warning: a property, or a function
+kindName :: M.SomeFunction -> Text
+kindName = \case
+    M.SomeFunction (M.Function M.PropertyKind _ _ _ _ _)  -> "property"
+    M.SomeFunction (M.Function M.ProcedureKind _ _ _ _ _) -> "function"

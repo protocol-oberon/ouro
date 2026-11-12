@@ -11,6 +11,7 @@ module Ouro.FunctionTest
 , threading
 , adjoining
 , constants
+, properties
 ) where
 
 import qualified Data.Map.Strict             as Map
@@ -491,8 +492,6 @@ constants = Group "Functions: a function of no parameters, named, is its value"
     , ("nor does a fn of none",                   compilesWithoutWarnings "(graph g (:r (let ($h (fn () 1)) (h))))")
     , ("a name that begins with defn/const is a name", failsWith "'defn/constant' cannot begin a form at the top level"
                                                             "(defn/constant c 1) (graph g (:r 1))")
-    , ("define/property is read, but is not yet a form", failsWith "'define/property' cannot begin a form at the top level"
-                                                            "(define/property p (x) true) (graph g (:r 1))")
 
       -- define/procedure, define/property and define/constant replace defn, defn/property and
       -- defn/const; each old form is an error that names its new one
@@ -576,6 +575,68 @@ documentation = Group "Functions: a body can hold one (doc ...)"
     ]
     where
     documents src name expected = withTests 1 . property $
+        either (const Nothing) docOf (tokenize "t.ouro" src >>= parseModule) === Just expected
+        where
+        docOf m = case Map.lookup name (M._functionRegistry m) of
+                      Just (M.SomeFunction (M.Function _ _ _ doc _ _)) -> Just doc
+                      Nothing                                          -> Nothing
+
+
+-- (define/property name (#contract x) body) is a property: a function of the property kind,
+-- about one value given with a contract, never a function, whose result is #boolean
+properties :: Group
+properties = Group "Properties: define/property"
+    [ ("a property is defined and called",        compilesToJSON "(define/property titled (#record r) (has r _label)) (graph g (:a (titled (:_label \"A\")) :b (titled (:x 1))))"
+                                                                 "{\"a\": true, \"b\": false}")
+    , ("it is a function of the property kind",   withTests 1 . property $
+                                                      fmap kindOf (tokenize "t.ouro" "(define/property titled (#record r) (has r _label)) (define/procedure f (x) x)" >>= parseModule)
+                                                      === Right (Just "property", Just "procedure"))
+
+      -- Its result is #boolean, never written
+    , ("its body must be Boolean",                failsWith "expectedProperty = \"#boolean\", actualProperty = \"#number\""
+                                                            "(define/property p (#number n) n) (graph g (:r (p 1)))")
+    , ("it is reported at the body",              failsWith "line 1, col 32"
+                                                            "(define/property p (#number n) n) (graph g (:r (p 1)))")
+    , ("it has no return type",                   failsWith "A property always answers true or false, so it has no return type."
+                                                            "(define/property p #boolean (#number n) true) (graph g (:r 1))")
+    , ("which is reported at the type",           failsWith "line 1, col 20"
+                                                            "(define/property p #boolean (#number n) true) (graph g (:r 1))")
+
+      -- One parameter, with a contract that is not #function
+    , ("a parameter has a contract",              failsWith "The parameter 'n' of the property 'p' has no contract."
+                                                            "(define/property p (n) true) (graph g (:r 1))")
+    , ("a pattern parameter too",                 failsWith "The pattern parameter of the property 'p' has no contract."
+                                                            "(define/property p ((?a ?b)) true) (graph g (:r 1))")
+    , ("which can be written before it",          compilesToJSON "(define/property same (#array (?a ?b)) (eq a b)) (graph g (:a (same (1 1)) :b (same (1 2))))"
+                                                                 "{\"a\": true, \"b\": false}")
+    , ("the contract is never #function",         failsWith "A property is about data, so its parameter cannot be #function."
+                                                            "(define/property p (#function f) true) (graph g (:r 1))")
+    , ("which is reported at the contract",       failsWith "line 1, col 21"
+                                                            "(define/property p (#function f) true) (graph g (:r 1))")
+    , ("a property takes one parameter",          failsWith "The property 'p' takes one parameter, the value it is about."
+                                                            "(define/property p (#number a #number b) true) (graph g (:r 1))")
+    , ("not none",                                failsWith "The property 'p' takes one parameter, the value it is about."
+                                                            "(define/property p () true) (graph g (:r 1))")
+
+      -- Otherwise it is a function as any other
+    , ("it can call itself, going down",          compilesToJSON "(define/property labelled (#record r) (and (has r _label) (forall (get-or r () part) labelled))) (graph g (:a (labelled (:_label \"A\" :part ((:_label \"B\")))) :b (labelled (:_label \"A\" :part ((:x 1))))))"
+                                                                 "{\"a\": true, \"b\": false}")
+    , ("it shares the defn's namespace",          failsWith "defined more than once"
+                                                            "(define/procedure titled (x) 1) (define/property titled (#record r) true) (graph g (:r 1))")
+    , ("it keeps a doc",                          documented "(define/property titled (#record r) (doc \"Has a label.\") (has r _label))" "titled" (Just "Has a label."))
+    , ("a warning names it a property",           warnsWith "The property 'Titled' is not named in kebab-case"
+                                                            "(define/property Titled (#record r) true) (graph g (:r (Titled (:a 1))))")
+    , ("as when it replaces a built-in",          warnsWith "The property 'len' replaces the built-in 'len'"
+                                                            "(define/property len (#array xs) true) (graph g (:r 1))")
+    ]
+    where
+    kindOf m = ( kind <$> Map.lookup "titled" (M._functionRegistry m)
+               , kind <$> Map.lookup "f" (M._functionRegistry m) )
+    kind :: M.SomeFunction -> T.Text
+    kind = \case
+        M.SomeFunction (M.Function M.PropertyKind _ _ _ _ _)  -> "property"
+        M.SomeFunction (M.Function M.ProcedureKind _ _ _ _ _) -> "procedure"
+    documented src name expected = withTests 1 . property $
         either (const Nothing) docOf (tokenize "t.ouro" src >>= parseModule) === Just expected
         where
         docOf m = case Map.lookup name (M._functionRegistry m) of
