@@ -1,0 +1,12 @@
+cradle:
+  cabal:
+    - path: "src"
+      component: "lib:ouro"
+    - path: "cli"
+      component: "lib:ouro-cli"
+    - path: "app"
+      component: "exe:ouro"
+    - path: "test"
+      component: "test:ouro-test"
+    - path: "test-cli"
+      component: "test:ouro-cli-test"
