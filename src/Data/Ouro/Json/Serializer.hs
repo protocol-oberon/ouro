@@ -9,7 +9,6 @@ import           Control.Monad.Reader      (MonadReader (..), ReaderT (..),
                                             asks)
 import           Control.Monad.State       (MonadState, StateT (..), modify)
 import           Data.Char                 (ord)
-import           Data.List                 (isSuffixOf)
 import           Data.Ouro.Internal.Expr   (Expr)
 import qualified Data.Ouro.Internal.Expr   as Expr
 import qualified Data.Ouro.Internal.Kinds  as JLD
@@ -118,11 +117,7 @@ buildJSON :: Expr t -> Printer ()
 buildJSON = \case
               -- Primatives
               Expr.String    txt   -> tell $ escapeString txt
-              Expr.Number    n     -> let strn = show n
-                                      in case ".0" `isSuffixOf` strn of
-                                             -- Suffix length will always be 2 due to I.Expr converting Ints to Doubles
-                                             True  -> tell $ B.fromString $ take (length strn - 2) strn
-                                             False -> tell $ B.fromString $ show n
+              Expr.Number    n     -> tell $ B.fromText $ Expr.renderNumber n
 
               Expr.Boolean   True  -> tell "true"
               Expr.Boolean   False -> tell "false"

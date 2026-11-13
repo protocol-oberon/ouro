@@ -12,6 +12,7 @@ module Ouro.LanguageTest
 , encoding
 , endOfFile
 , strings
+, stringBuiltins
 , logicAndCollections
 , conditions
 , contexts
@@ -49,7 +50,14 @@ import           Utils                     (compilesToJSON, emitsExactly,
 -- compile-time values must be used up before then, or the graph does not compile.
 serialisation :: Group
 serialisation = Group "Serialisation: only values reach the output"
-    [ ("a let-bound fn is not output",              compilesToJSON "(graph g (let ($f (fn (x) x)) (:r (f 1))))"
+    [ -- A Number is written as JavaScript writes it: whole, or in plain decimal, between 10^-7 and 10^21
+      ("a whole number is written whole",           compilesToJSON "(graph g (:a 9999999 :b 10000000 :c 123456789 :d -42))"
+                                                                   "{\"a\": 9999999, \"b\": 10000000, \"c\": 123456789, \"d\": -42}")
+    , ("a fraction in plain decimal",               compilesToJSON "(graph g (:a 0.00001 :b 0.1 :c (+ 0.1 0.2) :d 2.5))"
+                                                                   "{\"a\": 0.00001, \"b\": 0.1, \"c\": 0.30000000000000004, \"d\": 2.5}")
+    , ("and beyond that range in scientific notation", compilesToJSON "(graph g (:a 1e21 :b 1e-8))"
+                                                                   "{\"a\": 1.0e21, \"b\": 1.0e-8}")
+    , ("a let-bound fn is not output",              compilesToJSON "(graph g (let ($f (fn (x) x)) (:r (f 1))))"
                                                                    "{\"r\": 1}")
     , ("a fn as an attribute value is an error",    failsWith "an unexecuted function"
                                                               "(graph g (:f (fn (x) x)))")
@@ -605,6 +613,74 @@ strings = Group "Strings: escaped in the output"
     ]
 
 
+-- The string built-ins each take the string first, so -> threads through them. to-string
+-- writes a value as the JSON output does; the rest take Strings apart and put them together.
+stringBuiltins :: Group
+stringBuiltins = Group "Strings: built-ins, each taking the string first"
+    [ -- to-string
+      ("to-string writes a Number as the output does", compilesToJSON "(graph g (:a (to-string 42) :b (to-string 4.9) :c (to-string 123456789) :d (to-string -0.5) :e (to-string (+ 0.1 0.2))))"
+                                                                   "{\"a\": \"42\", \"b\": \"4.9\", \"c\": \"123456789\", \"d\": \"-0.5\", \"e\": \"0.30000000000000004\"}")
+    , ("and a Boolean, a String, a URI and a Date",   compilesToJSON "(graph g (:a (to-string true) :b (to-string \"x\") :c (to-string #uri \"https://a.org/1\") :d (to-string #date \"1642-01-01T00:00:00Z\")))"
+                                                                   "{\"a\": \"true\", \"b\": \"x\", \"c\": \"https://a.org/1\", \"d\": \"1642-01-01T00:00:00Z\"}")
+    , ("so a number can be part of an id",          compilesToJSON "(graph g (:id (+ \"https://a.org/coin/\" (to-string 7))))"
+                                                                   "{\"id\": \"https://a.org/coin/7\"}")
+    , ("a Record has no single text",               failsWith "a String, a finite Number, a Boolean, a URI or a Date"
+                                                              "(graph g (:r (to-string (:a 1))))")
+    , ("to-string takes one argument",              failsWith "IncorrectArity"
+                                                              "(graph g (:r (to-string 1 2)))")
+    , ("an error in an argument is passed on",      failsWith "a Number + a String"
+                                                              "(graph g (:r (to-string (+ 1 \"a\"))))")
+
+      -- split and join
+    , ("split takes a String apart at a separator",  compilesToJSON "(graph g (:a (split \"Manet, Monet\" \", \") :b (split \"Manet\" \",\") :c (split \"a,,b\" \",\")))"
+                                                                   "{\"a\": [\"Manet\", \"Monet\"], \"b\": [\"Manet\"], \"c\": [\"a\", \"\", \"b\"]}")
+    , ("a separator is at least one character",     failsWith "a separator of at least one character"
+                                                              "(graph g (:r (split \"abc\" \"\")))")
+    , ("join puts Strings together with a separator", compilesToJSON "(graph g (:a (join (\"a\" \"b\") \", \") :b (join () \"-\") :c (join (split \"a b\" \" \") \"-\")))"
+                                                                   "{\"a\": \"a, b\", \"b\": \"\", \"c\": \"a-b\"}")
+    , ("join takes only Strings",                   failsWith "an Array of Strings to join"
+                                                              "(graph g (:r (join (1 2) \",\")))")
+    , ("so a Number is written with to-string first", compilesToJSON "(graph g (:r (join (map (1 2 3) to-string) \"-\")))"
+                                                                   "{\"r\": \"1-2-3\"}")
+
+      -- case and white space
+    , ("upper-case, lower-case and trim",           compilesToJSON "(graph g (:a (upper-case \"dutch\") :b (lower-case \"MANET\") :c (trim \"  Manet  \")))"
+                                                                   "{\"a\": \"DUTCH\", \"b\": \"manet\", \"c\": \"Manet\"}")
+    , ("each takes a String",                       failsWith "expectedType = \"a String\""
+                                                              "(graph g (:r (upper-case 1)))")
+    , ("they thread, the string first",             compilesToJSON "(graph g (:r (-> \"  dutch \" (trim) (upper-case))))"
+                                                                   "{\"r\": \"DUTCH\"}")
+
+      -- starts-with and ends-with
+    , ("starts-with and ends-with",                 compilesToJSON "(graph g (:a (starts-with \"https://a.org\" \"https\") :b (ends-with \"C-0042\" \"42\") :c (starts-with \"a\" \"abc\")))"
+                                                                   "{\"a\": true, \"b\": true, \"c\": false}")
+
+      -- slice
+    , ("slice takes characters from start up to end", compilesToJSON "(graph g (:a (slice \"C-0042\" 2 6) :b (slice \"C-0042\" -4 6) :c (slice \"C-0042\" 2 -1) :d (slice \"C-0042\" 0 0)))"
+                                                                   "{\"a\": \"0042\", \"b\": \"0042\", \"c\": \"004\", \"d\": \"\"}")
+    , ("an index outside the String is an error",   failsWith "a start and an end within the String's 6 characters"
+                                                              "(graph g (:r (slice \"C-0042\" 2 9)))")
+    , ("as is an end before the start",             failsWith "the start first"
+                                                              "(graph g (:r (slice \"C-0042\" 4 2)))")
+    , ("an index is a whole number",                failsWith "a whole number for each of start and end"
+                                                              "(graph g (:r (slice \"abc\" 0.5 1)))")
+
+      -- pad-start
+    , ("pad-start pads to a width",                 compilesToJSON "(graph g (:a (pad-start \"42\" 4 \"0\") :b (pad-start \"12345\" 4 \"0\")))"
+                                                                   "{\"a\": \"0042\", \"b\": \"12345\"}")
+    , ("with one character",                        failsWith "one character to pad with"
+                                                              "(graph g (:r (pad-start \"42\" 4 \"00\")))")
+    , ("so an accession number can be built",       compilesToJSON "(graph g (:r (+ \"C-\" (pad-start (to-string 7) 4 \"0\"))))"
+                                                                   "{\"r\": \"C-0007\"}")
+
+      -- replace-all
+    , ("replace-all replaces every one",            compilesToJSON "(graph g (:r (replace-all \"a b c\" \" \" \"-\")))"
+                                                                   "{\"r\": \"a-b-c\"}")
+    , ("of at least one character",                 failsWith "a String of at least one character to replace"
+                                                              "(graph g (:r (replace-all \"abc\" \"\" \"-\")))")
+    ]
+
+
 -- not negates; exists, forall and filter call a function on each element, as map does,
 -- and exists and forall stop at the element that decides; contains and distinct compare as eq
 -- does; has and get-or walk a path as get does, and tell a missing key from an error; image
@@ -1115,8 +1191,8 @@ knownGaps = Group "Known gaps: current and fixed"
                                                                    "(graph null-results (:r 1))")
     , ("gap 47 (fixed): and an attribute named so, read where it is used", fixedGap $ failsWith "an unbound expression"
                                                                    "(graph g (:null-ish 1 :r null-ish))")
-    , ("gap 48: a whole number of ten million or more is written in scientific notation", compilesToJSON "(graph g (:a 9999999 :b 10000000 :c 123456789))"
+    , ("gap 48 (fixed): a whole number of ten million or more is written in scientific notation", fixedGap $ compilesToJSON "(graph g (:a 9999999 :b 10000000 :c 123456789))"
                                                                    "{\"a\": 9999999, \"b\": 1.0e7, \"c\": 1.23456789e8}")
-    , ("gap 48: and so is a small fraction",        compilesToJSON "(graph g (:r 0.00001))"
+    , ("gap 48 (fixed): and so is a small fraction", fixedGap $ compilesToJSON "(graph g (:r 0.00001))"
                                                                    "{\"r\": 1.0e-5}")
     ]

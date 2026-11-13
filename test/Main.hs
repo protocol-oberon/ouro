@@ -82,6 +82,7 @@ main = withUtf8Console $ do
         , Language.encoding
         , Language.endOfFile
         , Language.strings
+        , Language.stringBuiltins
         , Language.logicAndCollections
         , Language.conditions
         , Language.contexts

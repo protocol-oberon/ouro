@@ -9,6 +9,8 @@ import           Data.List                 (intercalate, sortOn)
 import qualified Data.Ouro.Internal.Kinds  as JLD
 import           Data.Ouro.Internal.Schema (Schema)
 import           Data.Text                 (Text, unpack)
+import qualified Data.Text                 as T
+import           Numeric                   (showFFloat)
 import           Data.Time                 (UTCTime)
 import qualified Text.URI                  as MURI
 import           Text.URI                  (URI)
@@ -240,3 +242,19 @@ instance Show (Expr t) where
                                 False -> "│   "
                 pad       = replicate (length binding) ' '
             in concat env ++ marker ++ binding ++ render (env ++ [parentBar, pad]) isLast val ++ "\n"
+
+
+-- renderNumber.
+--
+-- A Number as Ouro writes it, in JSON and with to-string, as JavaScript writes numbers: a
+-- whole number as an integer, and any other in plain decimal with the fewest digits that
+-- read back as the same Double, between 10^-7 and 10^21; outside that range, in scientific
+-- notation. So 123456789 is "123456789", 0.1 is "0.1" and 1.0e-8 stays "1.0e-8".
+renderNumber :: Double -> Text
+renderNumber n =
+    case (plain, n == fromInteger (round n)) of
+        (True,  True)  -> T.pack (show (round n :: Integer))
+        (True,  False) -> T.pack (showFFloat Nothing n "")
+        (False, _)     -> T.pack (show n)
+    where
+    plain = n == 0 || (abs n >= 1.0e-7 && abs n < 1.0e21)

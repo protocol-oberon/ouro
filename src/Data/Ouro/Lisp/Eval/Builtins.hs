@@ -32,8 +32,10 @@ import           Data.Time                   (UTCTime (..), addUTCTime,
 import           Data.Time.Calendar          (addDays,
                                               addGregorianMonthsClip,
                                               addGregorianYearsClip)
-import           Data.Time.Format            (defaultTimeLocale, parseTimeM)
+import           Data.Time.Format            (defaultTimeLocale, formatTime,
+                                              parseTimeM)
 import           Text.Megaparsec             (SourcePos)
+import qualified Text.URI                    as URI
 
 
 -- Maps syntax strings to their respective first-class execution handles
@@ -70,6 +72,18 @@ builtinRegistry = Map.fromList
                       -- Runtime temporal handlers
                       , ("years-end",   handleYearsEndModifier)
                       , ("months-end",  handleMonthsEndModifier)
+                      -- Strings: each takes the string first, so -> threads through them
+                      , ("to-string",   handleToString)
+                      , ("split",       handleSplit)
+                      , ("join",        handleJoin)
+                      , ("upper-case",  handleUpperCase)
+                      , ("lower-case",  handleLowerCase)
+                      , ("trim",        handleTrim)
+                      , ("starts-with", handleStartsWith)
+                      , ("ends-with",   handleEndsWith)
+                      , ("slice",       handleSlice)
+                      , ("pad-start",   handlePadStart)
+                      , ("replace-all", handleReplaceAll)
                       ]
 
 
@@ -96,6 +110,18 @@ builtinArity = Map.fromList $
        ]
     <> [ (unit, (1, unit <> " takes one Number: (" <> unit <> " 2)."))
        | unit <- ["years", "months", "days", "hours", "minutes", "seconds", "years-end", "months-end"] ]
+    <> [ ("to-string",   (1, "to-string takes one value: (to-string 42)."))
+       , ("split",       (2, "split takes a String, then the separator: (split \"a, b\" \", \")."))
+       , ("join",        (2, "join takes an Array of Strings, then the separator: (join (\"a\" \"b\") \", \")."))
+       , ("upper-case",  (1, "upper-case takes one String: (upper-case s)."))
+       , ("lower-case",  (1, "lower-case takes one String: (lower-case s)."))
+       , ("trim",        (1, "trim takes one String: (trim s)."))
+       , ("starts-with", (2, "starts-with takes a String, then the prefix: (starts-with s \"lob:\")."))
+       , ("ends-with",   (2, "ends-with takes a String, then the suffix: (ends-with s \".jpg\")."))
+       , ("slice",       (3, "slice takes a String, a start and an end: (slice \"C-0042\" 2 6)."))
+       , ("pad-start",   (3, "pad-start takes a String, a width and one character: (pad-start \"42\" 4 \"0\")."))
+       , ("replace-all", (3, "replace-all takes a String, what to replace and what with: (replace-all s \"-\" \" \")."))
+       ]
 
 
 -- The hint for an operator given any number of operands but two
@@ -872,3 +898,220 @@ handleMonthsEndModifier = mkDurationHandler "months-end" MonthsToEnd
 --- Shared Utility Predicates ---
 parseISO8601 :: String -> Maybe UTCTime
 parseISO8601 s = parseTimeM True defaultTimeLocale "%Y-%m-%dT%H:%M:%SZ" s
+
+
+--- Strings ---
+-- Each takes the string it works on first, so (-> label (trim) (upper-case)) threads. A
+-- character is a Unicode code point, as for len.
+
+-- Runs a string built-in on its arguments: an error among them is passed on, and the wrong
+-- number of them is an arity error
+stringBuiltin :: Text -> Int -> ([L.Expr] -> Reader Env L.Expr) -> SourcePos -> [L.Expr] -> Reader Env L.Expr
+stringBuiltin name arity body pos args =
+    case (find isError args, length args == arity) of
+        (Just err, _)    -> pure err
+        (Nothing, False) -> Data.Ouro.Error.Diagnostics.incorrectArity name arity (length args)
+                            & OuroError pos
+                            & L.EvalError
+                            & pure
+        (Nothing, True)  -> body args
+
+-- An argument of the wrong kind, with what the built-in takes
+wrongArgument :: SourcePos -> Text -> Text -> L.Expr -> Reader Env L.Expr
+wrongArgument pos expected blurb other =
+    Data.Ouro.Error.Diagnostics.typeMismatch expected (humanReadableType other)
+    & withBlurb blurb
+    & OuroError pos
+    & L.EvalError
+    & pure
+
+string :: Text -> Reader Env L.Expr
+string = pure . L.Primitive . I.String
+
+boolean :: Bool -> Reader Env L.Expr
+boolean = pure . L.Primitive . I.Boolean
+
+-- A Number that is a whole number, as an Int
+wholeNumber :: Double -> Maybe Int
+wholeNumber n =
+    case n == fromInteger (round n) of
+        True  -> Just (round n)
+        False -> Nothing
+
+
+-- handleToString.
+--
+-- (to-string x): a String, Number, Boolean, URI or Date as a String, written as the JSON
+-- output writes it, so (to-string 4.9) is "4.9" and (to-string 123456789) is "123456789".
+handleToString :: SourcePos -> [L.Expr] -> Reader Env L.Expr
+handleToString pos = stringBuiltin "to-string" 1 written pos
+    where
+    written = \case
+        [L.Primitive (I.String s)]   -> string s
+        [L.Primitive (I.Number n)]
+            | not (isNaN n || isInfinite n)
+                                     -> string (I.renderNumber n)
+        [L.Primitive (I.Boolean b)]  -> string (case b of True -> "true"; False -> "false")
+        [L.Primitive (I.URI uri)]    -> string (URI.render uri)
+        [L.Primitive (I.Date date)]  -> string (T.pack (formatTime defaultTimeLocale "%Y-%m-%dT%H:%M:%SZ" date))
+        other : _                    -> wrongArgument pos "a String, a finite Number, a Boolean, a URI or a Date" toStringBlurb other
+        []                           -> wrongArgument pos "a String, a finite Number, a Boolean, a URI or a Date" toStringBlurb (L.Array [])
+
+    toStringBlurb = "to-string writes one value as text: (to-string 42) is \"42\". A Record or an Array has no single text; build one with join."
+
+
+-- handleSplit.
+--
+-- (split s separator): the pieces of s between each separator, as an Array of Strings, so
+-- (split "Manet, Monet" ", ") is ("Manet" "Monet"). A string without the separator is one piece.
+handleSplit :: SourcePos -> [L.Expr] -> Reader Env L.Expr
+handleSplit pos = stringBuiltin "split" 2 pieces pos
+    where
+    pieces = \case
+        [L.Primitive (I.String s), L.Primitive (I.String sep)]
+            | not (T.null sep) -> pure (L.Array (map (L.Primitive . I.String) (T.splitOn sep s)))
+            | otherwise        -> wrongArgument pos "a separator of at least one character" splitBlurb (L.Primitive (I.String sep))
+        [L.Primitive (I.String _), other] -> wrongArgument pos "a String to split at" splitBlurb other
+        other : _                         -> wrongArgument pos "a String to split" splitBlurb other
+        []                                -> wrongArgument pos "a String to split" splitBlurb (L.Array [])
+
+    splitBlurb = "split takes the String first and the separator second: (split \"Manet, Monet\" \", \")."
+
+
+-- handleJoin.
+--
+-- (join strings separator): an Array of Strings joined into one, with the separator between
+-- each, so (join ("a" "b") ", ") is "a, b". An empty Array is "".
+handleJoin :: SourcePos -> [L.Expr] -> Reader Env L.Expr
+handleJoin pos = stringBuiltin "join" 2 joined pos
+    where
+    joined = \case
+        [arr, L.Primitive (I.String sep)]
+            | Just elements <- L.asArray arr
+            -> case [ e | e <- elements, not (isString e) ] of
+                   []        -> string (T.intercalate sep [ s | L.Primitive (I.String s) <- elements ])
+                   other : _ -> wrongArgument pos "an Array of Strings to join" joinBlurb other
+        [arr, other]
+            | Just _ <- L.asArray arr     -> wrongArgument pos "a String to join with" joinBlurb other
+        other : _                         -> wrongArgument pos "an Array of Strings to join" joinBlurb other
+        []                                -> wrongArgument pos "an Array of Strings to join" joinBlurb (L.Array [])
+
+    joinBlurb = "join takes the Array first and the separator second: (join (\"a\" \"b\") \", \"). Write a Number with to-string first: (map xs to-string)."
+    isString  = \case
+        L.Primitive (I.String _) -> True
+        _notAString              -> False
+
+
+-- handleUpperCase, handleLowerCase and handleTrim.
+--
+-- One String changed: every letter upper or lower case, or the white space at both ends removed.
+handleUpperCase, handleLowerCase, handleTrim :: SourcePos -> [L.Expr] -> Reader Env L.Expr
+handleUpperCase = oneString "upper-case" T.toUpper
+handleLowerCase = oneString "lower-case" T.toLower
+handleTrim      = oneString "trim"       T.strip
+
+oneString :: Text -> (Text -> Text) -> SourcePos -> [L.Expr] -> Reader Env L.Expr
+oneString name change pos = stringBuiltin name 1 changed pos
+    where
+    changed = \case
+        [L.Primitive (I.String s)] -> string (change s)
+        other : _                  -> wrongArgument pos "a String" ("(" <> name <> " s) takes one String.") other
+        []                         -> wrongArgument pos "a String" ("(" <> name <> " s) takes one String.") (L.Array [])
+
+
+-- handleStartsWith and handleEndsWith.
+--
+-- (starts-with s prefix), (ends-with s suffix): whether s begins or ends with the other String.
+handleStartsWith, handleEndsWith :: SourcePos -> [L.Expr] -> Reader Env L.Expr
+handleStartsWith = twoStrings "starts-with" T.isPrefixOf
+handleEndsWith   = twoStrings "ends-with"   T.isSuffixOf
+
+twoStrings :: Text -> (Text -> Text -> Bool) -> SourcePos -> [L.Expr] -> Reader Env L.Expr
+twoStrings name test pos = stringBuiltin name 2 answer pos
+    where
+    answer = \case
+        [L.Primitive (I.String s), L.Primitive (I.String part)] -> boolean (test part s)
+        [L.Primitive (I.String _), other]                        -> wrongArgument pos "a String to look for" blurb other
+        other : _                                                -> wrongArgument pos "a String to look in" blurb other
+        []                                                       -> wrongArgument pos "a String to look in" blurb (L.Array [])
+    blurb = "(" <> name <> " s part) takes the String to look in first: (" <> name <> " \"https://a.org\" \"https\")."
+
+
+-- handleSlice.
+--
+-- (slice s start end): the characters of s from start up to, not including, end. A negative
+-- index counts from the end, as in a path, so (slice "C-0042" 2 6) and (slice "C-0042" -4 6)
+-- are both "0042". Indexes outside the String are an error, as an index past the end of an
+-- Array is.
+handleSlice :: SourcePos -> [L.Expr] -> Reader Env L.Expr
+handleSlice pos = stringBuiltin "slice" 3 sliced pos
+    where
+    sliced = \case
+        [L.Primitive (I.String s), L.Primitive (I.Number a), L.Primitive (I.Number b)]
+            | Just i <- wholeNumber a, Just j <- wholeNumber b
+            -> let size    = T.length s
+                   from k  = case k < 0 of
+                                 True  -> size + k
+                                 False -> k
+                   (i', j') = (from i, from j)
+               in case 0 <= i' && i' <= j' && j' <= size of
+                      True  -> string (T.take (j' - i') (T.drop i' s))
+                      False -> Data.Ouro.Error.Diagnostics.typeMismatch
+                                   ("a start and an end within the String's " <> T.pack (show size) <> " characters, the start first")
+                                   (T.pack (show i <> " to " <> show j))
+                               & withBlurb sliceBlurb
+                               & OuroError pos
+                               & L.EvalError
+                               & pure
+        [L.Primitive (I.String _), a, b] -> wrongArgument pos "a whole number for each of start and end" sliceBlurb (notWhole a b)
+        other : _                        -> wrongArgument pos "a String to slice" sliceBlurb other
+        []                               -> wrongArgument pos "a String to slice" sliceBlurb (L.Array [])
+
+    sliceBlurb = "slice takes the characters from start up to, not including, end: (slice \"C-0042\" 2 6) is \"0042\". A negative index counts from the end."
+    notWhole a b = case a of
+        L.Primitive (I.Number n) | Just _ <- wholeNumber n -> b
+        _notWhole                                          -> a
+
+
+-- handlePadStart.
+--
+-- (pad-start s width fill): s with the fill character written before it until it is width
+-- characters long, so (pad-start "42" 4 "0") is "0042". A String already that long is unchanged.
+handlePadStart :: SourcePos -> [L.Expr] -> Reader Env L.Expr
+handlePadStart pos = stringBuiltin "pad-start" 3 padded pos
+    where
+    padded = \case
+        [L.Primitive (I.String s), L.Primitive (I.Number w), L.Primitive (I.String fill)]
+            | Just width <- wholeNumber w, width >= 0
+            -> case T.uncons fill of
+                   Just (c, rest) | T.null rest -> string (T.justifyRight width c s)
+                   _notOneCharacter             -> wrongArgument pos "one character to pad with" padBlurb (L.Primitive (I.String fill))
+        [L.Primitive (I.String _), w, _]
+            | not (isWholeNumber w)       -> wrongArgument pos "a whole number of characters, at least 0" padBlurb w
+        [L.Primitive (I.String _), _, other] -> wrongArgument pos "one character to pad with" padBlurb other
+        other : _                         -> wrongArgument pos "a String to pad" padBlurb other
+        []                                -> wrongArgument pos "a String to pad" padBlurb (L.Array [])
+
+    padBlurb = "pad-start takes the String, its width and one character: (pad-start \"42\" 4 \"0\") is \"0042\"."
+    isWholeNumber = \case
+        L.Primitive (I.Number n) | Just k <- wholeNumber n -> k >= 0
+        _notWhole                                          -> False
+
+
+-- handleReplaceAll.
+--
+-- (replace-all s old new): s with every old replaced by new, so (replace-all "a b c" " " "-")
+-- is "a-b-c".
+handleReplaceAll :: SourcePos -> [L.Expr] -> Reader Env L.Expr
+handleReplaceAll pos = stringBuiltin "replace-all" 3 replaced pos
+    where
+    replaced = \case
+        [L.Primitive (I.String s), L.Primitive (I.String old), L.Primitive (I.String new)]
+            | not (T.null old) -> string (T.replace old new s)
+            | otherwise        -> wrongArgument pos "a String of at least one character to replace" replaceBlurb (L.Primitive (I.String old))
+        [L.Primitive (I.String _), L.Primitive (I.String _), other] -> wrongArgument pos "a String to replace it with" replaceBlurb other
+        [L.Primitive (I.String _), other, _]                         -> wrongArgument pos "a String to replace" replaceBlurb other
+        other : _                                                    -> wrongArgument pos "a String to replace in" replaceBlurb other
+        []                                                           -> wrongArgument pos "a String to replace in" replaceBlurb (L.Array [])
+
+    replaceBlurb = "replace-all takes the String, what to replace and what to write instead: (replace-all \"a b\" \" \" \"-\") is \"a-b\"."
