@@ -213,6 +213,7 @@ A module uses another's functions by importing it, and offers its own by exporti
 | Empty values   | =#record-empty=, =#array-empty=, =()=    | ={}=, =[]= and =[]=                                                 |
 | Hole           | =?=, =?name=, =?..name=                  | a placeholder in a call, or part of a pattern                       |
 | Delimiters     | =( )=                                    | =[ ]= is reserved: it parses, but has no meaning yet                |
+| Range          | =(1..500)=, =(2 4 .. 10)=                | =..= after one or two expressions and before one, alone in their parentheses; anywhere else an error |
 | Keywords       | =define/procedure=, =define/constant=, =define/property=, =graph=, =import=, =export= | a definition names its kind: =define= on its own or of another kind (=define/graph=) is an error, ='define' is not a definition: say what is defined, …=, and =defn=, =defn/const= and =defn/property=, which these replace, are errors that name their replacement, =defn is now define/procedure: …=; a name that only begins with one of them (=defined=, =defnode=, =defn/constant=) is a symbol; =define/property= is read, but is not yet a form, so it is an invalid top-level keyword; no import is qualified =define= or =defn= (~(import lib/define)~ is an error, and ~as define~ and ~as defn~ are not names), since its functions would read as these |
 
 Block comments are written ~#| … |#~. A symbol starts with a letter, one of the operator characters ~_ + - * / < > = ! & | ~~, or one of the symbols of logic and sets ~¬ ∧ ∨ ∀ ∃ ∄ ∪ ∩ ∖ ⊆ ⋃ ⋂ ⊨~, and may also contain digits, ~?~ and ~'~. On its own, each of those symbols, like =λ=, is read as the name it stands for (see [[*Functions: =define/procedure=, =fn= and calls][functions]]).
@@ -636,6 +637,7 @@ shadows them with its own attribute pairs.
 | Negation    | ~not~                                     | ~(not b)~ of one Boolean                                                                |
 | Length      | ~len~                                     | ~(len x)~ is the number of an array's elements, or of a string's characters             |
 | Collections | ~contains~ ~distinct~                     | ~(contains coll x)~ for an element or a substring; ~(distinct xs)~ drops repeats        |
+| Ranges      | =(1..5)= =(2 4 .. 10)= ~zip~             | whole numbers from start to end, both included; ~(zip xs ys)~ pairs two Arrays of one length |
 | Strings     | ~to-string~ ~split~ ~join~                | ~(to-string 42)~ is ="42"=; ~(split "a, b" ", ")~ is ~("a" "b")~; ~(join xs ", ")~ joins Strings |
 | More strings | ~upper-case~ ~lower-case~ ~trim~ ~starts-with~ ~ends-with~ ~slice~ ~pad-start~ ~replace-all~ | each takes the String first, so =->= threads through them (see below) |
 | Sets        | ~union~ ~intersect~ ~setminus~ ~subset~   | arrays as sets: ~(union (1 2) (2 3))~ is ~(1 2 3)~; ~(subset a b)~ for a ⊆ b            |
@@ -653,6 +655,10 @@ Every built-in takes a fixed number of arguments, and many values are an array: 
 - ~(slice s start end)~ is the characters from =start= up to, not including, =end=; a negative index counts from the end, as in a path, so ~(slice "C-0042" 2 6)~ and ~(slice "C-0042" -4 6)~ are both ="0042"=. Indexes outside the String, or an end before the start, are an error.
 - ~(pad-start s width fill)~ writes the one-character =fill= before =s= until it is =width= characters long, ~(pad-start "42" 4 "0")~ is ="0042"=; a String already that long is unchanged.
 - ~(replace-all s old new)~ replaces every =old=, of at least one character, with =new=.
+
+*Ranges.* ~(start..end)~ is the whole numbers from =start= to =end=, both included, as Haskell's =[1..500]=: ~(1..5)~ is ~(1 2 3 4 5)~, and an end below the start gives =()=. Each end is an expression, ~(1..n)~, ~(1..(len xs))~, and must be a whole number. =..= is read only between the two ends of a range, alone in its parentheses: ~(1..2..3)~, ~(..5)~ and a =..= in a record are errors. It is a call of a built-in that cannot be written, =%range=, so ~(map (1..500) f)~ numbers 500 records without listing them. Two numbers before =..= count in steps of their difference, as Haskell's =[2,4..10]=: ~(2 4 .. 10)~ is ~(2 4 6 8 10)~ and ~(5 4 .. 1)~ counts down, ~(5 4 3 2 1)~; the end is included when a step lands on it, ~(1 3 .. 6)~ is ~(1 3 5)~, and a step away from the end gives =()=. A step of 0 is an error.
+
+*=zip=.* ~(zip xs ys)~ pairs two Arrays element by element, each pair an Array of two: ~(zip (1 2) ("a" "b"))~ is ~((1 "a") (2 "b"))~. With a range it numbers a list, ~(zip (1..(len xs)) xs)~, and a pattern parameter takes each pair apart, ~(map (zip (1..(len xs)) xs) (fn ((?n ?x)) ...))~. Haskell's =zip= stops at the shorter list, for zipping with an endless one; Ouro has none, so Arrays of different lengths are an error, rather than the longer one's last elements being lost.
 
 *Numbers in the output.* A Number is written as JavaScript writes one: a whole number as an integer, =123456789=, and any other in plain decimal with the fewest digits that read back as the same number, =0.1=, =0.00001=, between 10^-7 and 10^21; beyond that range, in scientific notation, =1.0e21=. =to-string= writes the same digits.
 

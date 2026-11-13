@@ -52,6 +52,7 @@ pDelims = lexeme . withPos $ choice
                              , Tkn.CloseParen   <$ char ')'
                              , Tkn.OpenBracket  <$ char '['
                              , Tkn.CloseBracket <$ char ']'
+                             , Tkn.DotDot       <$ string ".."
                              ]
 
 

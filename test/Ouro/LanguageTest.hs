@@ -673,6 +673,38 @@ stringBuiltins = Group "Strings: built-ins, each taking the string first"
     , ("so an accession number can be built",       compilesToJSON "(graph g (:r (+ \"C-\" (pad-start (to-string 7) 4 \"0\"))))"
                                                                    "{\"r\": \"C-0007\"}")
 
+      -- ranges, Haskell's, both ends included
+    , ("a range counts from start to end",          compilesToJSON "(graph g (:a (1..5) :b (0..0) :c (5..1) :d (-2..2)))"
+                                                                   "{\"a\": [1, 2, 3, 4, 5], \"b\": [0], \"c\": [], \"d\": [-2, -1, 0, 1, 2]}")
+    , ("its ends are expressions",                  compilesToJSON "(graph g (let ($n 3 $xs (\"a\" \"b\")) (:a (1..n) :b (1..(len xs)) :c (1 .. 2))))"
+                                                                   "{\"a\": [1, 2, 3], \"b\": [1, 2], \"c\": [1, 2]}")
+    , ("so numbered ids need no list",              compilesToJSON "(graph g (:r (map (1..3) (fn (n) (+ \"C-\" (pad-start (to-string n) 4 \"0\"))))))"
+                                                                   "{\"r\": [\"C-0001\", \"C-0002\", \"C-0003\"]}")
+    , ("an end is a whole number",                  failsWith "a whole number at each end of a range"
+                                                              "(graph g (:r (1..2.5)))")
+    , ("a range is alone in its parentheses",       failsWith "A range is written (start..end)"
+                                                              "(graph g (:r (1..2..3)))")
+    , ("with an end on each side",                  failsWith "A range is written (start..end)"
+                                                              "(graph g (:r (..5)))")
+    , ("and is no item of a record",                failsWith "A range is written (start..end)"
+                                                              "(graph g (:r 1..5))")
+    , ("a lone dot is still no token",              failsWith "Unexpected token: '.'"
+                                                              "(graph g (:r (1.5.)))")
+    , ("two numbers before .. count in steps",      compilesToJSON "(graph g (:a (2 4 .. 10) :b (5 4 .. 1) :c (1 3 .. 6) :d (1 2 .. 0)))"
+                                                                   "{\"a\": [2, 4, 6, 8, 10], \"b\": [5, 4, 3, 2, 1], \"c\": [1, 3, 5], \"d\": []}")
+    , ("a step of 0 would never end",               failsWith "a second number different from the first"
+                                                              "(graph g (:r (1 1 .. 5)))")
+
+      -- zip
+    , ("zip pairs two Arrays",                      compilesToJSON "(graph g (:a (zip (1 2) (\"a\" \"b\")) :b (zip () ())))"
+                                                                   "{\"a\": [[1, \"a\"], [2, \"b\"]], \"b\": []}")
+    , ("so a range numbers a list",                 compilesToJSON "(graph g (:r (map (zip (1..2) (3.72 3.36)) (fn ((?n ?grams)) (:n n :grams grams)))))"
+                                                                   "{\"r\": [{\"n\": 1, \"grams\": 3.72}, {\"n\": 2, \"grams\": 3.36}]}")
+    , ("Arrays of different lengths are an error",  failsWith "two Arrays of the same length"
+                                                              "(graph g (:r (zip (1..3) (\"a\" \"b\"))))")
+    , ("zip takes Arrays",                          failsWith "an Array to zip"
+                                                              "(graph g (:r (zip (1 2) \"ab\")))")
+
       -- replace-all
     , ("replace-all replaces every one",            compilesToJSON "(graph g (:r (replace-all \"a b c\" \" \" \"-\")))"
                                                                    "{\"r\": \"a-b-c\"}")

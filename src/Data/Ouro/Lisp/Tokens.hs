@@ -18,6 +18,7 @@ data TokenType
     -- Structural Delims
     = OpenParen        -- '('
     | CloseParen       -- ')'
+    | DotDot           -- '..', between the ends of a range: (1..500)
     | OpenBracket      -- '['
     | CloseBracket     -- ']'
     -- Core lang symbols

@@ -453,6 +453,9 @@ pExpr = do
                              -- Hole Type
                              Tkn.Hole txt       -> capture (S.Hole (Tkn.pos t) txt)
 
+                             -- A range's '..' is read by the form around it; anywhere else it has no meaning
+                             Tkn.DotDot         -> lift (Left (misplacedRange (Tkn.pos t)))
+
                              -- Unbalanced Boundaries are immediate semantic loop violations
                              Tkn.CloseParen -> let context = Syntax UnbalancedDelimiter
                                                                  { expectedDelim = "Opening Form Boundary '('"
@@ -476,7 +479,35 @@ pExpr = do
 parseFormContainer :: SourcePos -> Parser S.Expr
 parseFormContainer startPos = do
                               terms <- within startPos ")" (collectUntil Tkn.CloseParen)
-                              pure $ S.Form startPos terms
+                              case (terms, [ pos | S.Symbol pos "%.." <- terms ]) of
+                                  -- (start..end) and (first second .. end), Haskell's ranges, are
+                                  -- calls no one can write
+                                  ([from, S.Symbol pos "%..", to], [_])
+                                      | not (any anItem [from, to])
+                                      -> pure $ S.Form startPos [S.Symbol pos "%range", from, to]
+                                  ([from, next, S.Symbol pos "%..", to], [_])
+                                      | not (any anItem [from, next, to])
+                                      -> pure $ S.Form startPos [S.Symbol pos "%range", from, next, to]
+                                  (_, pos : _)
+                                      -> lift (Left (misplacedRange pos))
+                                  (_, [])
+                                      -> pure $ S.Form startPos terms
+
+
+-- An attribute pair or a binding, which the parser writes as a form headed by a name that
+-- cannot be written, (%attr ...), (%binder ...): an item of a record or a let, never a value
+anItem :: S.Expr -> Bool
+anItem = \case
+    S.Form _ (S.Symbol _ head' : _) -> "%" `T.isPrefixOf` head'
+    _notAnItem                      -> False
+
+
+-- A '..' that is not between the ends of a range, alone in its parentheses
+misplacedRange :: SourcePos -> OuroError
+misplacedRange pos =
+    lexicalError "A range is written (start..end), or (first second .. end) to count in steps, with nothing else in its parentheses."
+    F.& withBlurb "(1..5) is (1 2 3 4 5), both ends included, as in Haskell; (2 4 .. 10) is (2 4 6 8 10), and (5 4 .. 1) counts down. The ends are expressions: (1..(len xs))."
+    F.& OuroError pos
 
 
 -- Consumes tokens until a matching CloseBracket is found
@@ -547,6 +578,12 @@ collectUntil targetDelim =
         (t:ts) | Tkn.tokenType t == targetDelim -> do
                     consume ts  -- Pop the matching closing token out of stream state
                     pure []
+               -- A range's '..', in parentheses, which 'parseFormContainer' reads; '%' cannot
+               -- be written, so the marker cannot be
+               | Tkn.tokenType t == Tkn.DotDot, targetDelim == Tkn.CloseParen -> do
+                    consume ts
+                    rest <- collectUntil targetDelim
+                    pure (S.Symbol (Tkn.pos t) "%.." : rest)
                | otherwise -> do
                     current <- pExpr
                     rest    <- collectUntil targetDelim

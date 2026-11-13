@@ -84,6 +84,9 @@ builtinRegistry = Map.fromList
                       , ("slice",       handleSlice)
                       , ("pad-start",   handlePadStart)
                       , ("replace-all", handleReplaceAll)
+                      , ("zip",         handleZip)
+                      -- (start..end) and (first second .. end), from the parser: '%' cannot be written in Ouro
+                      , ("%range",      handleRange)
                       ]
 
 
@@ -121,6 +124,7 @@ builtinArity = Map.fromList $
        , ("slice",       (3, "slice takes a String, a start and an end: (slice \"C-0042\" 2 6)."))
        , ("pad-start",   (3, "pad-start takes a String, a width and one character: (pad-start \"42\" 4 \"0\")."))
        , ("replace-all", (3, "replace-all takes a String, what to replace and what with: (replace-all s \"-\" \" \")."))
+       , ("zip",         (2, "zip takes two Arrays of one length: (zip (1 2) (\"a\" \"b\"))."))
        ]
 
 
@@ -904,10 +908,10 @@ parseISO8601 s = parseTimeM True defaultTimeLocale "%Y-%m-%dT%H:%M:%SZ" s
 -- Each takes the string it works on first, so (-> label (trim) (upper-case)) threads. A
 -- character is a Unicode code point, as for len.
 
--- Runs a string built-in on its arguments: an error among them is passed on, and the wrong
+-- Runs a built-in of a fixed arity: an error among its arguments is passed on, and the wrong
 -- number of them is an arity error
-stringBuiltin :: Text -> Int -> ([L.Expr] -> Reader Env L.Expr) -> SourcePos -> [L.Expr] -> Reader Env L.Expr
-stringBuiltin name arity body pos args =
+withArity :: Text -> Int -> ([L.Expr] -> Reader Env L.Expr) -> SourcePos -> [L.Expr] -> Reader Env L.Expr
+withArity name arity body pos args =
     case (find isError args, length args == arity) of
         (Just err, _)    -> pure err
         (Nothing, False) -> Data.Ouro.Error.Diagnostics.incorrectArity name arity (length args)
@@ -944,7 +948,7 @@ wholeNumber n =
 -- (to-string x): a String, Number, Boolean, URI or Date as a String, written as the JSON
 -- output writes it, so (to-string 4.9) is "4.9" and (to-string 123456789) is "123456789".
 handleToString :: SourcePos -> [L.Expr] -> Reader Env L.Expr
-handleToString pos = stringBuiltin "to-string" 1 written pos
+handleToString pos = withArity "to-string" 1 written pos
     where
     written = \case
         [L.Primitive (I.String s)]   -> string s
@@ -965,7 +969,7 @@ handleToString pos = stringBuiltin "to-string" 1 written pos
 -- (split s separator): the pieces of s between each separator, as an Array of Strings, so
 -- (split "Manet, Monet" ", ") is ("Manet" "Monet"). A string without the separator is one piece.
 handleSplit :: SourcePos -> [L.Expr] -> Reader Env L.Expr
-handleSplit pos = stringBuiltin "split" 2 pieces pos
+handleSplit pos = withArity "split" 2 pieces pos
     where
     pieces = \case
         [L.Primitive (I.String s), L.Primitive (I.String sep)]
@@ -983,7 +987,7 @@ handleSplit pos = stringBuiltin "split" 2 pieces pos
 -- (join strings separator): an Array of Strings joined into one, with the separator between
 -- each, so (join ("a" "b") ", ") is "a, b". An empty Array is "".
 handleJoin :: SourcePos -> [L.Expr] -> Reader Env L.Expr
-handleJoin pos = stringBuiltin "join" 2 joined pos
+handleJoin pos = withArity "join" 2 joined pos
     where
     joined = \case
         [arr, L.Primitive (I.String sep)]
@@ -1011,7 +1015,7 @@ handleLowerCase = oneString "lower-case" T.toLower
 handleTrim      = oneString "trim"       T.strip
 
 oneString :: Text -> (Text -> Text) -> SourcePos -> [L.Expr] -> Reader Env L.Expr
-oneString name change pos = stringBuiltin name 1 changed pos
+oneString name change pos = withArity name 1 changed pos
     where
     changed = \case
         [L.Primitive (I.String s)] -> string (change s)
@@ -1027,7 +1031,7 @@ handleStartsWith = twoStrings "starts-with" T.isPrefixOf
 handleEndsWith   = twoStrings "ends-with"   T.isSuffixOf
 
 twoStrings :: Text -> (Text -> Text -> Bool) -> SourcePos -> [L.Expr] -> Reader Env L.Expr
-twoStrings name test pos = stringBuiltin name 2 answer pos
+twoStrings name test pos = withArity name 2 answer pos
     where
     answer = \case
         [L.Primitive (I.String s), L.Primitive (I.String part)] -> boolean (test part s)
@@ -1044,7 +1048,7 @@ twoStrings name test pos = stringBuiltin name 2 answer pos
 -- are both "0042". Indexes outside the String are an error, as an index past the end of an
 -- Array is.
 handleSlice :: SourcePos -> [L.Expr] -> Reader Env L.Expr
-handleSlice pos = stringBuiltin "slice" 3 sliced pos
+handleSlice pos = withArity "slice" 3 sliced pos
     where
     sliced = \case
         [L.Primitive (I.String s), L.Primitive (I.Number a), L.Primitive (I.Number b)]
@@ -1078,7 +1082,7 @@ handleSlice pos = stringBuiltin "slice" 3 sliced pos
 -- (pad-start s width fill): s with the fill character written before it until it is width
 -- characters long, so (pad-start "42" 4 "0") is "0042". A String already that long is unchanged.
 handlePadStart :: SourcePos -> [L.Expr] -> Reader Env L.Expr
-handlePadStart pos = stringBuiltin "pad-start" 3 padded pos
+handlePadStart pos = withArity "pad-start" 3 padded pos
     where
     padded = \case
         [L.Primitive (I.String s), L.Primitive (I.Number w), L.Primitive (I.String fill)]
@@ -1103,7 +1107,7 @@ handlePadStart pos = stringBuiltin "pad-start" 3 padded pos
 -- (replace-all s old new): s with every old replaced by new, so (replace-all "a b c" " " "-")
 -- is "a-b-c".
 handleReplaceAll :: SourcePos -> [L.Expr] -> Reader Env L.Expr
-handleReplaceAll pos = stringBuiltin "replace-all" 3 replaced pos
+handleReplaceAll pos = withArity "replace-all" 3 replaced pos
     where
     replaced = \case
         [L.Primitive (I.String s), L.Primitive (I.String old), L.Primitive (I.String new)]
@@ -1115,3 +1119,63 @@ handleReplaceAll pos = stringBuiltin "replace-all" 3 replaced pos
         []                                                           -> wrongArgument pos "a String to replace in" replaceBlurb (L.Array [])
 
     replaceBlurb = "replace-all takes the String, what to replace and what to write instead: (replace-all \"a b\" \" \" \"-\") is \"a-b\"."
+
+
+-- handleRange.
+--
+-- (start..end): the whole numbers from start to end, both included, as Haskell's [1..5]; an
+-- end below the start is the empty Array, so (1..0) is (). (first second .. end) counts in
+-- steps of second - first, as Haskell's [2,4..10], and down when the step is negative, so
+-- (5 4 .. 1) is (5 4 3 2 1). A step of 0 would never end, and is an error.
+handleRange :: SourcePos -> [L.Expr] -> Reader Env L.Expr
+handleRange pos args =
+    case (find isError args, traverse whole args) of
+        (Just err, _)                    -> pure err
+        (Nothing, Just [from, to])       -> numbers [from .. to]
+        (Nothing, Just [from, next, to])
+            | next == from               -> Data.Ouro.Error.Diagnostics.typeMismatch "a second number different from the first, to count in steps"
+                                                                                     (T.pack (show from) <> " twice")
+                                            & withBlurb rangeBlurb
+                                            & OuroError pos
+                                            & L.EvalError
+                                            & pure
+            | otherwise                  -> numbers [from, next .. to]
+        (Nothing, _)                     -> wrongArgument pos "a whole number at each end of a range" rangeBlurb
+                                                          (case filter (isNothing . whole) args of
+                                                               notWhole : _ -> notWhole
+                                                               []           -> L.Array args)
+    where
+    numbers ks = pure (L.Array [ L.Primitive (I.Number (fromIntegral k)) | k <- ks ])
+    whole = \case
+        L.Primitive (I.Number n) -> wholeNumber n
+        _notANumber              -> Nothing
+    rangeBlurb = "A range counts in whole numbers, both ends included: (1..5) is (1 2 3 4 5), and (2 4 .. 10) counts in steps, (2 4 6 8 10)."
+
+
+-- handleZip.
+--
+-- (zip xs ys): the elements of two Arrays paired in order, each pair an Array of two, so
+-- (zip (1 2) ("a" "b")) is ((1 "a") (2 "b")). Haskell's zip stops at the shorter list, for
+-- zipping with an endless one; Ouro has none, so Arrays of different lengths are an error
+-- rather than the longer one's last elements being lost.
+handleZip :: SourcePos -> [L.Expr] -> Reader Env L.Expr
+handleZip pos = withArity "zip" 2 paired pos
+    where
+    paired = \case
+        [xs, ys]
+            | Just left <- L.asArray xs, Just right <- L.asArray ys
+            -> case (find isError (left <> right), length left == length right) of
+                   (Just err, _) -> pure err
+                   (_, True)     -> pure (L.Array [ L.Array [x, y] | (x, y) <- zip left right ])
+                   (_, False)    -> Data.Ouro.Error.Diagnostics.typeMismatch "two Arrays of the same length"
+                                                                             (T.pack (show (length left) <> " elements and " <> show (length right)))
+                                    & withBlurb zipBlurb
+                                    & OuroError pos
+                                    & L.EvalError
+                                    & pure
+        [xs, ys] -> wrongArgument pos "an Array to zip" zipBlurb (case L.asArray xs of
+                                                                      Nothing -> xs
+                                                                      Just _  -> ys)
+        other    -> wrongArgument pos "an Array to zip" zipBlurb (L.Array other)
+
+    zipBlurb = "zip pairs two Arrays of the same length, element by element: (zip (1..3) (\"a\" \"b\" \"c\")) is ((1 \"a\") (2 \"b\") (3 \"c\"))."
