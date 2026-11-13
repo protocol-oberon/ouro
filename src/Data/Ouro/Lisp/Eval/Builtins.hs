@@ -85,6 +85,8 @@ builtinRegistry = Map.fromList
                       , ("pad-start",   handlePadStart)
                       , ("replace-all", handleReplaceAll)
                       , ("zip",         handleZip)
+                      , ("min",         handleMin)
+                      , ("max",         handleMax)
                       -- (start..end) and (first second .. end), from the parser: '%' cannot be written in Ouro
                       , ("%range",      handleRange)
                       ]
@@ -125,6 +127,8 @@ builtinArity = Map.fromList $
        , ("pad-start",   (3, "pad-start takes a String, a width and one character: (pad-start \"42\" 4 \"0\")."))
        , ("replace-all", (3, "replace-all takes a String, what to replace and what with: (replace-all s \"-\" \" \")."))
        , ("zip",         (2, "zip takes two Arrays of one length: (zip (1 2) (\"a\" \"b\"))."))
+       , ("min",         (1, "(min xs) takes one Array of Numbers, (min (3.72 3.36)); several Numbers are written as one, (min (a b c))."))
+       , ("max",         (1, "(max xs) takes one Array of Numbers, (max (3.72 3.36)); several Numbers are written as one, (max (a b c))."))
        ]
 
 
@@ -1179,3 +1183,40 @@ handleZip pos = withArity "zip" 2 paired pos
         other    -> wrongArgument pos "an Array to zip" zipBlurb (L.Array other)
 
     zipBlurb = "zip pairs two Arrays of the same length, element by element: (zip (1..3) (\"a\" \"b\" \"c\")) is ((1 \"a\") (2 \"b\") (3 \"c\"))."
+
+
+-- handleMin and handleMax.
+--
+-- (min xs) and (max xs): the smallest or largest Number of an Array, so a summary is worked
+-- out from the data, (max weights). They take one Array, as every built-in takes a fixed
+-- number of arguments, and many values are an Array. Ordering compares Numbers only, and
+-- there is no smallest of nothing.
+handleMin, handleMax :: SourcePos -> [L.Expr] -> Reader Env L.Expr
+handleMin = extreme "min" minimum
+handleMax = extreme "max" maximum
+
+extreme :: Text -> ([Double] -> Double) -> SourcePos -> [L.Expr] -> Reader Env L.Expr
+extreme name pick pos = \case
+    [err@(L.EvalError _)]
+        -> pure err
+    [arr]
+        | Just elements <- L.asArray arr
+        -> case (find isError elements, elements, [ e | e <- elements, not (isNumber e) ]) of
+               (Just err, _, _) -> pure err
+               (_, [], _)       -> Data.Ouro.Error.Diagnostics.typeMismatch "at least one Number" "an empty Array"
+                                   & withBlurb blurb
+                                   & OuroError pos
+                                   & L.EvalError
+                                   & pure
+               (_, _, other : _) -> wrongArgument pos "Numbers to compare" blurb other
+               (_, _, [])        -> pure (L.Primitive (I.Number (pick [ n | L.Primitive (I.Number n) <- elements ])))
+    [other]
+        -> wrongArgument pos "an Array of Numbers" blurb other
+    args
+        -> Data.Ouro.Error.Diagnostics.incorrectArity name 1 (length args)
+           & withBlurb blurb
+           & OuroError pos
+           & L.EvalError
+           & pure
+    where
+    blurb = "(" <> name <> " xs) takes one Array of Numbers, (" <> name <> " (3.72 3.36)); several Numbers are written as one, (" <> name <> " (a b c))."

@@ -174,6 +174,22 @@ formsAndBuiltins = Group "Special forms and built-ins"
                                                               "(graph g (:r (eq 1 1 1)))")
     , ("as for arithmetic",                         failsWith "+ takes two operands, (+ a b). For more, fold them: (fold (a b c) start +)."
                                                               "(graph g (:r (+ 1 2 3)))")
+
+      -- min and max, of one Array
+    , ("min and max of an Array",                   compilesToJSON "(graph g (let ($weights (3.72 3.36 4.19 3.12)) (:lower (min weights) :upper (max weights))))"
+                                                                   "{\"lower\": 3.12, \"upper\": 4.19}")
+    , ("several Numbers are written as one Array",  compilesToJSON "(graph g (:a (min (3 1 2)) :b (max (3 1 2)) :d (max (7))))"
+                                                                   "{\"a\": 1, \"b\": 3, \"d\": 7}")
+    , ("not as the Numbers themselves",             failsWith "(min xs) takes one Array of Numbers"
+                                                              "(graph g (:r (min 3 1 2)))")
+    , ("nor as one Number",                         failsWith "an Array of Numbers"
+                                                              "(graph g (:r (min 5)))")
+    , ("there is no smallest of nothing",           failsWith "at least one Number"
+                                                              "(graph g (:r (min ())))")
+    , ("min and max compare Numbers only",          failsWith "Numbers to compare"
+                                                              "(graph g (:r (max (1 \"2\"))))")
+    , ("they are function values",                  compilesToJSON "(graph g (:r (map ((1 2) (5 3)) max)))"
+                                                                   "{\"r\": [2, 5]}")
     , ("#string asserts a string",                  failsWith "expectedProperty = \"#string\", actualProperty = \"#number\""
                                                               "(graph g (:a #string 1))")
     , ("recursion is an error",                     failsWith "a recursive function call"
