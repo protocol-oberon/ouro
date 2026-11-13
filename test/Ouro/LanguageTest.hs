@@ -1115,4 +1115,8 @@ knownGaps = Group "Known gaps: current and fixed"
                                                                    "(graph null-results (:r 1))")
     , ("gap 47 (fixed): and an attribute named so, read where it is used", fixedGap $ failsWith "an unbound expression"
                                                                    "(graph g (:null-ish 1 :r null-ish))")
+    , ("gap 48: a whole number of ten million or more is written in scientific notation", compilesToJSON "(graph g (:a 9999999 :b 10000000 :c 123456789))"
+                                                                   "{\"a\": 9999999, \"b\": 1.0e7, \"c\": 1.23456789e8}")
+    , ("gap 48: and so is a small fraction",        compilesToJSON "(graph g (:r 0.00001))"
+                                                                   "{\"r\": 1.0e-5}")
     ]
