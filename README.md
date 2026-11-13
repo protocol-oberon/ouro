@@ -30,6 +30,8 @@ Each key can appear once in a record: writing a key twice is an error. An attrib
 
 A key always has a value: in `(:type :_label "Spring")`, `:type` has none, and the compile stops there (`SYN0011`) rather than lose the pair. A key can be a compact IRI, `(:crm:P2_has_type "x")`, and is referred to the same way, `crm:P2_has_type`.
 
+Ouro has no `null`. Absence is never a value: a key is left out, by how the record is built, or the absence is stated as data, with its reason, such as a search that found nothing. `null` is an error wherever it is written, and is no name either; a name that only begins with it, `null-result`, is a name.
+
 Source files are UTF-8 on every platform, so strings, names and keys can hold any text: `(:_label "Édouard Manet")` compiles to `"_label": "Édouard Manet"` on Windows as well as Linux. A file saved in another encoding is reported, not garbled.
 
 ## Built-in properties
@@ -94,7 +96,7 @@ Here `res` will evaluate to 2.
 
 ### Context
 
-A record's JSON-LD context is written `:context value`. The value is an ordinary expression, written as JSON-LD writes a context: the URL of a remote context, a local context record, `null`, or an array of them, applied in order. Most Linked Art documents need only the remote context:
+A record's JSON-LD context is written `:context value`. The value is an ordinary expression, written as JSON-LD writes a context: the URL of a remote context, a local context record, or an array of them, applied in order. Most Linked Art documents need only the remote context:
 
 ```clojure
 (:context "https://linked.art/ns/v1/linked-art.json" ...)
@@ -130,10 +132,10 @@ A project that extends Linked Art adds its own terms after it, as an array:
 }
 ```
 
-- A key starting with `@` is a JSON-LD keyword: `(:@vocab "https://example.org/" :@language "en")` is a local context. Any other key defines a term, which maps to an IRI, to `null`, or to an expanded definition record (`:@id`, `:@type`, `:@container`, ...).
+- A key starting with `@` is a JSON-LD keyword: `(:@vocab "https://example.org/" :@language "en")` is a local context. Any other key defines a term, which maps to an IRI or to an expanded definition record (`:@id`, `:@type`, `:@container`, ...).
 - A context is a value like any other, so a function can build one: `(define/procedure linked-art () "https://linked.art/ns/v1/linked-art.json")`, then `:context (list linked-art (:ex "https://example.org/ns/"))`.
 - A malformed context is reported where it is written: a remote context that is not an absolute URL, an unknown `@` keyword, or a term mapped to a Number, for example.
-- `:context null` clears the context, and `:@context` means the same as `:context`.
+- `:@context` means the same as `:context`. Ouro has no `null`, so a context cannot clear another, and no keyword or term is set to `null`; a record without `:context` has no `@context`.
 
 ### Get
 
@@ -667,6 +669,13 @@ Time windows are made with `(years n)`, `(months n)`, `(days n)`, `(hours n)`, `
 
 `eq` compares records and arrays by value, and `=` and `/=` are `eq` and `neq`. Using an operator with any number of operands but two is an arity error, whose hint is the fold.
 
+**Smallest and largest:** `min` and `max` take one Array of Numbers, so a summary is worked out from the data rather than typed beside it. Several Numbers are written as one Array.
+
+| Function  | Syntax Example                  | Behaviour / Domain Rules                            |
+|:----------|:--------------------------------|:----------------------------------------------------|
+| **`min`** | `(min (3.72 3.36 4.19))` -> `3.36` | The smallest Number of an Array.                 |
+| **`max`** | `(max weights)`                 | The largest; an empty Array is an error.            |
+
 **Logic:** `not` negates a Boolean: `(not false)` is `true`. `and`, `or`, `all` and `any` are special forms, described above.
 
 **Length:** `len` counts an Array's elements, whatever their types, or a String's characters.
@@ -690,6 +699,45 @@ Any other value, such as a record or a `#uri`, is a type error.
 | **`subset`**        | `(subset (1 2) (1 2 3))` -> `true`       | Every value of the first is in the second.      |
 | **`unions`**        | `(unions ((1) (1 2) (3)))` -> `(1 2 3)`  | The union of an Array of Arrays.                |
 | **`intersections`** | `(intersections ((1 2) (2 3)))` -> `(2)` | The intersection of an Array of Arrays.         |
+
+**Strings:** each takes the String it works on first, so `->` threads through them: `(-> label (trim) (upper-case))`.
+
+| Function          | Syntax Example                               | Behaviour / Domain Rules                                    |
+|:------------------|:---------------------------------------------|:------------------------------------------------------------|
+| **`to-string`**   | `(to-string 123456789)` -> `"123456789"`     | A Number, Boolean, URI or Date as text, as the output writes it. |
+| **`split`**       | `(split "Manet, Monet" ", ")` -> `("Manet" "Monet")` | The pieces between each separator.                  |
+| **`join`**        | `(join ("a" "b") ", ")` -> `"a, b"`          | An Array of Strings, with the separator between each.       |
+| **`upper-case`**  | `(upper-case "dutch")` -> `"DUTCH"`          | Every letter upper case; `lower-case` lower.                |
+| **`trim`**        | `(trim "  Manet ")` -> `"Manet"`             | The white space at both ends removed.                       |
+| **`starts-with`** | `(starts-with id "https://")` -> `true`      | Whether it begins with the other String; `ends-with` ends.  |
+| **`slice`**       | `(slice "C-0042" 2 6)` -> `"0042"`           | From start up to, not including, end; negative from the end. |
+| **`pad-start`**   | `(pad-start "42" 4 "0")` -> `"0042"`         | Padded with one character to a width.                       |
+| **`replace-all`** | `(replace-all "a b" " " "-")` -> `"a-b"`     | Every one replaced.                                         |
+
+A Number is written as JavaScript writes one, in the output and by `to-string`: a whole number as an integer, `123456789`, and any other in plain decimal, `0.00001`.
+
+**Ranges and `zip`:** `(start..end)` is the whole numbers from start to end, both included, as Haskell's `[1..5]`, and `(first second .. end)` counts in steps. `zip` pairs two Arrays of the same length.
+
+| Syntax                     | Result                           | Behaviour / Domain Rules                                  |
+|:---------------------------|:---------------------------------|:----------------------------------------------------------|
+| `(1..5)`                   | `(1 2 3 4 5)`                    | Each end is an expression: `(1..(len xs))`.               |
+| `(5..1)`                   | `()`                             | An end below the start gives nothing.                     |
+| `(2 4 .. 10)`              | `(2 4 6 8 10)`                   | Steps of the difference; `(5 4 .. 1)` counts down.        |
+| `(zip (1 2) ("a" "b"))`    | `((1 "a") (2 "b"))`              | Arrays of different lengths are an error, not cut short.  |
+
+Together they number a list without writing the numbers, and a summary comes from the same data:
+
+```clojure
+(define/constant weights #array
+  (3.72 3.36 4.19))
+
+(graph coins
+  (:coins (map (zip (1..(len weights)) weights)
+               (fn ((?n ?grams))
+                 (:id    (+ "https://example.org/coin/C-" (pad-start (to-string n) 4 "0"))
+                  :grams grams)))
+   :range (join (list (to-string (min weights)) "to" (to-string (max weights)) "g") " ")))
+```
 
 ## Functions
 
@@ -1221,6 +1269,6 @@ These are agreed directions for Ouro, roughly in the order they will be built. N
 - **The rest of the static analysis:** names, arity and recursion are already checked as written (see [Functions](#functions) and [Lexical Scoping](#lexical-scoping)). Still to come: warnings for unused bindings, imports and functions, once the error codes are redesigned; with properties, property names checked as written too, a recursive property under the same rule as any function; and whether an expression is a call, a record or an array decided there, once, for the evaluator to follow, by the same rules as now.
 - **A REPL and a language server,** bundled with the compiler, as `std` is, so that they run the same parser and evaluator as `build`. The language server is where spelling belongs: a key or class that is not a term of the record's context can be underlined as it is written, with the nearest term offered, without ever stopping a compile.
 - **Search:** an Ouro Hoogle, finding functions by name, by signature and by their documentation.
-- **Geometry** (on hold): a `#wkt` property for the WKT string of a place's `defined_by`, and functions that build it from numbers, `(place/point 4.9 52.37)`, which first need a way to turn a number into a string.
+- **Geometry** (on hold): a `#wkt` property for the WKT string of a place's `defined_by`, and functions that build it from numbers, `(place/point 4.9 52.37)`, with `to-string`.
 - **Error codes:** codes generated from what each error is, so that a code alone says what happened, and the same mistake is always worded the same way.
 
