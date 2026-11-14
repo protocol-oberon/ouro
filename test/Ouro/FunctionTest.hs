@@ -672,7 +672,9 @@ assertions = Group "Properties: assertions, #titled x"
                                                                  "{\"a\": true, \"b\": false}")
     , ("as a case branch's head",                 compilesToJSON (titled <> "(graph g (:r (case (:x 1) ((satisfies #titled) \"titled\") (otherwise \"untitled\"))))")
                                                                  "{\"r\": \"untitled\"}")
-    , ("a parameter's contract",                  compilesToJSON (titled <> "(define/procedure name-of (#titled r) (get r _label)) (graph g (:r (name-of (:_label \"A\"))))")
+    , ("satisfies keeps its parameter's contract an error", failsWith "expectedProperty = \"#record\", actualProperty = \"#string\""
+                                                            (titled <> "(graph g (:r (satisfies \"a\" #titled)))"))
+    , ("a parameter's contract",                 compilesToJSON (titled <> "(define/procedure name-of (#titled r) (get r _label)) (graph g (:r (name-of (:_label \"A\"))))")
                                                                  "{\"r\": \"A\"}")
     , ("which an argument without it fails",      failsWith "line 1, col 129"
                                                             (titled <> "(define/procedure name-of (#titled r) (get r _label)) (graph g (:r (name-of (:x 1))))"))

@@ -3115,6 +3115,19 @@ Inside an expression, the keywords =defn/const= and =defn/property= were read as
 A definition can only appear at the top level of a file.
 #+end_example
 
+** PENDING =satisfies= is false when an assertion inside the refinement fails
+:PROPERTIES:
+:ID:       50
+:FOUND:    2026-11-14
+:END:
+~(satisfies x #p)~ is false only when =#p='s check fails, and an error stays an error, but the check is told from an error by the error's kind alone, a property mismatch, wherever it was raised.
+
+- So a failed assertion in the refinement's body, ~(define/property labelled (#record r) (eq #string (get r label) "x"))~ asked of ~(:label 1)~, is =false=: the refinement's own mistake read as the value's.
+
+- Its parameter's contract failing, ~(satisfies "a" #titled)~, does stay an error.
+
+Found while designing the requirement error (2026-11-14).
+
 ** PENDING Decimal arithmetic is binary floating point
 :PROPERTIES:
 :ID:       51
