@@ -1243,4 +1243,12 @@ knownGaps = Group "Known gaps: current and fixed"
                                                                    "{\"a\": 9999999, \"b\": 1.0e7, \"c\": 1.23456789e8}")
     , ("gap 48 (fixed): and so is a small fraction", fixedGap $ compilesToJSON "(graph g (:r 0.00001))"
                                                                    "{\"r\": 1.0e-5}")
+    , ("gap 49 (fixed): a define/constant in an expression is an unknown qualifier define", fixedGap $ failsWith "qualifierName = \"define\""
+                                                                   "(graph g (:r (define/constant q 1)))")
+    , ("gap 49 (fixed): not the error a local definition is", fixedGap $ failsWithout "can only appear at the top level of a file"
+                                                                   "(graph g (:r (define/constant q 1)))")
+    , ("gap 49 (fixed): a define/constant in an expression is a local definition", failsWith "A definition can only appear at the top level of a file."
+                                                                   "(graph g (:r (define/constant q 1)))")
+    , ("gap 49 (fixed): and so is a define/property", failsWith "A definition can only appear at the top level of a file."
+                                                                   "(graph g (:r (define/property p (#record r) true)))")
     ]
