@@ -66,12 +66,13 @@ data LiteralValue
 data ReaderTag
     = Uri
     | Date
-    | StringTag   -- For explicit string enforcement (#string variable)
-    | NumberTag   -- For numeric assertion (#number variable)
-    | BooleanTag  -- For boolean assertion (#boolean variable)
-    | RecordTag   -- For record assertion (#record variable)
-    | ArrayTag    -- For array assertion (#array variable)
+    | StringTag   -- For string assertion   (#string variable)
+    | NumberTag   -- For numeric assertion  (#number variable)
+    | BooleanTag  -- For boolean assertion  (#boolean variable)
+    | RecordTag   -- For record assertion   (#record variable)
+    | ArrayTag    -- For array assertion    (#array variable)
     | FunctionTag -- For function assertion (#function variable)
+    | PropertyTag Text -- For property assertion (#titled variable): a property defined in Ouro, by its name as written
     | RecEmpty
     | ArrEmpty
     deriving (Show, Eq)

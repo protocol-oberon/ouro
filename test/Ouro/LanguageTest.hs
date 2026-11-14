@@ -392,10 +392,10 @@ types = Group "Types: the rules as they are"
                                                               "(define/procedure null (x) x) (graph g (:r 1))")
     , ("#rec-empty is not a value: #record-empty is", failsWith "Unknown property: #rec-empty" "(graph g (:r #rec-empty))")
     , ("#arr-empty is not a value: #array-empty is", failsWith "Unknown property: #arr-empty" "(graph g (:r #arr-empty))")
-      -- A property defined in Ouro is read by its whole name, qualified or not, but is not checked yet
-    , ("a property of the module is not yet checked", importsFailAt "SYN0000" ("inline-test", 1, 14) ["Unknown property: #titled"] []
+      -- A property defined in Ouro is read by its whole name, qualified or not; one the module does not define is unknown, at its tag
+    , ("a property the module does not define is unknown", importsFailAt "SYN0000" ("inline-test", 1, 14) ["Unknown property: #titled"] []
                                                                      "(graph g (:r #titled (:_label \"A\")))")
-    , ("nor an imported one, read by its whole name", importsFailAt "SYN0000" ("inline-test", 1, 14) ["Unknown property: #people/titled"] []
+    , ("as is an imported one, not yet read", importsFailAt "SYN0000" ("inline-test", 1, 14) ["Unknown property: #people/titled"] []
                                                                      "(graph g (:r #people/titled (:_label \"A\")))")
     , ("a name that does not begin with a letter is no property", failsWith "Unknown property: #1st" "(graph g (:r #1st 1))")
       -- Arrays

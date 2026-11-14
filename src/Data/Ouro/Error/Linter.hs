@@ -7,7 +7,8 @@ import qualified Data.Map.Strict             as Map
 import           Data.Ouro.Error.Diagnostics (deprecatedSyntax, notKebabCase,
                                               parenthesisedResult,
                                               procedureOfNoParameters,
-                                              shadowedBuiltin)
+                                              shadowedBuiltin,
+                                              undocumentedProperty)
 import           Data.Ouro.Error.Types       (OuroWarning (..))
 import           Data.Ouro.Lisp.Eval.Builtins (builtinRegistry)
 import           Data.Ouro.Lisp.Function     (specialForms)
@@ -61,7 +62,7 @@ lintExpression =
 -- parentheses around a single plain value make it an array: (fn () ("hello")) returns
 -- ["hello"], which is rarely what was meant. A function named after a built-in or a special form
 -- replaces it, which is allowed, as in Scheme, but worth saying. Functions and graphs are named in
--- kebab-case.
+-- kebab-case. A property has a doc, the rule a value that fails it is reported with.
 lintModule :: M.Module -> [OuroWarning]
 lintModule ouroModule =
        concat [ lintResult name body <> lintFns body
@@ -77,6 +78,8 @@ lintModule ouroModule =
     <> [ OuroWarning pos (notKebabCase "graph" name kebab)
        | M.Graph pos name _ <- Map.elems (ouroModule ^. M.graphRegistry)
        , Just kebab <- [kebabCase name] ]
+    <> [ OuroWarning pos (undocumentedProperty name)
+       | M.SomeFunction (M.Function M.PropertyKind pos name Nothing _ _) <- Map.elems (ouroModule ^. M.functionRegistry) ]
     <> case Map.member "list" (ouroModule ^. M.functionRegistry) of
            True  -> []
            False -> concat [ oldNames body | M.SomeFunction (M.Function _ _ _ _ _ body) <- Map.elems (ouroModule ^. M.functionRegistry) ]

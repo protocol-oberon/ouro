@@ -512,6 +512,16 @@ data LinterWarning
     | ProcedureOfNoParameters
       { constantName :: Text -- The function's name
       }
+
+    -- LINT WARNING: UNDOCUMENTED PROPERTY
+    -- Occurs when a define/property has no (doc "..."). A property's doc is the rule it
+    -- asserts: a value that fails it is reported with the doc as the rule it broke, so
+    -- without one a failure can only name the property.
+    --
+    -- * Remediation: Issue warning. Suggest a doc.
+    | UndocumentedProperty
+      { undocumentedName :: Text -- The property's name
+      }
     deriving (Show, Eq, Ord, Generic)
 
 

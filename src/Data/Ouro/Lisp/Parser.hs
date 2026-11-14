@@ -424,6 +424,7 @@ typeTag = \case
     Tkn.TagRecord   -> Just S.RecordTag
     Tkn.TagArray    -> Just S.ArrayTag
     Tkn.TagFunction -> Just S.FunctionTag
+    Tkn.TagProperty name -> Just (S.PropertyTag name)
     _notAType       -> Nothing
 
 -- Recursive Expr Router

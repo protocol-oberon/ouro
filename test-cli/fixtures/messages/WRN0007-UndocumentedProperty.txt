@@ -1,0 +1,12 @@
+Warning [WRN0007]: The property 'titled' has no doc
+  ┌── │WRN0007-UndocumentedProperty.ouro:1:1│
+  │
+1 │ (define/property titled (#record r) (has r _label))
+  │ ^
+  │ Undocumented: #titled
+  │ 
+
+A property's doc is the rule it asserts: a value that fails it is reported with the doc as the rule
+it broke, as in '#titled: Has a label.'. Without one, a failure can only name the property.
+
+Perhaps write one: (define/property titled (#record r) (doc "...") ...).

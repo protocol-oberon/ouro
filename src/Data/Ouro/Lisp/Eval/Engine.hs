@@ -19,11 +19,12 @@ import           Data.Ouro.Error.Diagnostics    (astCorruption,
                                                  malformedCaseBranch,
                                                  malformedTag, missingOtherwise,
                                                  missingOtherwiseBlurb,
-                                                 missingPathKey,
+                                                 missingPathKey, notAProperty,
                                                  propertyMismatch, targetMismatch,
                                                  typeMismatch,
                                                  typeMismatchBlurb,
-                                                 unbalancedDelimiter, withBlurb)
+                                                 unbalancedDelimiter,
+                                                 unknownProperty, withBlurb)
 import           Data.Ouro.Error.Types          (ErrorContext (..),
                                                  OuroError (..), TypeError (..))
 import qualified Data.Ouro.Internal.Expr        as I
@@ -48,6 +49,7 @@ import           Data.Ouro.Lisp.Function        (checkParams, isFunctionKeyword,
                                                  removedLocalDefn, removedNth,
                                                  specialForms, strayHole, typedResult)
 import           Data.Ouro.Lisp.Module.Types    (Module)
+import qualified Data.Ouro.Lisp.Module.Types    as M
 import qualified Data.Ouro.Lisp.Surface         as S
 import           Data.Text                      (Text)
 import qualified Data.Text                      as T
@@ -140,7 +142,7 @@ evalExpr expr = do
                & EvalError
                & pure
 
-        S.Tagged _   tag   payload -> assertTag tag payload
+        S.Tagged tagPos tag payload -> assertTag tagPos tag payload
         -- A name of a function of no parameters, written as a value, is its result: Ouro has no
         -- effects, so the function cannot be told from its value. It is called as (name) is,
         -- so arity, signatures, blame and the recursion check apply, and a definition's value is kept
@@ -483,7 +485,7 @@ evalExpr expr = do
             | not (isSubjectHole subject)
             -> evalExpr subject >>= \case
                    err@(EvalError _) -> pure err
-                   value             -> checkProperty tag tagPos value >>= \case
+                   value             -> checkProperty tag tagPos tagPos value >>= \case
                                             EvalError (OuroError _ ctx) | isPropertyMismatch ctx -> pure (Primitive (I.Boolean False))
                                             err@(EvalError _)                                    -> pure err
                                             _hasIt                                               -> pure (Primitive (I.Boolean True))
@@ -651,20 +653,22 @@ evalExpr expr = do
 
 -- assertTag.
 --
--- Checks a value against a built-in property, as a signature or an assertion such as #string x
--- names it. Only #uri and #date convert: a String that passes them becomes a URI or a Date.
-assertTag :: S.ReaderTag -> S.Expr -> EvalM L.Expr
-assertTag tag payload = do
+-- Checks a value against a property, as a signature or an assertion such as #string x names
+-- it, written at the position given. Only #uri and #date convert: a String that passes them
+-- becomes a URI or a Date.
+assertTag :: SourcePos -> S.ReaderTag -> S.Expr -> EvalM L.Expr
+assertTag tagPos tag payload = do
     evaluatedVal <- evalExpr payload
     case evaluatedVal of
         err@(EvalError _) -> pure err
-        _notError         -> checkProperty tag (S.exprPos payload) evaluatedVal
+        _notError         -> checkProperty tag tagPos (S.exprPos payload) evaluatedVal
 
 
--- Checks an evaluated value against a built-in property: the value, converted for #uri and
--- #date, or a PropertyMismatch error at the position given
-checkProperty :: S.ReaderTag -> SourcePos -> L.Expr -> EvalM L.Expr
-checkProperty tag pos evaluatedVal = case tag of
+-- Checks an evaluated value against a property, its tag written at the first position and
+-- the value at the second: the value, converted for #uri and #date, or a PropertyMismatch
+-- error at the value
+checkProperty :: S.ReaderTag -> SourcePos -> SourcePos -> L.Expr -> EvalM L.Expr
+checkProperty tag tagPos pos evaluatedVal = case tag of
                                  S.Uri         -> assertUri  evaluatedVal
                                  S.Date        -> assertDate evaluatedVal
                                  S.StringTag   -> isString   evaluatedVal
@@ -673,6 +677,7 @@ checkProperty tag pos evaluatedVal = case tag of
                                  S.RecordTag   -> isRecord   evaluatedVal
                                  S.ArrayTag    -> isArray    evaluatedVal
                                  S.FunctionTag -> isFn       evaluatedVal
+                                 S.PropertyTag name -> isProperty name evaluatedVal
                                  _badTag       -> malformedTag (T.pack (show tag)) "#record-empty and #array-empty are values, not properties, so nothing can be asserted with them"
                                                   & OuroError pos
                                                   & EvalError
@@ -705,6 +710,61 @@ checkProperty tag pos evaluatedVal = case tag of
     isBoolean v = case v of
                       Primitive (I.Boolean _) -> pure v
                       other                   -> failProperty "#boolean" (propertyOf other) (typeMismatchBlurb other)
+
+    -- A property defined in Ouro, #titled: the value has it if the property, called on the
+    -- value, answers true. It is found by the frames around the assertion, as a function is,
+    -- but never among their bindings, since nothing bound by a let or a parameter is a
+    -- property. An error inside the property, its parameter's contract among them, stays
+    -- the error. It is called where its tag is written, as the analysis found the call, so
+    -- a property asserting itself on a part of its value is accepted. The analysis reports
+    -- a tag that names no property, so the errors here are not reached from a compile.
+    isProperty :: Text -> L.Expr -> EvalM L.Expr
+    isProperty name v = do
+        env <- ask
+        case findFunction name env of
+            Just (fnEnv, M.SomeFunction (M.Function M.PropertyKind fnPos _ doc params (S.Form _ bodyExprs)))
+                -> do
+                   -- The property and the value are bound under names that cannot be
+                   -- written in Ouro, and the property is called as any function is, so
+                   -- arity, its signature and the recursion check apply
+                   frame  <- allocValues (\names -> env
+                                                  & L.localScope       .~ names
+                                                  & L.functionRegistry .~ Map.empty
+                                                  & L.parentEnv        .~ Just env)
+                                         tagPos
+                                         [("%property", FunctionClosure fnEnv (name, fnPos) params bodyExprs), ("%property-value", v)]
+                   answer <- local (const frame) $
+                                 applyFunction tagPos [S.Symbol tagPos "%property", S.Symbol tagPos "%property-value"]
+                   case answer of
+                       Primitive (I.Boolean True)  -> pure v
+                       Primitive (I.Boolean False) -> failProperty ("#" <> name) ("a " <> propertyOf v <> " that is not #" <> name) (rule doc)
+                       -- Its body is checked as #boolean, so anything else is an error
+                       other                       -> pure other
+
+            Just (_, M.SomeFunction (M.Function M.ProcedureKind _ _ _ _ _))
+                -> notAProperty name
+                   & OuroError tagPos
+                   & EvalError
+                   & pure
+
+            Just _
+                -> astCorruption name "Corrupted function registry entry."
+                   & OuroError tagPos
+                   & EvalError
+                   & pure
+
+            Nothing
+                -> unknownProperty name []
+                   & OuroError tagPos
+                   & EvalError
+                   & pure
+
+        where
+        -- The property's doc, stated as the rule it asserts
+        rule = \case
+            Just text -> "#" <> name <> ": " <> text
+            Nothing   -> "#" <> name <> " has no doc, so the rule it asserts cannot be shown. "
+                      <> "Perhaps write one: (define/property " <> name <> " (#record r) (doc \"...\") ...)."
 
     -- Complex Parsers
     assertUri :: L.Expr -> EvalM L.Expr
@@ -892,6 +952,16 @@ isPropertyMismatch = \case
     Typing PropertyMismatch {} -> True
     AnnotatedContext _ ctx     -> isPropertyMismatch ctx
     _otherError                -> False
+
+
+-- The function a name defines, unqualified, and the frame it is defined in: found in the
+-- frames around the evaluation, as lookupFunction finds one, but never among their
+-- bindings
+findFunction :: Text -> Env -> Maybe (Env, M.SomeFunction)
+findFunction name env =
+    case Map.lookup name (env ^. L.functionRegistry) of
+        Just fn -> Just (env, fn)
+        Nothing -> env ^. L.parentEnv >>= findFunction name
 
 
 -- A literal branch compares the target with its literal, as eq compares them

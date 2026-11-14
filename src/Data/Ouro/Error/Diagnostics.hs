@@ -136,6 +136,31 @@ unboundName name inScope =
                      _noneNear                           -> ""
 
 
+-- A property's tag that names no property: with the nearest of the module's properties and
+-- the built-in names, if one is near. An imported property, #people/titled, is not yet read.
+unknownProperty :: Text -> [Text] -> ErrorContext
+unknownProperty name properties =
+    withBlurb ( "No property of this module, and no built-in property, is named #" <> name <> ". "
+             <> "A property is defined with (define/property " <> name <> " (#record r) ...); an imported one, #people/titled, is not yet checked."
+             <> suggestion
+              )
+              (lexicalError ("Unknown property: #" <> name))
+    where
+    suggestion = case rankBySimilarity name (properties <> builtinNames) of
+                     (bestMatch, score) : _ | score <= 3 -> "\n\nPerhaps you meant: '#" <> bestMatch <> "'?"
+                     _noneNear                           -> ""
+
+    -- On a tie the earlier name is suggested, so the short names come last: #str is #string, not #uri
+    builtinNames = ["string", "number", "boolean", "record", "array", "function", "record-empty", "array-empty", "uri", "date"]
+
+
+-- A property's tag that names a function of the procedure kind: only a property is asserted
+notAProperty :: Text -> ErrorContext
+notAProperty name =
+    withBlurb ("Perhaps call it, (" <> name <> " x), or define it with define/property.")
+              (lexicalError ("'" <> name <> "' is a function, not a property, so #" <> name <> " cannot assert it."))
+
+
 cyclicDependency :: Text -> ErrorContext
 cyclicDependency var = Scope $ CyclicDependencyError { variableName = var }
 
@@ -580,6 +605,10 @@ notKebabCase kind name kebab = Lint $ NotKebabCase
 procedureOfNoParameters :: Text -> WarningContext
 procedureOfNoParameters name = Lint $ ProcedureOfNoParameters { constantName = name }
 
+-- Create a warning for a property without a doc, the rule its failures show
+undocumentedProperty :: Text -> WarningContext
+undocumentedProperty name = Lint $ UndocumentedProperty { undocumentedName = name }
+
 -- Create a compile-time elided property assignment semantic warning
 elidedPropertyAssign :: Text -> Text -> WarningContext
 elidedPropertyAssign key construct = Semantic $ ElidedPropertyAssign
@@ -650,6 +679,11 @@ warningBlurb = \case
         <> "whichever keyword defines it.\n\n"
         <> "Perhaps define it as one: (define/constant " <> name <> " value)."
 
+    Lint (UndocumentedProperty name)
+        -> "A property's doc is the rule it asserts: a value that fails it is reported with the doc as the rule it broke, "
+        <> "as in '#" <> name <> ": Has a label.'. Without one, a failure can only name the property.\n\n"
+        <> "Perhaps write one: (define/property " <> name <> " (#record r) (doc \"...\") ...)."
+
     Semantic (ElidedPropertyAssign key construct)
         -> "The expression assigned to the property attribute '" <> key <> "' evaluates exclusively to a compile-time '"
         <> construct <> "' block. Because elided control structures leave zero footprint in final binary payloads, "
@@ -671,6 +705,7 @@ warningSummary = \case
     Lint (NotKebabCase kind name _)     -> "The " <> kind <> " '" <> name <> "' is not named in kebab-case"
     Lint (ShadowedBundledModule name _) -> "The project's module '" <> name <> "' replaces the bundled '" <> name <> "'"
     Lint (ProcedureOfNoParameters name) -> "The procedure '" <> name <> "' takes no parameters, so it is a constant"
+    Lint (UndocumentedProperty name)    -> "The property '" <> name <> "' has no doc"
     Semantic (ElidedPropertyAssign k _) -> "Property assignment '" <> k <> "' binds to an elided value"
     Vocab (UnboundTypeReference t _)    -> "Unbound schema type reference '" <> t <> "'"
 

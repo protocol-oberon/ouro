@@ -652,6 +652,11 @@ splitWarningContext ctx =
                , [ labeled "Constant: " (highlightDiagnostic name) ]
                , Just blurb
                )
+        Lint (UndocumentedProperty name)
+            -> ( title
+               , [ labeled "Undocumented: " (highlightDiagnostic ("#" <> name)) ]
+               , Just blurb
+               )
         Semantic (ElidedPropertyAssign key construct)
             -> ( title
                , [ labeled "Omitted Attribute: " (highlightDiagnostic key)

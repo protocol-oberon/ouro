@@ -12,6 +12,7 @@ module Ouro.FunctionTest
 , adjoining
 , constants
 , properties
+, assertions
 ) where
 
 import qualified Data.Map.Strict             as Map
@@ -628,6 +629,9 @@ properties = Group "Properties: define/property"
                                                             "(define/property Titled (#record r) true) (graph g (:r (Titled (:a 1))))")
     , ("as when it replaces a built-in",          warnsWith "The property 'len' replaces the built-in 'len'"
                                                             "(define/property len (#array xs) true) (graph g (:r 1))")
+    , ("one without a doc is a warning",          warnsWith "The property 'titled' has no doc"
+                                                            "(define/property titled (#record r) (has r _label)) (graph g (:r 1))")
+    , ("one with a doc is not",                   compilesWithoutWarnings "(define/property titled (#record r) (doc \"Has a label.\") (has r _label)) (graph g (:r 1))")
     ]
     where
     kindOf m = ( kind <$> Map.lookup "titled" (M._functionRegistry m)
@@ -642,3 +646,62 @@ properties = Group "Properties: define/property"
         docOf m = case Map.lookup name (M._functionRegistry m) of
                       Just (M.SomeFunction (M.Function _ _ _ doc _ _)) -> Just doc
                       Nothing                                          -> Nothing
+
+
+-- #titled x asserts a property: the property is called on the value, which passes on when it
+-- answers true. The static analysis resolves every tag before anything is evaluated.
+assertions :: Group
+assertions = Group "Properties: assertions, #titled x"
+    [ ("a value with it passes on",               compilesToJSON (titled <> "(graph g (:r #titled (:_label \"A\")))")
+                                                                 "{\"r\": {\"_label\": \"A\"}}")
+    , ("a value without it fails",                failsWith "expectedProperty = \"#titled\", actualProperty = \"a #record that is not #titled\""
+                                                            (titled <> "(graph g (:r #titled (:x 1)))"))
+    , ("at the value",                            failsWith "line 1, col 74"
+                                                            (titled <> "(graph g (:r #titled (:x 1)))"))
+    , ("with its doc as the rule it broke",       failsWith "#titled: Has a label."
+                                                            "(define/property titled (#record r) (doc \"Has a label.\") (has r _label)) (graph g (:r #titled (:x 1)))")
+    , ("or saying it has none",                   failsWith "#titled has no doc, so the rule it asserts cannot be shown."
+                                                            (titled <> "(graph g (:r #titled (:x 1)))"))
+    , ("an error inside it stays that error",     failsWith "expectedProperty = \"#record\", actualProperty = \"#string\""
+                                                            (titled <> "(graph g (:r #titled \"a\"))"))
+    , ("at the tag, where it is called",          failsWith "line 1, col 66"
+                                                            (titled <> "(graph g (:r #titled \"a\"))"))
+
+      -- Wherever a built-in property is written
+    , ("satisfies asks it",                       compilesToJSON (titled <> "(graph g (:a (satisfies (:_label \"A\") #titled) :b (satisfies (:x 1) #titled)))")
+                                                                 "{\"a\": true, \"b\": false}")
+    , ("as a case branch's head",                 compilesToJSON (titled <> "(graph g (:r (case (:x 1) ((satisfies #titled) \"titled\") (otherwise \"untitled\"))))")
+                                                                 "{\"r\": \"untitled\"}")
+    , ("a parameter's contract",                  compilesToJSON (titled <> "(define/procedure name-of (#titled r) (get r _label)) (graph g (:r (name-of (:_label \"A\"))))")
+                                                                 "{\"r\": \"A\"}")
+    , ("which an argument without it fails",      failsWith "line 1, col 129"
+                                                            (titled <> "(define/procedure name-of (#titled r) (get r _label)) (graph g (:r (name-of (:x 1))))"))
+    , ("a return type",                           failsWith "line 1, col 87"
+                                                            (titled <> "(define/procedure make #titled () (:x 1)) (graph g (:r make))"))
+    , ("a binding is never a property",           compilesToJSON (titled <> "(graph g (:r (let ($titled 1) #titled (:_label \"A\"))))")
+                                                                 "{\"r\": {\"_label\": \"A\"}}")
+
+      -- Every tag is resolved as written, before anything is evaluated
+    , ("an unknown one is reported at the tag",   failsWith "line 1, col 66"
+                                                            (titled <> "(graph g (:r #titeld (:_label \"A\")))"))
+    , ("with the nearest property",               failsWith "Perhaps you meant: '#titled'?"
+                                                            (titled <> "(graph g (:r #titeld (:_label \"A\")))"))
+    , ("or built-in name",                        failsWith "Perhaps you meant: '#string'?"
+                                                            "(graph g (:r #str \"a\"))")
+    , ("in a function no graph calls",            failsWith "Unknown property: #titeld"
+                                                            (titled <> "(define/procedure unused (r) #titeld r) (graph g (:r 1))"))
+    , ("and in a parameter's contract",           failsWith "Unknown property: #titeld"
+                                                            "(define/procedure f (#titeld r) r) (graph g (:r 1))")
+    , ("a function is not a property",            failsWith "'f' is a function, not a property, so #f cannot assert it."
+                                                            "(define/procedure f (x) x) (graph g (:r #f 1))")
+
+      -- A tag is a call of its property, so recursion through it must go down
+    , ("asserting itself on a part goes down",    compilesToJSON "(define/property labelled (#record r) (and (has r _label) (forall (get-or r () part) (fn (#record p) (satisfies p #labelled))))) (graph g (:a (labelled (:_label \"A\" :part ((:_label \"B\")))) :b (labelled (:_label \"A\" :part ((:x 1))))))"
+                                                                 "{\"a\": true, \"b\": false}")
+    , ("on the whole value it is recursion",      failsWith "'p' calls itself"
+                                                            "(define/property p (#record r) (satisfies r #p)) (graph g (:r (p (:a 1))))")
+    , ("as is being its own contract",            failsWith "'p' calls itself"
+                                                            "(define/property p (#p x) true) (graph g (:r (p 1)))")
+    ]
+    where
+    titled = "(define/property titled (#record r) (has r _label)) "

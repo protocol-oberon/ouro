@@ -163,7 +163,7 @@ The flow from source to JSON is strictly linear (~Data.Ouro.compile~):
 |    3 | ~Lisp.Parser~            | ~[Token]~ → ~Module~ of =define/procedure= and =graph= ~S.Expr~ |
 |  3.0 | ~Error.Linter~           | ~Module~ → warnings (does not stop compilation)                 |
 |  3.1 | ~Lisp.Canon~             | ~S.Expr~ → placeholders, then desugared ~S.Expr~                |
-|  3.2 | ~Lisp.Analysis~          | ~Module~ → errors: names, arity, recursion descends             |
+|  3.2 | ~Lisp.Analysis~          | ~Module~ → errors: names, refinement tags, arity, recursion descends |
 |  3.3 | ~Data.Ouro~              | select the target graph (with a "did you mean")                 |
 |    4 | ~Lisp.Eval.Engine~       | ~S.Expr~ → ~(L.Expr, [OuroError])~                              |
 |    5 | ~Data.Ouro.validateAST~  | the verification gate                                           |
@@ -644,7 +644,7 @@ An attribute is letters, digits, =-= and =_=, after an optional =@=. It may hold
 
 - Any other name that begins with a letter, =#titled=, is read whole as a refinement defined in Ouro.
 - So is a qualified one, =#people/titled=.
-- Nothing checks one yet, so it is =Unknown property: #people/titled=.
+- One of the module is checked (see [[*Refinements: =define/property=][Refinements: =define/property=]]); an imported one is not yet read, so it is =Unknown property: #people/titled=.
 
 *** Ranges
 
@@ -1079,13 +1079,13 @@ When it is evaluated:
 
 - each graph is evaluated on its own, so a constant is evaluated once per graph that names it.
 
-*** Properties: =define/property=
+*** Refinements: =define/property=
 
-A property is a function of the property kind, written ~(define/property name (#contract x) body)~, as ~(define/property titled (#record r) (has r _label))~.
+A refinement is a function of the refinement kind, written ~(define/property name (#contract x) body)~, as ~(define/property titled (#record r) (has r _label))~.
 
 - It is about one value: it has exactly one parameter, which has a contract.
   - A pattern's contract goes before it, =(#array (?a ?b))=.
-  - The contract is never =#function=, so a property is first-order.
+  - The contract is never =#function=, so a refinement is first-order.
 
 - Its result is always =#boolean=.
   - No return type is written: one is an error at the type.
@@ -1093,12 +1093,35 @@ A property is a function of the property kind, written ~(define/property name (#
 
 - Otherwise it is a function as any other:
   - called, ~(titled x)~ answers =true= or =false=;
-  - it shares the =define/procedure=s' names, so a procedure and a property of one name are defined twice;
+  - it shares the =define/procedure=s' names, so a procedure and a refinement of one name are defined twice;
   - it may call itself going down into its value;
   - it is exported and imported as a function is, ~(people/titled x)~;
   - warnings name it a property.
 
-- Asserting it, ~#titled x~, is not yet read: a property tag is still an unknown property.
+A refinement is asserted with its tag, ~#titled x~, as a built-in one is.
+
+- The refinement is called on the value.
+  - When it answers =true=, the value passes on unchanged.
+  - Otherwise it is a property mismatch (=TYP0001=) at the value, with the refinement's doc stated as the rule it broke, =#titled: Has a label.=; one without a doc says so.
+  - An error inside the refinement, its parameter's contract among them, stays that error.
+
+- The tag works wherever a built-in refinement does:
+  - ~(satisfies x #titled)~ and a =case= branch's ~(satisfies #titled)~ answer =false= where the assertion fails;
+  - a parameter's contract, ~(define/procedure name-of (#titled r) …)~, and a return type, ~(define/procedure make #titled () …)~, assert it, as yet without blame.
+
+- A tag names a refinement of the module, never a binding: ~(let ($titled 1) #titled r)~ still asserts the refinement.
+
+- The static analysis resolves every tag as written, in functions no graph calls too, before anything is evaluated.
+  - One that names no refinement is =SYN0000= =Unknown property: #titeld= at the tag, with the nearest refinement or built-in name (=#str= suggests =#string=).
+  - One that names a =define/procedure= is =SYN0000=, ='f' is a function, not a property=.
+
+- A tag is a call of its refinement, so recursion through tags must go down into the value, as any recursion must.
+  - ~(define/property labelled (#record r) (and (has r _label) (forall (get-or r () part) (fn (#record p) (satisfies p #labelled)))))~ is accepted.
+  - A refinement that is its own parameter's contract, ~(define/property p (#p x) true)~, is recursion.
+
+- An imported refinement, ~#people/titled~, is not yet read: it is an unknown property.
+
+- A refinement without a doc is a warning (=WRN0007=), since a failure could only name it.
 
 *** Arguments are call-by-need
 

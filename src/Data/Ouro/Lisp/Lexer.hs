@@ -291,18 +291,10 @@ pSingleToken =  pDelims
 tokenize :: String -> Text -> Either OuroError [Tkn.Token]
 tokenize filename input =
     case runParser (sc *> many pSingleToken <* eof) filename input of
-        Right tokens -> unchecked tokens
+        Right tokens -> Right tokens
         Left bundle  -> Left (translateLexError bundle)
 
     where
-    -- A property defined in Ouro is read, but nothing checks one yet, so the first is an
-    -- error, as an unknown property always was. It goes when the parser reads them.
-    unchecked :: [Tkn.Token] -> Either OuroError [Tkn.Token]
-    unchecked tokens =
-        case [ (pos, name) | Tkn.Token pos (Tkn.TagProperty name) <- tokens ] of
-            (pos, name) : _ -> Left (OuroError pos (Syntax LexicalError { rawLexeme = "Unknown property: #" <> name }))
-            []              -> Right tokens
-
     translateLexError :: ParseErrorBundle T.Text Void -> OuroError
     translateLexError bundle =
         let -- Extract the primary parsing error sequence
