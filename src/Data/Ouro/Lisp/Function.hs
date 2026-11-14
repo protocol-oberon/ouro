@@ -1,5 +1,6 @@
 module Data.Ouro.Lisp.Function
 ( bindingWithoutValue
+, callee
 , checkFunctionName
 , checkParams
 , duplicateFunction
@@ -17,10 +18,10 @@ module Data.Ouro.Lisp.Function
 , removedContextForm
 , removedLocalDefn
 , removedNth
+, requiredArgument
+, requiredResult
 , specialForms
 , strayHole
-, typedArgument
-, typedResult
 ) where
 
 import           Data.Foldable               (traverse_)
@@ -28,7 +29,8 @@ import           Data.Function               ((&))
 import           Data.Maybe                  (isJust, listToMaybe, mapMaybe)
 import           Data.Ouro.Error.Diagnostics (invalidFunctionName, lexicalError,
                                               withBlurb)
-import           Data.Ouro.Error.Types       (OuroError (..))
+import           Data.Ouro.Error.Types       (Callee (..), OuroError (..),
+                                              Role (..))
 import           Data.Ouro.Lisp.Module.Types (splitQualified)
 import qualified Data.Ouro.Lisp.Surface      as S
 import           Data.Text                   (Text)
@@ -44,16 +46,25 @@ import           Text.Megaparsec             (SourcePos)
 --   (define/procedure node #record (#uri id type) (:id id :type type))
 --   (fn #number (n) (* n 2))
 --
--- A signature's tag checks a value just as the same tag would anywhere else, and
--- converts to a URI or a Date in the same way. The result is the body under the return
--- tag, and each argument is put under its parameter's tag where the call is written, so
--- a mismatch is reported at the argument. Nothing is inferred: an untyped parameter or
--- result is not checked.
-typedResult :: Maybe (SourcePos, S.ReaderTag) -> S.Expr -> S.Expr
-typedResult = maybe id (uncurry S.Tagged)
+-- A signature is a declaration, kept with the function, and each of its tags is a
+-- requirement, checked when the function is called in the role it has there: each argument
+-- as that argument of the function, where the call is written, so a mismatch is reported at
+-- the argument, and the result as the function's result. It checks a value just as the same
+-- tag would anywhere else, and converts to a URI or a Date in the same way. Nothing is
+-- inferred: an untyped parameter or result is not checked.
+requiredArgument :: Callee -> Int -> S.Param -> S.Expr -> S.Expr
+requiredArgument owner index param arg =
+    maybe arg (\(pos, tag) -> S.Required pos tag (ArgumentOf owner index) arg) (S.paramType param)
 
-typedArgument :: S.Param -> S.Expr -> S.Expr
-typedArgument param arg = maybe arg (\(pos, tag) -> S.Tagged pos tag arg) (S.paramType param)
+requiredResult :: Callee -> Maybe (SourcePos, S.ReaderTag) -> S.Expr -> S.Expr
+requiredResult owner result body =
+    maybe body (\(pos, tag) -> S.Required pos tag (ResultOf owner) body) result
+
+-- A function as its signature's requirements name it: a fn by what it is, any other by its name
+callee :: Text -> Callee
+callee = \case
+    "fn" -> Lambda
+    name -> Procedure name
 
 
 -- Destructuring parameters.

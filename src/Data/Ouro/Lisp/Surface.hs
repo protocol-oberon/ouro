@@ -1,8 +1,9 @@
 
 module Data.Ouro.Lisp.Surface where
 
-import           Data.Text       (Text)
-import           Text.Megaparsec (SourcePos)
+import           Data.Ouro.Error.Types (Role)
+import           Data.Text             (Text)
+import           Text.Megaparsec       (SourcePos)
 
 
 -- Expr.
@@ -45,6 +46,7 @@ data Expr
     | DefunSymbol SourcePos Text            -- function identifiers
     | Literal     SourcePos LiteralValue    -- Raw String, Number, Boolean, empty Array/Record
     | Tagged      SourcePos ReaderTag Expr  -- #uri "...", #date "..."
+    | Required    SourcePos ReaderTag Role Expr  -- A signature's requirement on an argument or a result, in its role: made by the evaluator at a call, never written
     | Hole        SourcePos Text            -- ?, ?name or ?..name in a case pattern
     | Form        SourcePos [Expr]          -- (...) nested lists
     deriving (Show, Eq)
@@ -99,6 +101,7 @@ exprPos = \case
            DefunSymbol pos _   -> pos
            Literal     pos _   -> pos
            Tagged      pos _ _ -> pos
+           Required    pos _ _ _ -> pos
            Hole        pos _   -> pos
            Form        pos _   -> pos
 

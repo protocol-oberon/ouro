@@ -23,10 +23,12 @@ import           Data.Ouro.Lisp.Eval.Scope   (allocFrame, allocValues, boundIn, 
 import           Data.Ouro.Lisp.Eval.Types   (Binding (..), Env (..), EvalM, Expr (..),
                                               humanReadableType)
 import qualified Data.Ouro.Lisp.Eval.Types   as L
-import           Data.Ouro.Lisp.Function     (functionBody, isFunctionKeyword,
+import           Data.Ouro.Lisp.Function     (callee, functionBody,
+                                              isFunctionKeyword,
                                               misplacedBinding, removedAttrForm,
                                               removedContextForm,
-                                              removedLocalDefn, typedArgument)
+                                              removedLocalDefn, requiredArgument,
+                                              requiredResult)
 import qualified Data.Ouro.Lisp.Surface      as S
 import qualified Data.Set                    as Set
 import           Data.Text                   (Text)
@@ -376,8 +378,10 @@ compileArray evaluator env pos elements = Array <$> compileElements env elements
 --
 -- Calls a function. Each argument becomes a promise over the caller's environment,
 -- so it means what it meant where it was written, and is evaluated at most once. A
--- typed parameter's argument is checked under its tag. The body runs in the function's
--- closure (the frame it was defined in) extended with a frame for the parameters.
+-- typed parameter's argument is checked under its requirement, as that argument of the
+-- function, when it is forced, and the result under the return type, as the function's
+-- result. The body runs in the function's closure (the frame it was defined in) extended
+-- with a frame for the parameters.
 --
 -- Recursion goes down into a value. The call stack comes from the caller and records each
 -- function by identity, so nesting a call, like (f (f x)), is not recursion. A call of a
@@ -393,10 +397,11 @@ evalFunction
     -> SourcePos                      -- Where the function's name, or what gives it, is written
     -> L.FunctionId                   -- The function's name and definition position
     -> [S.Param]                      -- The function's formal parameters (e.g., (name #number year))
+    -> Maybe (SourcePos, S.ReaderTag) -- The requirement on its result, its return type
     -> [S.Expr]                       -- The un-evaluated body expressions of the function
     -> [S.Expr]                       -- The actual arguments passed at the call site
     -> EvalM L.Expr                   -- The returned evaluated expr
-evalFunction evaluator closureEnv pos site fnId@(name, _) params bodyExprs actualArgs = do
+evalFunction evaluator closureEnv pos site fnId@(name, _) params resultType bodyExprs actualArgs = do
     callerEnv <- ask
     let parLen      = length params
         actLen      = length actualArgs
@@ -425,10 +430,10 @@ evalFunction evaluator closureEnv pos site fnId@(name, _) params bodyExprs actua
         (True, _, _)
             -> do
                -- The arguments' promises close over the caller's environment. A typed
-               -- parameter's argument is checked under its tag, where the call is written.
+               -- parameter's argument is checked under its requirement, where the call is written.
                (_, argAddrs) <- allocFrame (const callerEnv)
-                                    [ FrameEntry (S.paramName param) (S.exprPos arg) (typedArgument param arg) False
-                                    | (param, arg) <- zip params actualArgs ]
+                                    [ FrameEntry (S.paramName param) (S.exprPos arg) (requiredArgument (callee name) index param arg) False
+                                    | (index, param, arg) <- zip3 [1 ..] params actualArgs ]
 
                -- A call of a function already being called evaluates its arguments first: an
                -- error in one ends the recursion, as its value
@@ -454,12 +459,12 @@ evalFunction evaluator closureEnv pos site fnId@(name, _) params bodyExprs actua
                    -- Evaluate an expression in an explicit environment
                    evaluator' currentEnv expr' = local (const currentEnv) (evaluator expr')
 
-               -- The body is one expression: the function's result
+               -- The body is one expression: the function's result, under its return type
                case functionBody name pos bodyExprs of
                    Left  err    -> pure (EvalError err)
                    Right result -> destructure evaluator' closureEnv functionEnv pos name (zip params actualArgs) >>= \case
                                        Left  err     -> pure (EvalError err)
-                                       Right bodyEnv -> evaluator' bodyEnv result
+                                       Right bodyEnv -> evaluator' bodyEnv (requiredResult (callee name) resultType result)
 
 
 -- destructure

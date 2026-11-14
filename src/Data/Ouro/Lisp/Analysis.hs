@@ -160,12 +160,15 @@ analyseModule imported ouroModule =
 
     root = Scope Map.empty (ouroModule ^. functionRegistry) imported Nothing Map.empty
 
-    -- A body the parser rejected is reported by the parser
+    -- A body the parser rejected is reported by the parser. The return type is read as a
+    -- tag on the body, which is how it is checked: a call of its property on the result
     function :: SomeFunction -> Found
-    function (SomeFunction (Function _ pos name _ params body)) =
+    function (SomeFunction (Function _ pos name _ params resultType body)) =
         case body of
-            S.Form _ exprs | Right result <- functionBody name pos exprs -> parameters (inside (Defn name) root) ownParameters params result
+            S.Form _ exprs | Right result <- functionBody name pos exprs -> parameters (inside (Defn name) root) ownParameters params (returned resultType result)
             _rejected                                                     -> mempty
+
+    returned resultType result = maybe result (\(tPos, tag) -> S.Tagged tPos tag result) resultType
 
     graph :: HigherExpression 'GraphExpr -> Found
     graph (Graph _ _ body) = names root body
@@ -372,13 +375,13 @@ propertyTag :: Scope -> SourcePos -> S.ReaderTag -> Maybe [Size] -> Found
 propertyTag scope pos tag args = case tag of
     S.PropertyTag name
         -> case Map.lookup name (scopeFunctions scope) of
-               Just (SomeFunction (Function PropertyKind _ _ _ _ _))  -> naming scope (Defn name) pos args
-               Just (SomeFunction (Function ProcedureKind _ _ _ _ _)) -> problem (OuroError pos (notAProperty name))
+               Just (SomeFunction (Function PropertyKind _ _ _ _ _ _))  -> naming scope (Defn name) pos args
+               Just (SomeFunction (Function ProcedureKind _ _ _ _ _ _)) -> problem (OuroError pos (notAProperty name))
                Nothing                                                 -> problem (OuroError pos (unknownProperty name properties))
     _builtIn
         -> mempty
     where
-    properties = [ name | SomeFunction (Function PropertyKind _ name _ _ _) <- Map.elems (scopeFunctions scope) ]
+    properties = [ name | SomeFunction (Function PropertyKind _ name _ _ _ _) <- Map.elems (scopeFunctions scope) ]
 
 
 -- A name: one bound around it, a function of the module, or a built-in; or, qualified, a
@@ -571,7 +574,7 @@ known scope name =
 
 parametersOf :: L.FunctionRegistry -> Text -> Maybe [S.Param]
 parametersOf registry called = Map.lookup called registry >>= \case
-    SomeFunction (Function _ _ _ _ params _) -> Just params
+    SomeFunction (Function _ _ _ _ params _ _) -> Just params
 
 
 -- A case branch: its condition, or its pattern's values, and its result, around which the

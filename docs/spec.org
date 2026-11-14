@@ -1918,11 +1918,11 @@ A module is the parser's other output: a registry of =define/procedure= declarat
 
 #+BEGIN_SRC haskell
 data HigherExpression (t :: Declaration) where
-    Function :: SourcePos -> Text -> [Param] -> Expr -> HigherExpression 'FunctionExpr
+    Function :: FunctionKind k -> SourcePos -> Text -> Maybe Text -> [Param] -> Maybe (SourcePos, ReaderTag) -> Expr -> HigherExpression ('FunctionExpr k)
     Graph    :: SourcePos -> Text -> Expr            -> HigherExpression 'GraphExpr
 #+END_SRC
 
-A =define/procedure='s return type is applied when it is parsed: its body is stored under the return refinement, as ~Tagged~. A =fn= is an ordinary form until it is evaluated, where a return refinement is read from its parameter list, ~(fn #number (n) ...)~.
+A signature is a declaration kept with its function, not written into its body: a =define/procedure='s return type is stored beside its parameters, each with its own refinement, and both are checked when the function is called (see [[*Calling a function][calling a function]]). A =fn= is an ordinary form until it is evaluated, where a return refinement is read from its parameter list, ~(fn #number (n) ...)~, and kept with the closure in the same way.
 
 The parser also enforces the module-level rules:
 
@@ -2241,13 +2241,17 @@ Arrays (~compileArray~) evaluate their elements in order, with =inlay= splicing 
 
 *** Calling a function
 
-~evalFunction~ checks arity and recursion, allocates one promise per argument over the /caller's/ environment (under its parameter's refinement, if the parameter is typed), and evaluates the body in the closure extended with a parameter frame.
+~evalFunction~ checks arity and recursion, allocates one promise per argument over the /caller's/ environment, and evaluates the body in the closure extended with a parameter frame.
+
+- A typed parameter's promise holds its argument under a ~Required~ node: the parameter's refinement in its role, the /n/th argument of the function, so it is checked when it is forced.
+- The body is evaluated under the return type in the same way, in the role of the function's result.
+- ~Required~ is made only here, never by the parser.
 
 A function already on the call stack is called again only from a call the static analysis accepted, the module's ~acceptedCalls~, known by where the function's name is written. Its arguments are forced first, and an error in one is returned instead:
 
 #+BEGIN_SRC haskell
 (_, argAddrs) <- allocFrame (const callerEnv)
-                     [ FrameEntry (paramName param) (exprPos arg) (typedArgument param arg) False | ... ]
+                     [ FrameEntry (paramName param) (exprPos arg) (requiredArgument (callee name) index param arg) False | ... ]
 let functionEnv = closureEnv
                 & localScope       .~ Map.fromList (zip (map paramName params) (map Promised argAddrs))
                 & functionRegistry .~ Map.empty

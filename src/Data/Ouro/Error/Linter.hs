@@ -60,29 +60,30 @@ lintExpression =
 --
 -- Checks the parsed functions and graphs. A function's result is one expression, and
 -- parentheses around a single plain value make it an array: (fn () ("hello")) returns
--- ["hello"], which is rarely what was meant. A function named after a built-in or a special form
+-- ["hello"], which is rarely what was meant, unless a return type says what is meant. A
+-- function named after a built-in or a special form
 -- replaces it, which is allowed, as in Scheme, but worth saying. Functions and graphs are named in
 -- kebab-case. A property has a doc, the rule a value that fails it is reported with.
 lintModule :: M.Module -> [OuroWarning]
 lintModule ouroModule =
-       concat [ lintResult name body <> lintFns body
-              | M.SomeFunction (M.Function _ _ name _ _ (S.Form _ [body])) <- Map.elems (ouroModule ^. M.functionRegistry) ]
+       concat [ maybe (lintResult name body) (const []) resultType <> lintFns body
+              | M.SomeFunction (M.Function _ _ name _ _ resultType (S.Form _ [body])) <- Map.elems (ouroModule ^. M.functionRegistry) ]
     <> concat [ lintFns expr
               | M.Graph _ _ expr <- Map.elems (ouroModule ^. M.graphRegistry) ]
     <> [ OuroWarning pos (shadowedBuiltin (kindName f) name)
-       | f@(M.SomeFunction (M.Function _ pos name _ _ _)) <- Map.elems (ouroModule ^. M.functionRegistry)
+       | f@(M.SomeFunction (M.Function _ pos name _ _ _ _)) <- Map.elems (ouroModule ^. M.functionRegistry)
        , Map.member name builtinRegistry || name `elem` specialForms ]
     <> [ OuroWarning pos (notKebabCase (kindName f) name kebab)
-       | f@(M.SomeFunction (M.Function _ pos name _ _ _)) <- Map.elems (ouroModule ^. M.functionRegistry)
+       | f@(M.SomeFunction (M.Function _ pos name _ _ _ _)) <- Map.elems (ouroModule ^. M.functionRegistry)
        , Just kebab <- [kebabCase name] ]
     <> [ OuroWarning pos (notKebabCase "graph" name kebab)
        | M.Graph pos name _ <- Map.elems (ouroModule ^. M.graphRegistry)
        , Just kebab <- [kebabCase name] ]
     <> [ OuroWarning pos (undocumentedProperty name)
-       | M.SomeFunction (M.Function M.PropertyKind pos name Nothing _ _) <- Map.elems (ouroModule ^. M.functionRegistry) ]
+       | M.SomeFunction (M.Function M.PropertyKind pos name Nothing _ _ _) <- Map.elems (ouroModule ^. M.functionRegistry) ]
     <> case Map.member "list" (ouroModule ^. M.functionRegistry) of
            True  -> []
-           False -> concat [ oldNames body | M.SomeFunction (M.Function _ _ _ _ _ body) <- Map.elems (ouroModule ^. M.functionRegistry) ]
+           False -> concat [ oldNames body | M.SomeFunction (M.Function _ _ _ _ _ _ body) <- Map.elems (ouroModule ^. M.functionRegistry) ]
                  <> concat [ oldNames expr | M.Graph _ _ expr <- Map.elems (ouroModule ^. M.graphRegistry) ]
 
 
@@ -144,5 +145,5 @@ lintResult owner = \case
 -- What a function is called in a warning: a property, or a function
 kindName :: M.SomeFunction -> Text
 kindName = \case
-    M.SomeFunction (M.Function M.PropertyKind _ _ _ _ _)  -> "property"
-    M.SomeFunction (M.Function M.ProcedureKind _ _ _ _ _) -> "function"
+    M.SomeFunction (M.Function M.PropertyKind _ _ _ _ _ _)  -> "property"
+    M.SomeFunction (M.Function M.ProcedureKind _ _ _ _ _ _) -> "function"

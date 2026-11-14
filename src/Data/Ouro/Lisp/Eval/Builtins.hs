@@ -473,7 +473,7 @@ handleNot pos =
 isFunction :: L.Expr -> Bool
 isFunction = \case
               L.PrimitiveOp _             -> True
-              L.FunctionClosure _ _ _ _   -> True
+              L.FunctionClosure {}        -> True
               _notAFunction               -> False
 
 functionComparison :: SourcePos -> Text -> L.Expr -> L.Expr -> Reader Env L.Expr

@@ -184,6 +184,24 @@ data TypeError
     deriving (Show, Eq, Ord, Generic)
 
 
+-- Role.
+--
+-- What a value was required for, where a requirement is checked. Who is blamed follows from
+-- it: an argument's caller, a result's function, an assertion itself.
+data Role
+    = ArgumentOf Callee Int  -- The nth argument of a call, counted from 1
+    | ResultOf   Callee      -- What a function returns, under its return type
+    | Assertion              -- #p x, a statement written in Ouro
+    deriving (Show, Eq, Ord, Generic)
+
+
+-- The function a requirement belongs to, as it is called
+data Callee
+    = Procedure Text  -- A defined function, by its name as written
+    | Lambda          -- A fn
+    deriving (Show, Eq, Ord, Generic)
+
+
 --- PATH VIOLATIONS ---
 data PathError
     -- PATH VIOLATION: STRUCTURAL FIELD MISSING

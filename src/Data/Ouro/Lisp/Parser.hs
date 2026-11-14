@@ -20,7 +20,7 @@ import           Data.Ouro.Lisp.Function     (checkFunctionName, checkParams,
                                               functionDoc, graphBody,
                                               isFunctionKeyword, patternParam,
                                               propertyParams, propertyResult,
-                                              removedLocalDefn, typedResult)
+                                              removedLocalDefn)
 import           Data.Ouro.Lisp.Module.Types (Declaration (..),
                                               FunctionKind (..),
                                               HigherExpression (..),
@@ -99,7 +99,7 @@ buildModuleRegistry = foldM insertDecl emptyModule
 
     insertDecl :: Module -> ParsedDecl -> Either OuroError Module
     insertDecl m = \case
-                    (PFunction t@(SomeFunction (Function _ pos name _ _ _)))
+                    (PFunction t@(SomeFunction (Function _ pos name _ _ _ _)))
                         -> do
                            checkFunctionName name pos
                            case Map.member name (m ^. functionRegistry) of
@@ -253,10 +253,11 @@ pDefn kind params pos = do
     -- A (doc "...") among the body's direct elements is the function's documentation
     (doc, results) <- lift (functionDoc name body)
 
-    -- A body is exactly one result expression, checked against the return type
+    -- A body is exactly one result expression, checked against the return type when the
+    -- function is called
     result <- lift (functionBody name pos results)
 
-    pure $ PFunction (SomeFunction (Function kind pos name doc args (S.Form pos [typedResult retType result])))
+    pure $ PFunction (SomeFunction (Function kind pos name doc args retType (S.Form pos [result])))
 
 
 -- A type tag between a function's name and its parameters is its return type

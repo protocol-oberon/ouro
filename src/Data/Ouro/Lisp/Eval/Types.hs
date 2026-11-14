@@ -94,8 +94,9 @@ data Expr where
 
     PrimitiveOp :: NativeFunction -> Expr
 
-    -- A function, closed over the frame it is defined in
-    FunctionClosure :: Env -> FunctionId -> [S.Param] -> [S.Expr] -> Expr
+    -- A function, closed over the frame it is defined in, with its signature: its
+    -- parameters and the requirement on its result, if it has one
+    FunctionClosure :: Env -> FunctionId -> [S.Param] -> Maybe (SourcePos, S.ReaderTag) -> [S.Expr] -> Expr
 
     -- An error, where the value would have been
     EvalError   :: OuroError -> Expr
@@ -177,7 +178,7 @@ instance Eq Expr where
     EvalError   a       == EvalError   b       = a  == b
 
     -- Function Macro
-    FunctionClosure _ _ _ _ == FunctionClosure _ _ _ _ = False
+    FunctionClosure {} == FunctionClosure {} = False
 
     -- Catch-all for shape mismatches
     _ == _ = False
@@ -191,7 +192,7 @@ instance Show Expr where
     Duration    pu   i     -> showString "Duration "  . showsPrec 11 pu . showChar ' ' . showsPrec 11 i
     PrimitiveOp _          -> showString "PrimitiveOp <native_function>"
 
-    FunctionClosure _ (name, _) args bodies -> showString "FunctionClosure <env> " . showsPrec 11 name . showChar ' ' . showsPrec 11 args . showChar ' ' . showsPrec 11 bodies
+    FunctionClosure _ (name, _) args result bodies -> showString "FunctionClosure <env> " . showsPrec 11 name . showChar ' ' . showsPrec 11 args . showChar ' ' . showsPrec 11 result . showChar ' ' . showsPrec 11 bodies
 
     EvalError err -> showString "EvalError " . showsPrec 11 err
 
@@ -236,7 +237,7 @@ data PeriodUnit
 -- an anonymous fn, which has no name to call it by ('fn' is a special form, so no definition has it).
 callOf :: Expr -> Maybe Text
 callOf = \case
-    FunctionClosure _ (name, _) params _ -> callTemplate name params
+    FunctionClosure _ (name, _) params _ _ -> callTemplate name params
     _notAFunctionWithNames               -> Nothing
 
 callTemplate :: Text -> [S.Param] -> Maybe Text
@@ -259,7 +260,7 @@ humanReadableType =
      EvalError   _      -> "an Error"
      Record      _ _    -> "a Record"
      Attr        _ _    -> "an unbound Attribute pair"
-     FunctionClosure _ _ _ _ -> "an unexecuted function"
+     FunctionClosure {} -> "an unexecuted function"
 
 -- Evaluates the root Array
 describeArray :: [Expr] -> Text
@@ -320,7 +321,7 @@ propertyOf =
                 I.BlankNode _    -> "a blank node"
      Record      _ _        -> "#record"
      Array       _          -> "#array"
-     FunctionClosure _ _ _ _ -> "#function"
+     FunctionClosure {}     -> "#function"
      PrimitiveOp _          -> "#function"
      Duration    _ _        -> "a Duration"
      Attr        _ _        -> "an attribute pair"

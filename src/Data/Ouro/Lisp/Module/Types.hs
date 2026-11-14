@@ -8,7 +8,7 @@ module Data.Ouro.Lisp.Module.Types where
 import qualified Data.Map.Strict        as Map
 import           Data.Maybe             (fromMaybe)
 import qualified Data.Set               as Set
-import           Data.Ouro.Lisp.Surface (Expr, Param (..))
+import           Data.Ouro.Lisp.Surface (Expr, Param (..), ReaderTag)
 import           Data.Text              (Text)
 import qualified Data.Text              as T
 import           Lens.Micro.TH          (makeLenses)
@@ -39,7 +39,7 @@ data SomeFunction where
     SomeFunction :: HigherExpression ('FunctionExpr k) -> SomeFunction
 
 instance Eq SomeFunction where
-    SomeFunction a@(Function ka _ _ _ _ _) == SomeFunction b@(Function kb _ _ _ _ _) =
+    SomeFunction a@(Function ka _ _ _ _ _ _) == SomeFunction b@(Function kb _ _ _ _ _ _) =
         case (ka, kb) of
             (ProcedureKind, ProcedureKind) -> a == b
             (PropertyKind,  PropertyKind)  -> a == b
@@ -50,13 +50,16 @@ instance Show SomeFunction where
 
 
 -- Higher Expression Surface AST of a module, indexed by the DeclType
--- A function keeps its documentation, from a (doc "...") in its body, if it has one
+-- A function keeps its documentation, from a (doc "...") in its body, if it has one, and
+-- its signature: its parameters, each with its requirement, and the requirement on its
+-- result, its return type, which is checked when it is called, not written into its body
 data HigherExpression (t :: Declaration) where
     Function :: FunctionKind k
              -> SourcePos
              -> Text
              -> Maybe Text
              -> [Param]
+             -> Maybe (SourcePos, ReaderTag)
              -> Expr
              -> HigherExpression ('FunctionExpr k)
 
@@ -70,8 +73,8 @@ deriving instance Eq   (HigherExpression t)
 mapExpr :: (Expr -> Expr) -> HigherExpression t -> HigherExpression t
 mapExpr f exprNode =
     case exprNode of
-        Function kind pos name doc args expr -> Function kind pos name doc args (f expr)
-        Graph    pos name expr               -> Graph    pos name (f expr)
+        Function kind pos name doc args result expr -> Function kind pos name doc args result (f expr)
+        Graph    pos name expr                      -> Graph    pos name (f expr)
 
 
 -- An (import path) or (import path as alias) declaration
@@ -126,7 +129,7 @@ mapParamPatterns :: (Expr -> Expr) -> Module -> Module
 mapParamPatterns transform m = m
     { _functionRegistry = Map.map patterns (_functionRegistry m) }
     where
-    patterns (SomeFunction (Function kind pos name doc args expr)) =
-        SomeFunction (Function kind pos name doc [ arg { paramPattern = transform <$> paramPattern arg } | arg <- args ] expr)
+    patterns (SomeFunction (Function kind pos name doc args result expr)) =
+        SomeFunction (Function kind pos name doc [ arg { paramPattern = transform <$> paramPattern arg } | arg <- args ] result expr)
 
 makeLenses ''Module

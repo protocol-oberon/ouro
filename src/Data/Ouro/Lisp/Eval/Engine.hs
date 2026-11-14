@@ -47,7 +47,7 @@ import           Data.Ouro.Lisp.Function        (checkParams, isFunctionKeyword,
                                                  misplacedBinding,
                                                  removedAttrForm, removedContextForm,
                                                  removedLocalDefn, removedNth,
-                                                 specialForms, strayHole, typedResult)
+                                                 specialForms, strayHole)
 import           Data.Ouro.Lisp.Module.Types    (Module)
 import qualified Data.Ouro.Lisp.Module.Types    as M
 import qualified Data.Ouro.Lisp.Surface         as S
@@ -92,8 +92,8 @@ evaluate imported moduleEnv rootExpr = L.runEvalM (L.defaultEnv imported moduleE
 -- an evaluation, and that value is every later use's: nothing it can see varies, so it
 -- cannot differ. A fn of no parameters written inside a function closes over a frame that
 -- each call of that function binds afresh, so it is evaluated each time it is named.
-constant :: Env -> SourcePos -> L.FunctionId -> [S.Expr] -> EvalM L.Expr
-constant closureEnv pos fnId bodyExprs =
+constant :: Env -> SourcePos -> L.FunctionId -> Maybe (SourcePos, S.ReaderTag) -> [S.Expr] -> EvalM L.Expr
+constant closureEnv pos fnId resultType bodyExprs =
     case closureEnv ^. L.parentEnv of
         Just _  -> call
         Nothing -> gets (Map.lookup fnId . (^. L.constants)) >>= \case
@@ -103,7 +103,7 @@ constant closureEnv pos fnId bodyExprs =
                                      modify (L.constants %~ Map.insert fnId value)
                                      pure value
     where
-    call = evalFunction evalExpr closureEnv pos pos fnId [] bodyExprs []
+    call = evalFunction evalExpr closureEnv pos pos fnId [] resultType bodyExprs []
 
 
 -- evalExpr.
@@ -143,13 +143,16 @@ evalExpr expr = do
                & pure
 
         S.Tagged tagPos tag payload -> assertTag tagPos tag payload
+
+        -- A signature's requirement, on an argument or a result
+        S.Required tagPos tag _role payload -> assertTag tagPos tag payload
         -- A name of a function of no parameters, written as a value, is its result: Ouro has no
         -- effects, so the function cannot be told from its value. It is called as (name) is,
         -- so arity, signatures, blame and the recursion check apply, and a definition's value is kept
         -- (see constant). At the head of a call a name is the function itself (see applyFunction)
         S.Symbol pos name          -> lookupVar evalExpr pos name env >>= \case
-                                          FunctionClosure closureEnv fnId [] bodyExprs
-                                              -> constant closureEnv pos fnId bodyExprs
+                                          FunctionClosure closureEnv fnId [] resultType bodyExprs
+                                              -> constant closureEnv pos fnId resultType bodyExprs
                                           value
                                               -> pure value
 
@@ -509,11 +512,11 @@ evalExpr expr = do
         -- A return type is read as a tag on the parameter list: (fn #number (n) expr).
         S.Form pos [S.Symbol _ (S.formName -> "fn"), S.Form _ params, body]
             | Just typed <- traverse param (zip [1 ..] params)
-            -> pure (either EvalError (const (FunctionClosure env ("fn", pos) typed [body])) (checkParams pos typed))
+            -> pure (either EvalError (const (FunctionClosure env ("fn", pos) typed Nothing [body])) (checkParams pos typed))
 
         S.Form pos [S.Symbol _ (S.formName -> "fn"), S.Tagged tPos tag (S.Form _ params), body]
             | Just typed <- traverse param (zip [1 ..] params)
-            -> pure (either EvalError (const (FunctionClosure env ("fn", pos) typed [typedResult (Just (tPos, tag)) body])) (checkParams pos typed))
+            -> pure (either EvalError (const (FunctionClosure env ("fn", pos) typed (Just (tPos, tag)) [body])) (checkParams pos typed))
 
         S.Form pos (S.Symbol _ (S.formName -> "fn") : _)
             -> lexicalError "A fn is written (fn (args) expr): argument names or patterns, each with an optional type, then exactly one result expression."
@@ -703,7 +706,7 @@ checkProperty tag tagPos pos evaluatedVal = case tag of
                     Nothing -> failProperty "#array" (propertyOf v) (typeMismatchBlurb v)
 
     isFn v = case v of
-                 FunctionClosure _ _ _ _ -> pure v
+                 FunctionClosure {}      -> pure v
                  PrimitiveOp _           -> pure v
                  other                   -> failProperty "#function" (propertyOf other) (typeMismatchBlurb other)
 
@@ -722,7 +725,7 @@ checkProperty tag tagPos pos evaluatedVal = case tag of
     isProperty name v = do
         env <- ask
         case findFunction name env of
-            Just (fnEnv, M.SomeFunction (M.Function M.PropertyKind fnPos _ doc params (S.Form _ bodyExprs)))
+            Just (fnEnv, M.SomeFunction (M.Function M.PropertyKind fnPos _ doc params result (S.Form _ bodyExprs)))
                 -> do
                    -- The property and the value are bound under names that cannot be
                    -- written in Ouro, and the property is called as any function is, so
@@ -732,7 +735,7 @@ checkProperty tag tagPos pos evaluatedVal = case tag of
                                                   & L.functionRegistry .~ Map.empty
                                                   & L.parentEnv        .~ Just env)
                                          tagPos
-                                         [("%property", FunctionClosure fnEnv (name, fnPos) params bodyExprs), ("%property-value", v)]
+                                         [("%property", FunctionClosure fnEnv (name, fnPos) params result bodyExprs), ("%property-value", v)]
                    answer <- local (const frame) $
                                  applyFunction tagPos [S.Symbol tagPos "%property", S.Symbol tagPos "%property-value"]
                    case answer of
@@ -741,7 +744,7 @@ checkProperty tag tagPos pos evaluatedVal = case tag of
                        -- Its body is checked as #boolean, so anything else is an error
                        other                       -> pure other
 
-            Just (_, M.SomeFunction (M.Function M.ProcedureKind _ _ _ _ _))
+            Just (_, M.SomeFunction (M.Function M.ProcedureKind _ _ _ _ _ _))
                 -> notAProperty name
                    & OuroError tagPos
                    & EvalError
@@ -830,8 +833,8 @@ applyFunction pos exprs =
                                    _notAName             -> evalExpr operatorExpr
 
                case resolvedOp of
-                   FunctionClosure closureEnv name params bodyExprs
-                       -> evalFunction evalExpr closureEnv pos (S.exprPos operatorExpr) name params bodyExprs argumentExprs
+                   FunctionClosure closureEnv name params resultType bodyExprs
+                       -> evalFunction evalExpr closureEnv pos (S.exprPos operatorExpr) name params resultType bodyExprs argumentExprs
 
                    PrimitiveOp nativeFunc
                        -> do

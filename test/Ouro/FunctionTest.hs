@@ -579,8 +579,8 @@ documentation = Group "Functions: a body can hold one (doc ...)"
         either (const Nothing) docOf (tokenize "t.ouro" src >>= parseModule) === Just expected
         where
         docOf m = case Map.lookup name (M._functionRegistry m) of
-                      Just (M.SomeFunction (M.Function _ _ _ doc _ _)) -> Just doc
-                      Nothing                                          -> Nothing
+                      Just (M.SomeFunction (M.Function _ _ _ doc _ _ _)) -> Just doc
+                      Nothing                                            -> Nothing
 
 
 -- (define/property name (#contract x) body) is a property: a function of the property kind,
@@ -638,14 +638,14 @@ properties = Group "Properties: define/property"
                , kind <$> Map.lookup "f" (M._functionRegistry m) )
     kind :: M.SomeFunction -> T.Text
     kind = \case
-        M.SomeFunction (M.Function M.PropertyKind _ _ _ _ _)  -> "property"
-        M.SomeFunction (M.Function M.ProcedureKind _ _ _ _ _) -> "procedure"
+        M.SomeFunction (M.Function M.PropertyKind _ _ _ _ _ _)  -> "property"
+        M.SomeFunction (M.Function M.ProcedureKind _ _ _ _ _ _) -> "procedure"
     documented src name expected = withTests 1 . property $
         either (const Nothing) docOf (tokenize "t.ouro" src >>= parseModule) === Just expected
         where
         docOf m = case Map.lookup name (M._functionRegistry m) of
-                      Just (M.SomeFunction (M.Function _ _ _ doc _ _)) -> Just doc
-                      Nothing                                          -> Nothing
+                      Just (M.SomeFunction (M.Function _ _ _ doc _ _ _)) -> Just doc
+                      Nothing                                            -> Nothing
 
 
 -- #titled x asserts a property: the property is called on the value, which passes on when it
