@@ -1,7 +1,7 @@
 Error [BLD0016]: Invalid Version
   ┌── │test-cli/fixtures/messages/BLD0016-InvalidVersion/package.ouro:1:1│
   │
-1 │ (defn package () (:ouro "latest"))
+1 │ (define/constant package (:ouro "latest"))
   │ ^
   │ Written: latest
   │ 

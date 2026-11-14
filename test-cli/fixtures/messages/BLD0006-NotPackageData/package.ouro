@@ -1,2 +1,2 @@
-(defn package () (:sources "."))
+(define/constant package (:sources "."))
 (graph g (:a 1))

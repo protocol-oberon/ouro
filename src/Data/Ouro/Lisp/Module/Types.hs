@@ -86,7 +86,7 @@ mapModuleExpr transform m = m
     }
 
 
--- Applies an expression transformation to the patterns of every defn's parameters.
+-- Applies an expression transformation to the patterns of every function's parameters.
 -- A fn's parameters are part of its form, so they are reached by 'mapModuleExpr'.
 mapParamPatterns :: (Expr -> Expr) -> Module -> Module
 mapParamPatterns transform m = m

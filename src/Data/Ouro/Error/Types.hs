@@ -460,10 +460,10 @@ data LinterWarning
       }
 
     -- LINT WARNING: SHADOWED BUILT-IN
-    -- Occurs when a defn is named after a built-in, such as (defn eq (a b) ...), or a special
-    -- form, such as (defn list (x) ...). The function replaces a built-in throughout the file:
+    -- Occurs when a function is named after a built-in, such as (define/procedure eq (a b) ...), or a
+    -- special form, such as (define/procedure list (x) ...). The function replaces a built-in throughout the file:
     -- in calls, in case guards, and under any symbol the built-in is also written with, so
-    -- (defn = ...) replaces eq too; and it shadows a special form wherever it is called.
+    -- (define/procedure = ...) replaces eq too; and it shadows a special form wherever it is called.
     --
     -- * Remediation: Issue warning. Suggest another name, unless the replacement is intended.
     | ShadowedBuiltin
@@ -471,7 +471,7 @@ data LinterWarning
       }
 
     -- LINT WARNING: NOT KEBAB CASE
-    -- Occurs when a defn or a graph is named in another case, such as makePlace or
+    -- Occurs when a function or a graph is named in another case, such as makePlace or
     -- make_place. Ouro names functions and graphs in kebab-case, as Lisps do: make-place.
     -- Attribute keys and local bindings are exempt: keys follow the data's vocabulary.
     --

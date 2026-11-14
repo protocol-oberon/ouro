@@ -67,7 +67,7 @@ passes =
     ] <> patternPasses
 
 
--- The passes a defn's parameter patterns go through: all but the first three, since a
+-- The passes a function's parameter patterns go through: all but the first three, since a
 -- pattern's holes match values, so they are neither placeholders nor threaded, and a
 -- pattern is matched, so it holds no (and ...) or (or ...) to evaluate
 patternPasses :: [Pass]
@@ -96,6 +96,6 @@ canonical = runPasses passes
 canonicalPattern :: S.Expr -> S.Expr
 canonicalPattern = runPasses patternPasses
 
--- Desugars a module: every function's body and every graph, and every defn's parameter patterns
+-- Desugars a module: every function's body and every graph, and every function's parameter patterns
 canonicalModule :: Module -> Module
 canonicalModule = mapModuleExpr canonical . mapParamPatterns canonicalPattern

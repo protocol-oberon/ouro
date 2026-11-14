@@ -1,2 +1,2 @@
-(defn len (x) x)
+(define/procedure len (x) x)
 (graph g (:r (len 1)))

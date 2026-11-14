@@ -1,7 +1,7 @@
 Error [SYN0008]: Invalid Function Name
   ┌── │SYN0008-InvalidFunctionName.ouro:1:1│
   │
-1 │ (defn with () 1)
+1 │ (define/procedure with () 1)
   │ ^
   │ Naming Rule: 'with' is read by its syntax, so a function cannot take its name.
   │ 

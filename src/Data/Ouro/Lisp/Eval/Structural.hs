@@ -275,7 +275,7 @@ compileArray evaluator env pos elements = Array <$> compileElements env elements
         case exprs of
             [] -> pure []
 
-            -- Case A: a local 'defn' was replaced by a let-bound 'fn'
+            -- Case A: a local definition was replaced by a let-bound 'fn'
             S.Form dPos (S.Symbol _ keyword : _) : xs | isFunctionKeyword keyword
                 -> (EvalError (removedLocalDefn dPos) :) <$> compileElements env' xs
 

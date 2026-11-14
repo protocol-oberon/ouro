@@ -1,1 +1,1 @@
-(defn package () (:sources "scr"))
+(define/constant package (:sources "scr"))

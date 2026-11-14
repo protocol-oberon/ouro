@@ -41,7 +41,7 @@ builds = Group "CLI: ouro build"
                                                         written <- evalIO (doesDirectoryExist (dir </> "out"))
                                                         written === False)
     , ("package.ouro's settings are used",          withTests 1 . property $ do
-                                                        dir <- evalIO (writeFolder "build-package" [ ("package.ouro", "(defn package () (:sources \"src\" :outputs \"dist\"))"), ("src/main.ouro", "(graph g (:r 1))") ])
+                                                        dir <- evalIO (writeFolder "build-package" [ ("package.ouro", "(define/constant package (:sources \"src\" :outputs \"dist\"))"), ("src/main.ouro", "(graph g (:r 1))") ])
                                                         run <- evalIO (ouro dir ["build"])
                                                         exitCode run === ExitSuccess
                                                         json <- evalIO (readText (dir </> "dist" </> "main" </> "g.json"))

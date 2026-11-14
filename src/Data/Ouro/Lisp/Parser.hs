@@ -125,20 +125,27 @@ buildModuleRegistry = foldM insertDecl emptyModule
     -- Imports and exports are the first thing in a file: they say what it depends on and offers
     comesFirst m pos =
         when (not (Map.null (m ^. functionRegistry) && Map.null (m ^. graphRegistry))) $
-            lexicalError "Imports and exports come first in a file, before any defn or graph."
+            lexicalError "Imports and exports come first in a file, before any definition or graph."
             F.& withBlurb "Perhaps move it to the top of the file, so the file's dependencies and exports are the first thing read."
             F.& OuroError pos
             F.& Left
 
-    -- defn/const and defn/property are keywords, so the functions of an import qualified defn
-    -- would read as them. 'as defn' cannot be written (defn is a keyword); a path ending in
-    -- defn can.
+    -- define/procedure, define/property and define/constant are keywords, and defn/const and
+    -- defn/property retired ones, so the functions of an import qualified define or defn would
+    -- read as them. 'as define' and 'as defn' cannot be written (each on its own is an error); a
+    -- path ending in either can.
     reservedQualifier imp =
-        when (qualifierOf imp == "defn") $
-            lexicalError ("The import " <> importPath imp <> " would be qualified 'defn', which begins the keywords defn/const and defn/property.")
-            F.& withBlurb ("Perhaps name it with as: (import " <> importPath imp <> " as another-name).")
-            F.& OuroError (importPos imp)
-            F.& Left
+        case lookup (qualifierOf imp) reservedQualifiers of
+            Just keywords
+                -> lexicalError ("The import " <> importPath imp <> " would be qualified '" <> qualifierOf imp <> "', which begins the keywords " <> keywords <> ".")
+                   F.& withBlurb ("Perhaps name it with as: (import " <> importPath imp <> " as another-name).")
+                   F.& OuroError (importPos imp)
+                   F.& Left
+            Nothing
+                -> Right ()
+
+    reservedQualifiers = [ ("define", "define/procedure, define/property and define/constant")
+                         , ("defn",   "defn/const and defn/property, which define/constant and define/property replace") ]
 
     qualifierClash earlier imp =
         lexicalError ("Two imports are both qualified '" <> qualifierOf imp <> "': " <> importPath earlier <> " and " <> importPath imp <> ".")
@@ -157,7 +164,7 @@ buildModuleRegistry = foldM insertDecl emptyModule
          _safeLeafs                             -> Right ()
 
 
--- Every exported name is a defn of this module, named once
+-- Every exported name is a function of this module, named once
 checkExports :: Module -> Either OuroError ()
 checkExports m = foldM_ check Set.empty (m ^. exports)
     where
@@ -180,7 +187,7 @@ checkExports m = foldM_ check Set.empty (m ^. exports)
     exportBlurb name =
         case rankBySimilarity name defined of
             (closest, score) : _ | score <= 3 -> "Perhaps you meant '" <> closest <> "'."
-            _noneClose                         -> "A module exports its own functions only, written with defn in the same file."
+            _noneClose                         -> "A module exports its own functions only, defined in the same file."
 
 
 collectHigherExpressions :: [ParsedDecl] -> Parser [ParsedDecl]
@@ -200,23 +207,23 @@ pHigherExpression = do
         Tkn.OpenParen -> within (Tkn.pos startTkn) ")" $ do
                          kwTkn <- popToken
                          case Tkn.tokenType kwTkn of
-                             Tkn.Defn      -> pDefn pArgs (Tkn.pos startTkn)
-                             Tkn.DefnConst -> pDefn (pure []) (Tkn.pos startTkn)
-                             Tkn.Graph     -> pGraph (Tkn.pos startTkn)
-                             Tkn.Import    -> pImport (Tkn.pos startTkn)
-                             Tkn.Export    -> pExport (Tkn.pos startTkn)
-                             other         -> lexicalError ("Invalid top-level keyword: " <> T.pack (show other))
-                                              F.& OuroError (Tkn.pos kwTkn)
-                                              F.& Left
-                                              F.& lift
+                             Tkn.DefineProcedure -> pDefn pArgs (Tkn.pos startTkn)
+                             Tkn.DefineConstant  -> pDefn (pure []) (Tkn.pos startTkn)
+                             Tkn.Graph           -> pGraph (Tkn.pos startTkn)
+                             Tkn.Import          -> pImport (Tkn.pos startTkn)
+                             Tkn.Export          -> pExport (Tkn.pos startTkn)
+                             other               -> lexicalError ("Invalid top-level keyword: " <> T.pack (show other))
+                                                    F.& OuroError (Tkn.pos kwTkn)
+                                                    F.& Left
+                                                    F.& lift
         other -> lexicalError ("Higher Expressions must begin with '('. Found: " <> T.pack (show other))
                  F.& OuroError (Tkn.pos startTkn)
                  F.& Left
                  F.& lift
 
 
--- (defn name (params) body), or (defn/const name body): a function of no parameters, with
--- none written. Either may have a return type after its name.
+-- (define/procedure name (params) body), or (define/constant name body): a function of no
+-- parameters, with none written. Either may have a return type after its name.
 pDefn :: Parser [S.Param] -> SourcePos -> Parser ParsedDecl
 pDefn params pos = do
     name    <- expectSymbol "Expected a function name"
@@ -418,9 +425,9 @@ pExpr = do
 
                              -- Primitive Leaf Node capture (+ source location)
                              Tkn.Let            -> capture (S.Symbol (Tkn.pos t) "let")
-                             Tkn.Defn           -> capture (S.Symbol (Tkn.pos t) "defn")
-                             Tkn.DefnConst      -> capture (S.Symbol (Tkn.pos t) "defn/const")
-                             Tkn.DefnProperty   -> capture (S.Symbol (Tkn.pos t) "defn/property")
+                             Tkn.DefineProcedure -> capture (S.Symbol (Tkn.pos t) "define/procedure")
+                             Tkn.DefineConstant  -> capture (S.Symbol (Tkn.pos t) "define/constant")
+                             Tkn.DefineProperty  -> capture (S.Symbol (Tkn.pos t) "define/property")
 
                              -- Parameterized Identifiers
                              Tkn.Symbol         txt -> capture (S.Symbol (Tkn.pos t) txt)

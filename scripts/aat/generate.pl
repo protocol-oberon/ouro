@@ -118,7 +118,7 @@ for my $section (@order) {
     print $fh "(export " . join("\n        ", @names) . ")\n\n";
     for my $def (@defs) {
         my ($function, $doc, $number, $label) = @$def;
-        printf $fh "(defn %-*s () (doc %s) (%s \"%s\" %s))\n", $width, $function, quoted($doc), $constructor, $number, quoted($label);
+        printf $fh "(define/constant %-*s (doc %s) (%s \"%s\" %s))\n", $width, $function, quoted($doc), $constructor, $number, quoted($label);
     }
     close $fh;
     print "$file: " . scalar(@names) . " terms\n";

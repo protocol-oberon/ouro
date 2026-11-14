@@ -56,20 +56,47 @@ pDelims = lexeme . withPos $ choice
 
 
 -- Core Operational Keywords & Symbols. A keyword that only begins a longer name
--- ('defnode', 'important') backtracks, so the name is read as a symbol. The variants of defn
--- come before it, each tried on its own, since each begins with it.
+-- ('graphs', 'important') backtracks, so the name is read as a symbol. A definition is
+-- define with the kind it defines, each tried on its own, since each begins with define.
 pCoreKeywords :: Parser Tkn.Token
 pCoreKeywords = lexeme . withPos . try $ choice
     [ Tkn.Import   <$ string "import"   <* endOfWord
     , Tkn.Export   <$ string "export"   <* endOfWord
-    , try (Tkn.DefnConst    <$ string "defn/const"    <* endOfWord)
-    , try (Tkn.DefnProperty <$ string "defn/property" <* endOfWord)
-    , Tkn.Defn     <$ string "defn"     <* endOfWord
+    , try (Tkn.DefineProcedure <$ string "define/procedure" <* endOfWord)
+    , try (Tkn.DefineProperty  <$ string "define/property"  <* endOfWord)
+    , try (Tkn.DefineConstant  <$ string "define/constant"  <* endOfWord)
     , Tkn.Graph    <$ string "graph"    <* endOfWord
     ]
 
     where
     endOfWord = choice [space1, () <$ lookAhead (oneOf ("()[]" :: String)), eof]
+
+
+-- A definition says what it defines: define/procedure, define/property or define/constant.
+-- define on its own, or with another kind, is an error where it is written, as are defn,
+-- defn/const and defn/property, which the define forms replace. Any other name that begins
+-- with either ('defined', 'defnode', 'defn/constant') is a name.
+pDefinitionWords :: Parser Tkn.Token
+pDefinitionWords = lexeme . withPos $ do
+    startOffset <- M.getOffset
+    written     <- try $ do
+                   word    <- choice [string "define", string "defn"] <* (() <$ lookAhead (char '/') <|> notFollowedBy symbolChar)
+                   variant <- T.pack <$> many symbolChar
+                   case (word, variant) of
+                       ("defn", other) | other `notElem` ["", "/const", "/property"]
+                           -> fail "a name"
+                       _definition
+                           -> pure (word <> variant)
+    M.region (\err -> M.setErrorOffset startOffset err)
+             (fail (T.unpack (retired written)))
+
+    where
+    retired :: Text -> Text
+    retired = \case
+        "defn"          -> "defn is now define/procedure: (define/procedure name (args) body)"
+        "defn/const"    -> "defn/const is now define/constant: (define/constant name value)"
+        "defn/property" -> "defn/property is now define/property: (define/property name (#contract x) body)"
+        written         -> "'" <> written <> "' is not a definition: say what is defined, with define/procedure, define/property or define/constant"
 
 
 -- Attribute keys, ':key'. A key may start with '@', so JSON-LD's keywords can be written as
@@ -226,6 +253,7 @@ symbolChar = alphaNumChar <|> oneOf ("_-+*/<>=!?&|~':" :: String)
 pSingleToken :: Parser Tkn.Token
 pSingleToken =  pDelims
             <|> pCoreKeywords
+            <|> pDefinitionWords
             <|> pAttributes
             <|> pBinding
             <|> pReaderTags

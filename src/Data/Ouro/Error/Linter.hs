@@ -40,7 +40,7 @@ lintExpression =
 --
 -- Checks the parsed functions and graphs. A function's result is one expression, and
 -- parentheses around a single plain value make it an array: (fn () ("hello")) returns
--- ["hello"], which is rarely what was meant. A defn named after a built-in or a special form
+-- ["hello"], which is rarely what was meant. A function named after a built-in or a special form
 -- replaces it, which is allowed, as in Scheme, but worth saying. Functions and graphs are named in
 -- kebab-case.
 lintModule :: M.Module -> [OuroWarning]

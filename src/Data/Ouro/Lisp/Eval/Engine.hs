@@ -85,7 +85,7 @@ evaluate imported moduleEnv rootExpr = L.runEvalM (L.defaultEnv imported moduleE
 -- constant.
 --
 -- The value of a function of no parameters, named as a value. One that closes over its
--- module's root frame alone, as every defn does, is evaluated the first time it is named in
+-- module's root frame alone, as every definition does, is evaluated the first time it is named in
 -- an evaluation, and that value is every later use's: nothing it can see varies, so it
 -- cannot differ. A fn of no parameters written inside a function closes over a frame that
 -- each call of that function binds afresh, so it is evaluated each time it is named.
@@ -142,7 +142,7 @@ evalExpr expr = do
         S.Tagged _   tag   payload -> assertTag tag payload
         -- A name of a function of no parameters, written as a value, is its result: Ouro has no
         -- effects, so the function cannot be told from its value. It is called as (name) is,
-        -- so arity, signatures, blame and the recursion check apply, and a defn's value is kept
+        -- so arity, signatures, blame and the recursion check apply, and a definition's value is kept
         -- (see constant). At the head of a call a name is the function itself (see applyFunction)
         S.Symbol pos name          -> lookupVar evalExpr pos name env >>= \case
                                           FunctionClosure closureEnv fnId [] bodyExprs

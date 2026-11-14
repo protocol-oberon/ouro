@@ -1,7 +1,7 @@
 Error [BLD0000]: Unknown Build Setting
   ┌── │test-cli/fixtures/messages/BLD0000-UnknownBuildSetting/package.ouro:1:1│
   │
-1 │ (defn package () (:sorces "src"))
+1 │ (define/constant package (:sorces "src"))
   │ ^
   │ Setting: :sorces
   │ 

@@ -8,7 +8,7 @@
         archival-sub-grouping
         collection)
 
-(defn archive               () (doc "The Set is a top level Archive.") (base/aat "300375748" "Archive"))
-(defn archival-grouping     () (doc "The Set is some grouping within an archive.") (base/aat "300404022" "Archival Grouping"))
-(defn archival-sub-grouping () (doc "The Set is some grouping within an archival grouping.") (base/aat "300404023" "Archival Sub-Grouping"))
-(defn collection            () (doc "The Set is a collection of things, typically physical objects and managed by an organization.") (base/aat "300025976" "Collection"))
+(define/constant archive               (doc "The Set is a top level Archive.") (base/aat "300375748" "Archive"))
+(define/constant archival-grouping     (doc "The Set is some grouping within an archive.") (base/aat "300404022" "Archival Grouping"))
+(define/constant archival-sub-grouping (doc "The Set is some grouping within an archival grouping.") (base/aat "300404023" "Archival Sub-Grouping"))
+(define/constant collection            (doc "The Set is a collection of things, typically physical objects and managed by an organization.") (base/aat "300025976" "Collection"))

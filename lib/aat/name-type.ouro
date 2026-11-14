@@ -9,8 +9,8 @@
         family-name
         former-name)
 
-(defn alternate-name () (doc "An alternate name, as opposed to the primary name, of an entity.") (base/aat "300264273" "Alternate Name"))
-(defn given-name     () (doc "The given or first name of a Person.") (base/aat "300404651" "Given Name"))
-(defn middle-name    () (doc "The middle name of a Person.") (base/aat "300404654" "Middle Name"))
-(defn family-name    () (doc "The family or sirname of a Person.") (base/aat "300404652" "Family Name"))
-(defn former-name    () (doc "A former name, for any reason, of a Person.") (base/aat "300435719" "Former Name"))
+(define/constant alternate-name (doc "An alternate name, as opposed to the primary name, of an entity.") (base/aat "300264273" "Alternate Name"))
+(define/constant given-name     (doc "The given or first name of a Person.") (base/aat "300404651" "Given Name"))
+(define/constant middle-name    (doc "The middle name of a Person.") (base/aat "300404654" "Middle Name"))
+(define/constant family-name    (doc "The family or sirname of a Person.") (base/aat "300404652" "Family Name"))
+(define/constant former-name    (doc "A former name, for any reason, of a Person.") (base/aat "300435719" "Former Name"))

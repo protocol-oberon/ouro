@@ -6,5 +6,5 @@ Error [BLD0006]: Not Package Data
   │ Found: a graph
   │ 
 
-package.ouro holds one function, (defn package () ...), and nothing else, so it cannot have a graph.
-Perhaps move it into a module under :sources.
+package.ouro holds one function, (define/constant package ...), and nothing else, so it cannot have a
+graph. Perhaps move it into a module under :sources.

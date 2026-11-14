@@ -12,7 +12,7 @@ An Ouro file consists of a collection of top-level, _higher expressions_. There 
 
 1. `(import path)` and `(export name ...)`: the modules a file uses and the functions it offers, written first in the file (see [Modules](#modules)).
 2. `(graph name expr)`: Expressions that encode JSON-LD graphs. A graph is one expression, usually a record.
-3. `(defn name (args) expr)`: Ouro supports _higher order functions_: `(defn)` is a named function. `(fn (x y) expr)` is a lambda function. 
+3. `(define/procedure name (args) expr)`: Ouro supports _higher order functions_: `define/procedure` names a function, and `(fn (x y) expr)` is a lambda function. The older `defn`, `defn/const` and `defn/property` are errors that name their replacement.
 
 The target structure of Ouro code is determined by a few simple rules, which only look at an expression's direct elements, never at their types:
 
@@ -26,7 +26,7 @@ Through composition of these rules it is possible to ergonomically express any J
 
 Ouro is 100% declarative, and lazily evaluated. This allows for the values of records to not only be referenced within the local scope of the expression, but also out of declaration order. To reference the value of an attribute pair, simply call the key without the colon, so `:lookup value` becomes `lookup`, which returns the `value`.
 
-Each key can appear once in a record: writing a key twice is an error. An attribute pair never sees itself, so in `(:label label)` the `label` being looked up is the one from the enclosing scope. This is what lets a template simply write `(defn node (id type) (:id id :type type))`.
+Each key can appear once in a record: writing a key twice is an error. An attribute pair never sees itself, so in `(:label label)` the `label` being looked up is the one from the enclosing scope. This is what lets a template simply write `(define/procedure node (id type) (:id id :type type))`.
 
 A key always has a value: in `(:type :_label "Spring")`, `:type` has none, and the compile stops there (`SYN0011`) rather than lose the pair. A key can be a compact IRI, `(:crm:P2_has_type "x")`, and is referred to the same way, `crm:P2_has_type`.
 
@@ -47,7 +47,7 @@ There are 8 built-in properties:
 | `#boolean`      | Asserts that the evaluated result is a boolean primitive.                                |
 | `#record`       | Asserts that the evaluated result is a Record.                                           |
 | `#array`        | Asserts that the evaluated result is an Array.                                           |
-| `#function`     | Asserts that the evaluated result is a function (a `fn`, a `defn` name or a built-in).   |
+| `#function`     | Asserts that the evaluated result is a function (a `fn`, a `define/procedure` name or a built-in).   |
 
 A value without the property it is given is an error, such as `Expected data to have the property #number, got #string instead.` The same properties type a function's parameters and result (see [Functions](#functions)).
 
@@ -62,7 +62,7 @@ Two further `#` forms are values rather than properties, written in place of an 
 
 Ouro contains special forms designed for increased ergonomics for creating JSON-LD graphs. These forms interact with the JSON-LD graph in different ways.
 
-Their names are not reserved. As in Scheme, a binding of the same name, whether an attribute key, a `let` binding, a parameter or a `defn`, shadows the form where it is in scope, and the form is then a call of the binding: `(let ($list (fn (x) (+ x 1))) (list 1))` is `2`. The forms rewritten before any name is bound, `and`, `or`, `->`, `with`, `adjoin` and `thru`, are the exception, for now: a binding of their names is ignored where they are called.
+Their names are not reserved. As in Scheme, a binding of the same name, whether an attribute key, a `let` binding, a parameter or a `define/procedure`, shadows the form where it is in scope, and the form is then a call of the binding: `(let ($list (fn (x) (+ x 1))) (list 1))` is `2`. The forms rewritten before any name is bound, `and`, `or`, `->`, `with`, `adjoin` and `thru`, are the exception, for now: a binding of their names is ignored where they are called.
 
 ### Let
 
@@ -131,7 +131,7 @@ A project that extends Linked Art adds its own terms after it, as an array:
 ```
 
 - A key starting with `@` is a JSON-LD keyword: `(:@vocab "https://example.org/" :@language "en")` is a local context. Any other key defines a term, which maps to an IRI, to `null`, or to an expanded definition record (`:@id`, `:@type`, `:@container`, ...).
-- A context is a value like any other, so a function can build one: `(defn linked-art () "https://linked.art/ns/v1/linked-art.json")`, then `:context (list linked-art (:ex "https://example.org/ns/"))`.
+- A context is a value like any other, so a function can build one: `(define/procedure linked-art () "https://linked.art/ns/v1/linked-art.json")`, then `:context (list linked-art (:ex "https://example.org/ns/"))`.
 - A malformed context is reported where it is written: a remote context that is not an absolute URL, an unknown `@` keyword, or a term mapped to a Number, for example.
 - `:context null` clears the context, and `:@context` means the same as `:context`.
 
@@ -338,10 +338,10 @@ This form simply tells the compiler to evaluation every expression after a `list
 
 ### Map
 
-`(map f xs)` calls the function `f` on each element of the Array `xs`, and returns an Array of the results, in order. `f` can be a `defn`, a `fn`, a builtin or a [placeholder](#placeholders), so most uses need no `fn` at all:
+`(map f xs)` calls the function `f` on each element of the Array `xs`, and returns an Array of the results, in order. `f` can be a `define/procedure`, a `fn`, a builtin or a [placeholder](#placeholders), so most uses need no `fn` at all:
 
 ``` clojure
-(defn aat-type (id label)
+(define/procedure aat-type (id label)
   (:id #uri (+ "http://vocab.getty.edu/aat/" id) :type "Type" :_label label))
 
 (graph mapped
@@ -369,7 +369,7 @@ This form simply tells the compiler to evaluation every expression after a `list
 }
 ```
 
-Each element is passed to `f` as an ordinary call, so `f` must take exactly one argument, and its signature checks every element: a mismatch is reported at the Array. Mapping over an empty Array gives an empty Array, and mapping over anything other than an Array is an error. `map` cannot be the name of a `defn`, but `:map` is an ordinary key and `$map` an ordinary binding.
+Each element is passed to `f` as an ordinary call, so `f` must take exactly one argument, and its signature checks every element: a mismatch is reported at the Array. Mapping over an empty Array gives an empty Array, and mapping over anything other than an Array is an error. `map` cannot be the name of a `define/procedure`, but `:map` is an ordinary key and `$map` an ordinary binding.
 
 When the elements are themselves Arrays or Records, a [pattern parameter](#destructuring-parameters) takes each one apart: `(map (fn ((?slug ?label)) (person slug label)) pairs)`.
 
@@ -403,7 +403,7 @@ current record. For example the following Ouro code:
 Inlays are layers. Since each key can appear once in a record, when an inlaid record has a key that is already written in the record, the written attribute pair wins, wherever the inlay is placed. When two inlays share a key, the later inlay wins. This makes inlaying a template and overriding some of its attribute pairs straightforward:
 
 ``` clojure
-(defn base () (:type "Type" :_label "Painting"))
+(define/procedure base () (:type "Type" :_label "Painting"))
 
 (graph overridden
   (:_label "Spring"
@@ -612,7 +612,7 @@ The connectives, the quantifiers and the set operations can be written with the 
 | `λ`    | `fn`           | `/=`   | `neq`           |
 
 ``` clojure
-(defn consistent #boolean (#record book)
+(define/procedure consistent #boolean (#record book)
   (∄ (contains (absent book) ?) (present book)))
 ```
 
@@ -677,13 +677,13 @@ Any other value, such as a record or a `#uri`, is a type error.
 Like any good Lisp, Ouro supports powerful first class functions. A function's body is one expression, written exactly as it would be anywhere else, and its value is the result: a Record, an Array or a Primitive.
 
 ```clojure
-(defn add-one (n)
+(define/procedure add-one (n)
   (+ 1 n))
 ```
 
 | Form                     | Meaning                                                             |
 |:-------------------------|:--------------------------------------------------------------------|
-| `(defn name (x y) expr)` | a named function; top level only; visible throughout the file       |
+| `(define/procedure name (x y) expr)` | a named function; top level only; visible throughout the file       |
 | `(fn (x y) expr)`        | an anonymous function value, closed over the scope it is written in |
 | `(λ (x y) expr)`         | the same as `fn`                                                    |
 | `(f a b)`                | a call: `f` is any expression that evaluates to a function          |
@@ -698,7 +698,7 @@ A local function is a `let`-bound `fn`:
 A function binds its own private values with `let`, just as a graph does:
 
 ``` clojure
-(defn type-node (aat-id label)
+(define/procedure type-node (aat-id label)
   (let ($prefix "Type: ")
     (:id     #uri (+ "http://vocab.getty.edu/aat/" aat-id)
      :type   "Type"
@@ -713,17 +713,17 @@ Semantics of a call:
 
 - *Arguments are call-by-need:* each argument becomes a promise over the caller's scope. It is evaluated at most once, when the function first uses it, and always means what it meant at the call site, so a function's own bindings can never capture it. An argument the function never uses is still checked for errors.
 
-- *The body is evaluated in the function's closure*, extended with a frame for the parameters. For a `defn` the closure is the module, for a `fn` it is the scope where the `fn` was written. A function cannot see its caller's bindings.
+- *The body is evaluated in the function's closure*, extended with a frame for the parameters. For a `define/procedure` the closure is the module, for a `fn` it is the scope where the `fn` was written. A function cannot see its caller's bindings.
 
 - *Recursion goes down into a value.* A function may call itself, directly or through other functions, only if each time round it passes on a part of one of its parameters, so it finishes: values are finite, so taking parts of one reaches its leaves. A part is a path into a parameter, `(get n part)`, a hole of a pattern matched against it, or an element of it given to `map`, `exists`, `forall`, `omits` or `filter`:
 
   ``` clojure
-  (defn outline (n)
+  (define/procedure outline (n)
     (:label (get n _label)
      :parts (map outline (get-or () n part))))
   ```
 
-  A recursion that might not finish is an error wherever it is written, whether or not a graph calls it: `(defn f (n) (f n))` is reported as `'f' calls itself, and might never finish`. The check is size-change termination (Lee, Jones and Ben-Amram, 2001), and it errs on the safe side: a number counting down is not a part, and neither is `(get-or () n part)` passed straight on, which may be its fallback each time. Finishing is not speed: a function that calls itself twice on the same part finishes, but in time exponential in the value's depth.
+  A recursion that might not finish is an error wherever it is written, whether or not a graph calls it: `(define/procedure f (n) (f n))` is reported as `'f' calls itself, and might never finish`. The check is size-change termination (Lee, Jones and Ben-Amram, 2001), and it errs on the safe side: a number counting down is not a part, and neither is `(get-or () n part)` passed straight on, which may be its fallback each time. Finishing is not speed: a function that calls itself twice on the same part finishes, but in time exponential in the value's depth.
 
   A function reached through a value, as in `(w w)`, is checked when it is called: calling it while it is already being called is an error. Nesting a call, `(f (f x))`, is two calls, not recursion.
 
@@ -732,7 +732,7 @@ Semantics of a call:
 - *A returned function is called through `let`.* An expression whose first element is a call is an Array, so `((f x) y)` does not call the result of `(f x)`. Bind it first: `(let ($g (f x)) (g y))`. A function can return a `fn` waiting for the remaining arguments (or a [placeholder](#placeholders), `(+ ? n)`):
 
   ``` clojure
-  (defn adder (n) (fn (x) (+ n x)))
+  (define/procedure adder (n) (fn (x) (+ n x)))
 
   (graph partial
     (let ($inc (adder 1))
@@ -741,22 +741,22 @@ Semantics of a call:
 
   ...compiles to `{"r": 3}`.
 
-A `defn` body is checked when the file is parsed: it must be one expression and cannot be a spliced record (`(defn f (x) :k v)`). A nested `defn` in it is reported with its replacement, a `let`-bound `fn`.
+A `define/procedure` body is checked when the file is parsed: it must be one expression and cannot be a spliced record (`(define/procedure f (x) :k v)`). A nested definition in it is reported with its replacement, a `let`-bound `fn`.
 
 A function is documented with a `(doc "...")` among the direct elements of its body, before or after its result. It is never evaluated and is not part of the result:
 
 ``` clojure
-(defn place #record (#string slug #string label)
+(define/procedure place #record (#string slug #string label)
   (doc "A Linked Art Place, under the example namespace.")
   (:id (example (+ "place/" slug)) :type "Place" :_label label))
 ```
 
-A function of no parameters is a constant: named as a value, it is its result, so `vocab/artwork` is `(vocab/artwork)`. Ouro has no effects, so such a function cannot be told from its value; `(c)` still calls it. A constant cannot be passed on as a function, and an error in it is reported where it is defined. A `defn`'s value is worked out the first time a graph names it, and reused after that.
+A function of no parameters is a constant: named as a value, it is its result, so `vocab/artwork` is `(vocab/artwork)`. Ouro has no effects, so such a function cannot be told from its value; `(c)` still calls it. A constant cannot be passed on as a function, and an error in it is reported where it is defined. A constant's value is worked out the first time a graph names it, and reused after that.
 
-`defn/const` writes a constant without the empty parameter list, and takes a return type and a `doc` as `defn` does:
+`define/constant` writes a constant without the empty parameter list, and takes a return type and a `doc` as `define/procedure` does:
 
 ``` clojure
-(defn/const museum-label #string
+(define/constant museum-label #string
   (doc "How the museum is named in every record.")
   "Rijksmuseum")
 ```
@@ -764,7 +764,7 @@ A function of no parameters is a constant: named as a value, it is its result, s
 Names:
 
 - Functions and graphs are named in kebab-case, `make-place`. A name with a capital or an underscore is a warning (`WRN0004`) that suggests the kebab-case spelling. Attribute keys and local bindings are exempt, since keys follow the data's vocabulary (`:_label`).
-- A `defn` may take the name of a built-in or a special form, as in Scheme, and replaces it throughout the file, with a warning (`WRN0003`). The names read before any name is bound cannot be taken (`SYN0008`), since such a function could never be called: `defn`, `graph`, `doc`, `and`, `or`, `->`, `with`, `adjoin` and `thru`.
+- A `define/procedure` may take the name of a built-in or a special form, as in Scheme, and replaces it throughout the file, with a warning (`WRN0003`). The names read before any name is bound cannot be taken (`SYN0008`), since such a function could never be called: `define/procedure`, `define/property`, `define/constant`, `graph`, `doc`, `and`, `or`, `->`, `with`, `adjoin` and `thru`.
 - A `/` qualifies an imported name, `base/aat`, so no function, parameter or `let` binding can have one. The operators `/` and `/=` are names like any other.
 
 ### Signatures
@@ -772,7 +772,7 @@ Names:
 A function's types are written as built-in properties in its header. One between the name and the parameters is the return type, and one before a parameter is that parameter's type. Any of them can be left out.
 
 ``` clojure
-(defn node #record (#uri id type)
+(define/procedure node #record (#uri id type)
   (:id id :type type))
 
 (graph typed
@@ -785,7 +785,7 @@ A function's types are written as built-in properties in its header. One between
 - Each argument is checked where the call is written, so a mismatch is reported at the argument, in the call. The result is checked where the body is.
 - An argument is checked even if the function never uses it.
 - Nothing is inferred: an untyped parameter or result is not checked.
-- A return type of `#array` says that a one-value Array is intended, so `(defn f #array () ("x"))` does not warn.
+- A return type of `#array` says that a one-value Array is intended, so `(define/procedure f #array () ("x"))` does not warn.
 
 ### When signatures are checked
 
@@ -800,7 +800,7 @@ User-defined properties are described under [Planned](#planned).
 A call with `?` holes among its arguments is not called: it is a function of its holes. This fixes some arguments now and leaves the rest for later, without writing a `fn` that returns a `fn`:
 
 ``` clojure
-(defn node (base type id label)
+(define/procedure node (base type id label)
   (:id #uri (+ base id) :type type :_label label))
 
 (graph placeholders
@@ -832,7 +832,7 @@ A call with `?` holes among its arguments is not called: it is a function of its
 - A named hole is one parameter, however often it is written: `(* ?n ?n)` takes one.
 - A typed hole is a typed parameter: `(node #uri ? "Type")` checks and converts its argument, as a signature would.
 - A hole belongs to the call it is an argument of, so `(f (g ?))` passes `f` a function.
-- Any call takes holes: a `defn`, a `fn`, a builtin, an imported function, and the special forms that evaluate their arguments (`get`, `image`, `insert`, `replace-at`, `list`, `map`). In `get` and `image` a hole stands for the target, never a key or an index.
+- Any call takes holes: a `define/procedure`, a `fn`, a builtin, an imported function, and the special forms that evaluate their arguments (`get`, `image`, `insert`, `replace-at`, `list`, `map`). In `get` and `image` a hole stands for the target, never a key or an index.
 - A placeholder is an ordinary `fn` value. It is called with exactly as many arguments as it has holes, and functions themselves stay uncurried.
 - A hole anywhere else (in an Array, in a Record, as a `let` value) is an error, and `?..rest` can only be written in a pattern. The holes in a `case` pattern or a [pattern parameter](#destructuring-parameters) match values; a placeholder can be written in a branch's body.
 
@@ -841,10 +841,10 @@ A call with `?` holes among its arguments is not called: it is a function of its
 A parameter can be a pattern, written as a `case` pattern is. It takes one argument and names its parts, so a lambda can take a pair or a Record apart where it is written:
 
 ``` clojure
-(defn person (slug label)
+(define/procedure person (slug label)
   (:id #uri (+ "https://linked.art/example/person/" slug) :type "Person" :_label label))
 
-(defn label-of ((:_label ?l)) l)
+(define/procedure label-of ((:_label ?l)) l)
 
 (graph destructured
   (:carried_out_by (map (fn ((?slug ?label)) (person slug label))
@@ -872,7 +872,7 @@ A parameter can be a pattern, written as a `case` pattern is. It takes one argum
 }
 ```
 
-- A pattern is one parameter: `(fn ((?a ?b)) ...)` takes one argument. Names and patterns can be mixed, as in `(defn sum (base (?a ?b)) ...)`.
+- A pattern is one parameter: `(fn ((?a ?b)) ...)` takes one argument. Names and patterns can be mixed, as in `(define/procedure sum (base (?a ?b)) ...)`.
 - Any `case` pattern can be written: Array and Record patterns, `?..rest` holes, and values compared by value, as in `(fn (("Person" ?l)) l)`. A pattern must bind something.
 - The argument is matched when the function is called, even if the body uses none of its holes. An argument that does not match is reported at the argument, or at the Array in `map`.
 - A property before a pattern checks the argument first: `(fn (#array (?a ?b)) ...)`.
@@ -916,7 +916,7 @@ Ouro uses Scheme style lexical scoping, this means that scope is defined by the 
 ;; 'person' binds its own 'name'. The argument 'who' is still evaluated where
 ;; the call is written, so it is never captured by the function's 'name'.
 
-(defn person (slug who)
+(define/procedure person (slug who)
   (let ($name "a name private to person"
         $base (+ (linked-art) "person/"))
     (:id     #uri (+ base slug)
@@ -936,7 +936,7 @@ A file uses another's functions by importing it, and offers its own by exporting
 (export place named part-of)
 ```
 
-- An imported function is always written with a qualifier, `qualifier/name`: the path's last part (`base`, `people`), or the name given after `as`. A file's own functions are written without one, so a local `name` and `base/name` are different functions. No import is qualified `defn`, since its functions would read as `defn/const` and `defn/property`: name such a module with `as`.
+- An imported function is always written with a qualifier, `qualifier/name`: the path's last part (`base`, `people`), or the name given after `as`. A file's own functions are written without one, so a local `name` and `base/name` are different functions. No import is qualified `define` or `defn`, since its functions would read as the definition keywords, `define/constant`, or their retired forms, `defn/const`: name such a module with `as`.
 - A file has one `(export f g ...)`, naming its own functions. Only functions cross files, never graphs or values, so modules hold no state.
 - `(import a/b)` reads `a/b.ouro` under the project's source folder (see [Builds](#builds)), or, when `a` names a library in `vendor/`, `b.ouro` from that library (see [Libraries](#libraries)). Each module is read, checked and desugared on its own, loaded once however often it is imported, and its functions close over its own module, never the importer.
 
@@ -980,10 +980,10 @@ Module paths are written with `/` on every platform, Windows included.
 (import std/vocab)
 (import std/exhibition)
 
-(defn example #uri (#string path)
+(define/procedure example #uri (#string path)
   (+ "https://linked.art/example/" path))
 
-(defn person #record (#string slug #string label)
+(define/procedure person #record (#string slug #string label)
   (:id (example (+ "person/" slug)) :type "Person" :_label label))
 
 ;; std/exhibition builds the concept, classified as an Exhibition; the steps add the rest
@@ -1157,7 +1157,7 @@ Only the modules of the graphs named, and what they import, are compiled, so a m
 A `package.ouro` in the project's folder changes the defaults. It holds one function, `package`, whose value is the project's settings, none of them required:
 
 ``` clojure
-(defn package ()
+(define/procedure package ()
   (:sources "src"
    :outputs "dist"
    :graphs  ("provenance/spring/purchase-of-spring")
@@ -1190,13 +1190,13 @@ A library is used by copying it into `vendor/`, in the project's folder, beside 
 
 These are agreed directions for Ouro, roughly in the order they will be built. None of them is implemented yet.
 
-- **Properties:** user-defined properties, with the same standing as `#string`. A property is a function written with `defn/property`, whose body is any Boolean expression. Called, it answers `true` or `false`; written before a value, `#titled x`, it asserts; and in a signature it is a requirement, whose failure is reported with blame, naming who broke it, as Racket's contracts do:
+- **Properties:** user-defined properties, with the same standing as `#string`. A property is a function written with `define/property`, whose body is any Boolean expression. Called, it answers `true` or `false`; written before a value, `#titled x`, it asserts; and in a signature it is a requirement, whose failure is reported with blame, naming who broke it, as Racket's contracts do:
 
   ``` clojure
-  (defn/property titled (#record r)
+  (define/property titled (#record r)
     (has r _label))
 
-  (defn exhibit #record (#titled r) ...)
+  (define/procedure exhibit #record (#titled r) ...)
   ```
 
 - **The rest of the static analysis:** names, arity and recursion are already checked as written (see [Functions](#functions) and [Lexical Scoping](#lexical-scoping)). Still to come: warnings for unused bindings, imports and functions, once the error codes are redesigned; with properties, property names checked as written too, a recursive property under the same rule as any function; and whether an expression is a call, a record or an array decided there, once, for the evaluator to follow, by the same rules as now.

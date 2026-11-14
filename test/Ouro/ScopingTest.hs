@@ -32,31 +32,31 @@ baseline = Group "Scoping: baseline (must keep passing)"
     , ("nested records see outer bindings",       compilesLike "(graph g (:x 1 :inner (:y x)))"
                                                                "(graph g (:x 1 :inner (:y 1)))")
     , ("function defines shadow without leaking", compilesLike (T.unlines
-                                                                 [ "(defn sandbox! () (let ($env \"dev\") (:fenv env)))"
+                                                                 [ "(define/procedure sandbox! () (let ($env \"dev\") (:fenv env)))"
                                                                  , "(graph g (let ($env \"prod\") (:genv env (inlay (sandbox!)))))" ])
                                                                "(graph g (:genv \"prod\" :fenv \"dev\"))")
     , ("functions are first-class values",        compilesLike (T.unlines
-                                                                 [ "(defn mk! (v) (:v v))"
-                                                                 , "(defn call! (make) ((inlay (make 1)) :d 2))"
+                                                                 [ "(define/procedure mk! (v) (:v v))"
+                                                                 , "(define/procedure call! (make) ((inlay (make 1)) :d 2))"
                                                                  , "(graph g (:r (call! mk!)))" ])
                                                                "(graph g (:r (:v 1 :d 2)))")
-    , ("arguments from a local call-site scope",  compilesLike "(defn f! (a) (:out a)) (graph g (:rec (:loc \"local\" :res (f! loc))))"
+    , ("arguments from a local call-site scope",  compilesLike "(define/procedure f! (a) (:out a)) (graph g (:rec (:loc \"local\" :res (f! loc))))"
                                                                "(graph g (:rec (:loc \"local\" :res (:out \"local\"))))")
-    , ("functions calling functions",             compilesLike "(defn inner! (b) b) (defn outer! (a) (inner! a)) (graph g (:r (outer! 7)))"
+    , ("functions calling functions",             compilesLike "(define/procedure inner! (b) b) (define/procedure outer! (a) (inner! a)) (graph g (:r (outer! 7)))"
                                                                "(graph g (:r 7))")
-    , ("unused arguments are not forced early",   compilesLike "(defn k! (a b) a) (graph g (:a (k! 1 b) :b a))"
+    , ("unused arguments are not forced early",   compilesLike "(define/procedure k! (a b) a) (graph g (:a (k! 1 b) :b a))"
                                                                "(graph g (:a 1 :b 1))")
     , ("case alternatives sugar",                 compilesLike "(graph g (:n \"Proust\" :r (case n ((\"Manet\" \"Proust\") \"person\") (otherwise \"other\"))))"
                                                                "(graph g (:n \"Proust\" :r \"person\"))")
     , ("case guards",                             compilesLike "(graph g (:n 150 :r (case n ((> 100) \"big\") (otherwise \"small\"))))"
                                                                "(graph g (:n 150 :r \"big\"))")
     , ("cyclic bindings are an error",            failsToCompile "(graph g (:a b :b a))")
-    , ("wrong arity is an error",                 failsToCompile "(defn id! (a) a) (graph g (:r (id! 1 2)))")
-    , ("direct recursion is an error",            failsToCompile "(defn f! (n) (f! n)) (graph g (:r (f! 1)))")
+    , ("wrong arity is an error",                 failsToCompile "(define/procedure id! (a) a) (graph g (:r (id! 1 2)))")
+    , ("direct recursion is an error",            failsToCompile "(define/procedure f! (n) (f! n)) (graph g (:r (f! 1)))")
     , ("let values stay private to get",          failsToCompile "(graph g (:rec (let ($hidden 5) (:a 1)) :r (get rec hidden)))")
     , ("local functions shadow top-level ones",   compilesLike (T.unlines
-                                                                 [ "(defn helper () \"top\")"
-                                                                 , "(defn caller! () (let ($helper (fn () \"local\")) (:r (helper))))"
+                                                                 [ "(define/procedure helper () \"top\")"
+                                                                 , "(define/procedure caller! () (let ($helper (fn () \"local\")) (:r (helper))))"
                                                                  , "(graph g (:res (caller!)))" ])
                                                                "(graph g (:res (:r \"local\")))")
     , ("an expression can be replaced by its value", prop_substitution)
@@ -72,21 +72,21 @@ lexicalRecords = Group "Scoping: lexical records, shared bindings"
 callSiteArguments :: Group
 callSiteArguments = Group "Scoping: arguments evaluate at the call site"
     [ ("callee defines do not capture arguments", compilesLike (T.unlines
-                                                                 [ "(defn f! (a) (let ($x \"inside\") (:out a)))"
+                                                                 [ "(define/procedure f! (a) (let ($x \"inside\") (:out a)))"
                                                                  , "(graph g (:x \"outside\" :res (f! x)))" ])
                                                                "(graph g (:x \"outside\" :res (:out \"outside\")))")
-    , ("callee parameters do not capture arguments", compilesLike "(defn f! (a b) b) (graph g (:a \"caller\" :r (f! 1 a)))"
+    , ("callee parameters do not capture arguments", compilesLike "(define/procedure f! (a b) b) (graph g (:a \"caller\" :r (f! 1 a)))"
                                                                "(graph g (:a \"caller\" :r \"caller\"))")
-    , ("nesting a call is not recursion",         compilesLike "(defn id! (a) a) (graph g (:r (id! (id! 1))))"
+    , ("nesting a call is not recursion",         compilesLike "(define/procedure id! (a) a) (graph g (:r (id! (id! 1))))"
                                                                "(graph g (:r 1))")
     ]
 
 lexicalFunctions :: Group
 lexicalFunctions = Group "Scoping: functions resolve names where they are defined"
     [ ("a function uses the helper defined next to it", compilesLike (T.unlines
-                                                                 [ "(defn helper () \"defined next to uses-helper!\")"
-                                                                 , "(defn uses-helper! () (helper))"
-                                                                 , "(defn caller! () (let ($helper (fn () \"caller's own helper\")) (:r (uses-helper!))))"
+                                                                 [ "(define/procedure helper () \"defined next to uses-helper!\")"
+                                                                 , "(define/procedure uses-helper! () (helper))"
+                                                                 , "(define/procedure caller! () (let ($helper (fn () \"caller's own helper\")) (:r (uses-helper!))))"
                                                                  , "(graph g (:res (caller!)))" ])
                                                                "(graph g (:res (:r \"defined next to uses-helper!\")))")
     ]
@@ -107,7 +107,7 @@ valuePatterns = Group "Scoping: value patterns, no quoting"
                                                                (personWith "(:_label \"Manet\" :id \"https://linked.art/example/person/manet\")"))
     , ("symbols in patterns compare by value",    compilesLike "(graph g (:pt \"Person\" :p (:type \"Person\") :r (case p ((:type pt) \"yes\") (otherwise \"no\"))))"
                                                                "(graph g (:pt \"Person\" :p (:type \"Person\") :r \"yes\"))")
-    , ("patterns work on function results",       compilesLike "(defn mk! (n) (:a n)) (graph g (:r (case (mk! 1) ((:a ?v) v) (otherwise 0))))"
+    , ("patterns work on function results",       compilesLike "(define/procedure mk! (n) (:a n)) (graph g (:r (case (mk! 1) ((:a ?v) v) (otherwise 0))))"
                                                                "(graph g (:r 1))")
     -- These compile today; each must fail once quoting is removed
     , ("quote is no longer a special form",       failsToCompile "(graph g (:a (eval (quote (+ 1 2)))))")
@@ -117,19 +117,19 @@ valuePatterns = Group "Scoping: value patterns, no quoting"
 
 valueGetAndErrors :: Group
 valueGetAndErrors = Group "Scoping: value-based get, no hidden errors"
-    [ ("get through a function result",           compilesLike "(defn mk! (n) (:a n)) (graph g (:rec (mk! 1) :r (get rec a)))"
+    [ ("get through a function result",           compilesLike "(define/procedure mk! (n) (:a n)) (graph g (:rec (mk! 1) :r (get rec a)))"
                                                                "(graph g (:rec (:a 1) :r 1))")
     , ("get through a case result",               compilesLike "(graph g (:f 1 :rec (case f (1 (:a \"one\")) (otherwise (:a \"other\"))) :r (get rec a)))"
                                                                "(graph g (:f 1 :rec (:a \"one\") :r \"one\"))")
-    , ("get through an inlay",                    compilesLike "(defn mk! (n) (:a n)) (graph g (:rec (:inner (:x 0 (inlay (mk! 1)))) :r (get rec inner a)))"
+    , ("get through an inlay",                    compilesLike "(define/procedure mk! (n) (:a n)) (graph g (:rec (:inner (:x 0 (inlay (mk! 1)))) :r (get rec inner a)))"
                                                                "(graph g (:rec (:inner (:x 0 :a 1)) :r 1))")
     , ("errors in unused let bindings are reported", failsToCompile "(graph g (let ($unused (/ 1 0)) (:a 1)))")
-    , ("errors in unused arguments are reported", failsToCompile "(defn k! (a b) a) (graph g (:a (k! 1 (/ 1 0))))")
+    , ("errors in unused arguments are reported", failsToCompile "(define/procedure k! (a b) a) (graph g (:a (k! 1 (/ 1 0))))")
     ]
 
 cleanup :: Group
 cleanup = Group "Scoping: cleanup"
-    [ ("comparing functions is a type error",     failsToCompile "(defn id! (a) a) (graph g (:s (eq id! id!)))")
+    [ ("comparing functions is a type error",     failsToCompile "(define/procedure id! (a) a) (graph g (:s (eq id! id!)))")
     ]
 
 

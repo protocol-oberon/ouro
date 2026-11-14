@@ -1,7 +1,7 @@
 Error [BLD0015]: Newer Ouro
   ┌── │test-cli/fixtures/messages/BLD0015-NewerOuro/package.ouro:1:1│
   │
-1 │ (defn package () (:ouro "99.0"))
+1 │ (define/constant package (:ouro "99.0"))
   │ ^
   │ Needed: 99.0
   │ This:   0.5.0.0

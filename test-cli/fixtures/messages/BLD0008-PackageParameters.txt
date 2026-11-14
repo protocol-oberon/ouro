@@ -1,10 +1,10 @@
 Error [BLD0008]: Package Parameters
   ┌── │test-cli/fixtures/messages/BLD0008-PackageParameters/package.ouro:1:1│
   │
-1 │ (defn package (x) (:sources x))
+1 │ (define/procedure package (x) (:sources x))
   │ ^
   │ Parameters: 1
   │ 
 
-The package function takes no parameters: its settings are a value, as in (defn package () (:sources
-"src")).
+The package function takes no parameters: its settings are a value, as in (define/constant package
+(:sources "src")).

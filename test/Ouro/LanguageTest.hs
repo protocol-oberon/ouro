@@ -56,9 +56,9 @@ serialisation = Group "Serialisation: only values reach the output"
     , ("a fn bound by an attribute pair is still output", failsWith "an unexecuted function"
                                                               "(graph g (:f (fn (x) x) :r (f 1)))")
     , ("a returned fn is an error",                 failsWith "an unexecuted function"
-                                                              "(defn mk () (fn (x) x)) (graph g (:r (mk)))")
+                                                              "(define/procedure mk () (fn (x) x)) (graph g (:r (mk)))")
     , ("a named function as a value is an error",   failsWith "an unexecuted function"
-                                                              "(defn inc (x) (+ x 1)) (graph g (:r inc))")
+                                                              "(define/procedure inc (x) (+ x 1)) (graph g (:r inc))")
     , ("a fn inside an array is an error",          failsWith "a JSON value"
                                                               "(graph g (:r (list (fn (x) x))))")
     , ("a fn as the graph is an error",             failsWith "a JSON value"
@@ -66,20 +66,20 @@ serialisation = Group "Serialisation: only values reach the output"
     , ("a built-in as a value is an error",         failsWith "a Built-in function"
                                                               "(graph g (:r +))")
     , ("a fn spliced by inlay is an error",         failsWith "an unexecuted function"
-                                                              "(defn mk () (:f (fn (x) x))) (graph g (:a 1 (inlay (mk))))")
+                                                              "(define/procedure mk () (:f (fn (x) x))) (graph g (:a 1 (inlay (mk))))")
     , ("let bindings are not output",               compilesToJSON "(graph g (let ($hidden 1) (:shown hidden)))"
                                                                    "{\"shown\": 1}")
 
       -- A function where a value belongs says how it is called, with its parameters' names.
       -- This fixed the function hint of gap 10, which suggested (name! args).
     , ("in an array, how to call it",               failsWith "Perhaps call it: (inc x)."
-                                                              "(defn inc (x) (+ x 1)) (graph g (:r (list inc)))")
+                                                              "(define/procedure inc (x) (+ x 1)) (graph g (:r (list inc)))")
     , ("as an attribute value",                     failsWith "A function is not a value: perhaps call it, (inc x)."
-                                                              "(defn inc (x) (+ x 1)) (graph g (:r inc))")
+                                                              "(define/procedure inc (x) (+ x 1)) (graph g (:r inc))")
     , ("as an argument with a property",            failsWith "This value is a function: perhaps call it, (mk x)."
-                                                              "(defn f #record (#record r) r) (defn mk (x) (:a x)) (graph g (:r (f mk)))")
+                                                              "(define/procedure f #record (#record r) r) (define/procedure mk (x) (:a x)) (graph g (:r (f mk)))")
     , ("a pattern parameter is shown as (...)",     failsWith "Perhaps call it: (f (...) c)."
-                                                              "(defn f ((?a ?b) c) a) (graph g (:r (list f)))")
+                                                              "(define/procedure f ((?a ?b) c) a) (graph g (:r (list f)))")
     , ("a built-in has no names to show",           failsWith "Perhaps call it with its arguments."
                                                               "(graph g (:r (list len)))")
     , ("nor has an anonymous fn",                   failsWith "Perhaps call it with its arguments."
@@ -87,9 +87,9 @@ serialisation = Group "Serialisation: only values reach the output"
     , ("which has no call to show",                 failsWithout "(fn"
                                                                  "(graph g (:r (fn (x) x)))")
     , ("the call is shown on a wrong arity",        failsWith "It is called (aat id label)."
-                                                              "(defn aat (id label) 1) (graph g (:r (aat 1)))")
+                                                              "(define/procedure aat (id label) 1) (graph g (:r (aat 1)))")
     , ("and to a function of none",                 failsWith "It is called (c)."
-                                                              "(defn c () 1) (graph g (:r (c 1)))")
+                                                              "(define/procedure c () 1) (graph g (:r (c 1)))")
 
       -- The rest of gap 10's stale wording, fixed
     , ("get's missing key: the record has no such attribute", failsWith "The Record has no attribute 'b'.\""
@@ -165,11 +165,11 @@ formsAndBuiltins = Group "Special forms and built-ins"
     , ("#string asserts a string",                  failsWith "expectedProperty = \"#string\", actualProperty = \"#number\""
                                                               "(graph g (:a #string 1))")
     , ("recursion is an error",                     failsWith "a recursive function call"
-                                                              "(defn f (n) (f n)) (graph g (:r (f 1)))")
+                                                              "(define/procedure f (n) (f n)) (graph g (:r (f 1)))")
     , ("so is mutual recursion",                    failsWith "a recursive function call"
-                                                              "(defn f (n) (h n)) (defn h (n) (f n)) (graph g (:r (f 1)))")
+                                                              "(define/procedure f (n) (h n)) (define/procedure h (n) (f n)) (graph g (:r (f 1)))")
     , ("and a function applied to itself",          failsWith "a recursive function call"
-                                                              "(defn w (x) (x x)) (graph g (:r (w w)))")
+                                                              "(define/procedure w (x) (x x)) (graph g (:r (w w)))")
     , ("a fn too, with no name to recurse by",      failsWith "a recursive function call"
                                                               "(graph g (let ($w (fn (x) (x x))) (:r (w w))))")
     , ("and through map",                           failsWith "a recursive function call"
@@ -211,9 +211,9 @@ formsAndBuiltins = Group "Special forms and built-ins"
     , ("and and or are threading steps",            compilesToJSON "(graph g (:r (-> true (and false)) :s (-> false (or true))))"
                                                                    "{\"r\": false, \"s\": true}")
     , ("and cannot name a function",                failsWith "'and' is read by its syntax before any name is bound"
-                                                              "(defn and (x) x) (graph g (:r (and 1)))")
+                                                              "(define/procedure and (x) x) (graph g (:r (and 1)))")
     , ("nor can or",                                failsWith "'or' is read by its syntax before any name is bound"
-                                                              "(defn or (x) x) (graph g (:r 1))")
+                                                              "(define/procedure or (x) x) (graph g (:r 1))")
     , ("and and or guard an index",                 compilesToJSON "(graph g (let ($tags ()) (:featured (and (> (len tags) 0) (eq (get tags 0) \"featured\")) :listed (or (eq (len tags) 0) (eq (get tags 0) \"listed\")))))"
                                                                    "{\"featured\": false, \"listed\": true}")
     , ("a chained comparison stops at the first false", compilesToJSON "(graph g (:r (< 2 1 (get () 5))))"
@@ -226,15 +226,15 @@ formsAndBuiltins = Group "Special forms and built-ins"
 returnedFunctions :: Group
 returnedFunctions = Group "Functions: arity and returned functions"
     [ ("functions are not curried",                 failsWith "IncorrectArity"
-                                                              "(defn add (a b) (+ a b)) (graph g (:r (add 1)))")
-    , ("a returned fn is called through let",       compilesToJSON "(defn greet () (fn () \"hello\")) (graph g (let ($f (greet)) (:r (f))))"
+                                                              "(define/procedure add (a b) (+ a b)) (graph g (:r (add 1)))")
+    , ("a returned fn is called through let",       compilesToJSON "(define/procedure greet () (fn () \"hello\")) (graph g (let ($f (greet)) (:r (f))))"
                                                                    "{\"r\": \"hello\"}")
-    , ("currying by hand, through let",             compilesToJSON "(defn adder (n) (fn (x) (+ n x))) (graph g (let ($inc (adder 1)) (:r (inc 2))))"
+    , ("currying by hand, through let",             compilesToJSON "(define/procedure adder (n) (fn (x) (+ n x))) (graph g (let ($inc (adder 1)) (:r (inc 2))))"
                                                                    "{\"r\": 3}")
-    , ("a form headed by a call is an array",       compilesToJSON "(defn one () 1) (graph g (:r ((one))))"
+    , ("a form headed by a call is an array",       compilesToJSON "(define/procedure one () 1) (graph g (:r ((one))))"
                                                                    "{\"r\": [1]}")
     , ("so ((f x) y) does not call the result",     failsWith "an unexecuted function"
-                                                              "(defn adder (n) (fn (x) (+ n x))) (graph g (:r ((adder 1) 2)))")
+                                                              "(define/procedure adder (n) (fn (x) (+ n x))) (graph g (:r ((adder 1) 2)))")
     ]
 
 
@@ -255,9 +255,9 @@ recordKeys = Group "Records: each key once"
                                                                    "{\"id\": \"1\", \"type\": \"Mine\"}")
     , ("a lookup sees the written attribute pair",  compilesToJSON (base <> "(graph g (:type \"Mine\" :r type (inlay (base))))")
                                                                    "{\"type\": \"Mine\", \"r\": \"Mine\", \"id\": \"1\"}")
-    , ("a later inlay overrides an earlier one",    compilesToJSON "(defn a () (:k 1 :j 1)) (defn b () (:k 2)) (graph g (:x 0 (inlay (a)) (inlay (b))))"
+    , ("a later inlay overrides an earlier one",    compilesToJSON "(define/procedure a () (:k 1 :j 1)) (define/procedure b () (:k 2)) (graph g (:x 0 (inlay (a)) (inlay (b))))"
                                                                    "{\"x\": 0, \"j\": 1, \"k\": 2}")
-    , ("a written attribute pair settles two inlays", compilesToJSON "(defn a () (:k 1)) (defn b () (:k 2)) (graph g (:k 3 (inlay (a)) (inlay (b))))"
+    , ("a written attribute pair settles two inlays", compilesToJSON "(define/procedure a () (:k 1)) (define/procedure b () (:k 2)) (graph g (:k 3 (inlay (a)) (inlay (b))))"
                                                                    "{\"k\": 3}")
     , ("insert cannot add an existing key",         failsWith "already has an attribute"
                                                               "(graph g (:r (insert 0 :a 9 (:a 1))))")
@@ -284,7 +284,7 @@ recordKeys = Group "Records: each key once"
     ]
 
     where
-    base = "(defn base () (:type \"Base\" :id \"1\")) "
+    base = "(define/procedure base () (:type \"Base\" :id \"1\")) "
 
 
 -- The type rules as they are: values carry their types, built-ins check them, and nothing
@@ -294,7 +294,7 @@ recordKeys = Group "Records: each key once"
 types :: Group
 types = Group "Types: the rules as they are"
     [ -- The built-in properties, by their full names
-      ("every built-in property, by its full name", compilesToJSON "(defn twice #number (#function f #number n) (f (f n))) (graph g (:s #string \"a\" :n (twice (fn (#number x) (* x 2)) 1) :b #boolean true :r #record (:a 1) :a #array (1) :e #array-empty :o #record-empty))"
+      ("every built-in property, by its full name", compilesToJSON "(define/procedure twice #number (#function f #number n) (f (f n))) (graph g (:s #string \"a\" :n (twice (fn (#number x) (* x 2)) 1) :b #boolean true :r #record (:a 1) :a #array (1) :e #array-empty :o #record-empty))"
                                                                    "{\"s\": \"a\", \"n\": 4, \"b\": true, \"r\": {\"a\": 1}, \"a\": [1], \"e\": [], \"o\": {}}")
     , ("#str is not a property: #string is",        failsWith "Unknown property: #str"       "(graph g (:r #str \"a\"))")
     , ("#num is not a property: #number is",        failsWith "Unknown property: #num"       "(graph g (:r #num 1))")
@@ -310,7 +310,7 @@ types = Group "Types: the rules as they are"
     , ("in an array too",                           failsWith "Ouro has no null"
                                                               "(graph g (:r (1 null)))")
     , ("and null is no name",                       failsWith "Ouro has no null"
-                                                              "(defn null (x) x) (graph g (:r 1))")
+                                                              "(define/procedure null (x) x) (graph g (:r 1))")
     , ("#rec-empty is not a value: #record-empty is", failsWith "Unknown property: #rec-empty" "(graph g (:r #rec-empty))")
     , ("#arr-empty is not a value: #array-empty is", failsWith "Unknown property: #arr-empty" "(graph g (:r #arr-empty))")
       -- A property defined in Ouro is read by its whole name, qualified or not, but is not checked yet
@@ -390,9 +390,9 @@ operators = Group "Operators: operands and desugaring"
                                                                    "{\"d\": \"2020-01-02T23:59:59Z\"}")
     , ("a chained comparison under a property",     compilesToJSON "(graph g (:r #boolean (< 1 2 3) :s #number (* 2 3 4)))"
                                                                    "{\"r\": true, \"s\": 24}")
-    , ("a typed function body",                     compilesToJSON "(defn f () #uri (+ \"https://a.org/\" \"b/\" \"c\")) (graph g (:r (f)))"
+    , ("a typed function body",                     compilesToJSON "(define/procedure f () #uri (+ \"https://a.org/\" \"b/\" \"c\")) (graph g (:r (f)))"
                                                                    "{\"r\": \"https://a.org/b/c\"}")
-    , ("a guard compares the target",               compilesToJSON "(defn size (n) (case n ((> 100) \"large\") ((< 10) \"small\") (otherwise \"medium\"))) (graph g (:a (size 150) :b (size 5) :c (size 50)))"
+    , ("a guard compares the target",               compilesToJSON "(define/procedure size (n) (case n ((> 100) \"large\") ((< 10) \"small\") (otherwise \"medium\"))) (graph g (:a (size 150) :b (size 5) :c (size 50)))"
                                                                    "{\"a\": \"large\", \"b\": \"small\", \"c\": \"medium\"}")
     , ("a guard with two operands chains",          compilesToJSON "(graph g (:r (case 5 ((< 10 20) \"a\") (otherwise \"b\")) :s (case 15 ((< 10 20) \"a\") (otherwise \"b\"))))"
                                                                    "{\"r\": \"a\", \"s\": \"b\"}")
@@ -468,13 +468,13 @@ encoding = Group "Encoding: source files are UTF-8"
     , ("whatever the code page",             withTests 1 . property $ do
                                                   content <- evalIO (readSourceFile (fixture "ouro/encoding.ouro"))
                                                   fmap (T.isInfixOf "\201douard Manet") content === Right True)
-    , ("names and keys can be any letters",  compilesToJSON "(defn caf\233 () \"x\") (graph g (:r (caf\233) :na\239ve 1))"
+    , ("names and keys can be any letters",  compilesToJSON "(define/procedure caf\233 () \"x\") (graph g (:r (caf\233) :na\239ve 1))"
                                                                  "{\"r\": \"x\", \"na\239ve\": 1}")
     , ("\955 is fn",                         compilesToJSON "(graph g (let ($inc (\955 (x) (+ x 1))) (:r (inc 1))))"
                                                                  "{\"r\": 2}")
     , ("with a signature and a pattern",     compilesToJSON "(graph g (:r (map (\955 #number ((?a ?b)) (+ a b)) ((1 2) (3 4)))))"
                                                                  "{\"r\": [3, 7]}")
-    , ("\955 can name a function, as fn",     compilesToJSON "(defn \955 (x) x) (graph g (:r (fn 1)))"
+    , ("\955 can name a function, as fn",     compilesToJSON "(define/procedure \955 (x) x) (graph g (:r (fn 1)))"
                                                             "{\"r\": 1}")
     , ("\955x is an ordinary name",          compilesToJSON "(graph g (let ($\955x 1) (:r \955x)))"
                                                                  "{\"r\": 1}")
@@ -487,7 +487,7 @@ encoding = Group "Encoding: source files are UTF-8"
     , ("\8746 \8745 \8726 \8838 are the set operations", compilesToJSON "(graph g (:a (\8746 (1) (2)) :b (\8745 (1 2) (2)) :c (\8726 (1 2) (2)) :d (\8838 (1) (1 2))))"
                                                                             "{\"a\": [1, 2], \"b\": [2], \"c\": [1], \"d\": true}")
     , ("messages name the word",             failsWith "'and' is read by its syntax before any name is bound"
-                                                            "(defn \8743 (x) x) (graph g (:r 1))")
+                                                            "(define/procedure \8743 (x) x) (graph g (:r 1))")
     , ("\8743x is an ordinary name",         compilesToJSON "(graph g (let ($\8743x 1) (:r \8743x)))"
                                                                  "{\"r\": 1}")
     , ("= and /= are eq and neq",            compilesToJSON "(graph g (:a (= 1 1) :b (/= 1 2) :c (= 1 1 2) :d (case 3 ((= 3) \"three\") (otherwise \"other\"))))"
@@ -517,11 +517,11 @@ endOfFile = Group "Unclosed delimiters: a file that ends early"
     , ("an array left open",                 unclosedAt (1, 14) "']'" "(graph g (:r [1 2")
     , ("a key with no value",                unclosedAt (1, 10) "')'" "(graph g (:r")
     , ("a property with no subject",         unclosedAt (1, 10) "')'" "(graph g (:r #string")
-    , ("a defn with no name",                unclosedAt (1, 1)  "')'" "(defn")
-    , ("a parameter list left open",         unclosedAt (1, 9)  "')'" "(defn f (x y")
+    , ("a definition with no name",          unclosedAt (1, 1)  "')'" "(define/procedure")
+    , ("a parameter list left open",         unclosedAt (1, 21) "')'" "(define/procedure f (x y")
     , ("an import left open",                unclosedAt (1, 1)  "')'" "(import std/base")
     , ("on its line, in a later form",       unclosedAt (3, 3)  "')'" "(graph a (:r 1))\n(graph b\n  (:r (list 1)")
-    , ("in an imported module, in its file", importsFailAt "SYN0001" ("open.ouro", 2, 1) ["')' to close this", "the end of the file"] [("open", "(export f)\n(defn f () 1")]
+    , ("in an imported module, in its file", importsFailAt "SYN0001" ("open.ouro", 2, 1) ["')' to close this", "the end of the file"] [("open", "(export f)\n(define/procedure f () 1")]
                                                            "(import open) (graph g (:r (open/f)))")
     ]
     where
@@ -589,7 +589,7 @@ logicAndCollections = Group "Built-ins: logic, arrays and records"
                                                                 "{\"r\": true}")
     , ("omits needs a function",                 failsWith "a function for omits to call"
                                                            "(graph g (:r (omits 1 (1 2))))")
-    , ("omits can name a function",              compilesToJSON "(defn omits (x) x) (graph g (:r (omits 1)))"
+    , ("omits can name a function",              compilesToJSON "(define/procedure omits (x) x) (graph g (:r (omits 1)))"
                                                            "{\"r\": 1}")
     , ("filter keeps the matching elements",     compilesToJSON "(graph g (:r (filter (> ? 1) (1 2 3))))"
                                                                 "{\"r\": [2, 3]}")
@@ -605,7 +605,7 @@ logicAndCollections = Group "Built-ins: logic, arrays and records"
                                                            "(graph g (:r (forall (> ? 1) 5)))")
     , ("a malformed filter is an error",         failsWith "filter is written (filter f array)"
                                                            "(graph g (:r (filter (> ? 1))))")
-    , ("exists can name a function",             compilesToJSON "(defn exists (x) x) (graph g (:r (exists 1)))"
+    , ("exists can name a function",             compilesToJSON "(define/procedure exists (x) x) (graph g (:r (exists 1)))"
                                                            "{\"r\": 1}")
 
       -- contains and distinct
@@ -685,7 +685,7 @@ logicAndCollections = Group "Built-ins: logic, arrays and records"
                                                            "(graph g (:r (image (:p ((:k (get () 5)))) p k)))")
     , ("a malformed image is an error",          failsWith "image is written (image record key ...)"
                                                            "(graph g (:r (image (:k 1))))")
-    , ("image can name a function",              compilesToJSON "(defn image (x) x) (graph g (:r (image 1)))"
+    , ("image can name a function",              compilesToJSON "(define/procedure image (x) x) (graph g (:r (image 1)))"
                                                            "{\"r\": 1}")
 
       -- union, intersect and setminus treat Arrays as sets
@@ -742,7 +742,7 @@ conditions = Group "Case: conditions"
                                                            "(graph g (:r (case 5 ((when 1) \"a\") (otherwise \"b\"))))")
     , ("when outside a case is an error",        failsWith "when is written as the head of a case branch"
                                                            "(graph g (:r (when true)))")
-    , ("when can name a function",               compilesToJSON "(defn when (x) x) (graph g (:r (when 1)))"
+    , ("when can name a function",               compilesToJSON "(define/procedure when (x) x) (graph g (:r (when 1)))"
                                                            "{\"r\": 1}")
 
       -- Comparison guards become conditions on the case's target
@@ -764,7 +764,7 @@ conditions = Group "Case: conditions"
                                                            "(graph g (:r (map (satisfies #string) (list 1))))")
     , ("a property on its own is misplaced",     failsWith "A property on its own"
                                                            "(graph g (:r (list #string)))")
-    , ("satisfies can name a function",          compilesToJSON "(defn satisfies (x) x) (graph g (:r (satisfies 1)))"
+    , ("satisfies can name a function",          compilesToJSON "(define/procedure satisfies (x) x) (graph g (:r (satisfies 1)))"
                                                            "{\"r\": 1}")
     ]
 
@@ -788,7 +788,7 @@ contexts = Group "Contexts: a context is a value"
                                                               "(graph g (:context (:ex null) :a 1))")
     , ("a record can be only a context",            compilesToJSON "(graph g (:r (:context \"https://a.org/c.json\")))"
                                                                    "{\"r\": {\"@context\": \"https://a.org/c.json\"}}")
-    , ("a context can be computed",                 compilesToJSON "(defn linked-art () \"https://linked.art/ns/v1/linked-art.json\") (graph g (:context ((linked-art) (:ex \"https://e.org/\")) :a 1))"
+    , ("a context can be computed",                 compilesToJSON "(define/procedure linked-art () \"https://linked.art/ns/v1/linked-art.json\") (graph g (:context ((linked-art) (:ex \"https://e.org/\")) :a 1))"
                                                                    "{\"@context\": [\"https://linked.art/ns/v1/linked-art.json\", {\"ex\": \"https://e.org/\"}], \"a\": 1}")
     , ("a #uri is a remote context",                compilesToJSON "(graph g (:context #uri \"https://a.org/c.json\" :a 1))"
                                                                    "{\"@context\": \"https://a.org/c.json\", \"a\": 1}")
@@ -802,7 +802,7 @@ contexts = Group "Contexts: a context is a value"
                                                                    "{\"@context\": \"https://a.org/c.json\", \"a\": 1, \"b\": 2}")
     , ("so is one written in the middle",           compilesToJSON "(graph g (:a 1 :context (\"https://a.org/c.json\" (:ex \"https://e.org/\")) :b 2))"
                                                                    "{\"@context\": [\"https://a.org/c.json\", {\"ex\": \"https://e.org/\"}], \"a\": 1, \"b\": 2}")
-    , ("and one written after an inlay",            compilesToJSON "(defn base () (:id \"1\" :type \"T\")) (graph g ((inlay (base)) :a 1 :context \"https://a.org/c.json\"))"
+    , ("and one written after an inlay",            compilesToJSON "(define/procedure base () (:id \"1\" :type \"T\")) (graph g ((inlay (base)) :a 1 :context \"https://a.org/c.json\"))"
                                                                    "{\"@context\": \"https://a.org/c.json\", \"id\": \"1\", \"type\": \"T\", \"a\": 1}")
 
     -- An inlay layers its record's context under the record's own, as it layers attribute pairs:
@@ -852,7 +852,7 @@ contexts = Group "Contexts: a context is a value"
                                                               "(graph g ((context (vocab \"https://e.org/\")) :a 1))")
     ]
     where
-    ctx = "(defn c () (:context \"https://a.org/c.json\" :a 1)) (defn d () (:context \"https://d.org/c.json\" :d 4)) "
+    ctx = "(define/procedure c () (:context \"https://a.org/c.json\" :a 1)) (define/procedure d () (:context \"https://d.org/c.json\" :d 4)) "
 
 
 -- Contexts compose: a context is a Monoid under concatenation, its entries applied in order,
@@ -934,14 +934,14 @@ specialFormsAreBindings = Group "Special forms are bindings, as in Scheme"
                                                                    "{\"r\": 2}")
     , ("as does a bound map, which is called",      compilesToJSON "(graph g (let ($map (fn (x) x)) (:r (map 1))))"
                                                                    "{\"r\": 1}")
-    , ("a parameter, even one named fn",            compilesToJSON "(defn call (fn) (fn)) (graph g (:r (call (fn () 1))))"
+    , ("a parameter, even one named fn",            compilesToJSON "(define/procedure call (fn) (fn)) (graph g (:r (call (fn () 1))))"
                                                                    "{\"r\": 1}")
-    , ("a defn, throughout its module",             compilesToJSON "(defn list (x) (+ x 1)) (graph g (:r (list 1)))"
+    , ("a defn, throughout its module",             compilesToJSON "(define/procedure list (x) (+ x 1)) (graph g (:r (list 1)))"
                                                                    "{\"r\": 2}")
     , ("with a warning, as for a built-in",         warnsWith "or a special form replaces it throughout the file"
-                                                              "(defn list (x) (+ x 1)) (graph g (:r (list 1)))")
+                                                              "(define/procedure list (x) (+ x 1)) (graph g (:r (list 1)))")
     , ("and its calls have its arity",              failsWith "IncorrectArity"
-                                                              "(defn list (x) x) (defn h () (list 1 2)) (graph g (:r 1))")
+                                                              "(define/procedure list (x) x) (define/procedure h () (list 1 2)) (graph g (:r 1))")
     , ("a key, whose value is no function",         failsWith "'image' is also a special form, which a binding of the same name shadows"
                                                               "(graph g (:image \"x\" :r (image \"a\" 1)))")
     , ("only where the binding is",                 compilesToJSON "(graph g (:a (let ($list 1) list) :b (list 1 2)))"
@@ -969,9 +969,9 @@ knownGaps = Group "Known gaps: current and fixed"
     , ("gap 10 (fixed): a reserved $ name is called an attribute key", fixedGap $ failsWith "for your attribute"
                                                               "(graph g (let ($get 1) (:r get)))")
     , ("gap 11 (fixed): a parameter named fn",      fixedGap $ failsWith "A fn is written"
-                                                              "(defn call (fn) (fn)) (graph g (:r (call 1)))")
+                                                              "(define/procedure call (fn) (fn)) (graph g (:r (call 1)))")
     , ("gap 14: a record of only inlays is an array", failsWith "a valid Array to inlay"
-                                                              "(defn a () (:k 1)) (defn b () (:j 2)) (graph g ((inlay (a)) (inlay (b))))")
+                                                              "(define/procedure a () (:k 1)) (define/procedure b () (:j 2)) (graph g ((inlay (a)) (inlay (b))))")
     , ("gap 17: a URI's empty root path is dropped", compilesToJSON "(graph g (:u #uri \"https://a.org/\"))"
                                                                    "{\"u\": \"https://a.org\"}")
     , ("gap 18: an attribute pair among values has no hint", failsWithout "(1 (:a 2))"
@@ -1025,13 +1025,13 @@ knownGaps = Group "Known gaps: current and fixed"
                                                               "(graph g (let ($list 1) (:r list)))")
     , ("gap 43 (fixed): and a bound map is not called", fixedGap $ failsWith "LexicalError"
                                                               "(graph g (let ($map (fn (x) x)) (:r (map 1))))")
-    , ("gap 44 (fixed for names): an uncalled function's unbound name", fixedGap $ compilesToJSON "(defn f () nope) (graph g (:r 1))"
+    , ("gap 44 (fixed for names): an uncalled function's unbound name", fixedGap $ compilesToJSON "(define/procedure f () nope) (graph g (:r 1))"
                                                                    "{\"r\": 1}")
-    , ("gap 44 (fixed for arity): and its wrong arity", fixedGap $ compilesToJSON "(defn f (x) x) (defn h () (f 1 2)) (graph g (:r 1))"
+    , ("gap 44 (fixed for arity): and its wrong arity", fixedGap $ compilesToJSON "(define/procedure f (x) x) (define/procedure h () (f 1 2)) (graph g (:r 1))"
                                                                    "{\"r\": 1}")
     , ("gap 44 (fixed for names): an untaken branch's unbound name", fixedGap $ compilesToJSON "(graph g (:r (case 1 ((= 1) \"a\") (otherwise nope))))"
                                                                    "{\"r\": \"a\"}")
-    , ("gap 44 (fixed): an uncalled function's recursion", fixedGap $ compilesToJSON "(defn f () (f)) (graph g (:r 1))"
+    , ("gap 44 (fixed): an uncalled function's recursion", fixedGap $ compilesToJSON "(define/procedure f () (f)) (graph g (:r 1))"
                                                                    "{\"r\": 1}")
     , ("gap 45: a binding of and is ignored at a call", compilesToJSON "(graph g (let ($and (fn (a b) 1)) (:r (and true false))))"
                                                                    "{\"r\": false}")
@@ -1040,9 +1040,9 @@ knownGaps = Group "Known gaps: current and fixed"
     , ("gap 46: an unknown top-level form is named by its Haskell constructor", importsFailAt "SYN0000" ("inline-test", 1, 2) ["Invalid top-level keyword: Symbol"] []
                                                                    "(foo f () 1)\n(graph g (:r 1))")
     , ("gap 47 (fixed): a name that begins with null is read as null and a name", fixedGap $ failsWith "Expected a function name"
-                                                                   "(defn null-result (x) x) (graph g (:r (null-result 1)))")
+                                                                   "(define/procedure null-result (x) x) (graph g (:r (null-result 1)))")
     , ("gap 47 (fixed): and one that begins with true", fixedGap $ failsWith "Expected a function name"
-                                                                   "(defn truer (x) x) (graph g (:r (truer 1)))")
+                                                                   "(define/procedure truer (x) x) (graph g (:r (truer 1)))")
     , ("gap 47 (fixed): and a graph named so",      fixedGap $ failsWith "Expected graph name"
                                                                    "(graph null-results (:r 1))")
     , ("gap 47 (fixed): and an attribute named so, read where it is used", fixedGap $ failsWith "an unbound expression"

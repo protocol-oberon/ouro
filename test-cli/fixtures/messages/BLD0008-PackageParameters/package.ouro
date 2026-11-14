@@ -1,1 +1,1 @@
-(defn package (x) (:sources x))
+(define/procedure package (x) (:sources x))

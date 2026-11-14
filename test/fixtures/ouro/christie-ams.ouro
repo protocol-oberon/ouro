@@ -1,9 +1,9 @@
 (import std/base)
 
-(defn example #uri (#string path)
+(define/procedure example #uri (#string path)
   (+ "https://linked.art/example/" path))
 
-(defn place #record (#string slug #string label)
+(define/procedure place #record (#string slug #string label)
   (doc "A place among Linked Art's examples, by its slug.")
   (:id (example (+ "place/" slug)) :type "Place" :_label label))
 

@@ -3,7 +3,7 @@
 
 ;; A function of no parameters is a constant: named as a value, it is its result. Its
 ;; signature, #record, is the return type, written before the parameters
-(defn sculpting #record ()
+(define/procedure sculpting #record ()
   (base/aat "300264383" "Sculpting"))
 
 (graph bust-of-a-man

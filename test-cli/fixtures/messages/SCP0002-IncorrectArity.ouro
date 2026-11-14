@@ -1,2 +1,2 @@
-(defn f (x) x)
+(define/procedure f (x) x)
 (graph g (:r (f 1 2)))

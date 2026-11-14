@@ -39,7 +39,7 @@ import           Text.Megaparsec             (SourcePos)
 -- A function's types are written as tags in its header: one between the name and the
 -- parameters for the result, and one before a parameter for that parameter:
 --
---   (defn node #record (#uri id type) (:id id :type type))
+--   (define/procedure node #record (#uri id type) (:id id :type type))
 --   (fn #number (n) (* n 2))
 --
 -- A signature's tag checks a value just as the same tag would anywhere else, and
@@ -61,7 +61,7 @@ typedArgument param arg = maybe arg (\(pos, tag) -> S.Tagged pos tag arg) (S.par
 -- bound around the body:
 --
 --   (fn ((?slug ?label)) (person slug label))
---   (defn label-of ((:_label ?l)) l)
+--   (define/procedure label-of ((:_label ?l)) l)
 --
 -- The parameter itself is named by its position, '%arg1', '%arg2', ..., which cannot be
 -- written in Ouro, so its argument is only reached through the holes.
@@ -123,9 +123,9 @@ checkParams pos params = do
 -- A function's body is exactly one expression, written as it would be anywhere else;
 -- its value is the function's result. Private values are bound around it with 'let':
 --
---   (defn getty () "http://vocab.getty.edu/aat/")              ; a literal
---   (defn person (who) (let ($t "Person")                       ; a record
---                        (:type t :_label who)))
+--   (define/procedure getty () "http://vocab.getty.edu/aat/")  ; a literal
+--   (define/procedure person (who) (let ($t "Person")           ; a record
+--                                    (:type t :_label who)))
 --
 -- Checked when a function is defined, so a malformed function is reported even if it
 -- is never called.
@@ -135,14 +135,14 @@ functionBody name pos body
     | splicedAttr : _ <- filter isSplicedAttr body
         = lexicalError ("The function '" <> name <> "' has a ':key value' attribute pair directly in its body.")
           & withBlurb ( "A function's body is one result expression, written as it would be anywhere else. "
-                     <> "Perhaps wrap the record in parentheses: (defn " <> name <> " (args) (:key value ...))."
+                     <> "Perhaps wrap the record in parentheses: (define/procedure " <> name <> " (args) (:key value ...))."
                       )
           & OuroError (S.exprPos splicedAttr)
           & Left
 
     | returnForm : _ <- filter isReturn body
         = lexicalError "'return' is no longer needed: a function's body is its result."
-          & withBlurb "Perhaps write the value directly, e.g. (defn id (x) x) instead of (defn id (x) (return x))."
+          & withBlurb "Perhaps write the value directly, e.g. (define/procedure id (x) x) instead of (define/procedure id (x) (return x))."
           & OuroError (S.exprPos returnForm)
           & Left
 
@@ -184,7 +184,7 @@ functionBody name pos body
 -- A function is documented with a (doc "text") among the direct elements of its body,
 -- before or after its result:
 --
---   (defn place #record (#string slug #string label)
+--   (define/procedure place #record (#string slug #string label)
 --     (doc "A Linked Art Place, identified under /place/.")
 --     (base/core (example (+ "place/" slug)) "Place" label))
 --
@@ -295,11 +295,11 @@ removedContextForm pos =
 
 
 -- A (doc "...") documents a named function, so it belongs among the direct elements of
--- a defn's body: never inside its result, in a fn or in a graph
+-- a definition's body: never inside its result, in a fn or in a graph
 misplacedDoc :: SourcePos -> OuroError
 misplacedDoc pos =
-    lexicalError "'doc' belongs directly in the body of a defn."
-    & withBlurb "Document a function with (doc \"...\") beside its result: (defn name (args) (doc \"...\") expr)."
+    lexicalError "'doc' belongs directly in the body of a definition."
+    & withBlurb "Document a function with (doc \"...\") beside its result: (define/procedure name (args) (doc \"...\") expr)."
     & OuroError pos
 
 
@@ -334,10 +334,10 @@ bindingWithoutValue name pos =
     & OuroError pos
 
 
--- A 'defn' only names a top-level function; a local function is a let-bound 'fn'
+-- A definition only names a top-level function; a local function is a let-bound 'fn'
 removedLocalDefn :: SourcePos -> OuroError
 removedLocalDefn pos =
-    lexicalError "A defn can only appear at the top level of a file."
+    lexicalError "A definition can only appear at the top level of a file."
     & withBlurb "Write a local function with fn, bound by let: (let ($name (fn (args) body)) expr)."
     & OuroError pos
 
@@ -357,9 +357,9 @@ strayHole hole pos
           & OuroError pos
 
 
--- The keyword that defines a named function, so that a local one can be reported
+-- The keywords that define a named function, so that a local one can be reported
 isFunctionKeyword :: Text -> Bool
-isFunctionKeyword = (== "defn")
+isFunctionKeyword = (`elem` ["define/procedure", "define/property", "define/constant"])
 
 
 -- Function names are plain symbols, in one namespace with values. A trailing '!'
@@ -384,11 +384,12 @@ checkFunctionName name pos
         = Right ()
 
 
--- The forms read by their syntax before any name is bound: the declarations, a module's defn
--- and graph, a function's doc, and the forms Canon rewrites (and, or, ->, with, adjoin, thru).
+-- The forms read by their syntax before any name is bound: the declarations, a module's
+-- definitions and graphs, a function's doc, and the forms Canon rewrites (and, or, ->, with,
+-- adjoin, thru).
 -- A binding of one of their names is never called by them.
 readBySyntax :: [Text]
-readBySyntax = ["defn", "graph", "doc", "->", "adjoin", "and", "or", "thru", "with"]
+readBySyntax = ["define/procedure", "define/property", "define/constant", "graph", "doc", "->", "adjoin", "and", "or", "thru", "with"]
 
 
 -- A function can be defined once in each scope
@@ -402,9 +403,9 @@ duplicateFunction name pos =
 -- Forms the evaluator recognises by their head symbol, unless a binding around them has the
 -- name, which shadows the form, as in Scheme (see 'Analysis.Forms.shadowsForm')
 specialForms :: [Text]
-specialForms = [ "->", "adjoin", "and", "attr", "case", "context", "defn", "doc", "exists", "filter", "fn"
-               , "forall", "get", "get-or", "graph", "has", "image", "inlay", "insert", "let", "list", "map"
-               , "nth", "omits", "or", "replace-at", "satisfies", "thru", "when", "with" ]
+specialForms = [ "->", "adjoin", "and", "attr", "case", "context", "define/constant", "define/procedure", "define/property", "doc"
+               , "exists", "filter", "fn", "forall", "get", "get-or", "graph", "has", "image", "inlay", "insert"
+               , "let", "list", "map", "nth", "omits", "or", "replace-at", "satisfies", "thru", "when", "with" ]
 
 
 isHeadedBy :: Text -> S.Expr -> Bool

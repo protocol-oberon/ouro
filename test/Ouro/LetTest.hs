@@ -15,7 +15,7 @@ import           Utils    (compilesToJSON, compilesWithoutWarnings, failsWith,
 --                                bindings can refer to each other in any order (Scheme's
 --                                letrec); a cycle is an error. '$' marks a binding that is
 --                                never output, as ':' marks a key that is.
---   (defn name (x) expr)         a top-level function (was defun)
+--   (define/procedure name (x) expr)         a top-level function (was defun)
 --   (graph name expr)            a graph is one expression, usually a Record
 --
 -- Every body (function, graph, let) is then exactly one expression. These tests compare
@@ -37,32 +37,32 @@ letAndFn = Group "Bindings: let, fn and defn"
                                                                   "{\"r\": 42}")
     , ("a fn closes over its let",                 compilesToJSON "(graph g (:r (let ($base 10 $add (fn (n) (+ base n))) (add 5))))"
                                                                   "{\"r\": 15}")
-    , ("a fn can be passed to a function",         compilesToJSON "(defn apply-to (f x) (f x)) (graph g (:r (apply-to (fn (n) (* n 2)) 21)))"
+    , ("a fn can be passed to a function",         compilesToJSON "(define/procedure apply-to (f x) (f x)) (graph g (:r (apply-to (fn (n) (* n 2)) 21)))"
                                                                   "{\"r\": 42}")
-    , ("a function body can use let",              compilesToJSON "(defn person (who) (let ($t \"Person\") (:type t :_label who))) (graph g (:p (person \"Manet\")))"
+    , ("a function body can use let",              compilesToJSON "(define/procedure person (who) (let ($t \"Person\") (:type t :_label who))) (graph g (:p (person \"Manet\")))"
                                                                   "{\"p\": {\"type\": \"Person\", \"_label\": \"Manet\"}}")
-    , ("a let in a function sees its parameters",  compilesToJSON "(defn label-of (who) (let ($full (+ who \" (painter)\")) (:_label full))) (graph g (:p (label-of \"Manet\")))"
+    , ("a let in a function sees its parameters",  compilesToJSON "(define/procedure label-of (who) (let ($full (+ who \" (painter)\")) (:_label full))) (graph g (:p (label-of \"Manet\")))"
                                                                   "{\"p\": {\"_label\": \"Manet (painter)\"}}")
     , ("a fn body can use let",                    compilesToJSON "(graph g (:r (let ($twice (fn (n) (let ($m (* n 2)) m))) (twice 21))))"
                                                                   "{\"r\": 42}")
-    , ("a let can be an attribute value in a function's record", compilesToJSON "(defn node (id) (:id id :part (let ($sub (+ id \"/1\")) (:id sub)))) (graph g (:r (node \"x\")))"
+    , ("a let can be an attribute value in a function's record", compilesToJSON "(define/procedure node (id) (:id id :part (let ($sub (+ id \"/1\")) (:id sub)))) (graph g (:r (node \"x\")))"
                                                                   "{\"r\": {\"id\": \"x\", \"part\": {\"id\": \"x/1\"}}}")
-    , ("a returned fn keeps its function's let",   compilesToJSON "(defn adder (base) (let ($add (fn (n) (+ base n))) add)) (graph g (:r (let ($add10 (adder 10)) (add10 5))))"
+    , ("a returned fn keeps its function's let",   compilesToJSON "(define/procedure adder (base) (let ($add (fn (n) (+ base n))) add)) (graph g (:r (let ($add10 (adder 10)) (add10 5))))"
                                                                   "{\"r\": 15}")
     , ("a function body is one let, not several",  failsWith "more than one result expression"
-                                                             "(defn f (x) (let ($a 1) a) (let ($b 2) b)) (graph g (:r (f 1)))")
+                                                             "(define/procedure f (x) (let ($a 1) a) (let ($b 2) b)) (graph g (:r (f 1)))")
 
     -- A result is written as it would be anywhere else, so one value in parentheses is
     -- an array of that value. It compiles, with a warning.
-    , ("a parenthesised result is an array",       compilesToJSON "(defn f () (\"hello\")) (graph g (:r (f)))"
+    , ("a parenthesised result is an array",       compilesToJSON "(define/procedure f () (\"hello\")) (graph g (:r (f)))"
                                                                   "{\"r\": [\"hello\"]}")
     , ("a defn result in parentheses warns",       warnsWith "The result of 'f' is an array of one value"
-                                                             "(defn f () (\"hello\")) (graph g (:r (f)))")
+                                                             "(define/procedure f () (\"hello\")) (graph g (:r (f)))")
     , ("a fn result in parentheses warns",         warnsWith "Perhaps remove the parentheses: 1"
                                                              "(graph g (let ($f (fn () (1))) (:r (f))))")
-    , ("a bare result does not warn",              compilesWithoutWarnings "(defn f () \"hello\") (graph g (:r (let ($h (fn () true)) (h)) :s (f)))")
-    , ("a record or call result does not warn",    compilesWithoutWarnings "(defn one () 1) (defn f () (:a (one))) (graph g (:r (f) :s ((one))))")
-    , ("an array of several values does not warn", compilesWithoutWarnings "(defn f () (1 2)) (graph g (:r (f)))")
+    , ("a bare result does not warn",              compilesWithoutWarnings "(define/procedure f () \"hello\") (graph g (:r (let ($h (fn () true)) (h)) :s (f)))")
+    , ("a record or call result does not warn",    compilesWithoutWarnings "(define/procedure one () 1) (define/procedure f () (:a (one))) (graph g (:r (f) :s ((one))))")
+    , ("an array of several values does not warn", compilesWithoutWarnings "(define/procedure f () (1 2)) (graph g (:r (f)))")
     , ("a parenthesised attribute value does not warn", compilesWithoutWarnings "(graph g (:r (\"hello\")))")
 
     -- Errors, checked by message
@@ -72,15 +72,15 @@ letAndFn = Group "Bindings: let, fn and defn"
                                                              "(graph g (:r (let ($a 1) a a)))")
     , ("a spliced graph is an error",              failsWith "one expression"
                                                              "(graph g :a 1)")
-    , ("define is an ordinary name",               failsWith "'define' is not bound here"
+    , ("define on its own is no name",             failsWith "'define' is not a definition"
                                                              "(graph g (:a 1 :b (define :c 2)))")
-    , ("a function may be named define",           compilesToJSON "(defn define (x) x) (graph g (:r (define 1)))"
+    , ("so no function is named define",           failsWith "'define' is not a definition"
+                                                             "(define/procedure define (x) x) (graph g (:r (define 1)))")
+    , ("a name may start with defn",               compilesToJSON "(define/procedure defnode (defnx) defnx) (graph g (:r (defnode 1)))"
                                                                   "{\"r\": 1}")
-    , ("a name may start with defn",               compilesToJSON "(defn defnode (defnx) defnx) (graph g (:r (defnode 1)))"
+    , ("a name may start with null",               compilesToJSON "(define/procedure null-result (x) x) (graph g (:r (null-result 1)))"
                                                                   "{\"r\": 1}")
-    , ("a name may start with null",               compilesToJSON "(defn null-result (x) x) (graph g (:r (null-result 1)))"
-                                                                  "{\"r\": 1}")
-    , ("or with true or false",                    compilesToJSON "(defn truer (x) x) (defn falsey (x) x) (graph g (:r (truer (falsey 1))))"
+    , ("or with true or false",                    compilesToJSON "(define/procedure truer (x) x) (define/procedure falsey (x) x) (graph g (:r (truer (falsey 1))))"
                                                                   "{\"r\": 1}")
     , ("a graph may start with null",              compilesToJSON "(graph null-results (:r 2)) (graph g (:r 1))"
                                                                   "{\"r\": 1}")
@@ -91,11 +91,11 @@ letAndFn = Group "Bindings: let, fn and defn"
     , ("defun is an ordinary name",                failsWith "Invalid top-level keyword"
                                                              "(defun f () 1) (graph g (:r (f)))")
     , ("a local defun is a call",                  failsWith "'defun' is not bound here"
-                                                             "(defn outer () (defun inner () 1)) (graph g (:r (outer)))")
-    , ("a function may be named defun",            compilesToJSON "(defn defun (x) x) (graph g (:r (defun 1)))"
+                                                             "(define/procedure outer () (defun inner () 1)) (graph g (:r (outer)))")
+    , ("a function may be named defun",            compilesToJSON "(define/procedure defun (x) x) (graph g (:r (defun 1)))"
                                                                   "{\"r\": 1}")
     , ("a local defn is replaced by fn",           failsWith "(fn "
-                                                             "(defn outer () (defn inner () 1) (inner)) (graph g (:r (outer)))")
+                                                             "(define/procedure outer () (define/procedure inner () 1) (inner)) (graph g (:r (outer)))")
 
     -- '$' marks a private binding, ':' a key in the output
     , ("a $ name can be any symbol",               compilesToJSON "(graph g (let ($ok? true $count+1 2) (:r ok? :s count+1)))"
@@ -122,7 +122,7 @@ letAndFn = Group "Bindings: let, fn and defn"
     , ("$name in a call is reported, not paired",  failsWith "write its name without '$': base"
                                                              "(graph g (let ($base \"https://a.org/\") (:r (+ $base \"x\"))))")
     , ("$name before a closing parenthesis",       failsWith "write its name without '$': base"
-                                                             "(defn f (x) x) (graph g (let ($base 1) (:r (f $base))))")
+                                                             "(define/procedure f (x) x) (graph g (let ($base 1) (:r (f $base))))")
     , ("$name as an attribute value",              failsWith "write its name without '$': base"
                                                              "(graph g (let ($base 1) (:r $base)))")
     , ("a $ name needs a value",                   failsWith "has no value"
@@ -135,7 +135,7 @@ letAndFn = Group "Bindings: let, fn and defn"
     -- A binding never sees itself: inside its own expression, its name refers outward
     , ("an attribute pair outputs the binding of its name", compilesToJSON "(graph g (let ($label \"Spring\") (:label label)))"
                                                                   "{\"label\": \"Spring\"}")
-    , ("a template outputs its parameters by name", compilesToJSON "(defn node (id type) (:id id :type type)) (graph g (:r (node \"1\" \"Type\")))"
+    , ("a template outputs its parameters by name", compilesToJSON "(define/procedure node (id type) (:id id :type type)) (graph g (:r (node \"1\" \"Type\")))"
                                                                   "{\"r\": {\"id\": \"1\", \"type\": \"Type\"}}")
     , ("a nested attribute pair sees the outer one", compilesToJSON "(graph g (:label \"outer\" :inner (:label label)))"
                                                                   "{\"label\": \"outer\", \"inner\": {\"label\": \"outer\"}}")
@@ -147,6 +147,6 @@ letAndFn = Group "Bindings: let, fn and defn"
                                                                   "{\"a\": 1, \"b\": 1}")
     , ("siblings in a cycle are still an error",   failsWith "references itself"
                                                              "(graph g (:a b :b a))")
-    , ("an argument is the caller's binding",      compilesToJSON "(defn f (x) (:x x)) (graph g (let ($x \"caller\") (:r (f x))))"
+    , ("an argument is the caller's binding",      compilesToJSON "(define/procedure f (x) (:x x)) (graph g (let ($x \"caller\") (:r (f x))))"
                                                                   "{\"r\": {\"x\": \"caller\"}}")
     ]

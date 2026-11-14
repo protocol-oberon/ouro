@@ -1,7 +1,7 @@
 Error [BLD0018]: Graph Selection Form
   ┌── │test-cli/fixtures/messages/BLD0018-GraphSelectionForm/package.ouro:1:1│
   │
-1 │ (defn package () (:graphs ("person")))
+1 │ (define/constant package (:graphs ("person")))
   │ ^
   │ Written: person
   │ 

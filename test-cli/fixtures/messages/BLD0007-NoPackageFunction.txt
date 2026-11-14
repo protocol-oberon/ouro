@@ -6,5 +6,5 @@ Error [BLD0007]: No Package Function
   │ Function: none
   │ 
 
-package.ouro holds one function, named package, as in (defn package () (:sources "src")). An empty
-package.ouro is an error: perhaps delete it, since a project needs none.
+package.ouro holds one function, named package, as in (define/constant package (:sources "src")). An
+empty package.ouro is an error: perhaps delete it, since a project needs none.

@@ -9,14 +9,14 @@
         concept
         set)
 
-(defn exhibiting #record (#uri id #string label)
+(define/procedure exhibiting #record (#uri id #string label)
   (doc "The Activity of exhibiting, classified as an exhibition activity; its venue and span are added with with.")
   (:id id :type "Activity" :_label label :classified_as (list vocab/exhibition-activity)))
 
-(defn concept #record (#uri id #string label)
+(define/procedure concept #record (#uri id #string label)
   (doc "An exhibition as an idea: a PropositionalObject classified as Exhibition, which an exhibiting is influenced_by.")
   (:id id :type "PropositionalObject" :_label label :classified_as (list (base/aat "300417531" "Exhibition"))))
 
-(defn set #record (#uri id #string label)
+(define/procedure set #record (#uri id #string label)
   (doc "The objects an exhibition shows: a Set classified as Exhibition Collection, which each object is a member_of.")
   (:id id :type "Set" :_label label :classified_as (list (base/aat "300378926" "Exhibition Collection"))))

@@ -46,7 +46,7 @@ import           Lens.Micro                    ((^.))
 import           Text.Megaparsec               (SourcePos)
 
 
--- A function that can be reached by its name: a defn of the module, or a fn bound by name,
+-- A function that can be reached by its name: a function of the module, or a fn bound by name,
 -- by a let binding or an attribute pair, where it is bound
 data Node
     = Defn  Text

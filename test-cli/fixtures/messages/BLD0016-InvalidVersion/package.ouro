@@ -1,1 +1,1 @@
-(defn package () (:ouro "latest"))
+(define/constant package (:ouro "latest"))

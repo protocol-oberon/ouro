@@ -288,7 +288,7 @@ data PeriodUnit
 -- How a function written where a value belongs is called, with its parameters' names,
 -- (aat id label), or (artwork) for a function of none. A pattern parameter has no name, so
 -- it is shown as (...). Nothing for a value, a built-in, whose parameters have no names, or
--- an anonymous fn, which has no name to call it by ('fn' is a special form, so no defn has it).
+-- an anonymous fn, which has no name to call it by ('fn' is a special form, so no definition has it).
 callOf :: Expr -> Maybe Text
 callOf = \case
     FunctionClosure _ (name, _) params _ -> callTemplate name params

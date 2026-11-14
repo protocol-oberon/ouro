@@ -6,5 +6,5 @@
 (export digital-image
         web-page)
 
-(defn digital-image () (doc "The Digital Object is an image.") (base/aat "300215302" "Digital Image"))
-(defn web-page      () (doc "The Digital Object is a web page.") (base/aat "300264578" "Web Page"))
+(define/constant digital-image (doc "The Digital Object is an image.") (base/aat "300215302" "Digital Image"))
+(define/constant web-page      (doc "The Digital Object is a web page.") (base/aat "300264578" "Web Page"))

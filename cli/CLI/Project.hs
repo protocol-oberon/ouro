@@ -128,7 +128,7 @@ projectOut project = normalise (projectDir project </> packageOutputs (projectPa
 
 
 -- Reads a package.ouro: lexed, parsed and evaluated as a module is, but it holds one function,
--- (defn package () ...), whose value is checked against the settings' schema. It can import
+-- (define/constant package ...), whose value is checked against the settings' schema. It can import
 -- the bundled modules, and only them. Every error is reported, with the warnings found on the way.
 readPackage :: FilePath -> Text -> ([OuroWarning], Either (NonEmpty OuroError) Package)
 readPackage file source = swap (runIdentity (runWriterT (runValidateT readIt)))
@@ -186,7 +186,7 @@ settings pos = \case
     L.Primitive I.EmptyRec -> fromPairs []
     other
         -> Left (pure (mismatch "a Record" other
-                         "The package function's value is a record of settings, as in (defn package () (:sources \"src\"))."))
+                         "The package function's value is a record of settings, as in (define/constant package (:sources \"src\"))."))
     where
     fromPairs pairs =
         let setting key = lookup key pairs

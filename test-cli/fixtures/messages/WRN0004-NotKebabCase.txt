@@ -1,7 +1,7 @@
 Warning [WRN0004]: The function 'badName' is not named in kebab-case
   ┌── │WRN0004-NotKebabCase.ouro:2:1│
   │
-2 │ (defn badName () 1)
+2 │ (define/procedure badName () 1)
   │ ^
   │ Kebab-case: bad-name
   │ 

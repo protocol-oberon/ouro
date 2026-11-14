@@ -1,2 +1,2 @@
-(defn with () 1)
+(define/procedure with () 1)
 (graph g (:r 1))

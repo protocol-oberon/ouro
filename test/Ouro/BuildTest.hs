@@ -23,19 +23,19 @@ builds :: Group
 builds = Group "Builds: every graph of every module"
     [ ("every graph, by module and name",           buildsTo [("a", "(graph x (:r 1))\n(graph y (:r 2))"), ("lib/b", "(graph z (:r 3))")]
                                                              [(("a", "x"), "{\"r\":1}"), (("a", "y"), "{\"r\":2}"), (("lib/b", "z"), "{\"r\":3}")])
-    , ("a module of functions writes nothing",      buildsTo [("helpers", "(export f)\n(defn f () 1)"), ("main", "(import helpers)\n(graph g (:r (helpers/f)))")]
+    , ("a module of functions writes nothing",      buildsTo [("helpers", "(export f)\n(define/procedure f () 1)"), ("main", "(import helpers)\n(graph g (:r (helpers/f)))")]
                                                              [(("main", "g"), "{\"r\":1}")])
     , ("one failing graph fails the build",         buildFailsWith [("good", "(graph g (:r 1))"), ("bad", "(graph g (:r (get () 5)))")] ["attemptedIndex = 5"])
     , ("every failing module is reported",          buildFailsTimes 2 [("one", "(graph g (:r (get () 5)))"), ("two", "(graph g (:r (get () 6)))"), ("fine", "(graph g (:r 1))")])
-    , ("a module imported by many warns once",      buildWarnsTimes 1 "badName" [("badly-named", "(export badName)\n(defn badName () 1)"), ("one", "(import badly-named)\n(graph g (:r (badly-named/badName)))"), ("two", "(import badly-named)\n(graph g (:r (badly-named/badName)))")])
-    , ("an import cycle among modules",             buildFailsWith [("a", "(import b)\n(export f)\n(defn f () 1)"), ("b", "(import a)\n(export f)\n(defn f () 2)")] ["ImportCycle"])
+    , ("a module imported by many warns once",      buildWarnsTimes 1 "badName" [("badly-named", "(export badName)\n(define/procedure badName () 1)"), ("one", "(import badly-named)\n(graph g (:r (badly-named/badName)))"), ("two", "(import badly-named)\n(graph g (:r (badly-named/badName)))")])
+    , ("an import cycle among modules",             buildFailsWith [("a", "(import b)\n(export f)\n(define/procedure f () 1)"), ("b", "(import a)\n(export f)\n(define/procedure f () 2)")] ["ImportCycle"])
       -- A module that fails is reported once, however many modules reach it (gap 40, fixed)
-    , ("is reported once",                          buildFailsTimes 1 [("main", "(import a)\n(graph g (:r (a/f)))"), ("a", "(import b)\n(export f)\n(defn f () 1)"), ("b", "(import a)\n(export f)\n(defn f () 2)")])
-    , ("named by its own modules, not the one built", chosenFailsWith [("main", "(import a)\n(graph g (:r (a/f)))"), ("a", "(import b)\n(export f)\n(defn f () 1)"), ("b", "(import a)\n(export f)\n(defn f () 2)")] [("main", AllGraphs)]
+    , ("is reported once",                          buildFailsTimes 1 [("main", "(import a)\n(graph g (:r (a/f)))"), ("a", "(import b)\n(export f)\n(define/procedure f () 1)"), ("b", "(import a)\n(export f)\n(define/procedure f () 2)")])
+    , ("named by its own modules, not the one built", chosenFailsWith [("main", "(import a)\n(graph g (:r (a/f)))"), ("a", "(import b)\n(export f)\n(define/procedure f () 1)"), ("b", "(import a)\n(export f)\n(define/procedure f () 2)")] [("main", AllGraphs)]
                                                              ["cyclePath = [\"a\",\"b\",\"a\"]"])
-    , ("a module imported by many fails once",      buildFailsTimes 1 [("main", "(import bad)\n(import other)\n(graph g (:r (other/f)))"), ("other", "(import bad)\n(export f)\n(defn f () 1)"), ("bad", "(graph g (:r \"open))")])
+    , ("a module imported by many fails once",      buildFailsTimes 1 [("main", "(import bad)\n(import other)\n(graph g (:r (other/f)))"), ("other", "(import bad)\n(export f)\n(define/procedure f () 1)"), ("bad", "(graph g (:r \"open))")])
       -- Every module built is analysed, its functions no graph calls too
-    , ("a function no graph calls is checked",      buildFailsWith [("a", "(defn f () nope)\n(graph g (:r 1))")] ["variableName = \"nope\""])
+    , ("a function no graph calls is checked",      buildFailsWith [("a", "(define/procedure f () nope)\n(graph g (:r 1))")] ["variableName = \"nope\""])
     ]
 
 
@@ -50,7 +50,7 @@ chosenGraphs = Group "Builds: the graphs chosen"
                                                              [(("a", "x"), "{\"r\":1}")])
     , ("a graph its module lacks suggests the closest", chosenFailsWith [("a", "(graph x (:r 1))\n(graph person (:r 2))")] [("a", OnlyGraphs ["persn"])]
                                                              ["trgtGraph = \"persn\"", "suggestedGraph = \"person\""])
-    , ("a module with no graphs has none to name",  chosenFailsWith [("a", "(export f)\n(defn f () 1)")] [("a", OnlyGraphs ["g"])] ["NoCompilationTarget"])
+    , ("a module with no graphs has none to name",  chosenFailsWith [("a", "(export f)\n(define/procedure f () 1)")] [("a", OnlyGraphs ["g"])] ["NoCompilationTarget"])
     ]
 
 

@@ -82,7 +82,7 @@ data ReaderTag
 -- A function's parameter: its name, the type tag written before it, if any, and the
 -- pattern it destructures its argument with, if any, as in
 --
---   (defn node (#uri id type) ...)
+--   (define/procedure node (#uri id type) ...)
 --   (fn ((?slug ?label)) ...)
 --
 -- A pattern parameter's name cannot be written in Ouro ('%arg1', ...), so its argument

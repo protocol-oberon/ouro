@@ -1,1 +1,1 @@
-(defn package () (:graphs ("person")))
+(define/constant package (:graphs ("person")))

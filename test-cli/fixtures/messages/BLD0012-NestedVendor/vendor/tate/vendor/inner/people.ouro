@@ -1,2 +1,2 @@
 (export person)
-(defn person (n) n)
+(define/procedure person (n) n)

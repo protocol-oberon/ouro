@@ -81,7 +81,7 @@ data FrameEntry = FrameEntry
 -- collectBindings.
 --
 -- Sweeps a Record's expressions for the attribute pairs it binds, in source order. Context
--- forms, malformed attributes and loose expressions bind nothing. A local 'defn' was
+-- forms, malformed attributes and loose expressions bind nothing. A local definition was
 -- replaced by a let-bound 'fn', and a private '$name value' binding belongs in a let;
 -- both are reported where they appear.
 collectBindings :: [S.Expr] -> Either OuroError [FrameEntry]
@@ -145,7 +145,7 @@ checkBindableName key pos
 -- Whether a form is a call of a binding rather than a special form, given whether a name is
 -- bound where the form is written. As in Scheme, a special form's name means the form unless a
 -- binding around it has the name: an attribute key, a let binding, a parameter, a hole or a
--- defn of the module. A head Canon wrote, such as %case, is never a binding's (see 'S.formName').
+-- function of the module. A head Canon wrote, such as %case, is never a binding's (see 'S.formName').
 shadowsForm :: (Text -> Bool) -> [S.Expr] -> Bool
 shadowsForm bound = \case
     S.Symbol _ name : _ -> name `elem` specialForms && bound name

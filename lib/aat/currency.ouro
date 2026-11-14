@@ -10,9 +10,9 @@
         swiss-franc
         us-dollars)
 
-(defn british-pounds  () (doc "British Pounds, a currency.") (provenance/currency "300411998" "British Pounds"))
-(defn canadian-dollar () (doc "Canadian Dollars, a currency.") (provenance/currency "300412000" "Canadian Dollars"))
-(defn euros           () (doc "Euros, a currency.") (provenance/currency "300411996" "Euros"))
-(defn japanese-yen    () (doc "Japanese Yen, a currency.") (provenance/currency "300411997" "Japanese Yen"))
-(defn swiss-franc     () (doc "Swiss Francs, a currency.") (provenance/currency "300412001" "Swiss Francs"))
-(defn us-dollars      () (doc "US Dollars, a currency.") (provenance/currency "300411994" "US Dollars"))
+(define/constant british-pounds  (doc "British Pounds, a currency.") (provenance/currency "300411998" "British Pounds"))
+(define/constant canadian-dollar (doc "Canadian Dollars, a currency.") (provenance/currency "300412000" "Canadian Dollars"))
+(define/constant euros           (doc "Euros, a currency.") (provenance/currency "300411996" "Euros"))
+(define/constant japanese-yen    (doc "Japanese Yen, a currency.") (provenance/currency "300411997" "Japanese Yen"))
+(define/constant swiss-franc     (doc "Swiss Francs, a currency.") (provenance/currency "300412001" "Swiss Francs"))
+(define/constant us-dollars      (doc "US Dollars, a currency.") (provenance/currency "300411994" "US Dollars"))

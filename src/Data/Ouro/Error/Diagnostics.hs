@@ -304,7 +304,7 @@ missingSourceFolder folder looked =
 -- A declaration package.ouro cannot hold, such as "a graph"
 notPackageData :: Text -> ErrorContext
 notPackageData declaration =
-    withBlurb ( "package.ouro holds one function, (defn package () ...), and nothing else, so it cannot have "
+    withBlurb ( "package.ouro holds one function, (define/constant package ...), and nothing else, so it cannot have "
              <> declaration <> ". Perhaps move it into a module under :sources."
               )
               (Build (NotPackageData { packageDeclaration = declaration }))
@@ -313,7 +313,7 @@ notPackageData declaration =
 -- package.ouro without a function named package: the name of the function it has instead, if any
 noPackageFunction :: Maybe Text -> ErrorContext
 noPackageFunction found =
-    withBlurb ( "package.ouro holds one function, named package, as in (defn package () (:sources \"src\"))."
+    withBlurb ( "package.ouro holds one function, named package, as in (define/constant package (:sources \"src\"))."
              <> maybe " An empty package.ouro is an error: perhaps delete it, since a project needs none."
                       (\name -> " Its function is named '" <> name <> "': perhaps rename it to package.") found
               )
@@ -323,7 +323,7 @@ noPackageFunction found =
 -- A package function that takes parameters, how many
 packageParameters :: Int -> ErrorContext
 packageParameters count =
-    withBlurb "The package function takes no parameters: its settings are a value, as in (defn package () (:sources \"src\"))."
+    withBlurb "The package function takes no parameters: its settings are a value, as in (define/constant package (:sources \"src\"))."
               (Build (PackageParameters { parameterCount = count }))
 
 
@@ -552,7 +552,7 @@ parenthesisedResult owner val = Lint $ ParenthesisedResult
     , resultValue = val
     }
 
--- Create a warning for a defn that replaces a built-in
+-- Create a warning for a function that replaces a built-in
 shadowedBuiltin :: Text -> WarningContext
 shadowedBuiltin name = Lint $ ShadowedBuiltin { shadowedName = name }
 
@@ -615,7 +615,7 @@ warningBlurb = \case
         <> "Perhaps remove the parentheses: " <> val <> ", if a single value is intended."
 
     Lint (ShadowedBuiltin name)
-        -> "A defn named after a built-in or a special form replaces it throughout the file, as a definition does in Scheme: "
+        -> "A function named after a built-in or a special form replaces it throughout the file, as a definition does in Scheme: "
         <> "a built-in in calls, in case guards and under any symbol it is also written with (= is eq, ∪ is union), "
         <> "a special form wherever it is called.\n\n"
         <> "Perhaps choose another name for the function, unless replacing '" <> name <> "' is intended."
