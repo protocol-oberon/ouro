@@ -145,7 +145,7 @@ type Addr = Int
 -- 'fn', so the recursion check compares both.
 type FunctionId = (Text, SourcePos)
 
-type FunctionRegistry = Map.Map Text (M.HigherExpression 'M.FunctionExpr)
+type FunctionRegistry = Map.Map Text M.SomeFunction
 
 
 runEvalM :: Env -> EvalM a -> a

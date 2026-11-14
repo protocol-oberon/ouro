@@ -168,7 +168,7 @@ lookupFunction
 lookupFunction evaluator pos name env =
     case Map.lookup name (env ^. L.functionRegistry) of
         -- The closure is this frame: the one the function is defined in
-        Just (M.Function tPos _ _ tArgs (S.Form _ bodyExprs))
+        Just (M.SomeFunction (M.Function _ tPos _ _ tArgs (S.Form _ bodyExprs)))
             -> pure $ L.FunctionClosure env (name, tPos) tArgs bodyExprs
 
         Just _ -> astCorruption name "Corrupted function registry entry."

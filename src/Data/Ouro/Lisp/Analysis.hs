@@ -36,6 +36,7 @@ import           Data.Ouro.Lisp.Function       (checkParams, functionBody,
 import           Data.Ouro.Lisp.Module.Bundled (bundled)
 import           Data.Ouro.Lisp.Module.Types   (Declaration (..),
                                                 HigherExpression (..), Module,
+                                                SomeFunction (..),
                                                 functionRegistry, graphRegistry,
                                                 splitQualified)
 import qualified Data.Ouro.Lisp.Surface        as S
@@ -157,8 +158,8 @@ analyseModule imported ouroModule =
     root = Scope Map.empty (ouroModule ^. functionRegistry) imported Nothing Map.empty
 
     -- A body the parser rejected is reported by the parser
-    function :: HigherExpression 'FunctionExpr -> Found
-    function (Function pos name _ params body) =
+    function :: SomeFunction -> Found
+    function (SomeFunction (Function _ pos name _ params body)) =
         case body of
             S.Form _ exprs | Right result <- functionBody name pos exprs -> parameters (inside (Defn name) root) ownParameters params result
             _rejected                                                     -> mempty
@@ -545,7 +546,7 @@ known scope name =
 
 parametersOf :: L.FunctionRegistry -> Text -> Maybe [S.Param]
 parametersOf registry called = Map.lookup called registry >>= \case
-    Function _ _ _ params _ -> Just params
+    SomeFunction (Function _ _ _ _ params _) -> Just params
 
 
 -- A case branch: its condition, or its pattern's values, and its result, around which the

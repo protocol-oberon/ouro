@@ -579,5 +579,5 @@ documentation = Group "Functions: a body can hold one (doc ...)"
         either (const Nothing) docOf (tokenize "t.ouro" src >>= parseModule) === Just expected
         where
         docOf m = case Map.lookup name (M._functionRegistry m) of
-                      Just (M.Function _ _ doc _ _) -> Just doc
-                      Nothing                       -> Nothing
+                      Just (M.SomeFunction (M.Function _ _ _ doc _ _)) -> Just doc
+                      Nothing                                          -> Nothing

@@ -63,6 +63,7 @@ import           Data.Ouro.Lisp.Module.Loader (LoadEnv (..), Lookup (..),
                                                bundledRoots, loadImports,
                                                runLoader)
 import           Data.Ouro.Lisp.Module.Types  (HigherExpression (..), Module,
+                                               SomeFunction (..),
                                                exports, functionRegistry,
                                                graphRegistry)
 import qualified Data.Ouro.Lisp.Parser        as LP
@@ -154,27 +155,27 @@ readPackage file source = swap (runIdentity (runWriterT (runValidateT readIt)))
 packageFunction :: FilePath -> Module -> Either (NonEmpty OuroError) SourcePos
 packageFunction file m =
     case (NE.nonEmpty (sortOn errPos (others <> unnamed)), Map.lookup "package" functions) of
-        (Nothing, Just (Function pos _ _ _ _)) -> Right pos
-        (Just errs, _)                         -> Left errs
-        (Nothing, Nothing)                     -> Left (pure (OuroError (initialPos file) (noPackageFunction Nothing)))
+        (Nothing, Just (SomeFunction (Function _ pos _ _ _ _))) -> Right pos
+        (Just errs, _)                                          -> Left errs
+        (Nothing, Nothing)                                      -> Left (pure (OuroError (initialPos file) (noPackageFunction Nothing)))
     where
     functions = m ^. functionRegistry
 
     others = [ OuroError pos (notPackageData "an export") | (_, pos) <- m ^. exports ]
           <> [ OuroError pos (notPackageData "a graph") | Graph pos _ _ <- Map.elems (m ^. graphRegistry) ]
-          <> [ OuroError pos (reservedPackageName name) | Function pos name _ _ _ <- Map.elems functions, name `elem` reservedPackageNames ]
-          <> [ OuroError pos (packageParameters (length params)) | Just (Function pos _ _ params _) <- [Map.lookup "package" functions], not (null params) ]
-          <> [ OuroError pos (notPackageData "a function") | Function pos _ _ _ _ <- extra ]
+          <> [ OuroError pos (reservedPackageName name) | SomeFunction (Function _ pos name _ _ _) <- Map.elems functions, name `elem` reservedPackageNames ]
+          <> [ OuroError pos (packageParameters (length params)) | Just (SomeFunction (Function _ pos _ _ params _)) <- [Map.lookup "package" functions], not (null params) ]
+          <> [ OuroError pos (notPackageData "a function") | SomeFunction (Function _ pos _ _ _ _) <- extra ]
 
     -- The functions that are neither package nor reserved. Without a function named package,
     -- the first of them is reported as misnamed, and any others as other functions.
-    unreserved = sortOn (\(Function pos _ _ _ _) -> pos)
-                        [ f | f@(Function _ name _ _ _) <- Map.elems functions, name /= "package", name `notElem` reservedPackageNames ]
+    unreserved = sortOn (\(SomeFunction (Function _ pos _ _ _ _)) -> pos)
+                        [ f | f@(SomeFunction (Function _ _ name _ _ _)) <- Map.elems functions, name /= "package", name `notElem` reservedPackageNames ]
 
     (unnamed, extra) = case (Map.member "package" functions, unreserved) of
-                           (True, _)                               -> ([], unreserved)
-                           (False, Function pos name _ _ _ : rest) -> ([OuroError pos (noPackageFunction (Just name))], rest)
-                           (False, [])                             -> ([], [])
+                           (True, _)                                                -> ([], unreserved)
+                           (False, SomeFunction (Function _ pos name _ _ _) : rest) -> ([OuroError pos (noPackageFunction (Just name))], rest)
+                           (False, [])                                              -> ([], [])
 
 
 -- The package function's value against the settings' schema: a record of known settings,

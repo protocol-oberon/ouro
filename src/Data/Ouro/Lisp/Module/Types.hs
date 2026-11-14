@@ -17,16 +17,50 @@ import           Text.Megaparsec        (SourcePos)
 
 -- DataKind to represent expression types
 data Declaration
-    = FunctionExpr
+    = FunctionExpr FunctionDeclaration
     | GraphExpr
     deriving (Show, Eq)
+
+-- DataKind to represent the different types of function
+data FunctionDeclaration
+    = Procedure
+    | Property
+    deriving (Show, Eq)
+
+-- The kind of a function, at runtime: matching on it tells the type checker which it is
+data FunctionKind (k :: FunctionDeclaration) where
+    ProcedureKind :: FunctionKind 'Procedure
+    PropertyKind  :: FunctionKind 'Property
+
+deriving instance Show (FunctionKind k)
+deriving instance Eq   (FunctionKind k)
+
+data SomeFunction where
+    SomeFunction :: HigherExpression ('FunctionExpr k) -> SomeFunction
+
+instance Eq SomeFunction where
+    SomeFunction a@(Function ka _ _ _ _ _) == SomeFunction b@(Function kb _ _ _ _ _) =
+        case (ka, kb) of
+            (ProcedureKind, ProcedureKind) -> a == b
+            (PropertyKind,  PropertyKind)  -> a == b
+            _differentKinds                -> False
+
+instance Show SomeFunction where
+    showsPrec d (SomeFunction f) = showParen (d > 10) (showString "SomeFunction " . showsPrec 11 f)
 
 
 -- Higher Expression Surface AST of a module, indexed by the DeclType
 -- A function keeps its documentation, from a (doc "...") in its body, if it has one
 data HigherExpression (t :: Declaration) where
-    Function :: SourcePos -> Text -> Maybe Text -> [Param] -> Expr -> HigherExpression 'FunctionExpr
-    Graph    :: SourcePos -> Text -> Expr                          -> HigherExpression 'GraphExpr
+    Function :: FunctionKind k
+             -> SourcePos
+             -> Text
+             -> Maybe Text
+             -> [Param]
+             -> Expr
+             -> HigherExpression ('FunctionExpr k)
+
+    Graph    :: SourcePos -> Text -> Expr -> HigherExpression 'GraphExpr
 
 deriving instance Show (HigherExpression t)
 deriving instance Eq   (HigherExpression t)
@@ -36,8 +70,8 @@ deriving instance Eq   (HigherExpression t)
 mapExpr :: (Expr -> Expr) -> HigherExpression t -> HigherExpression t
 mapExpr f exprNode =
     case exprNode of
-        Function pos name doc args expr -> Function pos name doc args (f expr)
-        Graph    pos name expr          -> Graph    pos name (f expr)
+        Function kind pos name doc args expr -> Function kind pos name doc args (f expr)
+        Graph    pos name expr               -> Graph    pos name (f expr)
 
 
 -- An (import path) or (import path as alias) declaration
@@ -69,7 +103,7 @@ splitQualified name =
 -- The static analysis adds the calls by name it found to go down into a value, by where
 -- their function's name is written, which may call a function already being called.
 data Module = Module
-    { _functionRegistry :: Map.Map Text (HigherExpression 'FunctionExpr)
+    { _functionRegistry :: Map.Map Text SomeFunction
     , _graphRegistry    :: Map.Map Text (HigherExpression 'GraphExpr)
     , _imports          :: [Import]
     , _exports          :: [(Text, SourcePos)]
@@ -80,7 +114,7 @@ data Module = Module
 -- Applies an expression transformation across all declarations in a Module.
 mapModuleExpr :: (Expr -> Expr) -> Module -> Module
 mapModuleExpr transform m = m
-    { _functionRegistry = Map.map (mapExpr transform) (_functionRegistry m)
+    { _functionRegistry = Map.map (\(SomeFunction f) -> SomeFunction (mapExpr transform f)) (_functionRegistry m)
     , _graphRegistry    = Map.map (mapExpr transform) (_graphRegistry m)
     -- imports and exports are names, left untouched
     }
@@ -92,7 +126,7 @@ mapParamPatterns :: (Expr -> Expr) -> Module -> Module
 mapParamPatterns transform m = m
     { _functionRegistry = Map.map patterns (_functionRegistry m) }
     where
-    patterns (Function pos name doc args expr) =
-        Function pos name doc [ arg { paramPattern = transform <$> paramPattern arg } | arg <- args ] expr
+    patterns (SomeFunction (Function kind pos name doc args expr)) =
+        SomeFunction (Function kind pos name doc [ arg { paramPattern = transform <$> paramPattern arg } | arg <- args ] expr)
 
 makeLenses ''Module

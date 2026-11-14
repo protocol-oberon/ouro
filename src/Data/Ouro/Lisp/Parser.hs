@@ -21,8 +21,10 @@ import           Data.Ouro.Lisp.Function     (checkFunctionName, checkParams,
                                               isFunctionKeyword, patternParam,
                                               removedLocalDefn, typedResult)
 import           Data.Ouro.Lisp.Module.Types (Declaration (..),
+                                              FunctionKind (..),
                                               HigherExpression (..),
                                               Import (..), Module (..),
+                                              SomeFunction (..),
                                               exports, functionRegistry,
                                               graphRegistry, imports,
                                               qualifierOf)
@@ -69,7 +71,7 @@ endOfFile = do
 
 -- Wraper for type indexed higher expressions
 data ParsedDecl
-    = PFunction (HigherExpression 'FunctionExpr)
+    = PFunction SomeFunction
     | PGraph    (HigherExpression 'GraphExpr)
     | PImport   Import
     | PExport   SourcePos [(Text, SourcePos)]
@@ -96,7 +98,7 @@ buildModuleRegistry = foldM insertDecl emptyModule
 
     insertDecl :: Module -> ParsedDecl -> Either OuroError Module
     insertDecl m = \case
-                    (PFunction t@(Function pos name _ _ _))
+                    (PFunction t@(SomeFunction (Function _ pos name _ _ _)))
                         -> do
                            checkFunctionName name pos
                            case Map.member name (m ^. functionRegistry) of
@@ -244,7 +246,7 @@ pDefn params pos = do
     -- A body is exactly one result expression, checked against the return type
     result <- lift (functionBody name pos results)
 
-    pure $ PFunction (Function pos name doc args (S.Form pos [typedResult retType result]))
+    pure $ PFunction (SomeFunction (Function ProcedureKind pos name doc args (S.Form pos [typedResult retType result])))
 
 
 -- A type tag between a function's name and its parameters is its return type

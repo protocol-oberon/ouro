@@ -286,7 +286,7 @@ stdIsDocumented = withTests 1 . property $ do
     undocumentedIn (file, source) =
         case tokenize file source >>= parseModule of
             Left err -> annotate (show err) >> failure
-            Right m  -> pure [ (file, name) | M.Function _ name Nothing _ _ <- Map.elems (M._functionRegistry m) ]
+            Right m  -> pure [ (file, name) | M.SomeFunction (M.Function _ _ name Nothing _ _) <- Map.elems (M._functionRegistry m) ]
 
 
 -- Bundled modules are named with '/' on every platform: file-embed joins a folder's files
