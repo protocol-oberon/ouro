@@ -1261,4 +1261,6 @@ knownGaps = Group "Known gaps: current and fixed"
                                                                    "(graph g (:r (define/constant q 1)))")
     , ("gap 49 (fixed): and so is a define/property", failsWith "A definition can only appear at the top level of a file."
                                                                    "(graph g (:r (define/property p (#record r) true)))")
+    , ("gap 51: decimal arithmetic is binary floating point", compilesToJSON "(graph g (:a (+ 0.1 0.2) :b (* 3 1.1) :c (fold (3.72 3.36 3.40) 0 +)))"
+                                                                   "{\"a\": 0.30000000000000004, \"b\": 3.3000000000000003, \"c\": 10.48}")
     ]
