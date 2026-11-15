@@ -1,25 +1,25 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/text/rembrandtjaccuse/1
+(import std/time)
+(import aat/role-type)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure text #record (#string slug #string label)
+  (:id (example (+ "text/" slug)) :type "LinguisticObject" :_label label))
+
+(define/procedure person #record (#string slug #string label)
+  (:id (example (+ "person/" slug)) :type "Person" :_label label))
+
+;; A part of a creation, by the role of who carried it out
+(define/procedure role #record (#record kind #record who)
+  (:type "Creation" :classified_as (list kind) :carried_out_by (list who)))
+
+;; A film's creation, in its parts: directed by one person, produced by another
 (graph text-rembrandtjaccuse-1
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/text/rembrandtjaccuse/1"
-   :type "LinguisticObject"
-   :_label "Rembrandt's J'accuse"
-   :created_by (:type "Creation"
-                :timespan (:type "TimeSpan"
-                           :_label "2008"
-                           :begin_of_the_begin "2008-01-01T00:00:00Z"
-                           :end_of_the_end "2008-12-31T23:59:59Z")
-                :part ((:type "Creation"
-                        :classified_as ((:id "http://vocab.getty.edu/aat/300025654"
-                                         :type "Type"
-                                         :_label "Director"))
-                        :carried_out_by ((:id "https://linked.art/example/person/greenaway"
-                                          :type "Person"
-                                          :_label "Peter Greenaway")))
-                       (:type "Creation"
-                        :classified_as ((:id "http://vocab.getty.edu/aat/300197742"
-                                         :type "Type"
-                                         :_label "Producer"))
-                        :carried_out_by ((:id "https://linked.art/example/person/wolting"
-                                          :type "Person"
-                                          :_label "Femke Wolting")))))))
+  (-> (text "rembrandtjaccuse/1" "Rembrandt's J'accuse")
+      (with :context    "https://linked.art/ns/v1/linked-art.json")
+      (with :created_by (:type     "Creation"
+                         :timespan (with (time/year "2008") :_label "2008")
+                         :part     (list (role role-type/director (person "greenaway" "Peter Greenaway"))
+                                         (role role-type/producer (person "wolting" "Femke Wolting")))))))

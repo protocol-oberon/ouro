@@ -1,20 +1,18 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/text/catalog_24477/1
+(import std/base)
+(import std/vocab)
+(import aat/object-type)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure text #record (#string slug #string label)
+  (:id (example (+ "text/" slug)) :type "LinguisticObject" :_label label))
+
+;; An auction's catalog, about the auction
 (graph text-catalog-24477-1
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/text/catalog_24477/1"
-   :type "LinguisticObject"
-   :_label "Auction Catalog"
-   :classified_as ((:id "http://vocab.getty.edu/aat/300026068"
-                    :type "Type"
-                    :_label "Auction Catalog"
-                    :classified_as ((:id "http://vocab.getty.edu/aat/300435443"
-                                     :type "Type"
-                                     :_label "Type of Work"))))
-   :identified_by ((:type "Name"
-                    :classified_as ((:id "http://vocab.getty.edu/aat/300404670"
-                                     :type "Type"
-                                     :_label "Primary Name"))
-                    :content "Impressionist & Modern Evening Sale Catalog"))
-   :about ((:id "https://linked.art/example/event/christies_24477"
-            :type "Activity"
-            :_label "Impressionist Sale"))))
+  (-> (text "catalog_24477/1" "Auction Catalog")
+      (with :context       "https://linked.art/ns/v1/linked-art.json")
+      (with :classified_as (list object-type/auction-catalog))
+      (with :identified_by (list (base/name vocab/primary-name "Impressionist & Modern Evening Sale Catalog")))
+      (with :about         ((:id (example "event/christies_24477") :type "Activity" :_label "Impressionist Sale")))))

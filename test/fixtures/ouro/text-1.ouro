@@ -1,16 +1,18 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/text/1
+(import std/base)
+(import std/vocab)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure text #record (#string slug #string label)
+  (:id (example (+ "text/" slug)) :type "LinguisticObject" :_label label))
+
+;; A text's rights: in the public domain, classified by Creative Commons' own term
 (graph text-1
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/text/1"
-   :type "LinguisticObject"
-   :_label "Example Text"
-   :subject_to ((:type "Right"
-                 :_label "Public Domain status of Example Text"
-                 :classified_as ((:id "https://creativecommons.org/publicdomain/zero/1.0/"
-                                  :type "Type"
-                                  :_label "cc0"))
-                 :identified_by ((:type "Name"
-                                  :classified_as ((:id "http://vocab.getty.edu/aat/300404669"
-                                                   :type "Type"
-                                                   :_label "Display Name"))
-                                  :content "Public Domain"))))))
+  (-> (text "1" "Example Text")
+      (with :context    "https://linked.art/ns/v1/linked-art.json")
+      (with :subject_to ((:type          "Right"
+                          :_label        "Public Domain status of Example Text"
+                          :classified_as ((:id #uri "https://creativecommons.org/publicdomain/zero/1.0/" :type "Type" :_label "cc0"))
+                          :identified_by (list (base/name vocab/display-name "Public Domain")))))))

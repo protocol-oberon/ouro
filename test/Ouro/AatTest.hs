@@ -22,7 +22,8 @@ withAat src = T.concat [ "(import aat/" <> m <> ") " | m <- modules ] <> src
     -- The two iso variants share their qualifier, so one is imported under another
     modules = [ "name-type", "identifier-type", "statement-type", "object-type", "place-type", "group-type", "digital-type"
               , "set-type", "dimension-type", "language", "language/iso", "unit", "material", "currency"
-              , "currency/iso as currency-iso", "nationality", "occupation", "shape", "activity-type", "price-type" ]
+              , "currency/iso as currency-iso", "nationality", "occupation", "shape", "activity-type", "price-type"
+              , "role-type" ]
 
 aatToJSON :: Text -> Text -> Property
 aatToJSON src = compilesToJSON (withAat src)
@@ -76,6 +77,8 @@ recommendedTerms = Group "aat: Linked Art's recommended terms"
     , ("an iso currency has its code as its notation", aatToJSON "(graph g (currency-iso/us-dollars))"
                                                              ("{" <> aat "300411994" <> ", \"type\": \"Currency\", \"_label\": \"US Dollars\", \"notation\": \"USD\"}"))
     , ("every currency has an iso variant",        everyTermHasIso "aat/currency" 6)
+    , ("a role type is a plain Type",              aatToJSON "(graph g (role-type/director))"
+                                                             ("{" <> aat "300025654" <> ", \"type\": \"Type\", \"_label\": \"Director\"}"))
     , ("a price type is a plain Type",             aatToJSON "(graph g (price-type/starting-price))"
                                                              ("{" <> aat "300417242" <> ", \"type\": \"Type\", \"_label\": \"Starting Price\"}"))
     , ("a term of the examples joins its section", aatToJSON "(graph g (group-type/society))"
@@ -100,7 +103,7 @@ everyTermGenerated = withTests 1 . property $ do
         missing   = [ number | number <- terms, not (any (("\"" <> number <> "\"") `T.isInfixOf`) sources) ]
     exported <- traverse (fmap length . exportsOf) [ file | (_, file) <- sections ]
     length recommended === 195
-    length sources === 18
+    length sources === 19
     sum exported === length terms
     missing === []
     where

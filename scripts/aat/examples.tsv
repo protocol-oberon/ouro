@@ -1,8 +1,14 @@
 ## Identifier Types
 Lot Number	300404628	An identifier of a lot in an auction
+ISBN Identifier	300417443	A book's International Standard Book Number
 ## Statement Types
 Biography Statement	300435422	A statement about the life or history of a person or group
 Abstract	300026032	A brief summary of the content of a work
+Pagination Statement	300435440	A statement of the pages a work runs over
+## Object Types
+Monograph	300060417	A written work on a single subject, as a book about one artist
+Auction Catalog	300026068	A catalog of the lots of an auction
+Chapter	300311699	A chapter of a written work
 ## Place Types
 Auction House (place)	300005234	The Place is an auction house's location
 ## Group Types
@@ -13,6 +19,9 @@ Auction House (organization)	300417515	The Group is an auction house
 Auction Lot	300411307	The Set is a lot of objects in an auction
 ## Dimension Types
 File Size	300265863	The Dimension measures the size of a digital file
+Count Of	300404433	The Dimension counts things, as the pages of a chapter
+## Measurement Units
+Pages	300194222	pages
 ## Activity Types
 Auction Event	300054751	The Activity is an auction, of a set of lots
 Auction of Lot	300420001	The Activity is the auction of one lot, part of an auction event
@@ -22,3 +31,6 @@ Curating	300054277	The Activity is the curating of a collection
 ## Price Types
 Starting Price	300417242	The MonetaryAmount is the price an auction of a lot starts at
 Estimated Price	300417244	The MonetaryAmount is an estimate of a lot's price
+## Role Types
+Director	300025654	The part of a creation is the work of its director
+Producer	300197742	The part of a creation is the work of its producer

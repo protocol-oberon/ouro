@@ -36,6 +36,7 @@ my %sections = (
     "Shapes"            => ["shape",           "std/base",       "base/shape",          "each classified as Shape, as Linked Art requires",       "a shape"],
     "Activity Types"    => ["activity-type",   "std/base",       "base/aat",            "each a Type, to classify an Activity"],
     "Price Types"       => ["price-type",      "std/base",       "base/aat",            "each a Type, to classify a MonetaryAmount"],
+    "Role Types"        => ["role-type",       "std/base",       "base/aat",            "each a Type, to classify a part of an Activity by the role of who carries it out"],
 );
 
 # Names that cannot be a term's own: the time units are built-ins, and map is a special form

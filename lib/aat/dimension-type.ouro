@@ -9,7 +9,8 @@
         unknown-physical-dimension
         weight
         width
-        file-size)
+        file-size
+        count-of)
 
 (define/constant depth                      (doc "The Dimension measures the depth of the entity, from the front to the back.") (base/aat "300072633" "Depth"))
 (define/constant height                     (doc "The Dimension measures the height of the entity, from the top to the bottom.") (base/aat "300055644" "Height"))
@@ -17,3 +18,4 @@
 (define/constant weight                     (doc "The Dimension measures the weight of the entity.") (base/aat "300056240" "Weight"))
 (define/constant width                      (doc "The Dimension measures the width of the object, from left to right.") (base/aat "300055647" "Width"))
 (define/constant file-size                  (doc "The Dimension measures the size of a digital file. From Linked Art's examples, not its recommended list.") (base/aat "300265863" "File Size"))
+(define/constant count-of                   (doc "The Dimension counts things, as the pages of a chapter. From Linked Art's examples, not its recommended list.") (base/aat "300404433" "Count Of"))
