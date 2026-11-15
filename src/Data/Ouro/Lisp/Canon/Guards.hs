@@ -26,8 +26,8 @@ import           Data.Text                         (Text)
 --   (case x ((< 10) e) ...)   (let ((%bind "%target" x)) (case %target ((%when (< %target 10)) e) ...))
 --
 -- A branch head is matched, not evaluated, so 'placeholders' and 'connectives' left it
--- alone; a condition is evaluated, so they are run on it here. 'comparisons' runs later and
--- chains (< %target 10 20) into an and that stops at the first false pair. Top-down, after
+-- alone; a condition is evaluated, so they are run on it here. A comparison takes two
+-- operands, so a guard takes one: ((< 10 20) e) is (< %target 10 20), an arity error. Top-down, after
 -- 'bindings', so the binding is written as bindings writes one; before 'alternatives',
 -- which keeps a (%when ...) head.
 guards :: S.Expr -> S.Expr

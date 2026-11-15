@@ -12,11 +12,9 @@ module Data.Ouro.Lisp.Canon
 import           Data.Ouro.Lisp.Canon.Adjoin       (adjoinForms)
 import           Data.Ouro.Lisp.Canon.Alternatives (alternatives)
 import           Data.Ouro.Lisp.Canon.Bindings     (bindings)
-import           Data.Ouro.Lisp.Canon.Comparisons  (comparisons)
 import           Data.Ouro.Lisp.Canon.Connectives  (connectives)
 import           Data.Ouro.Lisp.Canon.Context      (contexts)
 import           Data.Ouro.Lisp.Canon.Guards       (guards)
-import           Data.Ouro.Lisp.Canon.Operators    (operators)
 import           Data.Ouro.Lisp.Canon.Placeholders (placeholders)
 import           Data.Ouro.Lisp.Canon.Threading    (threading)
 import           Data.Ouro.Lisp.Canon.Thru         (thru)
@@ -38,22 +36,24 @@ import           Data.Text                         (Text)
 --                                hole is already a function (1), and a step is rewritten
 --                                before 'adjoin' (7) and 'with' (8) are, so (-> x (with :k v))
 --                                gives with x
---    3. connectives   top-down   (and a b) and (or a b) become chains of cases on #boolean a,
---                                so an operand is only evaluated when it can decide the answer
+--    3. connectives   top-down   (and a b) and (or a b), and (all (a b c)) and (any (a b c))
+--                                over an array written in place, become chains of cases on
+--                                #boolean a, so an operand is only evaluated when it can
+--                                decide the answer
 --    4. bindings      top-down   '$name value' in a let becomes (%bind "name" value), before a
 --                                value can expand into several elements (9)
 --    5. guards        top-down   a case condition, (when c) or a guard ((< 10) e), becomes a
---                                (%when c) head; a guard names the case's target, bound once.
---                                Comparisons (10) then chain it, and alternatives (12) keep it
+--                                (%when c) head; a guard names the case's target, bound once,
+--                                and alternatives (10) keep it
 --    6. contexts      bottom-up  ':context e' becomes the record's metadata, (%context e)
 --    7. adjoin        bottom-up  (adjoin base item ...) becomes (%adjoin base addition ...),
 --                                its attribute pairs and context grouped into records
 --    8. with          bottom-up  (with base item ...) becomes ((inlay base) item ...)
 --    9. thru          siblings   (thru (days n)) becomes the durations it stands for
---   10. comparisons   bottom-up  (< a b c) becomes (and (< a b) (< b c)), desugared as
---                                connectives (3) desugars a written and
---   11. operators     bottom-up  (+ a b c) becomes (+ (+ a b) c)
---   12. alternatives  bottom-up  a case branch (("a" "b") e) becomes ("a" e) ("b" e)
+--   10. alternatives  bottom-up  a case branch (("a" "b") e) becomes ("a" e) ("b" e)
+--
+-- A built-in function takes a fixed number of arguments, so nothing is unrolled: (+ a b c)
+-- is an arity error, and many values are an array, (fold xs 0 +), (all (a b c)).
 data Pass = Pass
     { passName :: Text
     , runPass  :: S.Expr -> S.Expr
@@ -78,8 +78,6 @@ patternPasses =
     , Pass "adjoin"       adjoinForms
     , Pass "with"         withForms
     , Pass "thru"         thru
-    , Pass "comparisons"  comparisons
-    , Pass "operators"    operators
     , Pass "alternatives" alternatives
     ]
 

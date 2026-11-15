@@ -229,6 +229,8 @@ symbolName = do
                         "¬"   -> "not"
                         "∧"   -> "and"
                         "∨"   -> "or"
+                        "⋀"   -> "all"
+                        "⋁"   -> "any"
                         "∀"   -> "forall"
                         "∃"   -> "exists"
                         "∄"   -> "omits"
@@ -242,7 +244,7 @@ symbolName = do
                         name  -> T.pack name
     where
     -- They are not letters, so each is allowed to begin a symbol by name
-    mathSymbols = "¬∧∨∀∃∄∪∩∖⊆⋃⋂⊨" :: String
+    mathSymbols = "¬∧∨⋀⋁∀∃∄∪∩∖⊆⋃⋂⊨" :: String
 
 
 -- A character a symbol may hold after its first

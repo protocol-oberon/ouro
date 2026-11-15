@@ -390,7 +390,7 @@ Both kinds of function take an optional signature: =(define/procedure name #type
 
 =λ= is another way to write =fn=: ~(λ (x) (+ x 1))~. The lexer reads =λ= on its own as =fn=, so it is =fn= everywhere, and messages name it =fn=; like =fn=, it can name a function or a binding, which then shadows =fn=, and a longer name that begins with it, such as =λx=, is an ordinary symbol.
 
-The symbols of logic and sets are read the same way, as the names they stand for: =¬= is =not=, =∧= =and=, =∨= =or=, =∀= =forall=, =∃= =exists=, =∄= =omits=, =∪= =union=, =∩= =intersect=, =∖= =setminus=, =⊆= =subset=, =⋃= =unions=, =⋂= =intersections= and =⊨= =satisfies=; and ~=~ and ~/=~ are =eq= and =neq=. ~(∀ xs (> ? 0))~ is ~(forall xs (> ? 0))~, messages name the word, and a longer name that begins with a symbol, such as =∧x=, is an ordinary symbol.
+The symbols of logic and sets are read the same way, as the names they stand for: =¬= is =not=, =∧= =and=, =∨= =or=, =⋀= =all=, =⋁= =any=, =∀= =forall=, =∃= =exists=, =∄= =omits=, =∪= =union=, =∩= =intersect=, =∖= =setminus=, =⊆= =subset=, =⋃= =unions=, =⋂= =intersections= and =⊨= =satisfies=; and ~=~ and ~/=~ are =eq= and =neq=. ~(∀ xs (> ? 0))~ is ~(forall xs (> ? 0))~, messages name the word, and a longer name that begins with a symbol, such as =∧x=, is an ordinary symbol.
 
 A local function is a =let=-bound =fn=:
 
@@ -473,7 +473,7 @@ A call with =?= holes among its arguments is not called: it is a function of its
 - *A named hole is one parameter*, however often it is written: ~(* ?n ?n)~ takes one. Parameters follow the order in which each hole is first written, so ~(+ ?a ?b ?a)~ takes =a= then =b=.
 - *A typed hole is a typed parameter*: ~(node #uri ? "Painting")~ checks, and converts, its argument as a signature would, and a mismatch is reported at the argument where the placeholder is called. An untyped hole passed to a typed parameter of the function is checked by that function, and a mismatch is reported at the hole.
 - *A hole belongs to the call it is an argument of*, so ~(* 2 (+ ? 1))~ multiplies 2 by a function (an error), and ~(f (g ?))~ passes =f= a function.
-- *Any call takes holes*: a =define/procedure=, a =fn=, a built-in, a variadic operator (~(< ? 10 20)~) and the special forms that evaluate their arguments (=get=, =image=, =insert=, =replace-at=, =list=, =map=, =->=). The forms with their own structure (=let=, =fn=, =case=, =context=, =inlay=, =thru=) do not.
+- *Any call takes holes*: a =define/procedure=, a =fn=, a built-in, an operator (~(< ? 10)~) and the special forms that evaluate their arguments (=get=, =image=, =insert=, =replace-at=, =list=, =map=, =fold=, =->=). The forms with their own structure (=let=, =fn=, =case=, =context=, =inlay=, =thru=) do not.
 - *A placeholder is a value*: it is a =fn=, closed over the scope it is written in, so it can be bound, passed and returned like one. It is called with exactly as many arguments as it has holes.
 - *A hole anywhere else is an error*: in an array, in a record, or as a binding's value. A rest hole, =?..name=, only matches the rest of an array or record, so it can only be written in a pattern: a =case= pattern or a [[*Destructuring parameters][parameter]].
 
@@ -530,8 +530,11 @@ Special forms are recognised by their head symbol, and their names are bound lik
 | =(with base item ...)=                   | =base= with =item=s written over it, as ~((inlay base) item ...)~                     |
 | =(adjoin base item ...)=                 | =base= with =item=s added to it: each value to its key's set of values, unless already there |
 | =(-> x step ...)=                        | =x= threaded through the steps, each receiving the value before it                    |
-| =(and b ...)=                            | =true= when every operand is; stops at the first =false=                              |
-| =(or b ...)=                             | =true= when one operand is; stops at the first =true=                                 |
+| =(and a b)=                              | =true= when both operands are; stops at a =false= first                               |
+| =(or a b)=                               | =true= when one operand is; stops at a =true= first                                   |
+| =(all array)=                            | =true= when every element is; written in place, stops at the first =false=            |
+| =(any array)=                            | =true= when one element is; written in place, stops at the first =true=               |
+| =(fold array init f)=                    | =f= called on the running value and each element, from =init=                         |
 | =(list e ...)=                           | an array, whatever its first element is                                               |
 | =(thru duration)=                        | extend a duration to the end of its unit (see Built-ins)                              |
 | =:context e=                             | the record's JSON-LD =@context=, a context value (see [[*=@context=][=@context=]])                |
@@ -599,7 +602,7 @@ A branch head is:
 
 - =otherwise=: always matches; it is required, and must be the last branch.
 
-- *A guard*, a form headed by a comparison (~>~, ~>=~, ~<~, ~<=~, =eq=, =neq=): the target is inserted as the comparison's first argument, so ~((< 10 20) e)~ tests ~(< target 10 20)~, chained like any comparison and stopping at the first false pair.
+- *A guard*, a form headed by a comparison (~>~, ~>=~, ~<~, ~<=~, =eq=, =neq=): the target is inserted as the comparison's first argument, so ~((< 10) e)~ tests ~(< target 10)~. A comparison takes two operands, so a guard takes one: ~((< 10 20) e)~ is an arity error, and two bounds are a =when= over =all=, ~((when (all ((> x 1) (< x 10)))) e)~.
 
 - *A condition*, ~(when cond)~: =cond= must have the property =#boolean=; =true= takes the branch and =false= tries the next. It can use any value in scope, not only the target, but not the names a pattern binds. =when= is only a branch head, where it is read by its syntax; elsewhere a binding or a =define/procedure= of =when= shadows it.
 
@@ -628,8 +631,8 @@ shadows them with its own attribute pairs.
 
 | Group       | Names                                     | Notes                                                                                   |
 |-------------+-------------------------------------------+-----------------------------------------------------------------------------------------|
-| Arithmetic  | ~+~ ~-~ ~*~ ~/~                           | variadic, left-associative; =+= also joins strings and arrays, adds durations to dates  |
-| Comparison  | ~eq~ ~neq~ ~>~ ~>=~ ~<~ ~<=~              | variadic comparisons are chained: ~(< a b c)~ = a<b and b<c                             |
+| Arithmetic  | ~+~ ~-~ ~*~ ~/~                           | two operands; many are folded, ~(fold xs 0 +)~; =+= also joins strings and arrays, adds durations to dates |
+| Comparison  | ~eq~ ~neq~ ~>~ ~>=~ ~<~ ~<=~              | two operands; a chain is =all= over its pairs, ~(all ((< a b) (< b c)))~                 |
 | Negation    | ~not~                                     | ~(not b)~ of one Boolean                                                                |
 | Length      | ~len~                                     | ~(len x)~ is the number of an array's elements, or of a string's characters             |
 | Collections | ~contains~ ~distinct~                     | ~(contains coll x)~ for an element or a substring; ~(distinct xs)~ drops repeats        |
@@ -638,15 +641,17 @@ shadows them with its own attribute pairs.
 | Durations   | =years months days hours minutes seconds= | ~(days 19)~ is a Duration                                                               |
 | End-of-unit | =(thru d)=                                | ~(thru (days 1))~ = 1 day 23:59:59; ~(thru (years 0))~ = to the end of the current year |
 
-An operator written with the wrong number of operands is an arity error. Ordering (~>~ ~>=~ ~<~ ~<=~) compares numbers only.
+Every built-in takes a fixed number of arguments, and many values are an array: an operator written with any number of operands but two is an arity error, whose hint is the fold. Ordering (~>~ ~>=~ ~<~ ~<=~) compares numbers only.
 
-=and= and =or= are special forms that combine Booleans, as in every Lisp: ~(and a b ...)~ is =true= when every operand is, and ~(or a b ...)~ when one is. Each evaluates its operands in order and stops at the one that decides the answer, so ~(and false (get () 5))~ is =false=, and each operand it reaches must have the property =#boolean=; unlike other Lisps, Ouro has no truthiness, and the result is always =true= or =false=. ~(and)~ is =true= and ~(or)~ is =false=. They are desugared into =case= (see [[*Desugaring (~Canon~)][desugaring]]), take holes like a call, ~(or ? x)~, and cannot name a =define/procedure=, being rewritten before any name is bound (gap 45); being special forms, they cannot be passed as values, so a hole is how one is made into a function. A chained comparison stops the same way: ~(< 2 1 (get () 5))~ is =false=.
+=and= and =or= are special forms that combine two Booleans, ∧ and ∨: ~(and a b)~ is =true= when both operands are, and ~(or a b)~ when one is. Any other number of operands is an error whose hint is the n-ary form. =all= and =any= are the n-ary =and= and =or=, ⋀ and ⋁ (=⋀= and =⋁= are read as their names), over one array of Booleans, since many values are an array: ~(all ((has r _label) (has r classified_as)))~ is =true= when every element is, ~(any (...))~ when one is, ~(all ())~ is =true= and ~(any ())~ is =false=. Each evaluates in order and stops at the operand that decides the answer, so ~(and false (get () 5))~ is =false=, and each operand it reaches must have the property =#boolean=; unlike other Lisps, Ouro has no truthiness, and the result is always =true= or =false=. =all= and =any= stop only over an array written in place, a literal one or a =(list ...)=, which is what keeps the guard ~(all ((has r year) (> (get r year) 1600)))~ from reading a year =r= does not have; an array given any other way, a binding or a =map='s result, is evaluated whole, then read in order. All four are desugared into =case= (see [[*Desugaring (~Canon~)][desugaring]]), take holes like a call, ~(or ? x)~, and cannot name a =define/procedure=, being rewritten before any name is bound (gap 45); being special forms, they cannot be passed as values, so a hole is how one is made into a function. A chain of comparisons is =all= over its pairs, and stops the same way: ~(all ((< 2 1) (< 1 (get () 5))))~ is =false=.
+
+=fold=. ~(fold array init f)~ calls =f= on the running value and each element in turn, starting from =init=, a left fold: ~(fold (1 2 3) 0 f)~ is ~(f (f (f 0 1) 2) 3)~, and ~(fold () init f)~ is =init=. The array comes first, as every form takes what it works on, so =->= threads into it, ~(-> xs (map f) (fold 0 +))~; =f= takes the running value first, as ~(+ total w)~ and ~(adjoin set :member p)~ do. Each call is an ordinary call, as =map= makes one, so =f= takes exactly two arguments and its signature checks them; an error stops the fold, as its value. With =+= and =0= it is Σ, so ~(fold weights 0 +)~ sums an array.
 
 =len= takes exactly one argument. An array's elements are counted whatever their types, so ~(len (1 (2 3) (:k 4)))~ is 3, and =()= and =#array-empty= have length 0. A string is counted in characters (Unicode code points), not bytes, so ~(len "Málaga")~ is 6. Any other value, a record or a URI included, is a type error. A string cannot be taken apart in Ouro, so its length cannot be written in Ouro itself; =len= is an ordinary built-in otherwise, so ~(map xs len)~ works.
 
 =contains= takes two arguments: ~(contains (1 2 3) 2)~ is =true= when the array has the value as an element, compared as =eq= compares, so records and arrays are compared by value; ~(contains "Amsterdam" "dam")~ is =true= when the string has the other as a substring. =distinct= takes one array and keeps the first of each value, in order: ~(distinct (1 2 1 3))~ is ~(1 2 3)~. An array holding a function is a type error for both, since functions cannot be compared. =not= takes one =#boolean=.
 
-=union=, =intersect= and =setminus= treat arrays as sets, as JSON-LD reads a property's values. Elements are compared as =eq= compares them, so records and arrays are compared by value, and a result has no repeats: the first of each is kept, in the order it is first written, so the output is always the same. Each takes one or more arrays. ~(union a b ...)~ is every value in any of them; ~(intersect a b ...)~ the values in all of them, in =a='s order; ~(setminus a b ...)~ the values of =a= in none of the rest, so ~(setminus a b c)~ is a ∖ (b ∪ c). An argument that is not an array, or an array holding a function, is a type error. They are ordinary built-ins, so they can be passed as values and take holes: ~(map groups (setminus ? excluded))~. ~(subset a b)~ takes exactly two arrays and is =true= when every value of =a= is in =b=, that is when ~(setminus a b)~ is empty: ~(subset required (ids obj))~ checks that an object has every one of several classifications.
+=union=, =intersect= and =setminus= treat arrays as sets, as JSON-LD reads a property's values. Elements are compared as =eq= compares them, so records and arrays are compared by value, and a result has no repeats: the first of each is kept, in the order it is first written, so the output is always the same. Each takes two arrays, as every built-in takes a fixed number of arguments: ~(union a b)~ is every value in either; ~(intersect a b)~ the values in both, in =a='s order; ~(setminus a b)~ the values of =a= not in =b=. Many sets are an array of them, for =unions= and =intersections= below, and another number of arguments is an arity error that says so. An argument that is not an array, or an array holding a function, is a type error. They are ordinary built-ins, so they can be passed as values and take holes: ~(map groups (setminus ? excluded))~. ~(subset a b)~ takes exactly two arrays and is =true= when every value of =a= is in =b=, that is when ~(setminus a b)~ is empty: ~(subset required (ids obj))~ checks that an object has every one of several classifications.
 
 ~(unions xs)~ and ~(intersections xs)~ are the union and intersection of one array of arrays, =⋃= and =⋂=, for sets that are computed rather than written: ~(unions (map parts (get ? classified_as)))~ is every classification of every part. ~(unions ())~ is =()=; the intersection of no sets is not defined, so ~(intersections ())~ is an error.
 
@@ -724,22 +729,22 @@ Before evaluation, ~Canon.canonicalModule~ rewrites every function body and grap
 |------------------+-----------+--------------------------------------------------------------------------------------------|
 | 1. placeholders  | top-down  | a call with =?= holes into a function of them, leaving =case= and =fn= patterns as they are |
 | 2. threading     | top-down  | ~(-> x step ...)~ into nested calls; a step with a hole is already a function (1)           |
-| 3. connectives   | top-down  | ~(and a b)~ into ~(%case #boolean a (true (and b)) (otherwise false))~, and =or= alike     |
+| 3. connectives   | top-down  | ~(and a b)~ into ~(%case #boolean a (true #boolean b) (otherwise false))~, =or= alike, and =all= and =any= over an array written in place into the same chain |
 | 4. bindings      | top-down  | =$name value= in a =let='s bindings into ~(%bind "name" value)~                             |
 | 5. guards        | top-down  | a condition, =(when c)= or a guard ~((< 10) e)~, into a ~(%when c)~ head; a guard names the target, bound once |
 | 6. contexts      | bottom-up | =:context e= into ~(%context e)~                                                            |
 | 7. adjoin        | bottom-up | ~(adjoin base item ...)~ into ~(%adjoin base addition ...)~, its attribute pairs grouped into records |
 | 8. with          | bottom-up | ~(with base item ...)~ into ~((%inlay base) item ...)~                                      |
-| 9. thru          | siblings  | ~(thru (days n))~ into the durations it stands for                                          |
-| 10. comparisons  | bottom-up | ~(< a b c)~ into ~(and (< a b) (< b c))~, desugared as connectives (3) desugars =and=      |
-| 11. operators    | bottom-up | ~(+ a b c)~ into ~(+ (+ a b) c)~                                                            |
-| 12. alternatives | bottom-up | a =case= branch ~(("a" "b") e)~ into one branch per literal                                 |
+| 9. thru          | siblings  | ~(thru (days n))~ into the durations it stands for; as an operand of =+= or =-=, the operation nested once for each |
+| 10. alternatives | bottom-up | a =case= branch ~(("a" "b") e)~ into one branch per literal                                 |
+
+Nothing is unrolled: every built-in takes a fixed number of arguments, so ~(+ a b c)~ and ~(< a b c)~ are arity errors, and many values are an array, ~(fold xs 0 +)~, ~(all (a b c))~.
 
 A pass walks the tree in one of three ways (~Canon.Traverse~): top-down, rewriting a form before its parts, when the rule depends on the form's own shape; bottom-up, rewriting a form's parts first; or over lists of siblings, for a rule that turns one element into several. An expression that stands on its own, such as a graph's body or the payload of a property, is a list of one: a =thru= there has no meaning and is left for the evaluator to report.
 
-The order matters in six places. Threading runs before =adjoin= and =with=, so in ~(-> x (with :k v))~ =with= receives =x= as its base. Contexts run before =adjoin=, so a context written among its attribute pairs is grouped with them. Bindings run before =thru=, so a value that expands into several elements stays inside its binding. Guards run before comparisons and alternatives, which leave a marked guard alone, so a guard's operands are not unrolled as a comparison of their own. Connectives run after threading, so a step =(and y)= receives the threaded value as its first operand. Comparisons run after connectives, so the =and= a chain becomes is desugared by the comparisons pass itself, into the same chain of cases. Only =thru= walks siblings.
+The order matters in five places. Threading runs before =adjoin= and =with=, so in ~(-> x (with :k v))~ =with= receives =x= as its base. Contexts run before =adjoin=, so a context written among its attribute pairs is grouped with them. Bindings run before =thru=, so a value that expands into several elements stays inside its binding. Guards run before alternatives, which leave a marked guard alone. Connectives run after threading, so a step =(and y)= receives the threaded value as its first operand. Only =thru= walks siblings.
 
-Each pass is a module of its own under =Lisp/Canon/= (=Placeholders.hs=, =Threading.hs=, =Connectives.hs=, =Bindings.hs=, =Guards.hs=, =Context.hs=, =Adjoin.hs=, =With.hs=, =Thru.hs=, =Comparisons.hs=, =Operators.hs=, =Alternatives.hs=, with the walks in =Traverse.hs=), and =Lisp/Canon.hs= is the single entry point: it lists the passes, in order, and runs them (~Canon.runPasses~ runs any selection of them). A =define/procedure='s parameter patterns go through ~Canon.patternPasses~, every pass but placeholders, threading and connectives, since a pattern is matched, not evaluated.
+Each pass is a module of its own under =Lisp/Canon/= (=Placeholders.hs=, =Threading.hs=, =Connectives.hs=, =Bindings.hs=, =Guards.hs=, =Context.hs=, =Adjoin.hs=, =With.hs=, =Thru.hs=, =Alternatives.hs=, with the walks in =Traverse.hs=), and =Lisp/Canon.hs= is the single entry point: it lists the passes, in order, and runs them (~Canon.runPasses~ runs any selection of them). A =define/procedure='s parameter patterns go through ~Canon.patternPasses~, every pass but placeholders, threading and connectives, since a pattern is matched, not evaluated.
 
 | Sugar                                   | Core                                                          |
 |-----------------------------------------+---------------------------------------------------------------|
@@ -749,9 +754,9 @@ Each pass is a module of its own under =Lisp/Canon/= (=Placeholders.hs=, =Thread
 | ~(with base item ...)~                  | ~((%inlay base) item ...)~; ~(with base)~ is ~base~           |
 | ~(adjoin base :k v (inlay x) e)~        | ~(%adjoin base (:k v) x (list e))~; ~(adjoin base)~ is ~base~ |
 | =:context e=, =:@context e=             | ~(%context e)~: the record's metadata, not an attribute pair  |
-| ~(+ a b c)~ (also =- * /=)              | ~(+ (+ a b) c)~                                               |
-| ~(< a b c)~ (also ~eq > >= <=~)         | ~(and (< a b) (< b c))~, then its chain of cases               |
+| ~(all (a b c))~, ~(any (a b c))~        | the chain of cases ~(and a b)~ and ~(or a b)~ are             |
 | ~(thru (days n))~                       | ~(days n) (hours 23) (minutes 59) (seconds 59)~               |
+| ~(+ d (thru (days n)))~                 | ~(+ (+ (+ (+ d (days n)) (hours 23)) (minutes 59)) (seconds 59))~ |
 | ~(thru (years n))~, ~(thru (months n))~ | ~(years-end n)~, ~(months-end n)~ (resolved against the date) |
 | =case= alternatives ~(("a" "b") e)~     | one branch per literal                                        |
 | a =case= guard ~((< 10) e)~             | ~((%when (< %target 10)) e)~, the case bound as ~(let ((%bind "%target" x)) (case %target ...))~ |

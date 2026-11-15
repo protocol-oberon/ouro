@@ -393,13 +393,14 @@ callForm scope = \case
     items                               -> foldMap (names scope) items
 
 -- A function map, exists, forall, omits, filter or '->' calls with one argument of a known
--- size: one it names, or a fn written there, whose parameter is that argument
-applied :: Scope -> Size -> S.Expr -> Found
-applied scope argument = \case
+-- size, and fold with two: one it names, or a fn written there, whose parameters are those
+-- arguments
+applied :: Scope -> [Size] -> S.Expr -> Found
+applied scope arguments = \case
     S.Symbol pos name
-        | Just node <- named scope name -> naming scope node pos (Just [argument])
+        | Just node <- named scope name -> naming scope node pos (Just arguments)
     S.Form _ items
-        | Just found <- lambda scope [argument] items
+        | Just found <- lambda scope arguments items
                                         -> found
     f                                   -> names scope f
 
@@ -444,13 +445,20 @@ form scope pos items = case items of
     S.Symbol _ "image" : _                           -> mempty
 
     S.Symbol _ "list" : elements                     -> foldMap (names scope) elements
-    [S.Symbol _ "map", xs, f]                        -> names scope xs <> applied scope (elementSize scope xs) f
+    [S.Symbol _ "map", xs, f]                        -> names scope xs <> applied scope [elementSize scope xs] f
     S.Symbol _ "map" : _                             -> mempty
     [S.Symbol _ quantifier, xs, f]
-        | quantifier `elem` quantifiers              -> names scope xs <> applied scope (elementSize scope xs) f
+        | quantifier `elem` quantifiers              -> names scope xs <> applied scope [elementSize scope xs] f
     S.Symbol _ quantifier : _
         | quantifier `elem` quantifiers              -> mempty
-    [S.Symbol _ "%apply", f, x]                      -> applied scope (size scope x) f <> names scope x
+    -- The running value is of no size known here; each element is a part of the Array
+    [S.Symbol _ "fold", xs, start, f]                -> names scope xs <> names scope start <> applied scope [Map.empty, elementSize scope xs] f
+    S.Symbol _ "fold" : _                            -> mempty
+    [S.Symbol _ connective, xs]
+        | connective `elem` ["all", "any"]           -> names scope xs
+    S.Symbol _ connective : _
+        | connective `elem` ["all", "any", "and", "or"] -> mempty
+    [S.Symbol _ "%apply", f, x]                      -> applied scope [size scope x] f <> names scope x
     [S.Symbol _ "->"]                                -> mempty
     [S.Symbol _ "with"]                              -> mempty
     [S.Symbol _ "adjoin"]                            -> mempty

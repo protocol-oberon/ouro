@@ -165,10 +165,10 @@ placeholders = Group "Functions: a call with holes is a function of them"
                                                                  "{\"r\": 7}")
     , ("a named hole is one parameter",           compilesToJSON "(graph g (let ($sq (* ?n ?n)) (:r (sq 7))))"
                                                                  "{\"r\": 49}")
-    , ("parameters follow first appearance",      compilesToJSON "(graph g (let ($f (+ ?a ?b ?a)) (:r (f 1 10))))"
-                                                                 "{\"r\": 12}")
-    , ("variadic operators take holes",           compilesToJSON "(graph g (let ($f (+ ? 1 2) $between (< ? 10 20)) (:r (f 10) :s (between 15))))"
-                                                                 "{\"r\": 13, \"s\": false}")
+    , ("parameters follow first appearance",      compilesToJSON "(graph g (let ($f (list ?a ?b ?a)) (:r (f 1 10))))"
+                                                                 "{\"r\": [1, 10, 1]}")
+    , ("an operator takes a hole for either operand", compilesToJSON "(graph g (let ($f (+ ? 1) $g (- 10 ?)) (:r (f 10) :s (g 3))))"
+                                                                 "{\"r\": 11, \"s\": 7}")
     , ("special forms take holes",                compilesToJSON "(graph g (let ($second (get ? 1) $a (get ? a)) (:r (second (10 20)) :s (a (:a 5)))))"
                                                                  "{\"r\": 20, \"s\": 5}")
     , ("insert, replace-at and list take holes",  compilesToJSON "(graph g (let ($ins (insert (1 2) 0 ?) $rep (replace-at (1 2) 0 ?) $pair (list ? ?)) (:r (ins 0) :s (rep 9) :t (pair 1 2))))"
@@ -263,15 +263,15 @@ destructuring = Group "Functions: a parameter can be a pattern"
                                                                  "{\"r\": [2, 3]}")
     , ("a literal in a pattern is compared",      compilesToJSON "(graph g (let ($f (fn ((\"Person\" ?l)) l)) (:r (f (\"Person\" \"Manet\")))))"
                                                                  "{\"r\": \"Manet\"}")
-    , ("a pattern beside a named parameter",      compilesToJSON "(define/procedure sum (base (?a ?b)) (+ base a b)) (graph g (:r (sum 1 (2 3))))"
+    , ("a pattern beside a named parameter",      compilesToJSON "(define/procedure sum (base (?a ?b)) (+ base (+ a b))) (graph g (:r (sum 1 (2 3))))"
                                                                  "{\"r\": 6}")
     , ("a property before a pattern",             compilesToJSON "(graph g (let ($f (fn (#array (?a ?b)) (+ a b))) (:r (f (1 2)))))"
                                                                  "{\"r\": 3}")
     , ("map with a pattern parameter",            compilesToJSON "(graph g (:r (map ((\"allan\" \"Scott Allan\") (\"beeny\" \"Emily Beeny\")) (fn ((?slug ?label)) (:id slug :_label label)))))"
                                                                  "{\"r\": [{\"id\": \"allan\", \"_label\": \"Scott Allan\"}, {\"id\": \"beeny\", \"_label\": \"Emily Beeny\"}]}")
-    , ("a defn's pattern is desugared",           compilesToJSON "(define/procedure f (((+ 1 2 3) ?x)) x) (graph g (:r (f (6 1))))"
+    , ("a defn's pattern is desugared",           compilesToJSON "(define/procedure f (((let ($n 6) n) ?x)) x) (graph g (:r (f (6 1))))"
                                                                  "{\"r\": 1}")
-    , ("as a fn's pattern is",                    compilesToJSON "(graph g (let ($f (fn (((+ 1 2 3) ?x)) x)) (:r (f (6 1)))))"
+    , ("as a fn's pattern is",                    compilesToJSON "(graph g (let ($f (fn (((let ($n 6) n) ?x)) x)) (:r (f (6 1)))))"
                                                                  "{\"r\": 1}")
 
     -- A pattern's values are evaluated where the function is defined, not among its parameters

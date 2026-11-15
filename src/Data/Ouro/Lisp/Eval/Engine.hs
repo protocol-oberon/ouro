@@ -314,6 +314,97 @@ evalExpr expr = do
                & EvalError
                & pure
 
+        -- (all array) and (any array), ⋀ and ⋁: whether every element of an Array of Booleans
+        -- is true, or one is. An array written in place is a chain of cases by now (see
+        -- 'connectives'), so what reaches here is an Array given another way, evaluated
+        -- whole; it is read in order, and stops at the element that decides the answer.
+        S.Form _ [S.Symbol _ form, arrExpr]
+            | form `elem` ["all", "any"]
+            -> evalExpr arrExpr >>= \case
+                   err@(EvalError _) -> pure err
+                   arr
+                       | Just elems <- L.asArray arr
+                       -> let answer = \case
+                                  Primitive (I.Boolean b) -> pure (Right b)
+                                  other                   -> propertyMismatch "#boolean" (propertyOf other)
+                                                             & withBlurb (form <> " reads an Array of Booleans: each element must be true or false.")
+                                                             & OuroError (S.exprPos arrExpr)
+                                                             & EvalError
+                                                             & Left
+                                                             & pure
+                          in decideOn (form == "any") answer elems
+                   other
+                       -> typeMismatch ("an Array of Booleans for " <> form <> " to read") (humanReadableType other)
+                          & withBlurb (connectiveUsage form)
+                          & OuroError (S.exprPos arrExpr)
+                          & EvalError
+                          & pure
+
+        S.Form pos (S.Symbol _ form : _)
+            | form `elem` ["all", "any"]
+            -> lexicalError (form <> " is written (" <> form <> " array): one Array of Booleans.")
+               & withBlurb (connectiveUsage form)
+               & OuroError pos
+               & EvalError
+               & pure
+
+        -- (and a b) and (or a b) take two operands, as every built-in takes a fixed number; a
+        -- written one is a chain of cases by now (see 'connectives'), so what reaches here has
+        -- another number of them. Many conditions are an Array: (all (a b c)).
+        S.Form pos (S.Symbol _ form : operands)
+            | form `elem` ["and", "or"]
+            -> lexicalError (form <> " takes two operands, (" <> form <> " a b), and was given " <> T.pack (show (length operands)) <> ".")
+               & withBlurb (connectiveUsage (case form of { "and" -> "all"; _or -> "any" }))
+               & OuroError pos
+               & EvalError
+               & pure
+
+        -- (fold array init f): f called on the running value and each element in turn, from
+        -- init, a left fold: (fold (1 2 3) 0 f) is (f (f (f 0 1) 2) 3), and (fold () init f)
+        -- is init. The Array comes first, as every form takes what it works on, then the data,
+        -- then the function. Each call is an ordinary call, as map makes one, so arity,
+        -- signatures and the recursion check apply. An error stops the fold, as its value.
+        S.Form pos [S.Symbol _ "fold", arrExpr, initExpr, fnExpr]
+            -> do
+               arrVal  <- evalExpr arrExpr
+               initVal <- evalExpr initExpr
+               fnVal   <- evalExpr fnExpr
+               case (arrVal, initVal, fnVal) of
+                   (EvalError err, _, _) -> pure (EvalError err)
+                   (_, EvalError err, _) -> pure (EvalError err)
+                   (_, _, EvalError err) -> pure (EvalError err)
+
+                   (_, _, f)
+                       | not (callable f)
+                       -> typeMismatch "a function to fold with" (humanReadableType f)
+                          & withBlurb foldUsage
+                          & OuroError (S.exprPos fnExpr)
+                          & EvalError
+                          & pure
+
+                   (arr, start, f)
+                       | Just elems <- L.asArray arr
+                       -> let step running = \case
+                                  []             -> pure running
+                                  element : rest -> callOnPair pos fnExpr initExpr arrExpr f running element >>= \case
+                                                        err@(EvalError _) -> pure err
+                                                        next              -> step next rest
+                          in step start elems
+
+                   (arr, _, _)
+                       -> typeMismatch "an Array to fold" (humanReadableType arr)
+                          & withBlurb foldUsage
+                          & OuroError (S.exprPos arrExpr)
+                          & EvalError
+                          & pure
+
+        S.Form pos (S.Symbol _ "fold" : _)
+            -> lexicalError "fold is written (fold array init f): the Array, the value to start from, then a function of the running value and an element."
+               & withBlurb foldUsage
+               & OuroError pos
+               & EvalError
+               & pure
+
         -- (%apply f x): a '->' step that is itself a function, such as a placeholder, called
         -- with the value threaded into it. A form headed by a fn is an array, so the function is
         -- bound to a name that cannot be written in Ouro, and the call is an ordinary one:
@@ -1041,6 +1132,32 @@ predicateUsage :: Text -> Text
 predicateUsage form =
     form <> " calls a function that answers true or false on each element of an Array: ("
     <> form <> " array f), e.g. (" <> form <> " (1 2 3) (> ? 1))."
+
+-- all and any, the n-ary and and or, over one Array of Booleans
+connectiveUsage :: Text -> Text
+connectiveUsage form =
+    "(" <> form <> " (a b c)) is true when " <> (case form of { "all" -> "every condition is"; _any -> "one condition is" })
+    <> "; written in place, it stops at the one that decides, as and and or do."
+
+foldUsage :: Text
+foldUsage = "fold calls a function on the running value and each element in turn: (fold (1 2 3) 0 +) is 6."
+
+
+-- One call of fold's function, on the running value and an element, made as callOnElement
+-- makes map's: in a frame that binds them to names that cannot be written in Ouro
+callOnPair :: SourcePos -> S.Expr -> S.Expr -> S.Expr -> L.Expr -> L.Expr -> L.Expr -> EvalM L.Expr
+callOnPair pos fnExpr initExpr arrExpr f running element = do
+    env   <- ask
+    frame <- allocValues (\names -> env
+                                  & L.localScope       .~ names
+                                  & L.functionRegistry .~ Map.empty
+                                  & L.parentEnv        .~ Just env)
+                         pos
+                         [("%fold-fn", f), ("%fold-running", running), ("%fold-element", element)]
+    local (const frame) $
+        applyFunction pos [ S.Symbol (S.exprPos fnExpr) "%fold-fn"
+                          , S.Symbol (S.exprPos initExpr) "%fold-running"
+                          , S.Symbol (S.exprPos arrExpr) "%fold-element" ]
 
 
 -- A ':key value' attribute pair, as a value, belongs in a record, not an array

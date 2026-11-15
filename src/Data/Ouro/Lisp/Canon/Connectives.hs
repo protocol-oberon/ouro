@@ -8,24 +8,37 @@ import           Text.Megaparsec        (SourcePos)
 
 -- connectives.
 --
--- (and a ...) is true when every operand is, and (or a ...) when at least one is. Each
--- becomes a chain of cases, so an operand is only evaluated when the ones before it have
--- not already decided the answer, and each operand is checked as a #boolean:
+-- (and a b) is true when both operands are, and (or a b) when at least one is: ∧ and ∨.
+-- (all (a b c)) is true when every element of an array is, and (any (a b c)) when one is:
+-- ⋀ and ⋁, the n-ary and and or, since many values are an array. Each becomes a chain of
+-- cases, so an operand is only evaluated when the ones before it have not already decided
+-- the answer, and each operand is checked as a #boolean:
 --
---   (and a b c)    (case #boolean a (true (and b c)) (otherwise false))
---   (or a b c)     (case #boolean a (true true) (otherwise (or b c)))
---   (and a)        #boolean a
---   (and)          true, and (or) is false
+--   (and a b)        (case #boolean a (true #boolean b) (otherwise false))
+--   (or a b)         (case #boolean a (true true) (otherwise #boolean b))
+--   (all (a b c))    (case #boolean a (true (case #boolean b ...)) (otherwise false))
+--   (all ())         true, and (any ()) is false
+--
+-- Only an array written in place is a chain, a literal one or a (list ...): it is what stops
+-- the guard (all ((has r year) (> (get r year) 1600))) reading a year r does not have. An
+-- array given any other way is evaluated whole, and all and any read its Booleans. An and
+-- or or with another number of operands is left for the evaluator to report.
 --
 -- Top-down, so the rest of a chain is rewritten in turn. Runs after 'threading', so in
 -- (-> x (and y)) the step receives x as its first operand. A case's patterns and a fn's
 -- parameters are matched, not evaluated, so they are left as they are.
 connectives :: S.Expr -> S.Expr
 connectives = \case
-    S.Form pos (S.Symbol _ "and" : operands)
-        -> connectives (chain pos True operands)
-    S.Form pos (S.Symbol _ "or" : operands)
-        -> connectives (chain pos False operands)
+    S.Form pos [S.Symbol _ "and", a, b]
+        -> connectives (chain pos True [a, b])
+    S.Form pos [S.Symbol _ "or", a, b]
+        -> connectives (chain pos False [a, b])
+    S.Form pos [S.Symbol _ "all", array]
+        | Just elems <- writtenArray array
+        -> connectives (chain pos True elems)
+    S.Form pos [S.Symbol _ "any", array]
+        | Just elems <- writtenArray array
+        -> connectives (chain pos False elems)
 
     S.Form pos (cSym@(S.Symbol _ (S.formName -> "case")) : target : branches)
         -> S.Form pos (cSym : connectives target : map branch branches)
@@ -46,7 +59,7 @@ connectives = \case
         malformed                   -> malformed
 
 
--- The chain of cases for (and ...), or for (or ...) when isAll is False
+-- The chain of cases for and and all, or for or and any when isAll is False
 chain :: SourcePos -> Bool -> [S.Expr] -> S.Expr
 chain pos isAll = \case
     []
@@ -60,11 +73,26 @@ chain pos isAll = \case
                       , S.Form pos [S.Symbol pos "otherwise",    whenFalse]
                       ]
            where
-           restOf name     = S.Form pos (S.Symbol pos name : rest)
            (whenTrue, whenFalse)
-               | isAll     = (restOf "and", S.Literal pos (S.Bool False))
-               | otherwise = (S.Literal pos (S.Bool True), restOf "or")
+               | isAll     = (chain pos isAll rest, S.Literal pos (S.Bool False))
+               | otherwise = (S.Literal pos (S.Bool True), chain pos isAll rest)
 
     where
     -- Each operand is checked where it is written
     asBool operand = S.Tagged (S.exprPos operand) S.BooleanTag operand
+
+
+-- The elements of an array written in place: (), #array-empty, a (list ...), or a form that
+-- is neither a call, with a name at its head, nor a record, with an attribute pair in it
+writtenArray :: S.Expr -> Maybe [S.Expr]
+writtenArray = \case
+    S.Literal _ S.EmptyArr              -> Just []
+    S.Form _ (S.Symbol _ "list" : elems) -> Just elems
+    S.Form _ elems@(first : _)
+        | not (isName first)
+        , not (any S.isAttrForm elems)  -> Just elems
+    _notWritten                         -> Nothing
+    where
+    isName = \case
+        S.Symbol _ _ -> True
+        _notAName    -> False

@@ -36,7 +36,7 @@ tests = Group "Evaluation Tests (Surface to Higher IR)"
     , ("evaluates (+ 2 2) via env mapping",            prop_add_primitive)
     , ("evaluates (> 10 5) via env mapping",           prop_gt_primitive)
     , ("evaluates (eq true true) for identity",        prop_eq_primitive)
-    , ("chains variadic comparisons pairwise",         prop_chained_comparison)
+    , ("all over written comparisons is their and",    prop_all_comparisons)
 
     , ("routes to the correct branch in (case ...)",   prop_case_routing)
 
@@ -114,9 +114,10 @@ prop_eq_primitive = withTests 1 . property $ do
     runEval expr === L.Primitive (I.Boolean True)
 
 
--- Variadic comparisons must hold between every adjacent pair, e.g. (< 3 2 1) is false
-prop_chained_comparison :: Property
-prop_chained_comparison = property $ do
+-- A comparison takes two operands, so a chain is written as all over its neighbouring pairs,
+-- (all ((< a b) (< b c))), which holds when every pair does
+prop_all_comparisons :: Property
+prop_all_comparisons = property $ do
     opName <- forAll $ Gen.element ["<", "<=", ">", ">=", "eq"]
     nums   <- forAll $ Gen.list (Range.linear 3 5) (fromIntegral <$> Gen.int (Range.linear 0 3))
 
@@ -126,7 +127,9 @@ prop_chained_comparison = property $ do
                        ">"  -> (>)
                        ">=" -> (>=)
                        _eq  -> (==)
-        expr     = S.Form dummyPos (S.Symbol dummyPos opName : map (S.Literal dummyPos . S.Num) nums)
+        num      = S.Literal dummyPos . S.Num
+        pairs    = zipWith (\a b -> S.Form dummyPos [S.Symbol dummyPos opName, num a, num b]) nums (drop 1 nums)
+        expr     = S.Form dummyPos [S.Symbol dummyPos "all", S.Form dummyPos pairs]
         expected = and (zipWith op nums (drop 1 nums))
 
     runEval (Canon.canonical expr) === L.Primitive (I.Boolean expected)
@@ -150,24 +153,27 @@ prop_pass_order :: Property
 prop_pass_order = withTests 1 . property $
     map Canon.passName Canon.passes
         === [ "placeholders", "threading", "connectives", "bindings", "guards", "contexts"
-            , "adjoin", "with", "thru", "comparisons", "operators", "alternatives" ]
+            , "adjoin", "with", "thru", "alternatives" ]
 
 -- A parameter pattern skips placeholders, threading and connectives
 prop_pattern_passes :: Property
 prop_pattern_passes = withTests 1 . property $
     map Canon.passName Canon.patternPasses === drop 3 (map Canon.passName Canon.passes)
 
--- Running 'operators' alone unrolls arithmetic and leaves a variadic comparison alone
+-- Running 'connectives' alone makes a written all a chain of cases, and leaves arithmetic
+-- alone: nothing unrolls (+ 1 2 3), which is an arity error
 prop_single_pass :: Property
 prop_single_pass = withTests 1 . property $ do
-    let sym           = S.Symbol dummyPos
-        num           = S.Literal dummyPos . S.Num
-        form          = S.Form dummyPos
-        onlyOperators = filter ((== "operators") . Canon.passName) Canon.passes
-    Canon.runPasses onlyOperators (form [sym "+", num 1, num 2, num 3])
-        === form [sym "+", form [sym "+", num 1, num 2], num 3]
-    Canon.runPasses onlyOperators (form [sym "<", num 1, num 2, num 3])
-        === form [sym "<", num 1, num 2, num 3]
+    let sym             = S.Symbol dummyPos
+        num             = S.Literal dummyPos . S.Num
+        bool            = S.Literal dummyPos . S.Bool
+        asBool          = S.Tagged dummyPos S.BooleanTag
+        form            = S.Form dummyPos
+        onlyConnectives = filter ((== "connectives") . Canon.passName) Canon.passes
+    Canon.runPasses onlyConnectives (form [sym "all", form [bool True, bool False]])
+        === form [sym "%case", asBool (bool True), form [bool True, asBool (bool False)], form [sym "otherwise", bool False]]
+    Canon.runPasses onlyConnectives (form [sym "+", num 1, num 2, num 3])
+        === form [sym "+", num 1, num 2, num 3]
 
 
 -- Fault Isolation and Error Propagation

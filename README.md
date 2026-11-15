@@ -153,14 +153,14 @@ The `(get)` special form evaluates its target and walks the resulting records, s
 :runtime_check   (get nested_manifest meta maintainer is_valid))
 ```
 
-`(has record key ...)` is `true` when the path reaches a value, and `(get-or default record key ...)` is the value at the path, or `default` when a key on the way is missing or an index is past the end:
+`(has record key ...)` is `true` when the path reaches a value, and `(get-or record default key ...)` is the value at the path, or `default` when a key on the way is missing or an index is past the end:
 
 ``` clojure
 (let ($p (:classified_as ((:_label "Painting") (:_label "Oil")) :xs (1 2 3)))
   (:first (get p classified_as 0 _label)                  ; "Painting"
    :last  (get p xs -1)                                   ; 3
    :has   (has p classified_as 5)                         ; false
-   :or    (get-or "none" p classified_as 5 _label)))      ; "none"
+   :or    (get-or p "none" classified_as 5 _label)))      ; "none"
 ```
 
 ### Image
@@ -247,15 +247,15 @@ A list of literals without holes, like `("Manet" "Proust")` above, is always thi
 A branch can also test a condition instead of a shape. `(when cond)` takes the branch when `cond` is `true`, and tries the next branch when it is `false`; a condition that isn't a Boolean is an error. `(satisfies #p)`, also written `(⊨ #p)`, takes the branch when the target has the property `#p`:
 
 ``` clojure
-(map (fn (v) (case v
-                   ((when (eq v 0))     "zero")
-                   ((satisfies #number) "a number")
-                   ((⊨ #string)         "a string")
-                   (otherwise           "other")))
-     (0 7 "x" true))
+(map (0 7 "x" true)
+     (fn (v) (case v
+               ((when (eq v 0))     "zero")
+               ((satisfies #number) "a number")
+               ((⊨ #string)         "a string")
+               (otherwise           "other"))))
 ```
 
-...is `["zero", "a number", "a string", "other"]`. Outside a branch, `(satisfies #p x)` is a question with a Boolean answer, while `#p x` is an assertion that fails.
+...is `["zero", "a number", "a string", "other"]`. Outside a branch, `(satisfies x #p)` is a question with a Boolean answer, x ∈ #p, while `#p x` is an assertion that fails. The value comes first in the question and the property first in the assertion, so the two never look alike; in a branch head the case's target is put first, as it is for a guard.
 
 Array patterns match by position. The following:
 
@@ -338,15 +338,15 @@ This form simply tells the compiler to evaluation every expression after a `list
 
 ### Map
 
-`(map f xs)` calls the function `f` on each element of the Array `xs`, and returns an Array of the results, in order. `f` can be a `define/procedure`, a `fn`, a builtin or a [placeholder](#placeholders), so most uses need no `fn` at all:
+`(map xs f)` calls the function `f` on each element of the Array `xs`, and returns an Array of the results, in order. The Array comes first, as every form takes what it works on first, so `->` threads through `map`. `f` can be a `define/procedure`, a `fn`, a builtin or a [placeholder](#placeholders), so most uses need no `fn` at all:
 
 ``` clojure
 (define/procedure aat-type (id label)
   (:id #uri (+ "http://vocab.getty.edu/aat/" id) :type "Type" :_label label))
 
 (graph mapped
-  (:classified_as (map (aat-type ? "Painting") ("300033618" "300177435"))
-   :counts        (map (+ ? 1) (1 2 3))))
+  (:classified_as (map ("300033618" "300177435") (aat-type ? "Painting"))
+   :counts        (map (1 2 3) (+ ? 1))))
 ```
 
 ...compiles to:
@@ -371,7 +371,19 @@ This form simply tells the compiler to evaluation every expression after a `list
 
 Each element is passed to `f` as an ordinary call, so `f` must take exactly one argument, and its signature checks every element: a mismatch is reported at the Array. Mapping over an empty Array gives an empty Array, and mapping over anything other than an Array is an error. `map` cannot be the name of a `define/procedure`, but `:map` is an ordinary key and `$map` an ordinary binding.
 
-When the elements are themselves Arrays or Records, a [pattern parameter](#destructuring-parameters) takes each one apart: `(map (fn ((?slug ?label)) (person slug label)) pairs)`.
+When the elements are themselves Arrays or Records, a [pattern parameter](#destructuring-parameters) takes each one apart: `(map pairs (fn ((?slug ?label)) (person slug label)))`.
+
+### Fold
+
+`(fold xs init f)` reduces an Array to one value: it calls `f` on the running value and each element in turn, starting from `init`, so `(fold (1 2 3) 0 f)` is `(f (f (f 0 1) 2) 3)`. As with `map`, the Array comes first; `f` takes the running value first, then the element. Folding an empty Array gives `init`.
+
+``` clojure
+(fold weights 0 +)                                      ; the sum of weights
+(fold parts (:type "Set") (fn (set p) (adjoin set :member p)))
+(-> parts (map (get ? _label)) (fold "" (+ ? ?)))       ; a step like any other
+```
+
+Every built-in takes a fixed number of arguments, and many values are an Array: `+` adds two numbers, and a sum of many is a fold.
 
 ### Inlay
 
@@ -487,7 +499,7 @@ An inlaid record's `@context` is layered in too. The record ends up with the inl
 ```
 
 - A step's value goes in as its first argument, or where a hole marks it: `(-> 1 (- 10))` is `-9`, and `(-> 1 (- 10 ?))` is `9`. A bare name is called with the value, and so is a `fn`.
-- `(-> ? step ...)` is a function of the value, so a pipeline can be mapped: `(map (-> ? (with :seen true)) records)`.
+- `(-> ? step ...)` is a function of the value, so a pipeline can be mapped: `(map records (-> ? (with :seen true)))`.
 - `with` extends an Array too: `(with (1 2) 3 4)` is `(1 2 3 4)`.
 - `with` writes a value as it is given, so a property that holds a set is written as an array, `(list (base/aat ...))`, as Linked Art writes it.
 
@@ -538,7 +550,7 @@ An inlaid record's `@context` is layered in too. The record ends up with the inl
 
 ### Insert
 
-`(insert)` serves as the dual to `(inlay)`, while `(inlay)` is used to bring things into the current scope, `(insert)` takes either a Record, or an Array, and merges its contents into the current Record/Array, `(insert)` does the same from an outside perspective. It takes an **insert position**, the payload to be inserted and a **Record**/**Array** to insert into. As Ouro is a functional language, `(insert)` returns a new instance of the original record, with the values inserted rather than mutating in-place. In this sense, `(insert)` is not to dissimilar to *lenses* in Haskell.    
+`(insert)` serves as the dual to `(inlay)`, while `(inlay)` is used to bring things into the current scope, `(insert)` takes either a Record, or an Array, and merges its contents into the current Record/Array, `(insert)` does the same from an outside perspective. It takes the **Record**/**Array** to insert into, an **insert position**, and the payload to be inserted, the collection first as in a path. As Ouro is a functional language, `(insert)` returns a new instance of the original record, with the values inserted rather than mutating in-place. In this sense, `(insert)` is not to dissimilar to *lenses* in Haskell.    
 
 **Example**
 
@@ -548,7 +560,7 @@ The following Ouro code:
 (:inserted_into (:id   "https://linked.art/example/person/proust"
              :type "Person")
 
- :record    (insert 2 :_label "Proust" inserted_into))
+ :record    (insert inserted_into 2 :_label "Proust"))
 ```
 
 ...compiles to the following JSON:
@@ -569,29 +581,35 @@ The following Ouro code:
 
 A record can't end up with a key twice, so inserting an attribute pair whose key already exists is an error. To change an existing attribute pair or element, use `(replace-at)`, which takes the same arguments and replaces whatever is at the index. Negative indexes count from the end in `(insert)` and `(replace-at)`, as they do in a path.
 
-### And, Or and Quantifiers
+### And, Or, All, Any and Quantifiers
 
-`(and a b ...)` is `true` when every operand is, and `(or a b ...)` when at least one is. They stop at the operand that decides the answer, so later operands are never evaluated:
+`(and a b)` is `true` when both operands are, and `(or a b)` when at least one is. For more than two, `(all (a b c))` is `true` when every condition is, and `(any (a b c))` when one is: like every built-in, `and` and `or` take a fixed number of arguments, and many values are an Array. All four stop at the operand that decides the answer, so later operands are never evaluated:
 
 ``` clojure
 (graph tags
   (let ($tags ())
     (:featured (and (> (len tags) 0) (eq (get tags 0) "featured"))    ; false: get is never reached
      :listed   (or  (eq (len tags) 0) (eq (get tags 0) "listed")))))  ; true
+
+(define/property labelled (#record r)
+  (doc "It and every part, at any depth, have a label.")
+  (all ((has r _label)                                  ; a property's rules, as a list
+        (forall (get-or r () part) labelled))))
 ```
 
 - Each operand that is reached must be a Boolean: `(and true 1)` is an error, `Expected data to have the property #boolean, got #number instead.` Ouro has no truthiness.
-- `(and)` is `true`, and `(or)` is `false`.
-- They take holes like a call, `(map (or ? false) (true false))`, and are threading steps, `(-> true (and false))`.
+- `all` and `any` stop early over an Array written in place, a literal or a `(list ...)`; an Array given another way, a binding or a `map`'s result, is evaluated whole and then read. `(all ())` is `true`, and `(any ())` is `false`.
+- `(and a)` or `(and a b c)` is an error that suggests `all`.
+- They take holes like a call, `(map (true false) (or ? false))`, and are threading steps, `(-> true (and false))`.
 
-The quantifiers ask the same of every element of an Array. `(forall f xs)` is `true` when `f` answers `true` for every element, `(exists f xs)` when it does for at least one, and `(omits f xs)` when it does for none. Each stops at the element that decides. `(filter f xs)` keeps the elements `f` answers `true` for:
+The quantifiers ask the same of every element of an Array. `(forall xs f)` is `true` when `f` answers `true` for every element, ∀x ∈ xs. f(x), `(exists xs f)` when it does for at least one, and `(omits xs f)` when it does for none. The Array is the domain, so it comes first. Each stops at the element that decides. `(filter xs f)` keeps the elements `f` answers `true` for:
 
 ``` clojure
 (let ($present ("leaf marker" "clasp")
       $absent  ("endband"))
-  (:consistent (omits (contains absent ?) present)        ; true: nothing is both present and absent
-   :any-clasp  (exists (= ? "clasp") present)             ; true
-   :long       (filter (fn (s) (> (len s) 6)) present)))  ; ("leaf marker")
+  (:consistent (omits present (contains absent ?))        ; true: nothing is both present and absent
+   :any-clasp  (exists present (= ? "clasp"))             ; true
+   :long       (filter present (fn (s) (> (len s) 6)))))  ; ("leaf marker")
 ```
 
 `omits` is named for what the data omits, not for what does not exist: a record's silence is not an observation, so `omits` says only that the Array has no such element.
@@ -605,50 +623,51 @@ The connectives, the quantifiers and the set operations can be written with the 
 | `¬`    | `not`          | `∪`    | `union`         |
 | `∧`    | `and`          | `∩`    | `intersect`     |
 | `∨`    | `or`           | `∖`    | `setminus`      |
-| `∀`    | `forall`       | `⊆`    | `subset`        |
-| `∃`    | `exists`       | `⋃`    | `unions`        |
-| `∄`    | `omits`        | `⋂`    | `intersections` |
-| `⊨`    | `satisfies`    | `=`    | `eq`            |
-| `λ`    | `fn`           | `/=`   | `neq`           |
+| `⋀`    | `all`          | `⊆`    | `subset`        |
+| `⋁`    | `any`          | `⋃`    | `unions`        |
+| `∀`    | `forall`       | `⋂`    | `intersections` |
+| `∃`    | `exists`       | `=`    | `eq`            |
+| `∄`    | `omits`        | `/=`   | `neq`           |
+| `⊨`    | `satisfies`    | `λ`    | `fn`            |
 
 ``` clojure
 (define/procedure consistent #boolean (#record book)
-  (∄ (contains (absent book) ?) (present book)))
+  (∄ (present book) (contains (absent book) ?)))
 ```
 
 ## Builtin Functions
 
 Ouro has the following built in functions:
 
-**Variadic Arithmetic & Temporal Shifting:** The arithmetic functions in Ouro are fully variadic and handle both standard mathematical computations and strict #date temporal adjustments.
+**Arithmetic & Temporal Shifting:** The arithmetic functions take two operands, as every built-in takes a fixed number of arguments, and handle both standard mathematical computations and strict #date temporal adjustments. Many values are an Array, folded: `(fold (2 2 6) 0 +)` is `10`.
 
 | Function | Syntax Example                         | Behaviour / Domain Rules                                          |
 |:---------|:---------------------------------------|:------------------------------------------------------------------|
-| **`+`**  | `(+ 2 2 6)` -> `10`                    | Computes the sum of all numerical arguments.                      |
+| **`+`**  | `(+ 2 6)` -> `8`                       | Adds two numbers.                                                 |
 |          | `(+ #date "2026-06-14..." (years 1))`  | When provided a `#date` head, applies time windows forward.       |
 |          | `(+ "Type: " label)`                   | Joins strings.                                                    |
 |          | `(+ (1 2) (3))` -> `(1 2 3)`           | Concatenates arrays.                                              |
-| **`-`**  | `(- 20 5 2)` -> `13`                   | Sequentially subtracts values from the first argument.            |
+| **`-`**  | `(- 20 5)` -> `15`                     | Subtracts the second from the first.                              |
 |          | `(- #date "2026-06-14..." (months 2))` | When provided a `#date` head, rolls time windows backward.        |
-| **`*`**  | `(* 2 3 4)` -> `24`                    | Computes the product of all numerical arguments.                  |
-| **`/`**  | `(/ 100 2 5)` -> `10`                  | Sequentially divides the first argument by the subsequent values. |
+| **`*`**  | `(* 3 4)` -> `12`                      | Multiplies two numbers.                                           |
+| **`/`**  | `(/ 100 4)` -> `25`                    | Divides the first by the second.                                  |
 
 Time windows are made with `(years n)`, `(months n)`, `(days n)`, `(hours n)`, `(minutes n)` and `(seconds n)`. Shifting by months or years clips to the end of a shorter month instead of rolling over into the next one, so 31 March minus one month is the last day of February.
 
-**Relational Comparisons:** Relational operators evaluate numbers. They support variadic chaining, verifying that the comparison holds true sequentially across every element in the expression.
+**Relational Comparisons:** Relational operators compare two numbers. A chain is `all` over its pairs: `(all ((< 0 x) (< x 10)))`.
 
 | Function  | Syntax Example | Evaluation Matrix                                 |
 |:----------|:---------------|:--------------------------------------------------|
-| **`>`**   | `(> 10 5 2)`   | Evaluates to `true` (Strictly decreasing stream). |
-| **`>=`**  | `(>= 10 10 5)` | Evaluates to `true` (Decreasing or equal stream). |
-| **`<`**   | `(< 2 5 10)`   | Evaluates to `true` (Strictly increasing stream). |
-| **`<=`**  | `(<= 5 5 10)`  | Evaluates to `true` (Increasing or equal stream). |
-| **`eq`**  | `(eq 1 1 1)`   | Evaluates to `true` (All values are equal).       |
+| **`>`**   | `(> 10 5)`     | Evaluates to `true` (Strictly greater).           |
+| **`>=`**  | `(>= 10 10)`   | Evaluates to `true` (Greater or equal).           |
+| **`<`**   | `(< 2 5)`      | Evaluates to `true` (Strictly less).              |
+| **`<=`**  | `(<= 5 5)`     | Evaluates to `true` (Less or equal).              |
+| **`eq`**  | `(eq 1 1)`     | Evaluates to `true` (The values are equal).       |
 | **`neq`** | `(neq 1 2)`    | Evaluates to `true` (The values differ).          |
 
-`eq` compares records and arrays by value, and `=` and `/=` are `eq` and `neq`. Using an operator with the wrong number of operands is an arity error.
+`eq` compares records and arrays by value, and `=` and `/=` are `eq` and `neq`. Using an operator with any number of operands but two is an arity error, whose hint is the fold.
 
-**Logic:** `not` negates a Boolean: `(not false)` is `true`. `and` and `or` are special forms, described above.
+**Logic:** `not` negates a Boolean: `(not false)` is `true`. `and`, `or`, `all` and `any` are special forms, described above.
 
 **Length:** `len` counts an Array's elements, whatever their types, or a String's characters.
 
@@ -665,9 +684,9 @@ Any other value, such as a record or a `#uri`, is a type error.
 |:--------------------|:-----------------------------------------|:------------------------------------------------|
 | **`contains`**      | `(contains (1 2 3) 2)` -> `true`         | An Array has the value; a String the substring. |
 | **`distinct`**      | `(distinct (1 2 1 3))` -> `(1 2 3)`      | The first of each value.                        |
-| **`union`**         | `(union (1 2) (2 3))` -> `(1 2 3)`       | Every value in any of the Arrays.               |
-| **`intersect`**     | `(intersect (1 2 3) (2 3 4))` -> `(2 3)` | The values in all of them.                      |
-| **`setminus`**      | `(setminus (1 2 3) (2))` -> `(1 3)`      | The values of the first in none of the rest.    |
+| **`union`**         | `(union (1 2) (2 3))` -> `(1 2 3)`       | Every value in either Array.                    |
+| **`intersect`**     | `(intersect (1 2 3) (2 3 4))` -> `(2 3)` | The values in both.                             |
+| **`setminus`**      | `(setminus (1 2 3) (2))` -> `(1 3)`      | The values of the first not in the second.      |
 | **`subset`**        | `(subset (1 2) (1 2 3))` -> `true`       | Every value of the first is in the second.      |
 | **`unions`**        | `(unions ((1) (1 2) (3)))` -> `(1 2 3)`  | The union of an Array of Arrays.                |
 | **`intersections`** | `(intersections ((1 2) (2 3)))` -> `(2)` | The intersection of an Array of Arrays.         |
@@ -720,10 +739,10 @@ Semantics of a call:
   ``` clojure
   (define/procedure outline (n)
     (:label (get n _label)
-     :parts (map outline (get-or () n part))))
+     :parts (map (get-or n () part) outline)))
   ```
 
-  A recursion that might not finish is an error wherever it is written, whether or not a graph calls it: `(define/procedure f (n) (f n))` is reported as `'f' calls itself, and might never finish`. The check is size-change termination (Lee, Jones and Ben-Amram, 2001), and it errs on the safe side: a number counting down is not a part, and neither is `(get-or () n part)` passed straight on, which may be its fallback each time. Finishing is not speed: a function that calls itself twice on the same part finishes, but in time exponential in the value's depth.
+  A recursion that might not finish is an error wherever it is written, whether or not a graph calls it: `(define/procedure f (n) (f n))` is reported as `'f' calls itself, and might never finish`. The check is size-change termination (Lee, Jones and Ben-Amram, 2001), and it errs on the safe side: a number counting down is not a part, and neither is `(get-or n () part)` passed straight on, which may be its fallback each time. Finishing is not speed: a function that calls itself twice on the same part finishes, but in time exponential in the value's depth.
 
   A function reached through a value, as in `(w w)`, is checked when it is called: calling it while it is already being called is an error. Nesting a call, `(f (f x))`, is two calls, not recursion.
 
@@ -847,8 +866,8 @@ A parameter can be a pattern, written as a `case` pattern is. It takes one argum
 (define/procedure label-of ((:_label ?l)) l)
 
 (graph destructured
-  (:carried_out_by (map (fn ((?slug ?label)) (person slug label))
-                        (("allan" "Scott Allan") ("beeny" "Emily Beeny")))
+  (:carried_out_by (map (("allan" "Scott Allan") ("beeny" "Emily Beeny"))
+                        (fn ((?slug ?label)) (person slug label)))
    :label          (label-of (:type "Type" :_label "Beauty"))))
 ```
 
@@ -995,10 +1014,10 @@ Module paths are written with `/` on every platform, Windows included.
                                  (base/ulan "500010363" "Person" "Manet")))
       ;; A pattern parameter takes each pair apart
       (with :created_by    (:type           "Creation"
-                            :carried_out_by (map (λ ((?slug ?label)) (person slug label))
-                                                 (("allan" "Scott Allan")
+                            :carried_out_by (map (("allan" "Scott Allan")
                                                   ("beeny" "Emily Beeny")
-                                                  ("groom" "Gloria Groom")))))))
+                                                  ("groom" "Gloria Groom"))
+                                                 (λ ((?slug ?label)) (person slug label)))))))
 ```
 
 Which compiles into the following JSON-LD:

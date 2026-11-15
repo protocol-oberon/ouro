@@ -415,11 +415,14 @@ functionComparison pos op a b =
     & pure
 
 
--- An operator written with the wrong number of operands, e.g. (+ 1) or (neq 1 2 3).
--- Variadic arithmetic and comparisons are unrolled into pairs by the desugarer, so only
--- a count that is wrong as written reaches a handler.
+-- An operator written with the wrong number of operands, e.g. (+ 1) or (+ 1 2 3). Every
+-- operator takes two, as every built-in takes a fixed number of arguments; many values are
+-- an Array, folded.
 wrongOperandCount :: Text -> [L.Expr] -> ErrorContext
-wrongOperandCount op operands = Data.Ouro.Error.Diagnostics.incorrectArity op 2 (length operands)
+wrongOperandCount op operands =
+    Data.Ouro.Error.Diagnostics.incorrectArity op 2 (length operands)
+    & Data.Ouro.Error.Diagnostics.withBlurb ( op <> " takes two operands, (" <> op <> " a b). "
+                                           <> "For more, fold them: (fold (a b c) start " <> op <> ")." )
 
 
 isNumber :: L.Expr -> Bool
@@ -563,30 +566,40 @@ handleDistinct pos =
 --
 -- Arrays as sets, as JSON-LD reads a property's values: elements are compared as eq
 -- compares them, and a result has no repeats, keeping the first of each in the order it
--- is first written. The first three take one or more Arrays, subset two:
+-- is first written. Each takes two Arrays, as every built-in takes a fixed number of
+-- arguments; many sets are an Array of them, for unions and intersections:
 --
---   (union (1 2) (2 3))          (1 2 3)      in any of them
---   (intersect (1 2 3) (3 2 4))  (2 3)        in all of them, in the first's order
---   (setminus (1 2 3) (2) (3))   (1)          in the first and none of the rest
+--   (union (1 2) (2 3))          (1 2 3)      in either
+--   (intersect (1 2 3) (3 2 4))  (2 3)        in both, in the first's order
+--   (setminus (1 2 3) (2))       (1 3)        in the first and not the second
 --   (subset (1 2) (2 3 1))       true         every value of the first is in the second
 handleUnion :: SourcePos -> [L.Expr] -> Reader Env L.Expr
-handleUnion pos args = withSets pos "union" args unionOf
+handleUnion pos = twoSets pos "union" unionOf "is every value of either" "unions"
 
 handleIntersect :: SourcePos -> [L.Expr] -> Reader Env L.Expr
-handleIntersect pos args = withSets pos "intersect" args intersectionOf
+handleIntersect pos = twoSets pos "intersect" intersectionOf "is every value of both" "intersections"
 
 handleSetminus :: SourcePos -> [L.Expr] -> Reader Env L.Expr
-handleSetminus pos args = withSets pos "setminus" args (L.Array . difference)
+handleSetminus pos = twoSets pos "setminus" (L.Array . difference) "is every value of the first that is not in the second" "setminus"
 
 -- a ⊆ b exactly when a ∖ b is empty
 handleSubset :: SourcePos -> [L.Expr] -> Reader Env L.Expr
-handleSubset pos = \case
-    args@[_, _] -> withSets pos "subset" args (L.Primitive . I.Boolean . null . difference)
-    args        -> Data.Ouro.Error.Diagnostics.incorrectArity "subset" 2 (length args)
-                   & Data.Ouro.Error.Diagnostics.withBlurb "subset takes two Arrays: (subset (1 2) (1 2 3)) is true when every value of the first is in the second."
+handleSubset pos = twoSets pos "subset" (L.Primitive . I.Boolean . null . difference) "is true when every value of the first is in the second" "subset"
+
+-- A set operation of exactly two Arrays; with another number, an arity error that points
+-- to the operation over an Array of sets, where there is one
+twoSets :: SourcePos -> Text -> ([[L.Expr]] -> L.Expr) -> Text -> Text -> [L.Expr] -> Reader Env L.Expr
+twoSets pos name operation meaning many = \case
+    args@[_, _] -> withSets pos name args operation
+    args        -> Data.Ouro.Error.Diagnostics.incorrectArity name 2 (length args)
+                   & Data.Ouro.Error.Diagnostics.withBlurb (name <> " takes two Arrays: (" <> name <> " (1 2) (2 3)) " <> meaning <> "." <> manySets)
                    & OuroError pos
                    & L.EvalError
                    & pure
+    where
+    manySets = case many == name of
+                   True  -> ""
+                   False -> " For more, " <> many <> " takes one Array of them: (" <> many <> " (a b c))."
 
 -- handleUnions and handleIntersections.
 --

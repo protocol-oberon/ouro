@@ -160,8 +160,12 @@ formsAndBuiltins = Group "Special forms and built-ins"
                                                               "(graph g (:r (len (1) (2))))")
     , ("len is an ordinary function value",         compilesToJSON "(graph g (:r (map (\"ab\" (1 2 3)) len)))"
                                                                    "{\"r\": [2, 3]}")
-    , ("comparisons chain",                         compilesToJSON "(graph g (:a (eq 1 1 1) :b (neq 1 2)))"
+    , ("a comparison takes two operands",           compilesToJSON "(graph g (:a (eq 1 1) :b (neq 1 2)))"
                                                                    "{\"a\": true, \"b\": true}")
+    , ("so three are an arity error",               failsWith "eq takes two operands, (eq a b). For more, fold them"
+                                                              "(graph g (:r (eq 1 1 1)))")
+    , ("as for arithmetic",                         failsWith "+ takes two operands, (+ a b). For more, fold them: (fold (a b c) start +)."
+                                                              "(graph g (:r (+ 1 2 3)))")
     , ("#string asserts a string",                  failsWith "expectedProperty = \"#string\", actualProperty = \"#number\""
                                                               "(graph g (:a #string 1))")
     , ("recursion is an error",                     failsWith "a recursive function call"
@@ -188,20 +192,45 @@ formsAndBuiltins = Group "Special forms and built-ins"
     , ("insert takes a written attribute pair",     compilesToJSON "(graph g (:r (insert (:id \"1\" :type \"Person\") 2 :_label \"Proust\")))"
                                                                    "{\"r\": {\"id\": \"1\", \"type\": \"Person\", \"_label\": \"Proust\"}}")
 
-    -- (and a ...) is true when every operand is, and (or a ...) when one is. Each stops
-    -- at the operand that decides it, and checks every operand it reaches as a #boolean
-    , ("and is true when every operand is",         compilesToJSON "(graph g (:a (and true true) :b (and true false) :c (and true) :d (and)))"
-                                                                   "{\"a\": true, \"b\": false, \"c\": true, \"d\": true}")
-    , ("or is true when one operand is",            compilesToJSON "(graph g (:a (or false true) :b (or false false) :c (or)))"
+    -- (and a b) is true when both operands are, and (or a b) when one is; (all array) and
+    -- (any array) are the n-ary and and or. Each stops at the operand that decides it, and
+    -- checks every operand it reaches as a #boolean
+    , ("and is true when both operands are",        compilesToJSON "(graph g (:a (and true true) :b (and true false)))"
+                                                                   "{\"a\": true, \"b\": false}")
+    , ("or is true when one operand is",            compilesToJSON "(graph g (:a (or false true) :b (or false false)))"
+                                                                   "{\"a\": true, \"b\": false}")
+    , ("and takes two operands",                    failsWith "and takes two operands, (and a b), and was given 1."
+                                                              "(graph g (:r (and true)))")
+    , ("with the n-ary form as the hint",           failsWith "(all (a b c)) is true when every condition is"
+                                                              "(graph g (:r (and true true true)))")
+    , ("and so does or",                            failsWith "or takes two operands, (or a b), and was given 0."
+                                                              "(graph g (:r (or)))")
+    , ("all is true when every element is",         compilesToJSON "(graph g (:a (all (true true true)) :b (all (true false true)) :c (all ())))"
+                                                                   "{\"a\": true, \"b\": false, \"c\": true}")
+    , ("any is true when one element is",           compilesToJSON "(graph g (:a (any (false true false)) :b (any (false false)) :c (any ())))"
                                                                    "{\"a\": true, \"b\": false, \"c\": false}")
+    , ("all written in place stops at the first false", compilesToJSON "(graph g (let ($r (:x 1)) (:r (all ((has r year) (> (get r year) 1600))))))"
+                                                                       "{\"r\": false}")
+    , ("any written in place stops at the first true", compilesToJSON "(graph g (:r (any (true (get () 5)))))"
+                                                                      "{\"r\": true}")
+    , ("a list is written in place",                compilesToJSON "(graph g (let ($a false) (:r (all (list a (get () 5))))))"
+                                                                   "{\"r\": false}")
+    , ("an Array given another way is read whole",  compilesToJSON "(graph g (let ($conds (true false)) (:a (all conds) :b (any conds) :c (any (map (1 2) (> ? 1))))))"
+                                                                   "{\"a\": false, \"b\": true, \"c\": true}")
+    , ("its elements must be Booleans",             failsWith "expectedProperty = \"#boolean\", actualProperty = \"#number\""
+                                                              "(graph g (let ($conds (true 1)) (:r (all conds))))")
+    , ("and so must a written element",             failsWith "expectedProperty = \"#boolean\", actualProperty = \"#number\""
+                                                              "(graph g (:r (all (1))))")
+    , ("all takes one Array",                       failsWith "all is written (all array): one Array of Booleans."
+                                                              "(graph g (:r (all true false)))")
+    , ("\8896 and \8897 are all and any",           compilesToJSON "(graph g (:a (\8896 (true true)) :b (\8897 (false true))))"
+                                                                   "{\"a\": true, \"b\": true}")
     , ("and stops at the first false",              compilesToJSON "(graph g (:r (and false (get () 5)) :s (and false 1)))"
                                                                    "{\"r\": false, \"s\": false}")
     , ("or stops at the first true",                compilesToJSON "(graph g (:r (or true (get () 5))))"
                                                                    "{\"r\": true}")
     , ("an operand must be a #boolean",             failsWith "expectedProperty = \"#boolean\", actualProperty = \"#number\""
                                                               "(graph g (:r (and true 1)))")
-    , ("so must a lone operand",                    failsWith "expectedProperty = \"#boolean\", actualProperty = \"#number\""
-                                                              "(graph g (:r (and 1)))")
     , ("or checks its operands too",                failsWith "expectedProperty = \"#boolean\", actualProperty = \"#number\""
                                                               "(graph g (:r (or 1 true)))")
     , ("and and or combine comparisons",            compilesToJSON "(graph g (:r (and (> 2 1) (or (eq \"a\" \"b\") (eq \"a\" \"a\")))))"
@@ -216,8 +245,32 @@ formsAndBuiltins = Group "Special forms and built-ins"
                                                               "(define/procedure or (x) x) (graph g (:r 1))")
     , ("and and or guard an index",                 compilesToJSON "(graph g (let ($tags ()) (:featured (and (> (len tags) 0) (eq (get tags 0) \"featured\")) :listed (or (eq (len tags) 0) (eq (get tags 0) \"listed\")))))"
                                                                    "{\"featured\": false, \"listed\": true}")
-    , ("a chained comparison stops at the first false", compilesToJSON "(graph g (:r (< 2 1 (get () 5))))"
+    , ("a chain of comparisons is all over its pairs", compilesToJSON "(graph g (:r (all ((< 2 1) (< 1 (get () 5))))))"
                                                                        "{\"r\": false}")
+
+      -- (fold array init f): a left fold, f called on the running value and each element
+    , ("fold reduces an Array from a start",        compilesToJSON "(graph g (:a (fold (1 2 3) 0 +) :b (fold (2 3 4) 1 *) :c (fold () 7 +)))"
+                                                                   "{\"a\": 6, \"b\": 24, \"c\": 7}")
+    , ("it goes from the left",                     compilesToJSON "(graph g (:r (fold (1 2 3) 10 -)))"
+                                                                   "{\"r\": 4}")
+    , ("its function takes the running value first", compilesToJSON "(graph g (:r (fold (\"a\" \"b\") \"\" (fn (s x) (+ s x)))))"
+                                                                     "{\"r\": \"ab\"}")
+    , ("it builds a record",                        compilesToJSON "(graph g (:r (fold (1 2) (:type \"Set\") (fn (set n) (adjoin set :member n)))))"
+                                                                   "{\"r\": {\"type\": \"Set\", \"member\": [1, 2]}}")
+    , ("it is a threading step",                    compilesToJSON "(graph g (:r (-> (1 2 3) (map (* ? 2)) (fold 0 +))))"
+                                                                   "{\"r\": 12}")
+    , ("it takes a hole",                           compilesToJSON "(graph g (let ($sum (fold ? 0 +)) (:r (sum (4 5)))))"
+                                                                   "{\"r\": 9}")
+    , ("its function takes two arguments",          failsWith "IncorrectArity"
+                                                              "(graph g (:r (fold (1 2) 0 (fn (x) x))))")
+    , ("fold needs a function",                     failsWith "a function to fold with"
+                                                              "(graph g (:r (fold (1 2) 0 1)))")
+    , ("fold needs an Array",                       failsWith "an Array to fold"
+                                                              "(graph g (:r (fold 5 0 +)))")
+    , ("fold is written with three",                failsWith "fold is written (fold array init f)"
+                                                              "(graph g (:r (fold (1 2) +)))")
+    , ("an error stops it",                         failsWith "Index"
+                                                              "(graph g (:r (fold (1 2) 0 (fn (s x) (+ s (get () 5))))))")
     ]
 
 
@@ -378,27 +431,28 @@ types = Group "Types: the rules as they are"
     date = "#date \"2020-01-01T00:00:00Z\""
 
 
--- Operators take two operands. Variadic arithmetic and comparisons are unrolled into pairs
--- wherever they are written, including under a built-in property; a case guard compares
--- the case's target with its operands, chaining like a comparison. A count that is wrong
--- as written is an arity error.
+-- Operators take two operands, as every built-in takes a fixed number of arguments: nothing
+-- is unrolled, and many values are an Array, folded. A case guard compares the case's
+-- target with its one operand. A count that is wrong as written is an arity error.
 operators :: Group
 operators = Group "Operators: operands and desugaring"
-    [ ("variadic + under a built-in property",      compilesToJSON "(graph g (:u #uri (+ \"https://a.org/\" \"b/\" \"c\")))"
+    [ ("nested + under a built-in property",        compilesToJSON "(graph g (:u #uri (+ \"https://a.org/\" (+ \"b/\" \"c\"))))"
                                                                    "{\"u\": \"https://a.org/b/c\"}")
     , ("thru under a built-in property",            compilesToJSON "(graph g (:d #date (+ #date \"2020-01-01T00:00:00Z\" (thru (days 1)))))"
                                                                    "{\"d\": \"2020-01-02T23:59:59Z\"}")
-    , ("a chained comparison under a property",     compilesToJSON "(graph g (:r #boolean (< 1 2 3) :s #number (* 2 3 4)))"
+    , ("thru shifts back with -",                   compilesToJSON "(graph g (:d (- #date \"2020-01-03T00:00:00Z\" (thru (days 1)))))"
+                                                                   "{\"d\": \"2020-01-01T00:00:01Z\"}")
+    , ("all and fold under a property",             compilesToJSON "(graph g (:r #boolean (all ((< 1 2) (< 2 3))) :s #number (fold (2 3 4) 1 *)))"
                                                                    "{\"r\": true, \"s\": 24}")
-    , ("a typed function body",                     compilesToJSON "(define/procedure f () #uri (+ \"https://a.org/\" \"b/\" \"c\")) (graph g (:r (f)))"
+    , ("a typed function body",                     compilesToJSON "(define/procedure f () #uri (+ \"https://a.org/\" (+ \"b/\" \"c\"))) (graph g (:r (f)))"
                                                                    "{\"r\": \"https://a.org/b/c\"}")
     , ("a guard compares the target",               compilesToJSON "(define/procedure size (n) (case n ((> 100) \"large\") ((< 10) \"small\") (otherwise \"medium\"))) (graph g (:a (size 150) :b (size 5) :c (size 50)))"
                                                                    "{\"a\": \"large\", \"b\": \"small\", \"c\": \"medium\"}")
-    , ("a guard with two operands chains",          compilesToJSON "(graph g (:r (case 5 ((< 10 20) \"a\") (otherwise \"b\")) :s (case 15 ((< 10 20) \"a\") (otherwise \"b\"))))"
+    , ("a guard takes one operand",                 failsWith "< takes two operands, (< a b)"
+                                                              "(graph g (:r (case 5 ((< 10 20) \"a\") (otherwise \"b\"))))")
+    , ("two bounds are a when over all",            compilesToJSON "(graph g (:r (case 5 ((when (all ((> 5 1) (< 5 10)))) \"a\") (otherwise \"b\")) :s (case 15 ((when (all ((> 15 1) (< 15 10)))) \"a\") (otherwise \"b\"))))"
                                                                    "{\"r\": \"a\", \"s\": \"b\"}")
-    , ("a guard with three operands chains",        compilesToJSON "(graph g (:r (case 5 ((< 10 20 30) \"a\") (otherwise \"b\"))))"
-                                                                   "{\"r\": \"a\"}")
-    , ("a guard's operands are desugared",          compilesToJSON "(graph g (:r (case 5 ((< (+ 1 2 3) 10) \"a\") (otherwise \"b\"))))"
+    , ("a guard's operand is desugared",            compilesToJSON "(graph g (:r (case 5 ((< (fold (1 2 3) 0 +)) \"a\") (otherwise \"b\"))))"
                                                                    "{\"r\": \"a\"}")
     , ("an operator needs two operands",            failsWith "IncorrectArity"
                                                               "(graph g (:r (+ 1)))")
@@ -490,8 +544,8 @@ encoding = Group "Encoding: source files are UTF-8"
                                                             "(define/procedure \8743 (x) x) (graph g (:r 1))")
     , ("\8743x is an ordinary name",         compilesToJSON "(graph g (let ($\8743x 1) (:r \8743x)))"
                                                                  "{\"r\": 1}")
-    , ("= and /= are eq and neq",            compilesToJSON "(graph g (:a (= 1 1) :b (/= 1 2) :c (= 1 1 2) :d (case 3 ((= 3) \"three\") (otherwise \"other\"))))"
-                                                                 "{\"a\": true, \"b\": true, \"c\": false, \"d\": \"three\"}")
+    , ("= and /= are eq and neq",            compilesToJSON "(graph g (:a (= 1 1) :b (/= 1 2) :d (case 3 ((= 3) \"three\") (otherwise \"other\"))))"
+                                                                 "{\"a\": true, \"b\": true, \"d\": \"three\"}")
     , ("\8899 \8898 are unions and intersections", compilesToJSON "(graph g (:a (\8899 ((1) (2))) :b (\8898 ((1 2) (2)))))"
                                                                       "{\"a\": [1, 2], \"b\": [2]}")
     , ("UTF-8 is decoded",                   decodesTo [0xC3, 0x89, 0x64] "\201d")
@@ -689,12 +743,16 @@ logicAndCollections = Group "Built-ins: logic, arrays and records"
                                                            "{\"r\": 1}")
 
       -- union, intersect and setminus treat Arrays as sets
-    , ("union joins without repeats",            compilesToJSON "(graph g (:a (union (1 2) (2 3)) :b (union (1 1)) :c (union (1) (2) (1 3))))"
-                                                                "{\"a\": [1, 2, 3], \"b\": [1], \"c\": [1, 2, 3]}")
-    , ("intersect keeps what all share",         compilesToJSON "(graph g (:a (intersect (1 2 3) (3 2 4)) :b (intersect (1 2) (3)) :c (intersect (1 2 3) (2 3) (3))))"
-                                                                "{\"a\": [2, 3], \"b\": [], \"c\": [3]}")
-    , ("setminus removes the rest",              compilesToJSON "(graph g (:a (setminus (1 2 3) (2)) :b (setminus (1 2 3) (1) (3)) :c (setminus (1 1 2) ())))"
-                                                                "{\"a\": [1, 3], \"b\": [2], \"c\": [1, 2]}")
+    , ("union joins without repeats",            compilesToJSON "(graph g (:a (union (1 2) (2 3)) :b (union (1 1) ())))"
+                                                                "{\"a\": [1, 2, 3], \"b\": [1]}")
+    , ("intersect keeps what both share",        compilesToJSON "(graph g (:a (intersect (1 2 3) (3 2 4)) :b (intersect (1 2) (3))))"
+                                                                "{\"a\": [2, 3], \"b\": []}")
+    , ("setminus removes the second",            compilesToJSON "(graph g (:a (setminus (1 2 3) (2)) :c (setminus (1 1 2) ())))"
+                                                                "{\"a\": [1, 3], \"c\": [1, 2]}")
+    , ("a set operation takes two sets",         failsWith "union takes two Arrays: (union (1 2) (2 3)) is every value of either. For more, unions takes one Array of them: (unions (a b c))."
+                                                           "(graph g (:r (union (1) (2) (1 3))))")
+    , ("many sets are unions over an Array",     compilesToJSON "(graph g (:a (unions ((1) (2) (1 3))) :b (intersections ((1 2 3) (2 3) (3)))))"
+                                                                "{\"a\": [1, 2, 3], \"b\": [3]}")
     , ("sets compare records by value",          compilesToJSON "(graph g (:r (intersect ((:a 1) (:b 2)) ((:a 1)))))"
                                                                 "{\"r\": [{\"a\": 1}]}")
     , ("set operations take holes",              compilesToJSON "(graph g (:r (map ((1 2) (2 3)) (setminus ? (2)))))"
@@ -702,7 +760,7 @@ logicAndCollections = Group "Built-ins: logic, arrays and records"
     , ("a set must be an Array",                 failsWith "an Array, as a set"
                                                            "(graph g (:r (union (1) 2)))")
     , ("a set cannot hold a function",           failsWith "functions cannot be compared"
-                                                           "(graph g (:r (union (list (fn (x) x)))))")
+                                                           "(graph g (:r (union (list (fn (x) x)) ())))")
     , ("a set operation needs an Array",         failsWith "nameOfFunc = \"intersect\""
                                                            "(graph g (:r (intersect)))")
     , ("subset is true when all are in the other", compilesToJSON "(graph g (:a (subset (1 2) (2 3 1)) :b (subset (1 4) (1 2)) :c (subset () (1)) :d (subset (1 1) (1))))"
@@ -748,7 +806,7 @@ conditions = Group "Case: conditions"
       -- Comparison guards become conditions on the case's target
     , ("a guard compares a computed target",     compilesToJSON "(graph g (:r (case (+ 2 3) ((> 4) \"big\") (otherwise \"small\"))))"
                                                                 "{\"r\": \"big\"}")
-    , ("a chained guard stops at the first false", compilesToJSON "(graph g (:r (case 5 ((< 1 (get () 9)) \"x\") (otherwise \"y\"))))"
+    , ("a when over all stops at the first false", compilesToJSON "(graph g (:r (case 5 ((when (all ((< 5 1) (< 5 (get () 9))))) \"x\") (otherwise \"y\"))))"
                                                                   "{\"r\": \"y\"}")
 
       -- satisfies asks a property; in a branch head, of the case's target
