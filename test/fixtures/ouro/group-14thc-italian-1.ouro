@@ -1,19 +1,24 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/group/14thc_italian/1
+(import std/base)
+(import std/time)
+(import std/vocab)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure group #record (#string slug #string label)
+  (:id (example (+ "group/" slug)) :type "Group" :_label label))
+
+;; An unidentified group, known by what its members have in common: born in Italy in the
+;; 14th century. linked.art ends the century at midnight, not at its last second, so the span
+;; is written out; and its TGN id is https, so Italy is written out too.
 (graph group-14thc-italian-1
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/group/14thc_italian/1"
-   :type "Group"
-   :_label "14th c italians"
-   :identified_by ((:type "Name"
-                    :classified_as ((:id "http://vocab.getty.edu/aat/300404670"
-                                     :type "Type"
-                                     :_label "Primary Name"))
-                    :content "Unidentified 14th Century Italian"))
-   :members_exemplified_by ((:type "Person"
-                             :born (:type "Birth"
-                                    :timespan (:type "TimeSpan"
-                                               :begin_of_the_begin "1300-01-01T00:00:00Z"
-                                               :end_of_the_end "1399-12-31T00:00:00Z")
-                                    :took_place_at ((:id "https://vocab.getty.edu/tgn/1000080"
-                                                     :type "Place"
-                                                     :_label "Italy")))))))
+  (-> (group "14thc_italian/1" "14th c italians")
+      (with :context                "https://linked.art/ns/v1/linked-art.json")
+      (with :identified_by          (list (base/name vocab/primary-name "Unidentified 14th Century Italian")))
+      (with :members_exemplified_by ((:type "Person"
+                                      :born (:type          "Birth"
+                                             :timespan      (time/span "1300-01-01T00:00:00Z" "1399-12-31T00:00:00Z")
+                                             :took_place_at ((:id     #uri "https://vocab.getty.edu/tgn/1000080"
+                                                              :type   "Place"
+                                                              :_label "Italy"))))))))
