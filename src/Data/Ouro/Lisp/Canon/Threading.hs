@@ -26,7 +26,6 @@ threading = \case
         -> threading (foldl thread start steps)
 
     S.Form    pos items     -> S.Form    pos (map threading items)
-    S.Bracket pos items     -> S.Bracket pos (map threading items)
     S.Tagged  pos tag inner -> S.Tagged  pos tag (threading inner)
     leaf                    -> leaf
 

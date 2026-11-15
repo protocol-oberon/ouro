@@ -45,15 +45,22 @@ lexeme :: Parser a -> Parser a
 lexeme = L.lexeme sc
 
 
--- Rigid Structural Syntax Elements
+-- Rigid Structural Syntax Elements. Ouro has no brackets: '[' and ']' are errors where they
+-- are written, which say how an array is written.
 pDelims :: Parser Tkn.Token
 pDelims = lexeme . withPos $ choice
                              [ Tkn.OpenParen    <$ char '('
                              , Tkn.CloseParen   <$ char ')'
-                             , Tkn.OpenBracket  <$ char '['
-                             , Tkn.CloseBracket <$ char ']'
                              , Tkn.DotDot       <$ string ".."
+                             , noBrackets
                              ]
+    where
+    noBrackets :: Parser Tkn.TokenType
+    noBrackets = do
+                 startOffset <- M.getOffset
+                 _           <- oneOf ("[]" :: String)
+                 M.region (\err -> M.setErrorOffset startOffset err)
+                          (fail "Ouro has no brackets: an array is written in parentheses, (1 2 3)")
 
 
 -- Core Operational Keywords & Symbols. A keyword that only begins a longer name
@@ -70,7 +77,7 @@ pCoreKeywords = lexeme . withPos . try $ choice
     ]
 
     where
-    endOfWord = choice [space1, () <$ lookAhead (oneOf ("()[]" :: String)), eof]
+    endOfWord = choice [space1, () <$ lookAhead (oneOf ("()" :: String)), eof]
 
 
 -- A definition says what it defines: define/procedure, define/property or define/constant.

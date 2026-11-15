@@ -421,7 +421,6 @@ pExpr = do
                              -- Open boundaries push processing down into structural lookahead groups
                              -- Note: We intentionally pop 'ts' here to advance past the open delimiter
                              Tkn.OpenParen      -> consume ts >> parseFormContainer (Tkn.pos t)
-                             Tkn.OpenBracket    -> consume ts >> parseBracketContainer (Tkn.pos t)
 
                              -- Primitive Leaf Node capture (+ source location)
                              Tkn.Let            -> capture (S.Symbol (Tkn.pos t) "let")
@@ -462,12 +461,6 @@ pExpr = do
                                                                  , actualDelim   = "Orphaned Closing Parenthesis ')'"
                                                                  }
                                                in lift $ Left (OuroError (Tkn.pos t) context)
-
-                             Tkn.CloseBracket -> let context = Syntax UnbalancedDelimiter
-                                                                   { expectedDelim = "Opening Array Boundary '['"
-                                                                   , actualDelim   = "Orphaned Closing Bracket ']'"
-                                                                   }
-                                                 in lift $ Left (OuroError (Tkn.pos t) context)
 
                              _invalidToken -> lexicalError ("Invalid token: " <> (T.pack $ show (Tkn.tokenType t)) <> " found in expression")
                                               & OuroError (Tkn.pos t)
@@ -510,13 +503,6 @@ misplacedRange pos =
     F.& OuroError pos
 
 
--- Consumes tokens until a matching CloseBracket is found
-parseBracketContainer :: SourcePos -> Parser S.Expr
-parseBracketContainer startPos = do
-                                 terms <- within startPos "]" (collectUntil Tkn.CloseBracket)
-                                 pure $ S.Bracket startPos terms
-
-
 -- Reader Tag Helper: Verifies that the evaluated expression is a raw string payload
 parseTaggedNode :: SourcePos -> S.ReaderTag -> Parser S.Expr
 parseTaggedNode tagPos tagType = do
@@ -544,7 +530,6 @@ parseAttrNode pos attrName = do
                              case map Tkn.tokenType (take 1 stream) of
                                  [Tkn.Attr next]    -> noValue ("the key ':" <> next <> "'")
                                  [Tkn.CloseParen]   -> noValue "the end of its form"
-                                 [Tkn.CloseBracket] -> noValue "the end of its form"
                                  _aValue            -> do
                                                        -- Eagerly consume the next expression to bind to the attribute
                                                        nextExpr <- pExpr

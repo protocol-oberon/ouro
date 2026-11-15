@@ -23,7 +23,7 @@ import           System.Directory  (createDirectoryIfMissing)
 import           System.Exit       (exitFailure)
 import           System.FilePath   (takeDirectory)
 import           System.IO         (IOMode (..), hSetEncoding, hSetNewlineMode,
-                                    noNewlineTranslation, stderr, utf8,
+                                    noNewlineTranslation, stderr, stdout, utf8,
                                     withFile)
 import           Text.Megaparsec   (SourcePos, sourceName)
 
@@ -65,41 +65,34 @@ runValidate :: ValidateCommand -> IO ()
 runValidate (ValidateCommand fp op sp sc) =
     do
     content <- readSourceOrExit fp
-    let targetOutPath = case op of
-                            Just o  -> o
-                            Nothing -> fp
     case sc of
-        Just (Indent i) -> do
-                           let opts = PrinterOptions { indentSpacing = i }
-                           case O.validate fp content opts of
-                               Left  err  -> do
-                                             putStrLn $ "Compilation Error:\n" ++ err
-                                             exitFailure
-                               Right json -> do
-                                             putStrLn $ "Validated JLD JSON for: " ++ fp
-                                             case sp of
-                                                 True  -> TIO.putStrLn $ TL.toStrict json
-                                                 False -> pure ()
-
-                                             writeJSON targetOutPath json
+        Just (Indent i) -> validated content (PrinterOptions { indentSpacing = i })
 
         Just (Merge _)  -> do
                            -- TODO! Fail loudly until merge is implemented
                            putStrLn "Error: 'validate merge' is not implemented yet."
                            exitFailure
 
-        Nothing         -> do
-                           case O.validate fp content defaultOptions of
-                               Left  err  -> do
-                                             putStrLn $ "Compilation Error:\n" ++ err
-                                             exitFailure
-                               Right json -> do
-                                             putStrLn $ "Validated JLD JSON for: " ++ fp
-                                             case sp of
-                                                 True  -> TIO.putStrLn $ TL.toStrict json
-                                                 False -> pure ()
-
-                                             writeJSON targetOutPath json
+        Nothing         -> validated content defaultOptions
+    where
+    -- With -o the JSON is written to that file; without it, to stdout and nothing else, so it
+    -- can be piped or redirected. The input is never written over.
+    validated content opts =
+        case O.validate fp content opts of
+            Left  err  -> do
+                          putStrLn $ "Compilation Error:\n" ++ err
+                          exitFailure
+            Right json -> case op of
+                              Just o  -> do
+                                         putStrLn $ "Validated JLD JSON for: " ++ fp
+                                         case sp of
+                                             True  -> TIO.putStrLn $ TL.toStrict json
+                                             False -> pure ()
+                                         writeJSON o json
+                              Nothing -> do
+                                         hSetEncoding    stdout utf8
+                                         hSetNewlineMode stdout noNewlineTranslation
+                                         TLIO.putStr     json
 
 
 -- Reads a source file as UTF-8, whatever the platform's code page, or reports why it cannot

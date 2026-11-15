@@ -15,7 +15,7 @@ data Command
 
 data ValidateCommand = ValidateCommand
     { valInputFile  :: FilePath
-    , valOutputFile :: Maybe FilePath  -- If Nothing, we format inline
+    , valOutputFile :: Maybe FilePath  -- If Nothing, the JSON is written to stdout
     , valPrint      :: Bool
     , valTransform  :: Maybe TargetTransform
     } deriving (Show)

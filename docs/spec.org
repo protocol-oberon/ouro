@@ -609,7 +609,7 @@ These are never raised, and their codes are not reused:
 | Property      | =#uri=, =#date=, =#string=, =#titled=          | a property of what follows (see below)             |
 | Empty values  | =#record-empty=, =#array-empty=, =()=          | ={}=, =[]= and =[]=                                |
 | Hole          | =?=, =?name=, =?..name=                        | a placeholder in a call, or part of a pattern      |
-| Delimiters    | =( )=                                          | =[ ]= is reserved: it parses, but means nothing    |
+| Delimiters    | =( )=                                          | =[= or =]= is an error: Ouro has no brackets       |
 | Range         | =(1..500)=, =(2 4 .. 10)=                      | see below                                          |
 | Keywords      | =define/procedure=, =define/constant=, =graph= | see below                                          |
 
@@ -1841,7 +1841,6 @@ data Expr
     | Tagged      SourcePos ReaderTag Expr  -- #uri "...", #date "...", #record (...)
     | Hole        SourcePos Text            -- ?, ?name or ?..name: a placeholder, or in a case pattern
     | Form        SourcePos [Expr]          -- (...)
-    | Bracket     SourcePos [Expr]          -- [...], reserved
 
 -- A function's parameter, the property written before it, if any, and the pattern it
 -- destructures its argument with, if any
@@ -2449,6 +2448,7 @@ Ouro's compiler guarantees structural validity: a compiled graph is well-formed 
 | spliced function bodies, =return=                  | one result expression                                        |
 | required =!= on function names                     | plain names (=!= still allowed)                              |
 | =quote=, ='=, =eval=, =get'=                       | values: Ouro has no metaprogramming                          |
+| =[ ]=, reserved, meaning nothing                   | =( )=: an array is written =(1 2 3)=                         |
 | =(context (vocab "..." remote-context "..."))=     | =:context value=, a JSON-LD context value                    |
 | =(attr key value)=, a computed key                 | =:key value=; keys are never computed                        |
 | =(nth i coll)=                                     | =(get coll i)=; an index is written, and only indexes Arrays |
@@ -2668,13 +2668,14 @@ Left as they are on purpose:
 :ID:       13
 :FOUND:    2026-10-12
 :END:
-- The =[ ]= bracket syntax parses but has no meaning.
-
-- =validate= without =-o= overwrites its input.
-
 - The CLI's commands are tested only from outside, by running =ouro= (=test-cli/Ouro/Cli/CommandTest.hs=), for their exit codes, the files they write and what they print.
 
 /Fixed:/ no test checked an error message's rendering. Each code a source or a project can raise now has a fixture in =test-cli/fixtures/messages/=, and its rendering, as =ouro= prints it without colours, in a golden file beside it, =CODE-Constructor.txt=; =OURO_ACCEPT=1 cabal test ouro-cli-test= rewrites them. The renderer stayed in the CLI, as the pure =renderDiagnostic= of =cli/CLI/Printer.hs=, rather than moving into the library as planned.
+
+/Fixed/ (2026-11-15):
+
+- the =[ ]= bracket syntax parsed but had no meaning. It is removed, and a =[= or =]= is a lexical error, "Ouro has no brackets: an array is written in parentheses, (1 2 3)";
+- =validate= without =-o= overwrote its input. It now writes the JSON to stdout, and nothing else, so it can be piped.
 
 ** PENDING A record made only of inlays is read as an array
 :PROPERTIES:

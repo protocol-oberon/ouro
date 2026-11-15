@@ -226,7 +226,6 @@ nestedDoc :: S.Expr -> Maybe SourcePos
 nestedDoc = \case
     S.Form pos (S.Symbol _ "doc" : _) -> Just pos
     S.Form _ items                    -> listToMaybe (mapMaybe nestedDoc items)
-    S.Bracket _ items                 -> listToMaybe (mapMaybe nestedDoc items)
     S.Tagged _ _ inner                -> nestedDoc inner
     _leaf                             -> Nothing
 

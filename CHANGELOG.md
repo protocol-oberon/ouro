@@ -13,6 +13,12 @@ version is 0.x, a new minor version may break programs, and each change that doe
 - A `define/procedure` of no parameters warns (`WRN0006`) and suggests `define/constant`: a
   function of no parameters is a constant, worked out once per graph. <!-- ulotxkko -->
 
+### Fixed
+- `ouro validate` without `-o` writes the JSON to stdout, and nothing else, so it can be piped;
+  it no longer writes over its input (gap 13). <!-- llsvvrmw -->
+- A `[` or `]` is an error that says an array is written in parentheses, `(1 2 3)`. The bracket
+  syntax parsed, but meant nothing (gap 13). <!-- llsvvrmw -->
+
 ## [0.6.0.0] - 2026-11-15
 
 ### Changed

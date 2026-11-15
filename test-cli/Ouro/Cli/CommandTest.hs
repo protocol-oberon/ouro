@@ -19,6 +19,7 @@ import           System.FilePath    (takeDirectory, (</>))
 import           System.IO          (IOMode (..), withFile)
 import           System.Process     (CreateProcess (..), StdStream (..), proc,
                                      waitForProcess, withCreateProcess)
+import           Utils              (fixedGap)
 
 
 -- ouro build, run as a user runs it, in a project of its own
@@ -112,7 +113,14 @@ validates = Group "CLI: ouro validate"
                                                         assert ("Validated JLD JSON for: in.json" `T.isInfixOf` plain (out run))
                                                         written <- evalIO (readText (dir </> "formatted.json"))
                                                         written === formatted)
-    , ("gap 13: without -o it rewrites its input",  withTests 1 . property $ do
+    , ("without -o it writes the JSON to stdout, and nothing else", withTests 1 . property $ do
+                                                        dir <- evalIO (writeFolder "validate-stdout" [ json ])
+                                                        run <- evalIO (ouro dir ["validate", "in.json"])
+                                                        exitCode run === ExitSuccess
+                                                        out run === formatted
+                                                        input <- evalIO (readText (dir </> "in.json"))
+                                                        input === TE.decodeUtf8 (snd json))
+    , ("gap 13 (fixed): without -o it rewrites its input", fixedGap . withTests 1 . property $ do
                                                         dir <- evalIO (writeFolder "validate-in-place" [ json ])
                                                         run <- evalIO (ouro dir ["validate", "in.json"])
                                                         exitCode run === ExitSuccess

@@ -19,8 +19,6 @@ data TokenType
     = OpenParen        -- '('
     | CloseParen       -- ')'
     | DotDot           -- '..', between the ends of a range: (1..500)
-    | OpenBracket      -- '['
-    | CloseBracket     -- ']'
     -- Core lang symbols
     | Let              -- 'let' (used for binding context scopes)
     | Import           -- Module imports

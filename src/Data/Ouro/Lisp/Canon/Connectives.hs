@@ -48,7 +48,6 @@ connectives = \case
         -> S.Form pos [fnSym, params, connectives body]
 
     S.Form    pos items     -> S.Form    pos (map connectives items)
-    S.Bracket pos items     -> S.Bracket pos (map connectives items)
     S.Tagged  pos tag inner -> S.Tagged  pos tag (connectives inner)
     leaf                    -> leaf
 

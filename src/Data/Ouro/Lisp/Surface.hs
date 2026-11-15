@@ -36,7 +36,6 @@ import           Text.Megaparsec (SourcePos)
 --   * Form (...) is the one list container: records, arrays, special forms and calls share it.
 --     The source is written as this tree, but a program cannot build or read code as a value:
 --     Ouro has no quote, eval or macros (see Appendix A of the spec).
---   * Bracket [...] reserves an isolated structural grouping channel.
 --
 -- The surface AST is short-lived. Canon rewrites its derived forms into core ones, the static
 -- analysis checks it, and the Engine evaluates it, resolving its lazy environments, into the
@@ -48,7 +47,6 @@ data Expr
     | Tagged      SourcePos ReaderTag Expr  -- #uri "...", #date "..."
     | Hole        SourcePos Text            -- ?, ?name or ?..name in a case pattern
     | Form        SourcePos [Expr]          -- (...) nested lists
-    | Bracket     SourcePos [Expr]          -- [...] scoping or block grouping
     deriving (Show, Eq)
 
 
@@ -102,7 +100,6 @@ exprPos = \case
            Tagged      pos _ _ -> pos
            Hole        pos _   -> pos
            Form        pos _   -> pos
-           Bracket     pos _   -> pos
 
 
 -- A case branch head is a destructuring pattern when it is a record form,

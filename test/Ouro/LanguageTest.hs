@@ -202,8 +202,10 @@ formsAndBuiltins = Group "Special forms and built-ins"
                                                               "(graph g (let ($w (fn (x) (x x))) (:r (w w))))")
     , ("and through map",                           failsWith "a recursive function call"
                                                               "(graph g (let ($w (fn (x) (map (list x) (fn (y) (y y))))) (:r (w w))))")
-    , ("brackets are reserved",                     failsWith "an unrecognized compiler macro token shape"
+    , ("Ouro has no brackets",                      failsWith "Ouro has no brackets: an array is written in parentheses"
                                                               "(graph g (:a [1 2]))")
+    , ("nor a closing one",                         failsWith "Ouro has no brackets: an array is written in parentheses"
+                                                              "(graph g (:a 1]))")
 
     -- (attr key value) was removed: an attribute pair is written ':key value', and a key is
     -- never computed. This also removed gap 5, a computed key dropped inside a record.
@@ -592,7 +594,6 @@ endOfFile :: Group
 endOfFile = Group "Unclosed delimiters: a file that ends early"
     [ ("a graph left open",                  unclosedAt (1, 1)  "')'" "(graph g (:r 1)")
     , ("the innermost delimiter still open", unclosedAt (1, 10) "')'" "(graph g (:r (list 1 2)")
-    , ("an array left open",                 unclosedAt (1, 14) "']'" "(graph g (:r [1 2")
     , ("a key with no value",                unclosedAt (1, 10) "')'" "(graph g (:r")
     , ("a property with no subject",         unclosedAt (1, 10) "')'" "(graph g (:r #string")
     , ("a definition with no name",          unclosedAt (1, 1)  "')'" "(define/procedure")

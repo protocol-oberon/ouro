@@ -46,7 +46,6 @@ placeholders = \case
         -> holeFunction pos headExpr (map placeholders args)
 
     S.Form    pos items     -> S.Form    pos (map placeholders items)
-    S.Bracket pos items     -> S.Bracket pos (map placeholders items)
     S.Tagged  pos tag inner -> S.Tagged  pos tag (placeholders inner)
     leaf                    -> leaf
 
