@@ -1,26 +1,22 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/person/rembrandt/4
+(import std/actor)
+(import std/base)
+(import std/vocab)
+(import aat/name-type)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure person #record (#string slug #string label)
+  (:id (example (+ "person/" slug)) :type "Person" :_label label))
+
+;; A name in its parts; the middle name is a record of its own, known by its id
 (graph person-rembrandt-4
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/person/rembrandt/4"
-   :type "Person"
-   :_label "Rembrandt"
-   :identified_by ((:type "Name"
-                    :classified_as ((:id "http://vocab.getty.edu/aat/300404670"
-                                     :type "Type"
-                                     :_label "Primary Name"))
-                    :content "Rembrandt Harmenzoon van Rijn"
-                    :part ((:type "Name"
-                            :classified_as ((:id "http://vocab.getty.edu/aat/300404651"
-                                             :type "Type"
-                                             :_label "Given Name"))
-                            :content "Rembrandt")
-                           (:id "https://linked.art/example/Name/Harmenzoon"
-                            :type "Name"
-                            :classified_as ((:id "http://vocab.getty.edu/aat/300404654"
-                                             :type "Type"
-                                             :_label "Middle Name")))
-                           (:type "Name"
-                            :classified_as ((:id "http://vocab.getty.edu/aat/300404652"
-                                             :type "Type"
-                                             :_label "Family Name"))
-                            :content "van Rijn"))))))
+  (-> (person "rembrandt/4" "Rembrandt")
+      (with :context       "https://linked.art/ns/v1/linked-art.json")
+      (with :identified_by (list (with (base/name vocab/primary-name "Rembrandt Harmenzoon van Rijn")
+                                  :part (list (actor/given-name "Rembrandt")
+                                              (:id            (example "Name/Harmenzoon")
+                                               :type          "Name"
+                                               :classified_as (list name-type/middle-name))
+                                              (actor/family-name "van Rijn")))))))

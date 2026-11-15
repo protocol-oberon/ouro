@@ -28,6 +28,9 @@ Auction of Lot	300420001	The Activity is the auction of one lot, part of an auct
 Exhibiting in multiple locations	300054773	The Activity is an exhibition over all its venues
 Conservation Activity	300404519	The Activity is the conservation of an object
 Curating	300054277	The Activity is the curating of a collection
+Burial	300263485	The Activity is a person's burial
+## Genders
+Male	300189559	The gender male
 ## Price Types
 Starting Price	300417242	The MonetaryAmount is the price an auction of a lot starts at
 Estimated Price	300417244	The MonetaryAmount is an estimate of a lot's price

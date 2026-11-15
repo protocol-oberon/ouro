@@ -1,16 +1,16 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/person/rembrandt/41
+(import std/base)
+(import std/vocab)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure person #record (#string slug #string label)
+  (:id (example (+ "person/" slug)) :type "Person" :_label label))
+
+;; A name to show, and a name to sort by
 (graph person-rembrandt-41
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/person/rembrandt/41"
-   :type "Person"
-   :_label "Rembrandt"
-   :identified_by ((:type "Name"
-                    :classified_as ((:id "http://vocab.getty.edu/aat/300404670"
-                                     :type "Type"
-                                     :_label "Primary Name"))
-                    :content "Rembrandt van Rijn")
-                   (:type "Name"
-                    :classified_as ((:id "http://vocab.getty.edu/aat/300451544"
-                                     :type "Type"
-                                     :_label "Sorting Name"))
-                    :content "van Rijn, Rembrandt Harmenszoon"))))
+  (-> (person "rembrandt/41" "Rembrandt")
+      (with :context       "https://linked.art/ns/v1/linked-art.json")
+      (with :identified_by (list (base/name vocab/primary-name "Rembrandt van Rijn")
+                                 (base/name vocab/sort-name "van Rijn, Rembrandt Harmenszoon")))))

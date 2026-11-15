@@ -1,20 +1,18 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/person/bol/1
+(import std/base)
+(import std/vocab)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure person #record (#string slug #string label)
+  (:id (example (+ "person/" slug)) :type "Person" :_label label))
+
+;; A relationship between two people, assigned and named: student of Rembrandt
 (graph person-bol-1
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/person/bol/1"
-   :type "Person"
-   :_label "Ferdinand Bol"
-   :identified_by ((:type "Name"
-                    :classified_as ((:id "http://vocab.getty.edu/aat/300404670"
-                                     :type "Type"
-                                     :_label "Primary Name"))
-                    :content "Ferdinand Bol"))
-   :attributed_by ((:type "AttributeAssignment"
-                    :identified_by ((:type "Name"
-                                     :classified_as ((:id "http://vocab.getty.edu/aat/300404669"
-                                                      :type "Type"
-                                                      :_label "Display Name"))
-                                     :content "Student Of"))
-                    :assigned ((:id "https://linked.art/example/person/rembrandt"
-                                :type "Person"
-                                :_label "Rembrandt"))))))
+  (-> (person "bol/1" "Ferdinand Bol")
+      (with :context       "https://linked.art/ns/v1/linked-art.json")
+      (with :identified_by (list (base/name vocab/primary-name "Ferdinand Bol")))
+      (with :attributed_by ((:type          "AttributeAssignment"
+                             :identified_by (list (base/name vocab/display-name "Student Of"))
+                             :assigned      (list (person "rembrandt" "Rembrandt")))))))

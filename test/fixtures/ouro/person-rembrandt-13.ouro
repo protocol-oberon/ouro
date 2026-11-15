@@ -1,17 +1,18 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/person/rembrandt/13
+(import std/base)
+(import std/time)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure person #record (#string slug #string label)
+  (:id (example (+ "person/" slug)) :type "Person" :_label label))
+
+;; Born on a day, and died on a day in a place
 (graph person-rembrandt-13
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/person/rembrandt/13"
-   :type "Person"
-   :_label "Rembrandt"
-   :born (:type "Birth"
-          :timespan (:type "TimeSpan"
-                     :begin_of_the_begin "1606-07-15T00:00:00Z"
-                     :end_of_the_end "1606-07-15T23:59:59Z"))
-   :died (:type "Death"
-          :timespan (:type "TimeSpan"
-                     :begin_of_the_begin "1669-10-04T00:00:00Z"
-                     :end_of_the_end "1669-10-04T23:59:59Z")
-          :took_place_at ((:id "http://vocab.getty.edu/tgn/7006952"
-                           :type "Place"
-                           :_label "Amsterdam")))))
+  (-> (person "rembrandt/13" "Rembrandt")
+      (with :context "https://linked.art/ns/v1/linked-art.json")
+      (with :born    (:type "Birth" :timespan (time/day "1606-07-15")))
+      (with :died    (:type          "Death"
+                      :timespan      (time/day "1669-10-04")
+                      :took_place_at (list (base/tgn "7006952" "Amsterdam"))))))

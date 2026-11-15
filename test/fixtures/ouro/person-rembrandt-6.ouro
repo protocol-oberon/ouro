@@ -1,9 +1,14 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/person/rembrandt/6
+(import std/base)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure person #record (#string slug #string label)
+  (:id (example (+ "person/" slug)) :type "Person" :_label label))
+
+;; The same person in ULAN
 (graph person-rembrandt-6
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/person/rembrandt/6"
-   :type "Person"
-   :_label "Rembrandt"
-   :equivalent ((:id "http://vocab.getty.edu/ulan/500011051"
-                 :type "Person"
-                 :_label "Rembrandt"))))
+  (-> (person "rembrandt/6" "Rembrandt")
+      (with :context    "https://linked.art/ns/v1/linked-art.json")
+      (with :equivalent (list (base/ulan "500011051" "Person" "Rembrandt")))))

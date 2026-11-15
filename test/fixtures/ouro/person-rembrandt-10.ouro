@@ -1,12 +1,15 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/person/rembrandt/10
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure person #record (#string slug #string label)
+  (:id (example (+ "person/" slug)) :type "Person" :_label label))
+
+;; A name and where it comes from: assigned by a book that uses it
 (graph person-rembrandt-10
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/person/rembrandt/10"
-   :type "Person"
-   :_label "Rembrandt"
-   :identified_by ((:type "Name"
-                    :content "Rembrandt van Rijn"
-                    :assigned_by ((:type "AttributeAssignment"
-                                   :used_specific_object ((:id "https://linked.art/example/text/gardner-art"
-                                                           :type "LinguisticObject"
-                                                           :_label "Art through the Ages"))))))))
+  (-> (person "rembrandt/10" "Rembrandt")
+      (with :context       "https://linked.art/ns/v1/linked-art.json")
+      (with :identified_by ((:type        "Name"
+                             :content     "Rembrandt van Rijn"
+                             :assigned_by ((:type                 "AttributeAssignment"
+                                            :used_specific_object ((:id (example "text/gardner-art") :type "LinguisticObject" :_label "Art through the Ages")))))))))

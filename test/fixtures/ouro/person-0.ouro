@@ -1,62 +1,39 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/person/0
+(import std/actor)
+(import std/base)
+(import std/time)
+(import aat/gender)
+(import aat/nationality)
+(import aat/statement-type)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure person #record (#string slug #string label)
+  (:id (example (+ "person/" slug)) :type "Person" :_label label))
+
+(define/procedure place #record (#string label)
+  (:type "Place" :_label label))
+
+;; Born and died over a day, from midnight to midnight, at a place
+(define/procedure life-event #record (#string type #string label #string day #string next #string where)
+  (:type          type
+   :_label        label
+   :timespan      (time/span (+ day "T00:00:00Z") (+ next "T00:00:00Z"))
+   :took_place_at (list (place where))))
+
+;; A person's life: gender and nationality, birth and death, working life, home and address
 (graph person-0
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/person/0"
-   :type "Person"
-   :_label "Rembrandt"
-   :classified_as ((:id "http://vocab.getty.edu/aat/300189559"
-                    :type "Type"
-                    :_label "Male"
-                    :classified_as ((:id "http://vocab.getty.edu/aat/300055147"
-                                     :type "Type"
-                                     :_label "Gender")))
-                   (:id "http://vocab.getty.edu/aat/300111175"
-                    :type "Type"
-                    :_label "Dutch"
-                    :classified_as ((:id "http://vocab.getty.edu/aat/300379842"
-                                     :type "Type"
-                                     :_label "Nationality"))))
-   :identified_by ((:type "Name"
-                    :content "Rembrandt Harmenszoon van Rijn"))
-   :referred_to_by ((:type "LinguisticObject"
-                     :classified_as ((:id "http://vocab.getty.edu/aat/300435422"
-                                      :type "Type"
-                                      :_label "Biography Statement"
-                                      :classified_as ((:id "http://vocab.getty.edu/aat/300418049"
-                                                       :type "Type"
-                                                       :_label "Brief Text"))))
-                     :content "Rembrandt was a Dutch draughtsman, painter and printmaker."))
-   :born (:type "Birth"
-          :_label "Birth of Rembrandt"
-          :timespan (:type "TimeSpan"
-                     :begin_of_the_begin "1606-07-15T00:00:00Z"
-                     :end_of_the_end "1606-07-16T00:00:00Z")
-          :took_place_at ((:type "Place"
-                           :_label "Leiden")))
-   :died (:type "Death"
-          :_label "Death of Rembrandt"
-          :timespan (:type "TimeSpan"
-                     :begin_of_the_begin "1669-10-04T00:00:00Z"
-                     :end_of_the_end "1669-10-05T00:00:00Z")
-          :took_place_at ((:type "Place"
-                           :_label "Amsterdam")))
-   :carried_out ((:type "Activity"
-                  :_label "Active Dates"
-                  :classified_as ((:id "http://vocab.getty.edu/aat/300393177"
-                                   :type "Type"
-                                   :_label "Professional Activity"))
-                  :timespan (:type "TimeSpan"
-                             :begin_of_the_begin "1631-01-01T00:00:00Z"
-                             :end_of_the_end "1669-10-05T00:00:00Z")
-                  :took_place_at ((:type "Place"
-                                   :_label "Amsterdam"))))
-   :residence ((:type "Place"
-                :_label "Nieuwe Doelenstraat"))
-   :contact_point ((:type "Identifier"
-                    :classified_as ((:id "http://vocab.getty.edu/aat/300386983"
-                                     :type "Type"
-                                     :_label "Street Address"))
-                    :content "Jodenbreestraat 4, 1011NK Amsterdam"))
-   :equivalent ((:id "http://vocab.getty.edu/ulan/500011051"
-                 :type "Person"
-                 :_label "Rembrandt"))))
+  (-> (person "0" "Rembrandt")
+      (with :context        "https://linked.art/ns/v1/linked-art.json")
+      (with :classified_as  (list gender/male nationality/dutch))
+      (with :identified_by  ((:type "Name" :content "Rembrandt Harmenszoon van Rijn")))
+      (with :referred_to_by (list (base/statement statement-type/biography-statement "Rembrandt was a Dutch draughtsman, painter and printmaker.")))
+      (with :born           (life-event "Birth" "Birth of Rembrandt" "1606-07-15" "1606-07-16" "Leiden"))
+      (with :died           (life-event "Death" "Death of Rembrandt" "1669-10-04" "1669-10-05" "Amsterdam"))
+      (with :carried_out    (list (-> (actor/active (time/span "1631-01-01T00:00:00Z" "1669-10-05T00:00:00Z"))
+                                      (with :_label        "Active Dates")
+                                      (with :took_place_at (list (place "Amsterdam"))))))
+      (with :residence      (list (place "Nieuwe Doelenstraat")))
+      (with :contact_point  (list (actor/street-address "Jodenbreestraat 4, 1011NK Amsterdam")))
+      (with :equivalent     (list (base/ulan "500011051" "Person" "Rembrandt")))))

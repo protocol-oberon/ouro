@@ -1,12 +1,13 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/person/rembrandt/32
+(import aat/gender)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure person #record (#string slug #string label)
+  (:id (example (+ "person/" slug)) :type "Person" :_label label))
+
 (graph person-rembrandt-32
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/person/rembrandt/32"
-   :type "Person"
-   :_label "Rembrandt"
-   :classified_as ((:id "http://vocab.getty.edu/aat/300189559"
-                    :type "Type"
-                    :_label "Male"
-                    :classified_as ((:id "http://vocab.getty.edu/aat/300055147"
-                                     :type "Type"
-                                     :_label "Gender"))))))
+  (-> (person "rembrandt/32" "Rembrandt")
+      (with :context       "https://linked.art/ns/v1/linked-art.json")
+      (with :classified_as (list gender/male))))

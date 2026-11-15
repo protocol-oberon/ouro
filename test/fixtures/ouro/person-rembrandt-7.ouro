@@ -1,16 +1,18 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/person/rembrandt/7
+(import std/actor)
+(import std/base)
+(import std/time)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure person #record (#string slug #string label)
+  (:id (example (+ "person/" slug)) :type "Person" :_label label))
+
+;; A working life as a painter: Painter classifies the activity, so it is a plain Type here,
+;; not aat/occupation's, which is classified Occupation
 (graph person-rembrandt-7
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/person/rembrandt/7"
-   :type "Person"
-   :_label "Rembrandt"
-   :carried_out ((:type "Activity"
-                  :classified_as ((:id "http://vocab.getty.edu/aat/300393177"
-                                   :type "Type"
-                                   :_label "Professional Activity")
-                                  (:id "http://vocab.getty.edu/aat/300025136"
-                                   :type "Type"
-                                   :_label "Painter"))
-                  :timespan (:type "TimeSpan"
-                             :begin_of_the_begin "1631-01-01T00:00:00Z"
-                             :end_of_the_end "1669-10-04T23:59:59Z")))))
+  (-> (person "rembrandt/7" "Rembrandt")
+      (with :context     "https://linked.art/ns/v1/linked-art.json")
+      (with :carried_out (list (adjoin (actor/active (time/span "1631-01-01T00:00:00Z" "1669-10-04T23:59:59Z"))
+                                :classified_as (base/aat "300025136" "Painter"))))))

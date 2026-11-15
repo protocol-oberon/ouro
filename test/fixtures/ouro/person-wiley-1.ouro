@@ -1,12 +1,15 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/person/wiley/1
+(import std/base)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure person #record (#string slug #string label)
+  (:id (example (+ "person/" slug)) :type "Person" :_label label))
+
+;; A term from outside the Getty vocabularies, Wikidata's, classified by an AAT meta-type
 (graph person-wiley-1
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/person/wiley/1"
-   :type "Person"
-   :_label "Kehinde Wiley"
-   :classified_as ((:id "http://www.wikidata.org/entity/Q3007177"
-                    :type "Type"
-                    :_label "African-American"
-                    :classified_as ((:id "http://vocab.getty.edu/aat/300250435"
-                                     :type "Type"
-                                     :_label "Ethnicity"))))))
+  (-> (person "wiley/1" "Kehinde Wiley")
+      (with :context       "https://linked.art/ns/v1/linked-art.json")
+      (with :classified_as (list (adjoin (:id #uri "http://www.wikidata.org/entity/Q3007177" :type "Type" :_label "African-American")
+                                  :classified_as (base/aat "300250435" "Ethnicity"))))))

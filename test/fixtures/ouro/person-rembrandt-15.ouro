@@ -1,15 +1,20 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/person/rembrandt/15
+(import aat/digital-type)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure person #record (#string slug #string label)
+  (:id (example (+ "person/" slug)) :type "Person" :_label label))
+
+;; A picture of a person: a visual item, shown digitally by an image at a URL
 (graph person-rembrandt-15
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/person/rembrandt/15"
-   :type "Person"
-   :_label "Rembrandt"
-   :representation ((:type "VisualItem"
-                     :digitally_shown_by ((:type "DigitalObject"
-                                           :_label "Image of Rembrandt"
-                                           :classified_as ((:id "http://vocab.getty.edu/aat/300215302"
-                                                            :type "Type"
-                                                            :_label "Digital Image"))
-                                           :format "image/jpeg"
-                                           :access_point ((:id "https://upload.wikimedia.org/wikipedia/commons/b/bd/Rembrandt_van_Rijn_-_Self-Portrait_-_Google_Art_Project.jpg"
-                                                           :type "DigitalObject"))))))))
+  (-> (person "rembrandt/15" "Rembrandt")
+      (with :context        "https://linked.art/ns/v1/linked-art.json")
+      (with :representation ((:type               "VisualItem"
+                              :digitally_shown_by ((:type          "DigitalObject"
+                                                    :_label        "Image of Rembrandt"
+                                                    :classified_as (list digital-type/digital-image)
+                                                    :format        "image/jpeg"
+                                                    :access_point  ((:id   #uri "https://upload.wikimedia.org/wikipedia/commons/b/bd/Rembrandt_van_Rijn_-_Self-Portrait_-_Google_Art_Project.jpg"
+                                                                     :type "DigitalObject")))))))))

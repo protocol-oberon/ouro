@@ -1,16 +1,18 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/person/rembrandt/14
+(import std/time)
+(import aat/activity-type)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure person #record (#string slug #string label)
+  (:id (example (+ "person/" slug)) :type "Person" :_label label))
+
+;; An activity a person took part in without carrying it out: their own burial
 (graph person-rembrandt-14
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/person/rembrandt/14"
-   :type "Person"
-   :_label "Rembrandt"
-   :participated_in ((:type "Activity"
-                      :classified_as ((:id "http://vocab.getty.edu/aat/300263485"
-                                       :type "Type"
-                                       :_label "Burial"))
-                      :timespan (:type "TimeSpan"
-                                 :begin_of_the_begin "1669-10-04T00:00:00Z"
-                                 :end_of_the_end "1669-11-01T23:59:59Z")
-                      :took_place_at ((:id "https://linked.art/example/place/westerkerk"
-                                       :type "Place"
-                                       :_label "Place of Westerkerk"))))))
+  (-> (person "rembrandt/14" "Rembrandt")
+      (with :context         "https://linked.art/ns/v1/linked-art.json")
+      (with :participated_in ((:type          "Activity"
+                               :classified_as (list activity-type/burial)
+                               :timespan      (time/day-range "1669-10-04" "1669-11-01")
+                               :took_place_at ((:id (example "place/westerkerk") :type "Place" :_label "Place of Westerkerk")))))))

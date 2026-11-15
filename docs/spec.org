@@ -320,7 +320,7 @@ A module added to =lib/= is not noticed by an incremental build. =file-embed= tr
 
 **** =aat=
 
-=aat= holds Linked Art's recommended terms (linked.art/model/vocab/recommended), 195 of them, and the terms its examples use beyond them. It has one module per section of Linked Art's list, sixteen, and one each for the activity, price, role and visual types and the styles its examples use:
+=aat= holds Linked Art's recommended terms (linked.art/model/vocab/recommended), 195 of them, and the terms its examples use beyond them. It has one module per section of Linked Art's list, sixteen, and one each for the activity, price, role and visual types, the styles and the genders its examples use:
 
 1. =name-type=
 2. =identifier-type=
@@ -343,6 +343,7 @@ A module added to =lib/= is not noticed by an incremental build. =file-embed= tr
 19. =role-type=
 20. =style=
 21. =visual-type=
+22. =gender=
 
 - Each term is a constant, built with =std='s constructor for its kind, so =aat= imports =std=, never the reverse:
 
@@ -357,6 +358,7 @@ A module added to =lib/= is not noticed by an incremental build. =file-embed= tr
   | a currency                          | =provenance/currency=                                |
   | a nationality, occupation or shape  | =base/nationality=, =base/occupation=, =base/shape=  |
   | a style                             | =base/style=                                         |
+  | a gender                            | =actor/gender=                                       |
 
 - The qualifier says the kind, so a language and a nationality share a name: =language/dutch=, =nationality/dutch=.
 

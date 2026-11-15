@@ -1,9 +1,11 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/person/rembrandt/2
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure person #record (#string slug #string label)
+  (:id (example (+ "person/" slug)) :type "Person" :_label label))
+
 (graph person-rembrandt-2
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/person/rembrandt/2"
-   :type "Person"
-   :_label "Rembrandt"
-   :member_of ((:id "https://linked.art/example/group/stluke"
-                :type "Group"
-                :_label "Guild of St Luke"))))
+  (-> (person "rembrandt/2" "Rembrandt")
+      (with :context   "https://linked.art/ns/v1/linked-art.json")
+      (with :member_of ((:id (example "group/stluke") :type "Group" :_label "Guild of St Luke")))))

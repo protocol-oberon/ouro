@@ -36,6 +36,7 @@ my %sections = (
     "Shapes"            => ["shape",           "std/base",       "base/shape",          "each classified as Shape, as Linked Art requires",       "a shape"],
     "Activity Types"    => ["activity-type",   "std/base",       "base/aat",            "each a Type, to classify an Activity"],
     "Price Types"       => ["price-type",      "std/base",       "base/aat",            "each a Type, to classify a MonetaryAmount"],
+    "Genders"           => ["gender",          "std/actor",      "actor/gender",        "each classified as Gender, as Linked Art requires"],
     "Styles"            => ["style",           "std/base",       "base/style",          "each classified as Style, as Linked Art requires"],
     "Visual Types"      => ["visual-type",     "std/base",       "base/aat",            "each a Type, to classify a VisualItem"],
     "Role Types"        => ["role-type",       "std/base",       "base/aat",            "each a Type, to classify a part of an Activity by the role of who carries it out"],
