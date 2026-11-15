@@ -29,7 +29,7 @@ import           Data.Ouro.Lisp.Analysis.Forms (BlockTarget (..), FrameEntry (..
                                                 hasValidOtherwise, holeName,
                                                 isRestHole, isSubjectHole,
                                                 letBindings, param, shadowsForm)
-import           Data.Ouro.Lisp.Eval.Builtins  (builtinRegistry)
+import           Data.Ouro.Lisp.Eval.Builtins  (builtinArity, builtinRegistry)
 import qualified Data.Ouro.Lisp.Eval.Types     as L
 import           Data.Ouro.Lisp.Function       (checkParams, functionBody,
                                                 isFunctionKeyword)
@@ -499,9 +499,10 @@ form scope pos items = case items of
 
 
 -- A call of a known function has as many arguments as the function has parameters (SCP0002),
--- reported at the call with how the function is called, as the evaluator reports it. Only a
--- call written with the function's name is known here: a function reached through a value, a
--- parameter, a let binding or map, is checked when it is called.
+-- reported at the call with how the function is called, as the evaluator reports it, and a
+-- call of a built-in as many as it takes (see 'builtinArity'). Only a call written with the
+-- function's name is known here: a function reached through a value, a parameter, a let
+-- binding or map, is checked when it is called.
 arity :: Scope -> SourcePos -> [S.Expr] -> Found
 arity scope pos = \case
     S.Symbol _ name : args
@@ -509,6 +510,17 @@ arity scope pos = \case
         , length params /= length args
         -> incorrectArity called (length params) (length args)
            & maybe id (\template -> withBlurb ("It is called " <> template <> ".")) (L.callTemplate called params)
+           & OuroError pos
+           & problem
+    -- A built-in, unless a binding around the call or a function of the module has its name,
+    -- takes the number of arguments it is listed with, as the evaluator would report
+    S.Symbol _ name : args
+        | Nothing <- known scope name
+        , not (bound scope name)
+        , Just (expected, hint) <- Map.lookup name builtinArity
+        , expected /= length args
+        -> incorrectArity name expected (length args)
+           & withBlurb hint
            & OuroError pos
            & problem
     _otherCall

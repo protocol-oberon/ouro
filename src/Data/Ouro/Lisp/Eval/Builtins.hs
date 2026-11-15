@@ -3,7 +3,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Data.Ouro.Lisp.Eval.Builtins
-( builtinRegistry
+( builtinArity
+, builtinRegistry
 , parseISO8601
 , isNumber
 , distinctValues
@@ -72,8 +73,47 @@ builtinRegistry = Map.fromList
                       ]
 
 
+-- builtinArity.
+--
+-- How many arguments each built-in takes, as every built-in takes a fixed number, and the
+-- hint for a call with another number. The static analysis checks a call written with a
+-- built-in's name against it, wherever the call is written; a handler reports a call made
+-- through a value, as in (map xs f), with the same hint. A built-in Ouro cannot write, as
+-- %adjoin, is made only by Canon and has none.
+builtinArity :: Map.Map Text (Int, Text)
+builtinArity = Map.fromList $
+       [ (op, (2, operandHint op)) | op <- ["+", "-", "*", "/", ">", ">=", "<", "<=", "eq", "neq"] ]
+    <> [ ("union",         (2, setHint "union" "is every value of either" "unions"))
+       , ("intersect",     (2, setHint "intersect" "is every value of both" "intersections"))
+       , ("setminus",      (2, setHint "setminus" "is every value of the first that is not in the second" "setminus"))
+       , ("subset",        (2, setHint "subset" "is true when every value of the first is in the second" "subset"))
+       , ("not",           (1, "not takes one Boolean: (not b)."))
+       , ("len",           (1, "len takes one Array or String: (len xs)."))
+       , ("contains",      (2, "contains takes an Array or a String, then the value to look for: (contains (1 2 3) 2)."))
+       , ("distinct",      (1, "distinct takes one Array: (distinct (1 2 1))."))
+       , ("unions",        (1, "unions takes one Array of Arrays: (unions ((1) (2 3)))."))
+       , ("intersections", (1, "intersections takes one Array of Arrays: (intersections ((1 2) (2 3)))."))
+       ]
+    <> [ (unit, (1, unit <> " takes one Number: (" <> unit <> " 2)."))
+       | unit <- ["years", "months", "days", "hours", "minutes", "seconds", "years-end", "months-end"] ]
+
+
+-- The hint for an operator given any number of operands but two
+operandHint :: Text -> Text
+operandHint op = op <> " takes two operands, (" <> op <> " a b). For more, fold them: (fold (a b c) start " <> op <> ")."
+
+-- The hint for a set operation given any number of Arrays but two, pointing to the operation
+-- over an Array of sets, where there is one
+setHint :: Text -> Text -> Text -> Text
+setHint name meaning many =
+    name <> " takes two Arrays: (" <> name <> " (1 2) (2 3)) " <> meaning <> "." <> manySets
+    where
+    manySets = case many == name of
+                   True  -> ""
+                   False -> " For more, " <> many <> " takes one Array of them: (" <> many <> " (a b c))."
+
+
 --- Core Math & String Accumulators ---
--- Note: Variadic forms are unrolled during the compiler's desugar pass.
 
 -- handleAddition.
 --
@@ -421,8 +461,7 @@ functionComparison pos op a b =
 wrongOperandCount :: Text -> [L.Expr] -> ErrorContext
 wrongOperandCount op operands =
     Data.Ouro.Error.Diagnostics.incorrectArity op 2 (length operands)
-    & Data.Ouro.Error.Diagnostics.withBlurb ( op <> " takes two operands, (" <> op <> " a b). "
-                                           <> "For more, fold them: (fold (a b c) start " <> op <> ")." )
+    & Data.Ouro.Error.Diagnostics.withBlurb (operandHint op)
 
 
 isNumber :: L.Expr -> Bool
@@ -574,32 +613,28 @@ handleDistinct pos =
 --   (setminus (1 2 3) (2))       (1 3)        in the first and not the second
 --   (subset (1 2) (2 3 1))       true         every value of the first is in the second
 handleUnion :: SourcePos -> [L.Expr] -> Reader Env L.Expr
-handleUnion pos = twoSets pos "union" unionOf "is every value of either" "unions"
+handleUnion pos = twoSets pos "union" unionOf
 
 handleIntersect :: SourcePos -> [L.Expr] -> Reader Env L.Expr
-handleIntersect pos = twoSets pos "intersect" intersectionOf "is every value of both" "intersections"
+handleIntersect pos = twoSets pos "intersect" intersectionOf
 
 handleSetminus :: SourcePos -> [L.Expr] -> Reader Env L.Expr
-handleSetminus pos = twoSets pos "setminus" (L.Array . difference) "is every value of the first that is not in the second" "setminus"
+handleSetminus pos = twoSets pos "setminus" (L.Array . difference)
 
 -- a ⊆ b exactly when a ∖ b is empty
 handleSubset :: SourcePos -> [L.Expr] -> Reader Env L.Expr
-handleSubset pos = twoSets pos "subset" (L.Primitive . I.Boolean . null . difference) "is true when every value of the first is in the second" "subset"
+handleSubset pos = twoSets pos "subset" (L.Primitive . I.Boolean . null . difference)
 
--- A set operation of exactly two Arrays; with another number, an arity error that points
--- to the operation over an Array of sets, where there is one
-twoSets :: SourcePos -> Text -> ([[L.Expr]] -> L.Expr) -> Text -> Text -> [L.Expr] -> Reader Env L.Expr
-twoSets pos name operation meaning many = \case
+-- A set operation of exactly two Arrays; with another number, an arity error with the hint
+-- the static analysis gives (see 'builtinArity')
+twoSets :: SourcePos -> Text -> ([[L.Expr]] -> L.Expr) -> [L.Expr] -> Reader Env L.Expr
+twoSets pos name operation = \case
     args@[_, _] -> withSets pos name args operation
     args        -> Data.Ouro.Error.Diagnostics.incorrectArity name 2 (length args)
-                   & Data.Ouro.Error.Diagnostics.withBlurb (name <> " takes two Arrays: (" <> name <> " (1 2) (2 3)) " <> meaning <> "." <> manySets)
+                   & maybe id (Data.Ouro.Error.Diagnostics.withBlurb . snd) (Map.lookup name builtinArity)
                    & OuroError pos
                    & L.EvalError
                    & pure
-    where
-    manySets = case many == name of
-                   True  -> ""
-                   False -> " For more, " <> many <> " takes one Array of them: (" <> many <> " (a b c))."
 
 -- handleUnions and handleIntersections.
 --

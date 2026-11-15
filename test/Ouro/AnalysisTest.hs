@@ -5,9 +5,13 @@ module Ouro.AnalysisTest
 , recursion
 ) where
 
+import qualified Data.Map                     as Map
+import           Data.Ouro.Lisp.Eval.Builtins (builtinArity, builtinRegistry)
+import qualified Data.Text                    as T
 import           Hedgehog
-import           Utils    (compilesToJSON, failsWith, failsWithout,
-                           importsFailAt, importsFailTimes)
+import           Utils                        (compilesToJSON, failsWith,
+                                               failsWithout, importsFailAt,
+                                               importsFailTimes)
 
 
 -- The static analysis checks every module as written, before anything is evaluated, so a
@@ -71,6 +75,22 @@ calls = Group "Static analysis: a call of a known function has its arity"
                                                                 "(define/procedure c () 1) (define/procedure h () (c 1)) (graph g (:r 1))")
     , ("a name bound around the call is its own", compilesToJSON "(define/procedure f (x) x) (graph g (let ($f (fn (a b) a)) (:r (f 1 2))))"
                                                                  "{\"r\": 1}")
+
+      -- A built-in takes a fixed number of arguments, checked as a function's are
+    , ("a built-in's wrong arity, uncalled",      importsFailAt "SCP0002" ("inline-test", 1, 24) ["nameOfFunc = \"+\"", "+ takes two operands, (+ a b). For more, fold them: (fold (a b c) start +)."] []
+                                                                "(define/procedure h () (+ 1 2 3)) (graph g (:r 1))")
+    , ("in a branch not taken",                   importsFailAt "SCP0002" ("inline-test", 1, 43) ["nameOfFunc = \"len\"", "len takes one Array or String: (len xs)."] []
+                                                                "(graph g (:r (case 1 ((= 1) 1) (otherwise (len (1) (2))))))")
+    , ("with the hint for many sets",             importsFailAt "SCP0002" ("inline-test", 1, 24) ["For more, unions takes one Array of them: (unions (a b c))."] []
+                                                                "(define/procedure h () (union (1) (2) (3))) (graph g (:r 1))")
+    , ("and in a guard, with the target",         importsFailAt "SCP0002" ("inline-test", 1, 23) ["nameOfFunc = \"<\""] []
+                                                                "(graph g (:r (case 5 ((< 1 9) \"a\") (otherwise \"b\"))))")
+    , ("a binding of a built-in's name is its own", compilesToJSON "(graph g (let ($len (fn (a b) a)) (:r (len 1 2))))"
+                                                                   "{\"r\": 1}")
+    , ("and so is a function of the module",      compilesToJSON "(define/procedure len (a b) a) (graph g (:r (len 1 2)))"
+                                                                 "{\"r\": 1}")
+    , ("every built-in Ouro can write has an arity", withTests 1 . property $
+                                                      [ name | name <- Map.keys builtinRegistry, not ("%" `T.isPrefixOf` name), not (Map.member name builtinArity) ] === [])
     ]
 
 
