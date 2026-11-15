@@ -10,7 +10,7 @@
         {
           "id": "http://vocab.getty.edu/aat/300435434",
           "type": "Type",
-          "_label": "Copyright/License Statement",
+          "_label": "Rights Statement",
           "classified_as": [
             {
               "id": "http://vocab.getty.edu/aat/300418049",

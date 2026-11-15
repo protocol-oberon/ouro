@@ -1,9 +1,14 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/visual/spring/2
+(import std/base)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure visual #record (#string slug #string label)
+  (:id (example (+ "visual/" slug)) :type "VisualItem" :_label label))
+
+;; What a painting is about, rather than what it shows: spring, the season
 (graph visual-spring-2
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/visual/spring/2"
-   :type "VisualItem"
-   :_label "Visual Content of Spring"
-   :about ((:id "http://vocab.getty.edu/aat/300133097"
-            :type "Type"
-            :_label "Spring (season)"))))
+  (-> (visual "spring/2" "Visual Content of Spring")
+      (with :context "https://linked.art/ns/v1/linked-art.json")
+      (with :about   (list (base/aat "300133097" "Spring (season)")))))

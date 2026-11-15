@@ -1,39 +1,24 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/visual/0
+(import std/base)
+(import std/time)
+(import aat/style)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure visual #record (#string slug #string label)
+  (:id (example (+ "visual/" slug)) :type "VisualItem" :_label label))
+
+;; A painting's appearance: its style, what it shows, a place and a kind of thing, and who made it when
 (graph visual-0
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/visual/0"
-   :type "VisualItem"
-   :_label "Appearance of Miro's The Farm"
-   :classified_as ((:id "http://vocab.getty.edu/aat/300021495"
-                    :type "Type"
-                    :_label "Cubist"
-                    :classified_as ((:id "http://vocab.getty.edu/aat/300015646"
-                                     :type "Type"
-                                     :_label "Style"))))
-   :identified_by ((:type "Name"
-                    :content "Appearance of The Farm"))
-   :referred_to_by ((:type "LinguisticObject"
-                     :classified_as ((:id "http://vocab.getty.edu/aat/300435416"
-                                      :type "Type"
-                                      :_label "Description"
-                                      :classified_as ((:id "http://vocab.getty.edu/aat/300418049"
-                                                       :type "Type"
-                                                       :_label "Brief Text"))))
-                     :content "A brilliant amalgamation of an intense, even primitive, realism with the formal vocabulary of cubism."))
-   :represents ((:id "http://vocab.getty.edu/tgn/7300934"
-                 :type "Place"
-                 :_label "Mont-roig del Camp"))
-   :represents_instance_of_type ((:id "http://vocab.getty.edu/aat/300132410"
-                                  :type "Type"
-                                  :_label "Tree"))
-   :shown_by ((:id "https://www.nga.gov/collection/art-object-69660"
-               :type "HumanMadeObject"
-               :_label "The Farm"))
-   :created_by (:type "Creation"
-                :timespan (:type "TimeSpan"
-                           :_label "1921-1922"
-                           :begin_of_the_begin "1921-01-01T00:00:00Z"
-                           :end_of_the_end "1922-12-31T23:59:59Z")
-                :carried_out_by ((:id "http://vocab.getty.edu/ulan/500014094"
-                                  :type "Person"
-                                  :_label "Miro")))))
+  (-> (visual "0" "Appearance of Miro's The Farm")
+      (with :context                     "https://linked.art/ns/v1/linked-art.json")
+      (with :classified_as               (list style/cubist))
+      (with :identified_by               ((:type "Name" :content "Appearance of The Farm")))
+      (with :referred_to_by              (list (base/description "A brilliant amalgamation of an intense, even primitive, realism with the formal vocabulary of cubism.")))
+      (with :represents                  (list (base/tgn "7300934" "Mont-roig del Camp")))
+      (with :represents_instance_of_type (list (base/aat "300132410" "Tree")))
+      (with :shown_by                    ((:id #uri "https://www.nga.gov/collection/art-object-69660" :type "HumanMadeObject" :_label "The Farm")))
+      (with :created_by                  (:type           "Creation"
+                                          :timespan       (with (time/year-range "1921" "1922") :_label "1921-1922")
+                                          :carried_out_by (list (base/ulan "500014094" "Person" "Miro"))))))

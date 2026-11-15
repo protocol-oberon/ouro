@@ -1,14 +1,15 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/visual/nightwatch/1
+(import std/base)
+(import aat/statement-type)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure visual #record (#string slug #string label)
+  (:id (example (+ "visual/" slug)) :type "VisualItem" :_label label))
+
+;; An image's rights, as a statement
 (graph visual-nightwatch-1
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/visual/nightwatch/1"
-   :type "VisualItem"
-   :_label "Visual Content of Night Watch"
-   :referred_to_by ((:type "LinguisticObject"
-                     :classified_as ((:id "http://vocab.getty.edu/aat/300435434"
-                                      :type "Type"
-                                      :_label "Copyright/License Statement"
-                                      :classified_as ((:id "http://vocab.getty.edu/aat/300418049"
-                                                       :type "Type"
-                                                       :_label "Brief Text"))))
-                     :content "Public Domain"))))
+  (-> (visual "nightwatch/1" "Visual Content of Night Watch")
+      (with :context        "https://linked.art/ns/v1/linked-art.json")
+      (with :referred_to_by (list (base/statement statement-type/rights-statement "Public Domain")))))

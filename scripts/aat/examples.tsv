@@ -31,6 +31,12 @@ Curating	300054277	The Activity is the curating of a collection
 ## Price Types
 Starting Price	300417242	The MonetaryAmount is the price an auction of a lot starts at
 Estimated Price	300417244	The MonetaryAmount is an estimate of a lot's price
+## Styles
+Cubist	300021495	The style of Cubism
+Baroque	300021147	The style of the Baroque
+Impressionism	300021503	The style of Impressionism
+## Visual Types
+Portrait	300015637	The VisualItem is a portrait
 ## Role Types
 Director	300025654	The part of a creation is the work of its director
 Producer	300197742	The part of a creation is the work of its producer
