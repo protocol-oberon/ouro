@@ -44,9 +44,12 @@ allocValues mkFrame pos bindings =
     fst <$> allocate mkFrame [ (name, pos, S.Hole pos ("?" <> name), L.Forced value) | (name, value) <- bindings ]
 
 
+-- Its cost does not grow with the store: the next address is one past the highest, which
+-- an IntMap finds without counting its entries, and each promise is inserted on its own,
+-- where a union would rebuild the whole store.
 allocate :: (Map.Map Text Binding -> Env) -> [(Text, SourcePos, S.Expr, L.PromiseState)] -> EvalM (Env, [L.Addr])
 allocate mkFrame entries = do
-    base <- gets (IntMap.size . (^. L.promises))
+    base <- gets (maybe 0 ((+ 1) . fst) . IntMap.lookupMax . (^. L.promises))
     let addrs  = take (length entries) [base ..]
         names  = Map.fromListWith (\_later first -> first)
                      [ (name, Promised addr) | ((name, _, _, _), addr) <- zip entries addrs ]
@@ -60,8 +63,8 @@ allocate mkFrame entries = do
                 Just (Promised bound) | bound == addr -> frame & L.localScope %~ Map.delete name
                 _otherBinding                         -> frame
 
-    modify $ L.promises %~ IntMap.union (IntMap.fromList
-        [ (addr, L.Promise (ownEnv name addr) expr name pos st) | ((name, pos, expr, st), addr) <- zip entries addrs ])
+    modify $ L.promises %~ \store -> foldl' (\m (addr, promise) -> IntMap.insert addr promise m) store
+        [ (addr, L.Promise (ownEnv name addr) expr name pos st) | ((name, pos, expr, st), addr) <- zip entries addrs ]
     pure (frame, addrs)
 
 

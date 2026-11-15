@@ -149,8 +149,8 @@ type EvalM = ReaderT Env (State Store)
 -- What an evaluation keeps as it goes: the promises allocated, keyed by address, and the
 -- value of each function of no parameters that closes over its module alone, once it has
 -- been named as a value (see 'Engine.constant'), so that such a constant is evaluated at
--- most once. Addresses are never reused, so the next free address is always the number
--- of promises.
+-- most once. Addresses are never reused, so the next free address is always one past the
+-- highest.
 data Store = Store
     { _promises  :: IntMap Promise
     , _constants :: Map.Map FunctionId Expr

@@ -18,6 +18,8 @@ version is 0.x, a new minor version may break programs, and each change that doe
   it no longer writes over its input (gap 13). <!-- llsvvrmw -->
 - A `[` or `]` is an error that says an array is written in parentheses, `(1 2 3)`. The bracket
   syntax parsed, but meant nothing (gap 13). <!-- llsvvrmw -->
+- A graph of many records compiles in time near linear in their number, not near its square:
+  a hoard of 2000 coins takes 0.76 s, where it took 7.7 s (gap 52). <!-- krokmvot -->
 
 ## [0.6.0.0] - 2026-11-15
 

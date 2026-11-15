@@ -3036,10 +3036,11 @@ A Number is a Double, so a decimal written in source, such as =0.1=, has no exac
 
 Curators' numbers are mostly decimal measurements, so a summary worked out from them can show such digits: summing the 500 weights of =test.ouro='s hoard, ~(fold weights 0 +)~, gives =1798.6400000000008=. The number tower (=#integer=, =#natural=) does not touch it; exact decimals would, as a change of representation (an open design). Found while updating =test.ouro= to 0.6 (2026-11-15).
 
-** OPEN [#A] Compiling many records costs more than linear time
+** FIXED Compiling many records costs more than linear time
 :PROPERTIES:
 :ID:       52
 :FOUND:    2026-11-15
+:FIXED_IN: 0.6.1.0
 :PINNED:   the benchmark =hoard= (=cabal bench=), not a test: a timing cannot be asserted
 :END:
 A graph that builds many records costs nearly the square of their number. The benchmark of a hoard of coins, each built through =std='s constructors as =test.ouro='s are, takes (2026-11-15):
@@ -3049,6 +3050,14 @@ A graph that builds many records costs nearly the square of their number. The be
 - 7.73 s for 2000.
 
 Five times the coins cost 7.3 times as much, and four times 12.5 times, about n^1.8, where linear growth would put 2000 coins near 2.5 s. Some step does work in proportion to everything built so far for each coin. Not yet profiled (=+RTS -p=), so which step is unknown. A fix shows in the benchmark: 2000 coins near four times the cost of 500. Found while benchmarking the pipeline (2026-11-15).
+
+/Fixed/ (2026-11-15). Profiling put four fifths of the time in allocating a frame's promises, =Scope.allocate=. Every binding is a promise in one store, an =IntMap= that only grows, and each allocation counted the whole store for the next address (=IntMap.size= walks it) and rebuilt it to add the frame's few promises (=IntMap.union= is linear in both maps). Each coin's frames cost as much as every promise made before them. The next address is now one past the highest, found without counting, and each promise is inserted on its own, so an allocation costs the same however large the store. The hoard now takes:
+
+- 40.9 ms for 100 coins;
+- 166 ms for 500;
+- 761 ms for 2000.
+
+Four times the coins cost 4.6 times as much, about n^1.1, and 2000 coins ten times less than before.
 
 ** OPEN [#A] A =#date= before the year 1000 is written without its leading zeros
 :PROPERTIES:
