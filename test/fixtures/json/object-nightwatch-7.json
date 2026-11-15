@@ -24,7 +24,7 @@
         {
           "id": "http://vocab.getty.edu/aat/300435430",
           "type": "Type",
-          "_label": "Dimension Statement",
+          "_label": "Dimensions Statement",
           "classified_as": [
             {
               "id": "http://vocab.getty.edu/aat/300418049",

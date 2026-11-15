@@ -1,19 +1,19 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/object/chess/1
+(import std/base)
+(import std/object)
+(import std/vocab)
+(import aat/dimension-type)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure object #record (#string slug #string label)
+  (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
+
+;; An object of many pieces, counted: 36 components. linked.art measures in the AAT's
+;; Components, the part type, used here as a unit.
 (graph object-chess-1
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/object/chess/1"
-   :type "HumanMadeObject"
-   :_label "Miniature Chess"
-   :identified_by ((:type "Name"
-                    :classified_as ((:id "http://vocab.getty.edu/aat/300404670"
-                                     :type "Type"
-                                     :_label "Primary Name"))
-                    :content "Vessel with miniature chess set"))
-   :dimension ((:type "Dimension"
-                :classified_as ((:id "http://vocab.getty.edu/aat/300404433"
-                                 :type "Type"
-                                 :_label "Count"))
-                :value 36
-                :unit (:id "http://vocab.getty.edu/aat/300241583"
-                       :type "MeasurementUnit"
-                       :_label "Components")))))
+  (-> (object "chess/1" "Miniature Chess")
+      (with :context       "https://linked.art/ns/v1/linked-art.json")
+      (with :identified_by (list (base/name vocab/primary-name "Vessel with miniature chess set")))
+      (with :dimension     (list (object/dimension dimension-type/count-of 36 (object/unit "300241583" "Components"))))))

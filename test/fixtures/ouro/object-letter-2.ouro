@@ -1,23 +1,22 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/object/letter/2
+(import std/base)
+(import std/vocab)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure object #record (#string slug #string label)
+  (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
+
+(define/constant letters
+  (:id (example "set/archive_sfl") :type "Set" :_label "Stieglitz Family Letters"))
+
+;; The letter's place in the order of its archive: a sort value, assigned under the influence of
+;; the set it sorts within
 (graph object-letter-2
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/object/letter/2"
-   :type "HumanMadeObject"
-   :_label "Obermeyer 1920"
-   :identified_by ((:type "Name"
-                    :classified_as ((:id "http://vocab.getty.edu/aat/300404670"
-                                     :type "Type"
-                                     :_label "Primary Name"))
-                    :content "Obermeyer, Bertha (1920)")
-                   (:type "Identifier"
-                    :classified_as ((:id "http://vocab.getty.edu/aat/300456575"
-                                     :type "Type"
-                                     :_label "Sort Value"))
-                    :content "000001"
-                    :assigned_by ((:type "AttributeAssignment"
-                                   :influenced_by ((:id "https://linked.art/example/set/archive_sfl"
-                                                    :type "Set"
-                                                    :_label "Stieglitz Family Letters"))))))
-   :member_of ((:id "https://linked.art/example/set/archive_sfl"
-                :type "Set"
-                :_label "Stieglitz Family Letters"))))
+  (-> (object "letter/2" "Obermeyer 1920")
+      (with :context       "https://linked.art/ns/v1/linked-art.json")
+      (with :identified_by (list (base/name vocab/primary-name "Obermeyer, Bertha (1920)")
+                                 (with (base/identifier vocab/sort-value "000001")
+                                   :assigned_by ((:type "AttributeAssignment" :influenced_by (list letters))))))
+      (with :member_of     (list letters))))

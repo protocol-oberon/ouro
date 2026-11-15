@@ -24,7 +24,8 @@
         pounds
         second-unit
         year-unit
-        pages)
+        pages
+        rgb)
 
 (define/constant bytes       (doc "Bytes, a unit of measurement.") (object/unit "300265869" "bytes"))
 (define/constant centimeters (doc "Centimeters, a unit of measurement.") (object/unit "300379098" "centimeters"))
@@ -47,3 +48,4 @@
 (define/constant second-unit (doc "Seconds, a unit of measurement.") (object/unit "300379239" "seconds"))
 (define/constant year-unit   (doc "Years, a unit of measurement.") (object/unit "300379244" "years"))
 (define/constant pages       (doc "Pages, a unit of measurement. From Linked Art's examples, not its recommended list.") (object/unit "300194222" "Pages"))
+(define/constant rgb         (doc "Rgb, a unit of measurement. From Linked Art's examples, not its recommended list.") (object/unit "300266239" "rgb"))

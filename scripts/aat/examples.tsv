@@ -1,3 +1,5 @@
+## Name Types
+Subtitle	300312006	A Name that is the subtitle of a work, a part of its title
 ## Identifier Types
 Lot Number	300404628	An identifier of a lot in an auction
 ISBN Identifier	300417443	A book's International Standard Book Number
@@ -5,10 +7,13 @@ ISBN Identifier	300417443	A book's International Standard Book Number
 Biography Statement	300435422	A statement about the life or history of a person or group
 Abstract	300026032	A brief summary of the content of a work
 Pagination Statement	300435440	A statement of the pages a work runs over
+Physical Statement	300435452	A statement of the physical extent of a work, as its pages and illustrations
 ## Object Types
 Monograph	300060417	A written work on a single subject, as a book about one artist
 Auction Catalog	300026068	A catalog of the lots of an auction
 Chapter	300311699	A chapter of a written work
+Exhibition Catalog	300026096	A catalog of the works shown in an exhibition
+Page	300194222	A single leaf of a book or manuscript, as one removed from it
 ## Place Types
 Auction House (place)	300005234	The Place is an auction house's location
 ## Group Types
@@ -22,6 +27,17 @@ File Size	300265863	The Dimension measures the size of a digital file
 Count Of	300404433	The Dimension counts things, as the pages of a chapter
 ## Measurement Units
 Pages	300194222	Pages
+rgb	300266239	rgb
+## Materials
+poplar (wood)	300012363	Poplar (wood)
+## Part Types
+Support	300014844	The part is the support of a work, as a painting's canvas
+Back Part	300190692	The part is the back of a work
+## Techniques
+Cleaning	300053027	The technique of cleaning, as in conservation
+Painting Technique	300054216	The technique of painting
+Sculpting	300264383	The technique of sculpting
+hand weaving	300053643	The technique of weaving by hand
 ## Activity Types
 Auction Event	300054751	The Activity is an auction, of a set of lots
 Auction of Lot	300420001	The Activity is the auction of one lot, part of an auction event
@@ -29,6 +45,7 @@ Exhibiting in multiple locations	300054773	The Activity is an exhibition over al
 Conservation Activity	300404519	The Activity is the conservation of an object
 Curating	300054277	The Activity is the curating of a collection
 Burial	300263485	The Activity is a person's burial
+Measuring	300053578	The Activity, or AttributeAssignment, is a measuring
 ## Genders
 Male	300189559	The gender male
 ## Price Types

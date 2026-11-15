@@ -1,17 +1,17 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/object/ccp/1
+(import aat/object-type)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure object #record (#string slug #string label)
+  (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
+
+;; A print, made by printing from a plate: the plate is an object of its own
 (graph object-ccp-1
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/object/ccp/1"
-   :type "HumanMadeObject"
-   :_label "Chaucer's Canterbury Pilgrims"
-   :classified_as ((:id "http://vocab.getty.edu/aat/300041273"
-                    :type "Type"
-                    :_label "Print"
-                    :classified_as ((:id "http://vocab.getty.edu/aat/300435443"
-                                     :type "Type"
-                                     :_label "Type of Work"))))
-   :produced_by (:type "Production"
-                 :_label "Printing from Plate"
-                 :used_specific_object ((:id "https://linked.art/example/object/ccp-plate"
-                                         :type "HumanMadeObject"
-                                         :_label "Plate for CCP")))))
+  (-> (object "ccp/1" "Chaucer's Canterbury Pilgrims")
+      (with :context       "https://linked.art/ns/v1/linked-art.json")
+      (with :classified_as (list object-type/print))
+      (with :produced_by   (:type                 "Production"
+                            :_label               "Printing from Plate"
+                            :used_specific_object (list (object "ccp-plate" "Plate for CCP"))))))

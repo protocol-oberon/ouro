@@ -10,7 +10,7 @@
         {
           "id": "http://vocab.getty.edu/aat/300026687",
           "type": "Type",
-          "_label": "Credit Statement",
+          "_label": "Credit Line",
           "classified_as": [
             {
               "id": "http://vocab.getty.edu/aat/300418049",

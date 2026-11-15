@@ -23,7 +23,7 @@ withAat src = T.concat [ "(import aat/" <> m <> ") " | m <- modules ] <> src
     modules = [ "name-type", "identifier-type", "statement-type", "object-type", "place-type", "group-type", "digital-type"
               , "set-type", "dimension-type", "language", "language/iso", "unit", "material", "currency"
               , "currency/iso as currency-iso", "nationality", "occupation", "shape", "activity-type", "price-type"
-              , "role-type", "style", "visual-type", "gender", "right-type", "provenance-type" ]
+              , "role-type", "style", "visual-type", "gender", "right-type", "provenance-type", "part-type", "technique" ]
 
 aatToJSON :: Text -> Text -> Property
 aatToJSON src = compilesToJSON (withAat src)
@@ -107,7 +107,7 @@ everyTermGenerated = withTests 1 . property $ do
         missing   = [ number | number <- terms, not (any (("\"" <> number <> "\"") `T.isInfixOf`) sources) ]
     exported <- traverse (fmap length . exportsOf) [ file | (_, file) <- sections ]
     length recommended === 195
-    length sources === 24
+    length sources === 26
     sum exported === length terms
     missing === []
     where

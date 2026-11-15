@@ -1,24 +1,20 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/object/nightwatch/1
+(import std/base)
+(import std/vocab)
+(import aat/language/iso)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure object #record (#string slug #string label)
+  (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
+
+;; A primary name in each of two languages
+(define/procedure named #record (#string content #record language)
+  (with (base/name vocab/primary-name content) :language (list language)))
+
 (graph object-nightwatch-1
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/object/nightwatch/1"
-   :type "HumanMadeObject"
-   :_label "Night Watch by Rembrandt"
-   :identified_by ((:type "Name"
-                    :classified_as ((:id "http://vocab.getty.edu/aat/300404670"
-                                     :type "Type"
-                                     :_label "Primary Name"))
-                    :content "The Night Watch"
-                    :language ((:id "http://vocab.getty.edu/aat/300388277"
-                                :type "Language"
-                                :_label "English"
-                                :notation "en")))
-                   (:type "Name"
-                    :classified_as ((:id "http://vocab.getty.edu/aat/300404670"
-                                     :type "Type"
-                                     :_label "Primary Name"))
-                    :content "De Nachtwacht"
-                    :language ((:id "http://vocab.getty.edu/aat/300388256"
-                                :type "Language"
-                                :_label "Dutch"
-                                :notation "nl"))))))
+  (-> (object "nightwatch/1" "Night Watch by Rembrandt")
+      (with :context       "https://linked.art/ns/v1/linked-art.json")
+      (with :identified_by (list (named "The Night Watch" iso/english)
+                                 (named "De Nachtwacht" iso/dutch)))))

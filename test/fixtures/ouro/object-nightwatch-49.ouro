@@ -1,9 +1,14 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/object/nightwatch/49
+(import std/vocab)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure object #record (#string slug #string label)
+  (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
+
+;; An item of a cultural heritage collection, as Linked Art requires one be classified
 (graph object-nightwatch-49
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/object/nightwatch/49"
-   :type "HumanMadeObject"
-   :_label "Night Watch by Rembrandt"
-   :classified_as ((:id "http://vocab.getty.edu/aat/300404024"
-                    :type "Type"
-                    :_label "Collection Item"))))
+  (-> (object "nightwatch/49" "Night Watch by Rembrandt")
+      (with :context       "https://linked.art/ns/v1/linked-art.json")
+      (with :classified_as (list vocab/collection-item))))

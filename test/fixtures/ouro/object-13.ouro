@@ -1,11 +1,12 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/object/13
+(import aat/object-type)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+;; A painting; linked.art gives it no label
 (graph object-13
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/object/13"
-   :type "HumanMadeObject"
-   :classified_as ((:id "http://vocab.getty.edu/aat/300033618"
-                    :type "Type"
-                    :_label "Painting"
-                    :classified_as ((:id "http://vocab.getty.edu/aat/300435443"
-                                     :type "Type"
-                                     :_label "Type of Work"))))))
+  (:context       "https://linked.art/ns/v1/linked-art.json"
+   :id            (example "object/13")
+   :type          "HumanMadeObject"
+   :classified_as (list object-type/painting)))

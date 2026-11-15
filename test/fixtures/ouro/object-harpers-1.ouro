@@ -1,15 +1,15 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/object/harpers/1
+(import aat/object-type)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure object #record (#string slug #string label)
+  (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
+
+;; One printed poster: the object, as opposed to the image it shows, which every copy shares
 (graph object-harpers-1
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/object/harpers/1"
-   :type "HumanMadeObject"
-   :_label "Poster Item"
-   :classified_as ((:id "http://vocab.getty.edu/aat/300041273"
-                    :type "Type"
-                    :_label "Print"
-                    :classified_as ((:id "http://vocab.getty.edu/aat/300435443"
-                                     :type "Type"
-                                     :_label "Type of Work"))))
-   :shows ((:id "https://linked.art/example/visual/harpers"
-            :type "VisualItem"
-            :_label "Visual Content of Harpers"))))
+  (-> (object "harpers/1" "Poster Item")
+      (with :context       "https://linked.art/ns/v1/linked-art.json")
+      (with :classified_as (list object-type/print))
+      (with :shows         ((:id (example "visual/harpers") :type "VisualItem" :_label "Visual Content of Harpers")))))

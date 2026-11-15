@@ -1,6 +1,11 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/object/nightwatch/50
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure object #record (#string slug #string label)
+  (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
+
+;; The least an object can be: an id, a type and a label
 (graph object-nightwatch-50
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/object/nightwatch/50"
-   :type "HumanMadeObject"
-   :_label "Night Watch by Rembrandt"))
+  (with (object "nightwatch/50" "Night Watch by Rembrandt")
+   :context "https://linked.art/ns/v1/linked-art.json"))

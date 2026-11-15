@@ -1,17 +1,17 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/object/nightwatch/5
+(import std/time)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure object #record (#string slug #string label)
+  (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
+
+;; Made in Amsterdam in 1642, by Rembrandt
 (graph object-nightwatch-5
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/object/nightwatch/5"
-   :type "HumanMadeObject"
-   :_label "Night Watch by Rembrandt"
-   :produced_by (:type "Production"
-                 :timespan (:type "TimeSpan"
-                            :_label "1642"
-                            :begin_of_the_begin "1642-01-01T00:00:00Z"
-                            :end_of_the_end "1642-12-31T23:59:59Z")
-                 :took_place_at ((:id "https://linked.art/example/place/amsterdam"
-                                  :type "Place"
-                                  :_label "Amsterdam"))
-                 :carried_out_by ((:id "https://linked.art/example/person/rembrandt"
-                                   :type "Person"
-                                   :_label "Rembrandt")))))
+  (-> (object "nightwatch/5" "Night Watch by Rembrandt")
+      (with :context     "https://linked.art/ns/v1/linked-art.json")
+      (with :produced_by (:type           "Production"
+                          :timespan       (with (time/year "1642") :_label "1642")
+                          :took_place_at  ((:id (example "place/amsterdam") :type "Place" :_label "Amsterdam"))
+                          :carried_out_by ((:id (example "person/rembrandt") :type "Person" :_label "Rembrandt"))))))

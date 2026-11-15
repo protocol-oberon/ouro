@@ -22,7 +22,8 @@
         summary
         biography-statement
         abstract
-        pagination-statement)
+        pagination-statement
+        physical-statement)
 
 (define/constant note                   (doc "A general note about the entity.") (base/statement-kind "300027200" "Note"))
 (define/constant description            (doc "A description of the entity.") (base/statement-kind "300435416" "Description"))
@@ -43,3 +44,4 @@
 (define/constant biography-statement    (doc "A statement about the life or history of a person or group. From Linked Art's examples, not its recommended list.") (base/statement-kind "300435422" "Biography Statement"))
 (define/constant abstract               (doc "A brief summary of the content of a work. From Linked Art's examples, not its recommended list.") (base/statement-kind "300026032" "Abstract"))
 (define/constant pagination-statement   (doc "A statement of the pages a work runs over. From Linked Art's examples, not its recommended list.") (base/statement-kind "300435440" "Pagination Statement"))
+(define/constant physical-statement     (doc "A statement of the physical extent of a work, as its pages and illustrations. From Linked Art's examples, not its recommended list.") (base/statement-kind "300435452" "Physical Statement"))

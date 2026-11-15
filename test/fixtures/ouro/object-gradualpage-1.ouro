@@ -1,16 +1,15 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/object/gradualpage/1
+(import aat/object-type)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure object #record (#string slug #string label)
+  (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
+
+;; A page cut from a gradual: its removal diminished the book it was part of
 (graph object-gradualpage-1
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/object/gradualpage/1"
-   :type "HumanMadeObject"
-   :_label "Page from a Gradual"
-   :classified_as ((:id "http://vocab.getty.edu/aat/300194222"
-                    :type "Type"
-                    :_label "Page"
-                    :classified_as ((:id "http://vocab.getty.edu/aat/300435443"
-                                     :type "Type"
-                                     :_label "Type of Work"))))
-   :removed_by ((:type "PartRemoval"
-                 :diminished (:id "https://linked.art/example/object/gradual"
-                              :type "HumanMadeObject"
-                              :_label "Gradual")))))
+  (-> (object "gradualpage/1" "Page from a Gradual")
+      (with :context       "https://linked.art/ns/v1/linked-art.json")
+      (with :classified_as (list object-type/page))
+      (with :removed_by    ((:type "PartRemoval" :diminished (object "gradual" "Gradual"))))))

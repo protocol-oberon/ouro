@@ -1,21 +1,20 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/object/spring/10
+(import aat/object-type)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure object #record (#string slug #string label)
+  (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
+
+;; A IIIF manifest about the painting, which conforms to the presentation API
 (graph object-spring-10
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/object/spring/10"
-   :type "HumanMadeObject"
-   :_label "Jeanne (Spring) by Manet"
-   :classified_as ((:id "http://vocab.getty.edu/aat/300033618"
-                    :type "Type"
-                    :_label "Painting"
-                    :classified_as ((:id "http://vocab.getty.edu/aat/300435443"
-                                     :type "Type"
-                                     :_label "Type of Work"))))
-   :identified_by ((:type "Name"
-                    :content "Jeanne (Spring)"))
-   :subject_of ((:type "LinguisticObject"
-                 :digitally_carried_by ((:type "DigitalObject"
-                                         :access_point ((:id "https://media.getty.edu/iiif/manifest/db379bba-801c-4650-bc31-3ff2f712eb21"
-                                                         :type "DigitalObject"))
-                                         :conforms_to ((:id "http://iiif.io/api/presentation/"
-                                                        :type "InformationObject"))
-                                         :format "application/ld+json;profile='http://iiif.io/api/presentation/3/context.json'"))))))
+  (-> (object "spring/10" "Jeanne (Spring) by Manet")
+      (with :context       "https://linked.art/ns/v1/linked-art.json")
+      (with :classified_as (list object-type/painting))
+      (with :identified_by ((:type "Name" :content "Jeanne (Spring)")))
+      (with :subject_of    ((:type                 "LinguisticObject"
+                             :digitally_carried_by ((:type         "DigitalObject"
+                                                     :access_point ((:id #uri "https://media.getty.edu/iiif/manifest/db379bba-801c-4650-bc31-3ff2f712eb21" :type "DigitalObject"))
+                                                     :conforms_to  ((:id #uri "http://iiif.io/api/presentation/" :type "InformationObject"))
+                                                     :format       "application/ld+json;profile='http://iiif.io/api/presentation/3/context.json'")))))))

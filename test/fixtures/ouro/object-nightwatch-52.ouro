@@ -1,12 +1,17 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/object/nightwatch/52
+(import std/base)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure object #record (#string slug #string label)
+  (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
+
+;; Classified by a local concept, equivalent to the AAT's
 (graph object-nightwatch-52
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/object/nightwatch/52"
-   :type "HumanMadeObject"
-   :_label "Night Watch by Rembrandt"
-   :classified_as ((:id "https://linked.art/example/concept/painting"
-                    :type "Type"
-                    :_label "Local Copy of Painting"
-                    :equivalent ((:id "http://vocab.getty.edu/aat/300033618"
-                                  :type "Type"
-                                  :_label "painting (visual art)"))))))
+  (-> (object "nightwatch/52" "Night Watch by Rembrandt")
+      (with :context       "https://linked.art/ns/v1/linked-art.json")
+      (with :classified_as ((:id         (example "concept/painting")
+                             :type       "Type"
+                             :_label     "Local Copy of Painting"
+                             :equivalent (list (base/aat "300033618" "Painting")))))))

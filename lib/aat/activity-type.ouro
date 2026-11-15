@@ -8,7 +8,8 @@
         exhibiting-in-multiple-locations
         conservation-activity
         curating
-        burial)
+        burial
+        measuring)
 
 (define/constant auction-event                    (doc "The Activity is an auction, of a set of lots. From Linked Art's examples, not its recommended list.") (base/aat "300054751" "Auction Event"))
 (define/constant auction-of-lot                   (doc "The Activity is the auction of one lot, part of an auction event. From Linked Art's examples, not its recommended list.") (base/aat "300420001" "Auction of Lot"))
@@ -16,3 +17,4 @@
 (define/constant conservation-activity            (doc "The Activity is the conservation of an object. From Linked Art's examples, not its recommended list.") (base/aat "300404519" "Conservation Activity"))
 (define/constant curating                         (doc "The Activity is the curating of a collection. From Linked Art's examples, not its recommended list.") (base/aat "300054277" "Curating"))
 (define/constant burial                           (doc "The Activity is a person's burial. From Linked Art's examples, not its recommended list.") (base/aat "300263485" "Burial"))
+(define/constant measuring                        (doc "The Activity, or AttributeAssignment, is a measuring. From Linked Art's examples, not its recommended list.") (base/aat "300053578" "Measuring"))

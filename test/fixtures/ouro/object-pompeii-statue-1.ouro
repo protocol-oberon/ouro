@@ -1,15 +1,17 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/object/pompeii_statue/1
+(import std/base)
+(import std/vocab)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure object #record (#string slug #string label)
+  (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
+
+;; A statue whose making is dated only relatively: it happened before the eruption that buried it
 (graph object-pompeii-statue-1
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/object/pompeii_statue/1"
-   :type "HumanMadeObject"
-   :_label "Statue in Pompeii"
-   :identified_by ((:type "Name"
-                    :classified_as ((:id "http://vocab.getty.edu/aat/300404670"
-                                     :type "Type"
-                                     :_label "Primary Name"))
-                    :content "Pompeii Statue"))
-   :produced_by (:type "Production"
-                 :before ((:id "https://linked.art/example/event/vesuvius"
-                           :type "Event"
-                           :_label "Eruption of Vesuvius")))))
+  (-> (object "pompeii_statue/1" "Statue in Pompeii")
+      (with :context       "https://linked.art/ns/v1/linked-art.json")
+      (with :identified_by (list (base/name vocab/primary-name "Pompeii Statue")))
+      (with :produced_by   (:type   "Production"
+                            :before ((:id (example "event/vesuvius") :type "Event" :_label "Eruption of Vesuvius"))))))

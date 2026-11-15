@@ -1,12 +1,14 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/object/spring/2
+(import std/base)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure object #record (#string slug #string label)
+  (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
+
+;; An artwork and a painting, as plain Types, before Painting is classified a type of work
 (graph object-spring-2
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/object/spring/2"
-   :type "HumanMadeObject"
-   :_label "Jeanne (Spring) by Manet"
-   :classified_as ((:id "http://vocab.getty.edu/aat/300133025"
-                    :type "Type"
-                    :_label "Artwork")
-                   (:id "http://vocab.getty.edu/aat/300033618"
-                    :type "Type"
-                    :_label "Painting"))))
+  (-> (object "spring/2" "Jeanne (Spring) by Manet")
+      (with :context       "https://linked.art/ns/v1/linked-art.json")
+      (with :classified_as (list (base/aat "300133025" "Artwork") (base/aat "300033618" "Painting")))))

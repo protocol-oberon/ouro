@@ -1,11 +1,12 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/object/spring/8
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure object #record (#string slug #string label)
+  (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
+
 (graph object-spring-8
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/object/spring/8"
-   :type "HumanMadeObject"
-   :_label "Jeanne (Spring) by Manet"
-   :identified_by ((:type "Name"
-                    :content "Jeanne (Spring)"))
-   :shows ((:id "https://linked.art/example/visual/spring"
-            :type "VisualItem"
-            :_label "Visual Content of Spring"))))
+  (-> (object "spring/8" "Jeanne (Spring) by Manet")
+      (with :context       "https://linked.art/ns/v1/linked-art.json")
+      (with :identified_by ((:type "Name" :content "Jeanne (Spring)")))
+      (with :shows         ((:id (example "visual/spring") :type "VisualItem" :_label "Visual Content of Spring")))))

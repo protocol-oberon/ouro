@@ -1,27 +1,24 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/object/forum/1
+(import std/base)
+(import std/vocab)
+(import aat/object-type)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure object #record (#string slug #string label)
+  (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
+
+;; An uncertain attribution: the painting is possibly by Corrodi, so his part of its making is
+;; assigned by an attribution classified Possibly By, not stated as fact
 (graph object-forum-1
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/object/forum/1"
-   :type "HumanMadeObject"
-   :_label "Forum Romanum"
-   :classified_as ((:id "http://vocab.getty.edu/aat/300033618"
-                    :type "Type"
-                    :_label "Painting"
-                    :classified_as ((:id "http://vocab.getty.edu/aat/300435443"
-                                     :type "Type"
-                                     :_label "Type of Work"))))
-   :identified_by ((:type "Name"
-                    :classified_as ((:id "http://vocab.getty.edu/aat/300404670"
-                                     :type "Type"
-                                     :_label "Primary Name"))
-                    :content "Forum Romanum"))
-   :produced_by (:type "Production"
-                 :attributed_by ((:type "AttributeAssignment"
-                                  :classified_as ((:id "http://vocab.getty.edu/aat/300404272"
-                                                   :type "Type"
-                                                   :_label "Possibly By"))
-                                  :assigned ((:type "Production"
-                                              :carried_out_by ((:id "https://linked.art/example/person/corrodi"
-                                                                :type "Person"
-                                                                :_label "Salomon Corrodi"))))
-                                  :assigned_property "part")))))
+  (-> (object "forum/1" "Forum Romanum")
+      (with :context       "https://linked.art/ns/v1/linked-art.json")
+      (with :classified_as (list object-type/painting))
+      (with :identified_by (list (base/name vocab/primary-name "Forum Romanum")))
+      (with :produced_by   (:type          "Production"
+                            :attributed_by ((:type              "AttributeAssignment"
+                                             :classified_as     (list (base/aat "300404272" "Possibly By"))
+                                             :assigned          ((:type           "Production"
+                                                                  :carried_out_by ((:id (example "person/corrodi") :type "Person" :_label "Salomon Corrodi"))))
+                                             :assigned_property "part"))))))

@@ -9,7 +9,7 @@
         {
           "id": "http://vocab.getty.edu/aat/300028705",
           "type": "Type",
-          "_label": "Signature",
+          "_label": "Signature Statement",
           "classified_as": [
             {
               "id": "http://vocab.getty.edu/aat/300418049",

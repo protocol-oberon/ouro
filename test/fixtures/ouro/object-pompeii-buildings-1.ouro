@@ -1,14 +1,17 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/object/pompeii-buildings/1
+(import std/base)
+(import std/vocab)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure object #record (#string slug #string label)
+  (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
+
+;; The buildings of a city, destroyed by an eruption: the Destruction is caused by the Event.
+;; linked.art gives the eruption no label here.
 (graph object-pompeii-buildings-1
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/object/pompeii-buildings/1"
-   :type "HumanMadeObject"
-   :_label "Buildings making up the city of Pompeii"
-   :identified_by ((:type "Name"
-                    :classified_as ((:id "http://vocab.getty.edu/aat/300404670"
-                                     :type "Type"
-                                     :_label "Primary Name"))
-                    :content "City of Pompeii"))
-   :destroyed_by (:type "Destruction"
-                  :caused_by ((:id "https://linked.art/example/event/vesuvius"
-                               :type "Event")))))
+  (-> (object "pompeii-buildings/1" "Buildings making up the city of Pompeii")
+      (with :context       "https://linked.art/ns/v1/linked-art.json")
+      (with :identified_by (list (base/name vocab/primary-name "City of Pompeii")))
+      (with :destroyed_by  (:type "Destruction" :caused_by ((:id (example "event/vesuvius") :type "Event"))))))

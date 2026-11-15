@@ -1,27 +1,24 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/object/run/1
+(import aat/object-type)
+(import aat/technique)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure object #record (#string slug #string label)
+  (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
+
+(define/procedure person #record (#string slug #string label)
+  (:id (example (+ "person/" slug)) :type "Person" :_label label))
+
+(define/procedure part #record (#record technique #record artist)
+  (:type "Production" :technique (list technique) :carried_out_by (list artist)))
+
+;; A work of two artists, each with a technique of their own: the making has a part for each
 (graph object-run-1
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/object/run/1"
-   :type "HumanMadeObject"
-   :_label "RUN"
-   :classified_as ((:id "http://vocab.getty.edu/aat/300033618"
-                    :type "Type"
-                    :_label "Painting"
-                    :classified_as ((:id "http://vocab.getty.edu/aat/300435443"
-                                     :type "Type"
-                                     :_label "Type of Work"))))
-   :produced_by (:type "Production"
-                 :part ((:type "Production"
-                         :technique ((:id "http://vocab.getty.edu/aat/300054216"
-                                      :type "Type"
-                                      :_label "Painting"))
-                         :carried_out_by ((:id "https://linked.art/example/person/barrow"
-                                           :type "Person"
-                                           :_label "Mark Barrow")))
-                        (:type "Production"
-                         :technique ((:id "http://vocab.getty.edu/aat/300053643"
-                                      :type "Type"
-                                      :_label "hand weaving"))
-                         :carried_out_by ((:id "https://linked.art/example/person/parke"
-                                           :type "Person"
-                                           :_label "Sarah Parke")))))))
+  (-> (object "run/1" "RUN")
+      (with :context       "https://linked.art/ns/v1/linked-art.json")
+      (with :classified_as (list object-type/painting))
+      (with :produced_by   (:type "Production"
+                            :part (list (part technique/painting-technique (person "barrow" "Mark Barrow"))
+                                        (part technique/hand-weaving (person "parke" "Sarah Parke")))))))

@@ -1,15 +1,16 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/object/3
+(import std/base)
+(import std/vocab)
+(import aat/language/iso)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+;; A name as a record of its own, known by its id; linked.art gives the object no label
 (graph object-3
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/object/3"
-   :type "HumanMadeObject"
-   :identified_by ((:id "https://linked.art/example/Name/0"
-                    :type "Name"
-                    :classified_as ((:id "http://vocab.getty.edu/aat/300404670"
-                                     :type "Type"
-                                     :_label "Primary Name"))
-                    :content "Hacha"
-                    :language ((:id "http://vocab.getty.edu/aat/300389311"
-                                :type "Language"
-                                :_label "Spanish"
-                                :notation "es"))))))
+  (:context       "https://linked.art/ns/v1/linked-art.json"
+   :id            (example "object/3")
+   :type          "HumanMadeObject"
+   :identified_by (list (with (base/name vocab/primary-name "Hacha")
+                         :id       (example "Name/0")
+                         :language (list iso/spanish)))))

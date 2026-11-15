@@ -1,19 +1,17 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/object/nightwatch/42
+(import std/base)
+(import std/object)
+(import std/vocab)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure object #record (#string slug #string label)
+  (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
+
+;; A statement with the heading it is shown under
 (graph object-nightwatch-42
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/object/nightwatch/42"
-   :type "HumanMadeObject"
-   :_label "Night Watch by Rembrandt"
-   :referred_to_by ((:type "LinguisticObject"
-                     :classified_as ((:id "http://vocab.getty.edu/aat/300435429"
-                                      :type "Type"
-                                      :_label "Material Statement"
-                                      :classified_as ((:id "http://vocab.getty.edu/aat/300418049"
-                                                       :type "Type"
-                                                       :_label "Brief Text"))))
-                     :content "Oil on Canvas"
-                     :identified_by ((:type "Name"
-                                      :classified_as ((:id "http://vocab.getty.edu/aat/300404669"
-                                                       :type "Type"
-                                                       :_label "Display Name"))
-                                      :content "Materials"))))))
+  (-> (object "nightwatch/42" "Night Watch by Rembrandt")
+      (with :context        "https://linked.art/ns/v1/linked-art.json")
+      (with :referred_to_by (list (with (object/material-statement "Oil on Canvas")
+                                   :identified_by (list (base/name vocab/display-name "Materials")))))))

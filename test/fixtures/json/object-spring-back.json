@@ -24,7 +24,7 @@
         {
           "id": "http://vocab.getty.edu/aat/300435414",
           "type": "Type",
-          "_label": "Inscription",
+          "_label": "Inscription Statement",
           "classified_as": [
             {
               "id": "http://vocab.getty.edu/aat/300418049",

@@ -1,26 +1,22 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/object/8
+(import std/base)
+(import std/object)
+(import std/vocab)
+(import aat/activity-type)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+;; An uncertain height: a value with an upper and a lower limit, how it is shown, and who
+;; measured it. linked.art gives the object no label.
 (graph object-8
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/object/8"
-   :type "HumanMadeObject"
-   :dimension ((:type "Dimension"
-                :classified_as ((:id "http://vocab.getty.edu/aat/300055644"
-                                 :type "Type"
-                                 :_label "Height"))
-                :value 24
-                :upper_value_limit 26
-                :lower_value_limit 22
-                :unit (:id "http://vocab.getty.edu/aat/300379100"
-                       :type "MeasurementUnit"
-                       :_label "inches")
-                :identified_by ((:type "Name"
-                                 :classified_as ((:id "http://vocab.getty.edu/aat/300404669"
-                                                  :type "Type"
-                                                  :_label "Display Name"))
-                                 :content "24 inches high (+/- 2 inches)"))
-                :assigned_by ((:type "AttributeAssignment"
-                               :classified_as ((:id "http://vocab.getty.edu/aat/300053578"
-                                                :type "Type"
-                                                :_label "Measuring"))
-                               :carried_out_by ((:type "Person"
-                                                 :_label "Curator"))))))))
+  (:context  "https://linked.art/ns/v1/linked-art.json"
+   :id       (example "object/8")
+   :type     "HumanMadeObject"
+   :dimension (list (-> (object/height 24 object/inches)
+                        (with :upper_value_limit 26)
+                        (with :lower_value_limit 22)
+                        (with :identified_by     (list (base/name vocab/display-name "24 inches high (+/- 2 inches)")))
+                        (with :assigned_by       ((:type           "AttributeAssignment"
+                                                   :classified_as  (list activity-type/measuring)
+                                                   :carried_out_by ((:type "Person" :_label "Curator")))))))))

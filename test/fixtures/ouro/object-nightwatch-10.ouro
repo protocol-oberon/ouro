@@ -1,26 +1,22 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/object/nightwatch/10
+(import std/base)
+(import std/object)
+(import std/vocab)
+(import aat/object-type)
+(import aat/unit)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure object #record (#string slug #string label)
+  (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
+
+;; A colour, as a dimension: its RGB value as a number, named, and written as a hex code
 (graph object-nightwatch-10
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/object/nightwatch/10"
-   :type "HumanMadeObject"
-   :_label "Night Watch by Rembrandt"
-   :classified_as ((:id "http://vocab.getty.edu/aat/300033618"
-                    :type "Type"
-                    :_label "Painting"
-                    :classified_as ((:id "http://vocab.getty.edu/aat/300435443"
-                                     :type "Type"
-                                     :_label "Type of Work"))))
-   :dimension ((:type "Dimension"
-                :_label "brown"
-                :classified_as ((:id "http://vocab.getty.edu/aat/300080438"
-                                 :type "Type"
-                                 :_label "Color")
-                                (:id "http://vocab.getty.edu/aat/300127490"
-                                 :type "Type"
-                                 :_label "Brown"))
-                :value 11754015.0
-                :unit (:id "http://vocab.getty.edu/aat/300266239"
-                       :type "MeasurementUnit"
-                       :_label "rgb")
-                :identified_by ((:type "Identifier"
-                                 :content "#B35A1F"))))))
+  (-> (object "nightwatch/10" "Night Watch by Rembrandt")
+      (with :context       "https://linked.art/ns/v1/linked-art.json")
+      (with :classified_as (list object-type/painting))
+      (with :dimension     (list (-> (object/dimension vocab/color 11754015.0 unit/rgb)
+                                     (with :_label        "brown")
+                                     (adjoin :classified_as (base/aat "300127490" "Brown"))
+                                     (with :identified_by ((:type "Identifier" :content "#B35A1F"))))))))

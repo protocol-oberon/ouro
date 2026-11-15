@@ -1,38 +1,23 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/object/spring/29
+(import std/object)
+(import aat/object-type)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure object #record (#string slug #string label)
+  (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
+
+;; Measured unframed: each dimension with the technique of its measuring
+(define/procedure unframed #record (#record dimension)
+  (with dimension
+   :assigned_by ((:type      "AttributeAssignment"
+                  :_label    "Unframed Measuring"
+                  :technique ((:id (example "concept/measuring_unframed") :type "Type" :_label "Unframed Measuring"))))))
+
 (graph object-spring-29
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/object/spring/29"
-   :type "HumanMadeObject"
-   :_label "Spring"
-   :classified_as ((:id "http://vocab.getty.edu/aat/300033618"
-                    :type "Type"
-                    :_label "Painting"
-                    :classified_as ((:id "http://vocab.getty.edu/aat/300435443"
-                                     :type "Type"
-                                     :_label "Type of Work"))))
-   :dimension ((:type "Dimension"
-                :classified_as ((:id "http://vocab.getty.edu/aat/300055644"
-                                 :type "Type"
-                                 :_label "Height"))
-                :value 74
-                :unit (:id "http://vocab.getty.edu/aat/300379098"
-                       :type "MeasurementUnit"
-                       :_label "centimeters")
-                :assigned_by ((:type "AttributeAssignment"
-                               :_label "Unframed Measuring"
-                               :technique ((:id "https://linked.art/example/concept/measuring_unframed"
-                                            :type "Type"
-                                            :_label "Unframed Measuring")))))
-               (:type "Dimension"
-                :classified_as ((:id "http://vocab.getty.edu/aat/300055647"
-                                 :type "Type"
-                                 :_label "Width"))
-                :value 51.5
-                :unit (:id "http://vocab.getty.edu/aat/300379098"
-                       :type "MeasurementUnit"
-                       :_label "centimeters")
-                :assigned_by ((:type "AttributeAssignment"
-                               :_label "Unframed Measuring"
-                               :technique ((:id "https://linked.art/example/concept/measuring_unframed"
-                                            :type "Type"
-                                            :_label "Unframed Measuring"))))))))
+  (-> (object "spring/29" "Spring")
+      (with :context       "https://linked.art/ns/v1/linked-art.json")
+      (with :classified_as (list object-type/painting))
+      (with :dimension     (list (unframed (object/height 74 object/centimeters))
+                                 (unframed (object/width 51.5 object/centimeters))))))

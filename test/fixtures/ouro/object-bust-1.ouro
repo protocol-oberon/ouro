@@ -1,19 +1,19 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/object/bust/1
+(import std/base)
+(import aat/object-type)
+(import aat/technique)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure object #record (#string slug #string label)
+  (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
+
+;; A sculpture, made by sculpting, by an artist known to the Getty ULAN
 (graph object-bust-1
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/object/bust/1"
-   :type "HumanMadeObject"
-   :_label "Bust of a Man"
-   :classified_as ((:id "http://vocab.getty.edu/aat/300047090"
-                    :type "Type"
-                    :_label "Sculpture"
-                    :classified_as ((:id "http://vocab.getty.edu/aat/300435443"
-                                     :type "Type"
-                                     :_label "Type of Work"))))
-   :produced_by (:type "Production"
-                 :technique ((:id "http://vocab.getty.edu/aat/300264383"
-                              :type "Type"
-                              :_label "Sculpting"))
-                 :carried_out_by ((:id "http://vocab.getty.edu/ulan/500015886"
-                                   :type "Person"
-                                   :_label "Francis Harwood")))))
+  (-> (object "bust/1" "Bust of a Man")
+      (with :context       "https://linked.art/ns/v1/linked-art.json")
+      (with :classified_as (list object-type/sculpture))
+      (with :produced_by   (:type           "Production"
+                            :technique      (list technique/sculpting)
+                            :carried_out_by (list (base/ulan "500015886" "Person" "Francis Harwood"))))))

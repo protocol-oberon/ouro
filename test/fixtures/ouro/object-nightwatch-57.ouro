@@ -1,26 +1,20 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/object/nightwatch/57
+(import std/base)
+(import std/vocab)
+(import aat/object-type)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure object #record (#string slug #string label)
+  (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
+
+;; A relationship to another object, assigned and named
 (graph object-nightwatch-57
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/object/nightwatch/57"
-   :type "HumanMadeObject"
-   :_label "The Night Watch"
-   :classified_as ((:id "http://vocab.getty.edu/aat/300033618"
-                    :type "Type"
-                    :_label "Painting"
-                    :classified_as ((:id "http://vocab.getty.edu/aat/300435443"
-                                     :type "Type"
-                                     :_label "Type of Work"))))
-   :identified_by ((:type "Name"
-                    :classified_as ((:id "http://vocab.getty.edu/aat/300404670"
-                                     :type "Type"
-                                     :_label "Primary Name"))
-                    :content "The Night Watch"))
-   :attributed_by ((:type "AttributeAssignment"
-                    :identified_by ((:type "Name"
-                                     :classified_as ((:id "http://vocab.getty.edu/aat/300404669"
-                                                      :type "Type"
-                                                      :_label "Display Name"))
-                                     :content "Related Object"))
-                    :assigned ((:id "https://linked.art/example/object/rppob-28-106"
-                                :type "HumanMadeObject"
-                                :_label "Nachtwacht"))))))
+  (-> (object "nightwatch/57" "The Night Watch")
+      (with :context       "https://linked.art/ns/v1/linked-art.json")
+      (with :classified_as (list object-type/painting))
+      (with :identified_by (list (base/name vocab/primary-name "The Night Watch")))
+      (with :attributed_by ((:type          "AttributeAssignment"
+                             :identified_by (list (base/name vocab/display-name "Related Object"))
+                             :assigned      (list (object "rppob-28-106" "Nachtwacht")))))))

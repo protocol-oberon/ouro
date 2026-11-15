@@ -28,7 +28,9 @@
         tapestry
         monograph
         auction-catalog
-        chapter)
+        chapter
+        exhibition-catalog
+        page)
 
 (define/constant architecture       (doc "Structure or part of a structure which is the result of conscious construction.") (base/work-type "300263552" "Architecture"))
 (define/constant armor              (doc "Clothing designed to protect the body in combat.") (base/work-type "300036745" "Armor"))
@@ -55,3 +57,5 @@
 (define/constant monograph          (doc "A written work on a single subject, as a book about one artist. From Linked Art's examples, not its recommended list.") (base/work-type "300060417" "Monograph"))
 (define/constant auction-catalog    (doc "A catalog of the lots of an auction. From Linked Art's examples, not its recommended list.") (base/work-type "300026068" "Auction Catalog"))
 (define/constant chapter            (doc "A chapter of a written work. From Linked Art's examples, not its recommended list.") (base/work-type "300311699" "Chapter"))
+(define/constant exhibition-catalog (doc "A catalog of the works shown in an exhibition. From Linked Art's examples, not its recommended list.") (base/work-type "300026096" "Exhibition Catalog"))
+(define/constant page               (doc "A single leaf of a book or manuscript, as one removed from it. From Linked Art's examples, not its recommended list.") (base/work-type "300194222" "Page"))

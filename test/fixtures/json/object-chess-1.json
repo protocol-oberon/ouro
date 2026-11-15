@@ -23,7 +23,7 @@
         {
           "id": "http://vocab.getty.edu/aat/300404433",
           "type": "Type",
-          "_label": "Count"
+          "_label": "Count Of"
         }
       ],
       "value": 36,

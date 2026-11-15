@@ -1,24 +1,18 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/object/nightwatch/17
+(import std/base)
+(import aat/object-type)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure object #record (#string slug #string label)
+  (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
+
+;; On loan: kept for now by one museum, permanently by another
 (graph object-nightwatch-17
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/object/nightwatch/17"
-   :type "HumanMadeObject"
-   :_label "Painting"
-   :classified_as ((:id "http://vocab.getty.edu/aat/300033618"
-                    :type "Type"
-                    :_label "Painting"
-                    :classified_as ((:id "http://vocab.getty.edu/aat/300435443"
-                                     :type "Type"
-                                     :_label "Type of Work")))
-                   (:id "http://vocab.getty.edu/aat/300133025"
-                    :type "Type"
-                    :_label "Artwork"))
-   :current_owner ((:id "https://linked.art/example/group/amsterdam_govt"
-                    :type "Group"
-                    :_label "City of Amsterdam Governing Body"))
-   :current_permanent_custodian (:id "http://vocab.getty.edu/ulan/500246547"
-                                 :type "Group"
-                                 :_label "Rijksmuseum")
-   :current_custodian ((:id "http://vocab.getty.edu/ulan/500115988"
-                        :type "Group"
-                        :_label "Getty Museum"))))
+  (-> (object "nightwatch/17" "Painting")
+      (with :context                     "https://linked.art/ns/v1/linked-art.json")
+      (with :classified_as               (list object-type/painting (base/aat "300133025" "Artwork")))
+      (with :current_owner               ((:id (example "group/amsterdam_govt") :type "Group" :_label "City of Amsterdam Governing Body")))
+      (with :current_permanent_custodian (base/ulan "500246547" "Group" "Rijksmuseum"))
+      (with :current_custodian           (list (base/ulan "500115988" "Group" "Getty Museum")))))

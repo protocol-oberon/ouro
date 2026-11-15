@@ -1,14 +1,13 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/object/nightwatch/44
+(import std/object)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure object #record (#string slug #string label)
+  (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
+
 (graph object-nightwatch-44
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/object/nightwatch/44"
-   :type "HumanMadeObject"
-   :_label "Night Watch by Rembrandt"
-   :referred_to_by ((:type "LinguisticObject"
-                     :classified_as ((:id "http://vocab.getty.edu/aat/300435429"
-                                      :type "Type"
-                                      :_label "Material Statement"
-                                      :classified_as ((:id "http://vocab.getty.edu/aat/300418049"
-                                                       :type "Type"
-                                                       :_label "Brief Text"))))
-                     :content "Oil on Canvas"))))
+  (-> (object "nightwatch/44" "Night Watch by Rembrandt")
+      (with :context        "https://linked.art/ns/v1/linked-art.json")
+      (with :referred_to_by (list (object/material-statement "Oil on Canvas")))))

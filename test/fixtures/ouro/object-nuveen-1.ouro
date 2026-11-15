@@ -1,18 +1,18 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/object/nuveen/1
+(import std/base)
+(import std/vocab)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure object #record (#string slug #string label)
+  (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
+
+;; A commissioned painting: its making was caused by the commission, an activity of its own
 (graph object-nuveen-1
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/object/nuveen/1"
-   :type "HumanMadeObject"
-   :_label "Nuveen Painting"
-   :identified_by ((:type "Name"
-                    :classified_as ((:id "http://vocab.getty.edu/aat/300404670"
-                                     :type "Type"
-                                     :_label "Primary Name"))
-                    :content "The Nuveen Painting"))
-   :produced_by (:type "Production"
-                 :carried_out_by ((:id "https://linked.art/example/person/dine"
-                                   :type "Person"
-                                   :_label "Jim Dine"))
-                 :caused_by ((:id "https://linked.art/example/event/nuveen_commission"
-                              :type "Activity"
-                              :_label "Commission")))))
+  (-> (object "nuveen/1" "Nuveen Painting")
+      (with :context       "https://linked.art/ns/v1/linked-art.json")
+      (with :identified_by (list (base/name vocab/primary-name "The Nuveen Painting")))
+      (with :produced_by   (:type           "Production"
+                            :carried_out_by ((:id (example "person/dine") :type "Person" :_label "Jim Dine"))
+                            :caused_by      ((:id (example "event/nuveen_commission") :type "Activity" :_label "Commission"))))))

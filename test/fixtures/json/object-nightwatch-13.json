@@ -24,7 +24,7 @@
         {
           "id": "http://vocab.getty.edu/aat/300435429",
           "type": "Type",
-          "_label": "Material Statement",
+          "_label": "Materials Statement",
           "classified_as": [
             {
               "id": "http://vocab.getty.edu/aat/300418049",

@@ -1,13 +1,13 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/object/nightwatch/18
+(import std/base)
+(import aat/statement-type)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+;; A signature, transcribed; linked.art gives this record no label
 (graph object-nightwatch-18
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/object/nightwatch/18"
-   :type "HumanMadeObject"
-   :referred_to_by ((:type "LinguisticObject"
-                     :classified_as ((:id "http://vocab.getty.edu/aat/300028705"
-                                      :type "Type"
-                                      :_label "Signature"
-                                      :classified_as ((:id "http://vocab.getty.edu/aat/300418049"
-                                                       :type "Type"
-                                                       :_label "Brief Text"))))
-                     :content "signature and date: ‘Rembrandt f 1642’"))))
+  (:context        "https://linked.art/ns/v1/linked-art.json"
+   :id             (example "object/nightwatch/18")
+   :type           "HumanMadeObject"
+   :referred_to_by (list (base/statement statement-type/signature-statement "signature and date: ‘Rembrandt f 1642’"))))

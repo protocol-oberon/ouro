@@ -1,9 +1,14 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/object/ccp-plate/1
+(import aat/material)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure object #record (#string slug #string label)
+  (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
+
+;; The copper plate the print Chaucer's Canterbury Pilgrims was printed from
 (graph object-ccp-plate-1
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/object/ccp-plate/1"
-   :type "HumanMadeObject"
-   :_label "Plate for CCP"
-   :made_of ((:id "http://vocab.getty.edu/aat/300011020"
-              :type "Material"
-              :_label "copper"))))
+  (-> (object "ccp-plate/1" "Plate for CCP")
+      (with :context "https://linked.art/ns/v1/linked-art.json")
+      (with :made_of (list material/copper))))

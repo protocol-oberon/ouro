@@ -1,38 +1,22 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/object/nightwatch/8
+(import std/base)
+(import std/object)
+(import std/vocab)
+(import aat/object-type)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure object #record (#string slug #string label)
+  (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
+
+;; A dimension with the words it is shown in
+(define/procedure shown #record (#record dimension #string as)
+  (with dimension :identified_by (list (base/name vocab/display-name as))))
+
 (graph object-nightwatch-8
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/object/nightwatch/8"
-   :type "HumanMadeObject"
-   :_label "Night Watch by Rembrandt"
-   :classified_as ((:id "http://vocab.getty.edu/aat/300033618"
-                    :type "Type"
-                    :_label "Painting"
-                    :classified_as ((:id "http://vocab.getty.edu/aat/300435443"
-                                     :type "Type"
-                                     :_label "Type of Work"))))
-   :dimension ((:type "Dimension"
-                :classified_as ((:id "http://vocab.getty.edu/aat/300055647"
-                                 :type "Type"
-                                 :_label "Width"))
-                :value 453.5
-                :unit (:id "http://vocab.getty.edu/aat/300379098"
-                       :type "MeasurementUnit"
-                       :_label "centimeters")
-                :identified_by ((:type "Name"
-                                 :classified_as ((:id "http://vocab.getty.edu/aat/300404669"
-                                                  :type "Type"
-                                                  :_label "Display Name"))
-                                 :content "453.5 cm wide")))
-               (:type "Dimension"
-                :classified_as ((:id "http://vocab.getty.edu/aat/300055644"
-                                 :type "Type"
-                                 :_label "Height"))
-                :value 379.5
-                :unit (:id "http://vocab.getty.edu/aat/300379098"
-                       :type "MeasurementUnit"
-                       :_label "centimeters")
-                :identified_by ((:type "Name"
-                                 :classified_as ((:id "http://vocab.getty.edu/aat/300404669"
-                                                  :type "Type"
-                                                  :_label "Display Name"))
-                                 :content "379.5 cm high"))))))
+  (-> (object "nightwatch/8" "Night Watch by Rembrandt")
+      (with :context       "https://linked.art/ns/v1/linked-art.json")
+      (with :classified_as (list object-type/painting))
+      (with :dimension     (list (shown (object/width 453.5 object/centimeters) "453.5 cm wide")
+                                 (shown (object/height 379.5 object/centimeters) "379.5 cm high")))))

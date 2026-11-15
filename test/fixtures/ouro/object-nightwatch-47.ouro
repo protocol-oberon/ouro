@@ -1,15 +1,16 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/object/nightwatch/47
+(import std/object)
+(import std/vocab)
+(import aat/unit)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure object #record (#string slug #string label)
+  (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
+
+;; A colour, as a dimension: its RGB value as a number
 (graph object-nightwatch-47
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/object/nightwatch/47"
-   :type "HumanMadeObject"
-   :_label "Night Watch by Rembrandt"
-   :dimension ((:type "Dimension"
-                :_label "brown"
-                :classified_as ((:id "http://vocab.getty.edu/aat/300080438"
-                                 :type "Type"
-                                 :_label "Color"))
-                :value 11754015.0
-                :unit (:id "http://vocab.getty.edu/aat/300266239"
-                       :type "MeasurementUnit"
-                       :_label "rgb")))))
+  (-> (object "nightwatch/47" "Night Watch by Rembrandt")
+      (with :context   "https://linked.art/ns/v1/linked-art.json")
+      (with :dimension (list (with (object/dimension vocab/color 11754015.0 unit/rgb) :_label "brown")))))

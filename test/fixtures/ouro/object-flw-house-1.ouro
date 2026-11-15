@@ -1,14 +1,17 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/object/flw_house/1
+(import std/base)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure object #record (#string slug #string label)
+  (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
+
+;; A building is an object too, moved here to a museum's grounds. linked.art classifies it as
+;; a plain Type, not a type of work, and gives its name no classification.
 (graph object-flw-house-1
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/object/flw_house/1"
-   :type "HumanMadeObject"
-   :_label "Frank Lloyd Wright House"
-   :classified_as ((:id "http://vocab.getty.edu/aat/300004792"
-                    :type "Type"
-                    :_label "Building"))
-   :identified_by ((:type "Name"
-                    :content "Frank Lloyd Wright House"))
-   :current_location (:id "https://linked.art/example/place/crystal_bridges"
-                      :type "Place"
-                      :_label "Crystal Bridges")))
+  (-> (object "flw_house/1" "Frank Lloyd Wright House")
+      (with :context          "https://linked.art/ns/v1/linked-art.json")
+      (with :classified_as    (list (base/aat "300004792" "Building")))
+      (with :identified_by    ((:type "Name" :content "Frank Lloyd Wright House")))
+      (with :current_location (:id (example "place/crystal_bridges") :type "Place" :_label "Crystal Bridges"))))

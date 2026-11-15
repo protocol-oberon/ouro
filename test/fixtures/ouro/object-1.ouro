@@ -1,12 +1,15 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/object/1
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure object #record (#string slug #string label)
+  (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
+
+;; Places with no ids: a gallery it is in, a city it was made in
 (graph object-1
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/object/1"
-   :type "HumanMadeObject"
-   :_label "Van Gogh Painting"
-   :current_location (:type "Place"
-                      :_label "Rijksmuseum Gallery")
-   :produced_by (:type "Production"
-                 :_label "Production of Painting"
-                 :took_place_at ((:type "Place"
-                                  :_label "Amsterdam")))))
+  (-> (object "1" "Van Gogh Painting")
+      (with :context          "https://linked.art/ns/v1/linked-art.json")
+      (with :current_location (:type "Place" :_label "Rijksmuseum Gallery"))
+      (with :produced_by      (:type          "Production"
+                               :_label        "Production of Painting"
+                               :took_place_at ((:type "Place" :_label "Amsterdam"))))))

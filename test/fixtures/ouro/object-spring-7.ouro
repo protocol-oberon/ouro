@@ -1,9 +1,15 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/object/spring/7
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure object #record (#string slug #string label)
+  (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
+
+(define/procedure place #record (#string slug #string label)
+  (:id (example (+ "place/" slug)) :type "Place" :_label label))
+
+;; Where the painting is now: one place, not a set of them
 (graph object-spring-7
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/object/spring/7"
-   :type "HumanMadeObject"
-   :_label "Jeanne (Spring) by Manet"
-   :current_location (:id "https://linked.art/example/place/W204"
-                      :type "Place"
-                      :_label "Gallery W204")))
+  (-> (object "spring/7" "Jeanne (Spring) by Manet")
+      (with :context          "https://linked.art/ns/v1/linked-art.json")
+      (with :current_location (place "W204" "Gallery W204"))))

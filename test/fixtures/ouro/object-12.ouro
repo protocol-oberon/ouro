@@ -1,32 +1,21 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/object/12
+(import std/base)
+(import std/vocab)
+(import aat/language/iso)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+;; A description with its heading, its source, its language and its licence. linked.art gives
+;; the object and the licence no label.
 (graph object-12
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/object/12"
-   :type "HumanMadeObject"
-   :referred_to_by ((:type "LinguisticObject"
-                     :classified_as ((:id "http://vocab.getty.edu/aat/300435416"
-                                      :type "Type"
-                                      :_label "Description"
-                                      :classified_as ((:id "http://vocab.getty.edu/aat/300418049"
-                                                       :type "Type"
-                                                       :_label "Brief Text"))))
-                     :content "A small greenstone pendant surrounded by silver"
-                     :identified_by ((:type "Name"
-                                      :classified_as ((:id "http://vocab.getty.edu/aat/300404669"
-                                                       :type "Type"
-                                                       :_label "Display Name"))
-                                      :content "Description"))
-                     :referred_to_by ((:type "LinguisticObject"
-                                       :content "Description provided by the artist"))
-                     :language ((:id "http://vocab.getty.edu/aat/300388277"
-                                 :type "Language"
-                                 :_label "English"
-                                 :notation "en"))
-                     :subject_to ((:type "Right"
-                                   :classified_as ((:id "https://creativecommons.org/licenses/by/4.0/"
-                                                    :type "Type"))
-                                   :identified_by ((:type "Name"
-                                                    :classified_as ((:id "http://vocab.getty.edu/aat/300404669"
-                                                                     :type "Type"
-                                                                     :_label "Display Name"))
-                                                    :content "CC BY 4.0"))))))))
+  (:context        "https://linked.art/ns/v1/linked-art.json"
+   :id             (example "object/12")
+   :type           "HumanMadeObject"
+   :referred_to_by (list (-> (base/description "A small greenstone pendant surrounded by silver")
+                             (with :identified_by  (list (base/name vocab/display-name "Description")))
+                             (with :referred_to_by ((:type "LinguisticObject" :content "Description provided by the artist")))
+                             (with :language       (list iso/english))
+                             (with :subject_to     ((:type          "Right"
+                                                     :classified_as ((:id #uri "https://creativecommons.org/licenses/by/4.0/" :type "Type"))
+                                                     :identified_by (list (base/name vocab/display-name "CC BY 4.0")))))))))

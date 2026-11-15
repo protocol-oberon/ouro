@@ -1,26 +1,22 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/object/7
+(import std/base)
+(import std/vocab)
+(import aat/digital-type)
+(import aat/language/iso)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+;; A home page about the object: an English text, carried by a named web page at a URL.
+;; linked.art gives the object no label.
 (graph object-7
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/object/7"
-   :type "HumanMadeObject"
-   :identified_by ((:type "Name"
-                    :classified_as ((:id "http://vocab.getty.edu/aat/300404670"
-                                     :type "Type"
-                                     :_label "Primary Name"))
-                    :content "Object"))
-   :subject_of ((:type "LinguisticObject"
-                 :language ((:id "http://vocab.getty.edu/aat/300388277"
-                             :type "Language"
-                             :_label "English"
-                             :notation "en"))
-                 :digitally_carried_by ((:type "DigitalObject"
-                                         :classified_as ((:id "http://vocab.getty.edu/aat/300264578"
-                                                          :type "Type"
-                                                          :_label "Web Page"))
-                                         :identified_by ((:type "Name"
-                                                          :classified_as ((:id "http://vocab.getty.edu/aat/300404670"
-                                                                           :type "Type"
-                                                                           :_label "Primary Name"))
-                                                          :content "Home page for Object"))
-                                         :access_point ((:id "https://example.org/objects/1"
-                                                         :type "DigitalObject"))))))))
+  (:context       "https://linked.art/ns/v1/linked-art.json"
+   :id            (example "object/7")
+   :type          "HumanMadeObject"
+   :identified_by (list (base/name vocab/primary-name "Object"))
+   :subject_of    ((:type                 "LinguisticObject"
+                    :language             (list iso/english)
+                    :digitally_carried_by ((:type          "DigitalObject"
+                                            :classified_as (list digital-type/web-page)
+                                            :identified_by (list (base/name vocab/primary-name "Home page for Object"))
+                                            :access_point  ((:id #uri "https://example.org/objects/1" :type "DigitalObject"))))))))

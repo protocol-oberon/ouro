@@ -1,34 +1,30 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/object/spring/15
+(import std/time)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure object #record (#string slug #string label)
+  (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
+
+(define/procedure node #record (#string path #string type #string label)
+  (:id (example path) :type type :_label label))
+
+;; A change of ownership, seen from the object: from whom, to whom, when, and in which provenance event
+(define/procedure owned #record (#string label #record span #string event #record from #record to)
+  (:type                   "Acquisition"
+   :_label                 label
+   :timespan               span
+   :part_of                (list (node (+ "event/" event) "Activity" "Full Provenance Activity"))
+   :transferred_title_from (list from)
+   :transferred_title_to   (list to)))
+
 (graph object-spring-15
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/object/spring/15"
-   :type "HumanMadeObject"
-   :_label "Jeanne (Spring) by Manet"
-   :changed_ownership_through ((:type "Acquisition"
-                                :_label "Ownership of Spring to Proust"
-                                :timespan (:type "TimeSpan"
-                                           :begin_of_the_begin "1881-01-01T00:00:00Z"
-                                           :end_of_the_end "1883-12-31T23:59:59Z")
-                                :part_of ((:id "https://linked.art/example/event/manet_proust"
-                                           :type "Activity"
-                                           :_label "Full Provenance Activity"))
-                                :transferred_title_from ((:id "https://linked.art/example/person/manet"
-                                                          :type "Person"
-                                                          :_label "Manet"))
-                                :transferred_title_to ((:id "https://linked.art/example/person/proust"
-                                                        :type "Person"
-                                                        :_label "Proust")))
-                               (:type "Acquisition"
-                                :_label "Ownership of Spring to Payne"
-                                :timespan (:type "TimeSpan"
-                                           :begin_of_the_begin "1909-01-01T00:00:00Z"
-                                           :end_of_the_end "1909-12-31T23:59:59Z")
-                                :part_of ((:id "https://linked.art/example/event/durand_payne"
-                                           :type "Activity"
-                                           :_label "Full Provenance Activity"))
-                                :transferred_title_from ((:id "https://linked.art/example/person/durand"
-                                                          :type "Person"
-                                                          :_label "Durand-Ruel Gallery"))
-                                :transferred_title_to ((:id "https://linked.art/example/person/payne"
-                                                        :type "Person"
-                                                        :_label "Oliver Payne"))))))
+  (-> (object "spring/15" "Jeanne (Spring) by Manet")
+      (with :context                   "https://linked.art/ns/v1/linked-art.json")
+      (with :changed_ownership_through (list (owned "Ownership of Spring to Proust" (time/year-range "1881" "1883") "manet_proust"
+                                                    (node "person/manet" "Person" "Manet")
+                                                    (node "person/proust" "Person" "Proust"))
+                                             (owned "Ownership of Spring to Payne" (time/year "1909") "durand_payne"
+                                                    (node "person/durand" "Person" "Durand-Ruel Gallery")
+                                                    (node "person/payne" "Person" "Oliver Payne"))))))
