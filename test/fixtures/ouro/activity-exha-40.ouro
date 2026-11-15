@@ -1,16 +1,9 @@
 ;; linked.art's example, written in Ouro: https://linked.art/example/activity/exha/40
-(import std/base)
+(import std/exhibition)
 
 (define/procedure example #uri (#string path)
   (+ "https://linked.art/example/" path))
 
-(define/procedure activity #record (#string slug #string label)
-  (:id (example (+ "activity/" slug)) :type "Activity" :_label label))
-
-;; linked.art labels the exhibition activity "Exhibiting"
-(define/constant exhibiting (base/aat "300054766" "Exhibiting"))
-
 (graph activity-exha-40
-  (-> (activity "exha/40" "Manet and Modern Beauty (Getty)")
-      (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as (list exhibiting))))
+  (with (exhibition/exhibiting (example "activity/exha/40") "Manet and Modern Beauty (Getty)")
+   :context "https://linked.art/ns/v1/linked-art.json"))

@@ -1,4 +1,5 @@
 ;; linked.art's example, written in Ouro: https://linked.art/example/group/0
+(import std/actor)
 (import std/base)
 (import std/time)
 (import aat/group-type)
@@ -11,9 +12,6 @@
 
 (define/procedure group #record (#string slug #string label)
   (:id (example (+ "group/" slug)) :type "Group" :_label label))
-
-;; linked.art labels its professional activity "Professional Activities"
-(define/constant active-dates (base/aat "300393177" "Professional Activities"))
 
 ;; Formed and dissolved in London, in a year each
 (define/procedure event #record (#string type #string label #string year)
@@ -28,10 +26,7 @@
       (with :classified_as  (list group-type/society nationality/british))
       (with :identified_by  ((:type "Name" :content "Camden Town Group" :language (list language/english))))
       (with :referred_to_by (list (base/statement statement-type/biography-statement "A group of British painters formed in 1911; although it only lasted two years, its name is used in a broader sense to characterize a particular strain of British painting from about 1905 to 1920.")))
-      (with :carried_out    ((:type          "Activity"
-                              :_label        "Active Dates"
-                              :classified_as (list active-dates)
-                              :timespan      (time/year-range "1911" "1913"))))
+      (with :carried_out    (list (with (actor/active (time/year-range "1911" "1913")) :_label "Active Dates")))
       (with :formed_by      (event "Formation" "Formation of the Group" "1911"))
       (with :dissolved_by   (event "Dissolution" "Dissolution of the Group" "1913"))
       (with :residence      ((:type "Place" :_label "London")))

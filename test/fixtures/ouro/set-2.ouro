@@ -1,6 +1,7 @@
 ;; linked.art's example, written in Ouro: https://linked.art/example/set/2
 (import std/base)
 (import std/provenance)
+(import std/vocab)
 (import aat/currency/iso)
 (import aat/price-type)
 (import aat/statement-type)
@@ -11,9 +12,6 @@
 (define/procedure set #record (#string slug #string label)
   (:id (example (+ "set/" slug)) :type "Set" :_label label))
 
-;; linked.art labels AAT's Display Name "Display Title"
-(define/constant display-title (base/aat "300404669" "Display Title"))
-
 ;; A lot's starting price: an amount of money, with how it is shown and where it was learnt
 (graph set-2
   (-> (set "2" "Set of Objects for Lot 812")
@@ -21,5 +19,5 @@
       (with :dimension (list (-> (provenance/money 500 iso/us-dollars)
                                  (with :_label         "$500")
                                  (with :classified_as  (list price-type/starting-price))
-                                 (with :identified_by  (list (base/name display-title "500 US Dollars")))
+                                 (with :identified_by  (list (base/name vocab/display-name "500 US Dollars")))
                                  (with :referred_to_by (list (base/statement statement-type/note "From personal correspondence"))))))))

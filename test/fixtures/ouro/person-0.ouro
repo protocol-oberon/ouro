@@ -44,7 +44,7 @@
                   :_label "Active Dates"
                   :classified_as ((:id "http://vocab.getty.edu/aat/300393177"
                                    :type "Type"
-                                   :_label "Professional Activities"))
+                                   :_label "Professional Activity"))
                   :timespan (:type "TimeSpan"
                              :begin_of_the_begin "1631-01-01T00:00:00Z"
                              :end_of_the_end "1669-10-05T00:00:00Z")

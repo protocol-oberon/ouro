@@ -1,7 +1,9 @@
 ;; linked.art's example, written in Ouro: https://linked.art/example/event/0
 (import std/base)
 (import std/time)
+(import std/vocab)
 (import aat/activity-type)
+(import aat/identifier-type)
 
 (define/procedure example #uri (#string path)
   (+ "https://linked.art/example/" path))
@@ -9,20 +11,16 @@
 (define/procedure activity #record (#string slug #string label)
   (:id (example (+ "event/" slug)) :type "Activity" :_label label))
 
-;; linked.art labels AAT's Local Number "Owner-Assigned Number", and its Display Name "Display Title"
-(define/constant owner-assigned (base/aat "300404621" "Owner-Assigned Number"))
-(define/constant display-title  (base/aat "300404669" "Display Title"))
-
 ;; An auction: its day, with a display title, its auctioneer, and the set of lots it sold
 (graph event-0
   (-> (activity "0" "Foster Auction of March 1820")
       (with :context              "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as        (list activity-type/auction-event))
       (with :identified_by        ((:type "Name" :content "Edward Foster Auction of March 1820")
-                                   (base/identifier owner-assigned "Br1908")))
+                                   (base/identifier identifier-type/local-number "Br1908")))
       (with :referred_to_by       (list (base/description "Besides paintings, this sale included a few lots with musical instruments and watches. The owners were a number of dealers who regularly consigned their wares to this auctioneer, despite the fact that the title page names \"A Gentleman\" as the owner.")))
       (with :timespan             (with (time/day "1820-03-09")
-                                   :identified_by (list (base/name display-title "1820 Mar 09"))))
+                                   :identified_by (list (base/name vocab/display-name "1820 Mar 09"))))
       (with :took_place_at        (list (base/tgn "7011781" "London")))
       (with :carried_out_by       (list (base/ulan "500451765" "Group" "Edward Foster & Son")))
       (with :used_specific_object ((:id #uri "http://example.org/sets/Br1908" :type "Set" :_label "All Auction Lots of Br1908")))

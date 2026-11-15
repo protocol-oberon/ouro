@@ -1,5 +1,6 @@
 ;; linked.art's example, written in Ouro: https://linked.art/example/activity/exhb/1
 (import std/base)
+(import std/exhibition)
 (import std/time)
 (import std/vocab)
 (import aat/group-type)
@@ -8,17 +9,10 @@
 (define/procedure example #uri (#string path)
   (+ "https://linked.art/example/" path))
 
-(define/procedure activity #record (#string slug #string label)
-  (:id (example (+ "activity/" slug)) :type "Activity" :_label label))
-
-;; linked.art labels the exhibition activity "Exhibiting"
-(define/constant exhibiting (base/aat "300054766" "Exhibiting"))
-
 ;; The exhibition's second venue, part of the exhibition as a whole
 (graph activity-exhb-1
-  (-> (activity "exhb/1" "Manet and Modern Beauty (AIC)")
+  (-> (exhibition/exhibiting (example "activity/exhb/1") "Manet and Modern Beauty (AIC)")
       (with :context              "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as        (list exhibiting))
       (with :identified_by        (list (base/name vocab/primary-name "Manet and Modern Beauty")))
       (with :timespan             (time/day-range "2019-05-26" "2019-09-08"))
       (with :took_place_at        (list (adjoin (base/tgn "7013596" "Chicago") :classified_as place-type/city)))

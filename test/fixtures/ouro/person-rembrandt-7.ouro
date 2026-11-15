@@ -7,7 +7,7 @@
    :carried_out ((:type "Activity"
                   :classified_as ((:id "http://vocab.getty.edu/aat/300393177"
                                    :type "Type"
-                                   :_label "Professional Activities")
+                                   :_label "Professional Activity")
                                   (:id "http://vocab.getty.edu/aat/300025136"
                                    :type "Type"
                                    :_label "Painter"))

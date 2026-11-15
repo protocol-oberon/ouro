@@ -1,5 +1,6 @@
 ;; linked.art's example, written in Ouro: https://linked.art/example/activity/exha/1
 (import std/base)
+(import std/exhibition)
 (import std/time)
 (import std/vocab)
 (import aat/group-type)
@@ -8,17 +9,10 @@
 (define/procedure example #uri (#string path)
   (+ "https://linked.art/example/" path))
 
-(define/procedure activity #record (#string slug #string label)
-  (:id (example (+ "activity/" slug)) :type "Activity" :_label label))
-
-;; linked.art labels the exhibition activity "Exhibiting"
-(define/constant exhibiting (base/aat "300054766" "Exhibiting"))
-
 ;; One venue of an exhibition: the exhibiting, at a museum in a city, of a set of objects, by an idea
 (graph activity-exha-1
-  (-> (activity "exha/1" "Manet and Modern Beauty (Getty)")
+  (-> (exhibition/exhibiting (example "activity/exha/1") "Manet and Modern Beauty (Getty)")
       (with :context              "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as        (list exhibiting))
       (with :identified_by        (list (base/name vocab/primary-name "Manet and Modern Beauty")))
       (with :referred_to_by       (list (base/description "The great painter of modern Paris Edouard Manet famously shocked contemporary audiences with his provocative pictures. The first exhibition ever to explore the last years of his short life, Manet and Modern Beauty highlights a less familiar and more intimate side of this celebrated artist's work.")))
       (with :timespan             (time/day-range "2019-10-08" "2020-01-12"))

@@ -13,7 +13,15 @@ They are © the Linked Art community and published under the
 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) licence; see
 <https://linked.art/> for the originals.
 
-Their `.ouro` files are conversions of them to Ouro, made for Ouro's tests and benchmarks.
+Their `.ouro` files write them in Ouro, made for Ouro's tests and benchmarks.
+
+### Changes made to them
+
+The examples label some Getty terms otherwise than Linked Art's own list of recommended terms
+does: AAT 300128207 is "Nation" in two examples and "Country" in the list. Ouro writes each
+term once, with the list's label, so these files are changed to it. Each change is a line of
+`scripts/fixtures/labels.tsv`, the term's AAT number, the example's label and the list's, and
+`scripts/fixtures/relabel.pl` applies them. Nothing else in them is changed.
 
 ## Ouro's own
 
