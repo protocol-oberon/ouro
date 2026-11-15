@@ -1,0 +1,9 @@
+;; linked.art's example, converted to Ouro: https://linked.art/
+(graph object-spring-30
+  (:@context "https://linked.art/ns/v1/linked-art.json"
+   :id "https://linked.art/example/object/spring/30"
+   :type "HumanMadeObject"
+   :_label "Jeanne (Spring) by Manet"
+   :classified_as ((:id "http://vocab.getty.edu/aat/300033618"
+                    :type "Type"
+                    :_label "Painting"))))

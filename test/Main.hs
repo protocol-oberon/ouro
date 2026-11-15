@@ -6,6 +6,7 @@ import qualified Ouro.AnalysisTest   as Analysis
 import qualified Ouro.BuildTest      as Build
 import qualified Ouro.CanonicalTest  as Canonical
 import qualified Ouro.EvaluationTest as Evaluation
+import qualified Ouro.FixtureTest    as Fixture
 import qualified Ouro.FunctionTest   as Function
 import qualified Ouro.ImportTest     as Import
 import qualified Ouro.LanguageTest   as Language
@@ -19,9 +20,13 @@ import           Utils               (withUtf8Console)
 
 main :: IO ()
 main = withUtf8Console $ do
+    -- The fixtures are found by listing their folder
+    fixtures <- Fixture.tests
+
     -- mapM runs checkParallel on each Group and returns a list of Bools [True, True, True]
     results <- mapM checkParallel
         [ Canonical.tests
+        , fixtures
         , Evaluation.tests
         , Structural.tests
         -- Scoping redesign: each step adds its group here when it lands

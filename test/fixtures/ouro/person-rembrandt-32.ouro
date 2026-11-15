@@ -1,0 +1,12 @@
+;; linked.art's example, converted to Ouro: https://linked.art/
+(graph person-rembrandt-32
+  (:@context "https://linked.art/ns/v1/linked-art.json"
+   :id "https://linked.art/example/person/rembrandt/32"
+   :type "Person"
+   :_label "Rembrandt"
+   :classified_as ((:id "http://vocab.getty.edu/aat/300189559"
+                    :type "Type"
+                    :_label "Male"
+                    :classified_as ((:id "http://vocab.getty.edu/aat/300055147"
+                                     :type "Type"
+                                     :_label "Gender"))))))

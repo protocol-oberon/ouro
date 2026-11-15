@@ -1,0 +1,9 @@
+;; linked.art's example, converted to Ouro: https://linked.art/
+(graph person-rembrandt-2
+  (:@context "https://linked.art/ns/v1/linked-art.json"
+   :id "https://linked.art/example/person/rembrandt/2"
+   :type "Person"
+   :_label "Rembrandt"
+   :member_of ((:id "https://linked.art/example/group/stluke"
+                :type "Group"
+                :_label "Guild of St Luke"))))

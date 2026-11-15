@@ -232,6 +232,7 @@ test-suite ouro-test
         Ouro.CanonicalTest
         Ouro.StructuralTest
         Ouro.EvaluationTest
+        Ouro.FixtureTest
         Ouro.FunctionTest
         Ouro.ImportTest
         Ouro.LanguageTest
@@ -325,3 +326,33 @@ test-suite ouro-cli-test
     if os(windows)
         build-depends:
             Win32  ^>= 2.14
+
+-- The compiler's benchmarks: programs compiled in memory, from source to JSON, with
+-- tasty-bench. Run from the package's folder, which holds the fixtures: cabal bench.
+benchmark ouro-bench
+    -- Import common warning flags.
+    import:           warnings
+
+    -- Base language which the package is written in.
+    default-language: GHC2021
+
+    -- LANGUAGE extensions used by modules in this package.
+    default-extensions:
+        LambdaCase,
+        OverloadedStrings
+
+    type:             exitcode-stdio-1.0
+    hs-source-dirs:   bench
+    main-is:          Main.hs
+
+    build-depends:
+        base        ^>= 4.20.2.0,
+        bytestring  ^>= 0.12,
+        directory   ^>= 1.3,
+        filepath    ^>= 1.5,
+        text         >= 2.0,
+        tasty-bench  >= 0.4 && < 0.6,
+        ouro
+
+    -- A larger allocation area steadies the timings, as tasty-bench advises
+    ghc-options:      -rtsopts "-with-rtsopts=-A32m"

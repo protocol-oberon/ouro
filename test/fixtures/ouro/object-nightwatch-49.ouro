@@ -1,0 +1,9 @@
+;; linked.art's example, converted to Ouro: https://linked.art/
+(graph object-nightwatch-49
+  (:@context "https://linked.art/ns/v1/linked-art.json"
+   :id "https://linked.art/example/object/nightwatch/49"
+   :type "HumanMadeObject"
+   :_label "Night Watch by Rembrandt"
+   :classified_as ((:id "http://vocab.getty.edu/aat/300404024"
+                    :type "Type"
+                    :_label "Collection Item"))))
