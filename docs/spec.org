@@ -282,6 +282,7 @@ A module added to =lib/= is not noticed by an incremental build. =file-embed= tr
 - =std/base= holds the base patterns, and imports =std/vocab=.
   - They are constructors that take values and build a node.
   - They never extend a record: a record is a literal, or threaded through =with= and =adjoin=.
+  - =core=, the =id=, =type= and =_label= every node with an id begins with: =(base/core id "Place" "Amsterdam")=.
   - Getty entities by number: =aat=, =tgn=, =ulan=, =language=.
   - Types classified by their meta-type: =work-type=, =style=, =shape=, =nationality=, =occupation=, =statement-kind=.
   - Embedded nodes: =name= and =identifier=, each taking its kind first, and =description=.

@@ -226,7 +226,7 @@ importedModules = Group "Modules: imported modules, in memory"
                                                                   "{\"r\": 1}")
 
       -- The bundled std
-    , ("std/base exports exactly its patterns",    failsWith "exports: aat, description, identifier, language, name, nationality, occupation, shape, statement, statement-kind, style, tgn, ulan, work-type."
+    , ("std/base exports exactly its patterns",    failsWith "exports: aat, core, description, identifier, language, name, nationality, occupation, shape, statement, statement-kind, style, tgn, ulan, work-type."
                                                              "(import std/base) (graph g (base/nope 1))")
     , ("every bundled function is documented",     stdIsDocumented)
     , ("bundled modules are named with /",        bundledNamesUseSlash)
@@ -419,7 +419,7 @@ moduleErrors = Group "Modules: every error, with its code, place and hint"
                                                                  "(graph g (other/f 1))")
     , ("a qualifier far from every import",        importsFailAt "SCP0007" ("inline-test", 1, 29) ["qualifierName = \"zzz\"", "This file imports: base."] []
                                                                  "(import std/base) (graph g (zzz/f 1))")
-    , ("a name the module does not export",        importsFailAt "SCP0008" ("inline-test", 1, 29) ["unexportedName = \"nam\"", "exports: aat, description, identifier,", "Perhaps you meant 'name'"] []
+    , ("a name the module does not export",        importsFailAt "SCP0008" ("inline-test", 1, 29) ["unexportedName = \"nam\"", "exports: aat, core, description, identifier,", "Perhaps you meant 'name'"] []
                                                                  "(import std/base) (graph g (base/nam \"A\"))")
     , ("a name not exported, inside a module",     importsFailAt "SCP0008" ("uses.ouro", 3, 25) ["unexportedName = \"nope\""] [("uses", "(import std/base)\n(export f)\n(define/procedure f () (base/nope))")]
                                                                  "(import uses) (graph g (:r (uses/f)))")

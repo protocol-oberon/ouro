@@ -6,5 +6,5 @@ Error [SCP0008]: Not Exported
   │               Function: base/nam
   │ 
 
-The module imported as 'base' exports: aat, description, identifier, language, name, nationality, occupation,
+The module imported as 'base' exports: aat, core, description, identifier, language, name, nationality, occupation,
 shape, statement, statement-kind, style, tgn, ulan, work-type. Perhaps you meant 'name'.

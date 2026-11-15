@@ -8,7 +8,8 @@
 ;; is written as a literal too.
 (import std/vocab)
 
-(export aat
+(export core
+        aat
         tgn
         ulan
         language
@@ -26,7 +27,7 @@
 ;; Entities from the Getty vocabularies, by their numbers
 
 (define/procedure core #record (#uri id #string type #string label)
-  (doc "An entity's core properties: its id, its type and its _label.")
+  (doc "An entity's core properties, which every node with an id begins with: (core #uri \"https://linked.art/example/object/1\" \"HumanMadeObject\" \"Spring\").")
   (:id id :type type :_label label))
 
 (define/procedure aat #record (#string id #string label)

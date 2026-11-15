@@ -90,10 +90,12 @@ base = Group "std/base: Linked Art's base patterns"
       -- What std/base offers
     , ("with writes a set as it is given",         stdToJSON "(graph g (with (:type \"Person\") :classified_as (base/nationality \"300111188\" \"French\")))"
                                                              "{\"type\": \"Person\", \"classified_as\": {\"id\": \"http://vocab.getty.edu/aat/300111188\", \"type\": \"Type\", \"_label\": \"French\", \"classified_as\": [{\"id\": \"http://vocab.getty.edu/aat/300379842\", \"type\": \"Type\", \"_label\": \"Nationality\"}]}}")
-    , ("std/base exports its constructors only",   stdFailsWith "exports: aat, description, identifier, language, name, nationality, occupation, shape, statement, statement-kind, style, tgn, ulan, work-type."
+    , ("std/base exports its constructors only",   stdFailsWith "exports: aat, core, description, identifier, language, name, nationality, occupation, shape, statement, statement-kind, style, tgn, ulan, work-type."
                                                                 "(graph g (base/nope 1))")
-    , ("core is private",                          stdFailsWith "unexportedName = \"core\""
-                                                                "(graph g (base/core #uri \"https://a.org/1\" \"Type\" \"A\"))")
+    , ("core builds an id, a type and a _label",   stdToJSON "(graph g (base/core #uri \"https://a.org/1\" \"HumanMadeObject\" \"A\"))"
+                                                             "{\"id\": \"https://a.org/1\", \"type\": \"HumanMadeObject\", \"_label\": \"A\"}")
+    , ("core's id is a URI",                       stdFailsWith "#uri"
+                                                                "(graph g (base/core \"not a uri\" \"HumanMadeObject\" \"A\"))")
     , ("meta-typed is private",                    stdFailsWith "unexportedName = \"meta-typed\""
                                                                 "(graph g (base/meta-typed vocab/style \"1\" \"x\"))")
     ]
