@@ -1,0 +1,2 @@
+(define/procedure museum #string () "Rijksmuseum")
+(graph g (:r museum))

@@ -1,2 +1,2 @@
 (export f)
-(define/procedure f () 1)
+(define/constant f 1)

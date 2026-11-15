@@ -1,2 +1,2 @@
-(define/procedure with () 1)
+(define/constant with 1)
 (graph g (:r 1))

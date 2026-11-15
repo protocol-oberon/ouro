@@ -60,9 +60,9 @@ letAndFn = Group "Bindings: let, fn and defn"
                                                              "(define/procedure f () (\"hello\")) (graph g (:r (f)))")
     , ("a fn result in parentheses warns",         warnsWith "Perhaps remove the parentheses: 1"
                                                              "(graph g (let ($f (fn () (1))) (:r (f))))")
-    , ("a bare result does not warn",              compilesWithoutWarnings "(define/procedure f () \"hello\") (graph g (:r (let ($h (fn () true)) (h)) :s (f)))")
-    , ("a record or call result does not warn",    compilesWithoutWarnings "(define/procedure one () 1) (define/procedure f () (:a (one))) (graph g (:r (f) :s ((one))))")
-    , ("an array of several values does not warn", compilesWithoutWarnings "(define/procedure f () (1 2)) (graph g (:r (f)))")
+    , ("a bare result does not warn",              compilesWithoutWarnings "(define/constant f \"hello\") (graph g (:r (let ($h (fn () true)) (h)) :s (f)))")
+    , ("a record or call result does not warn",    compilesWithoutWarnings "(define/constant one 1) (define/constant f (:a (one))) (graph g (:r (f) :s ((one))))")
+    , ("an array of several values does not warn", compilesWithoutWarnings "(define/constant f (1 2)) (graph g (:r (f)))")
     , ("a parenthesised attribute value does not warn", compilesWithoutWarnings "(graph g (:r (\"hello\")))")
 
     -- Errors, checked by message

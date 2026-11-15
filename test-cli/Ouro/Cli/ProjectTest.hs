@@ -144,7 +144,7 @@ vendoredLibraries = Group "Builds: vendored libraries"
     , ("its modules are compiled only when imported", projectBuildsTo "vendor-lazy" [ ("vendor/tate/people.ouro", "(export person)\n(define/procedure person (n) n)\n(graph g (:r 1))"), ("vendor/tate/broken.ouro", broken)
                                                                                    , ("main.ouro", "(import tate/people)\n(graph g (:r (people/person \"A\")))") ]
                                                                     [("out" </> "main" </> "g.json", "{\"r\":\"A\"}")])
-    , ("a module reached two ways is loaded once",  projectWarnsTimes "vendor-once" 1 "badName" [ ("vendor/tate/badly.ouro", "(export badName)\n(define/procedure badName () 1)")
+    , ("a module reached two ways is loaded once",  projectWarnsTimes "vendor-once" 1 "badName" [ ("vendor/tate/badly.ouro", "(export badName)\n(define/constant badName 1)")
                                                                                               , ("one.ouro", "(import tate/badly)\n(graph g (:r (badly/badName)))")
                                                                                               , ("two.ouro", "(import tate/badly)\n(graph g (:r (badly/badName)))") ])
     , ("a missing module says where it looked",     projectFailsWith "vendor-missing" [ person "vendor/tate/people.ouro", ("main.ouro", "(import tate/nope)\n(graph g (:r 1))") ]

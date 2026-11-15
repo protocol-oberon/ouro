@@ -6,6 +6,7 @@ import           Data.Char                   (isDigit, isLower, isUpper, toLower
 import qualified Data.Map.Strict             as Map
 import           Data.Ouro.Error.Diagnostics (notKebabCase,
                                               parenthesisedResult,
+                                              procedureOfNoParameters,
                                               shadowedBuiltin,
                                               unanchoredLiteral)
 import           Data.Ouro.Error.Types       (OuroWarning (..))
@@ -31,9 +32,35 @@ lintExpression =
      (Tkn.Token pos Tkn.TagArrayEmpty : Tkn.Token _ (Tkn.String val) : rest)
          -> OuroWarning pos (unanchoredLiteral "#array-empty" val) : lintExpression rest
 
+     -- A define/procedure of no parameters, (define/procedure c () value) or with a return
+     -- type, (define/procedure c #string () value), is a constant: define/constant says so.
+     -- The parsed tree does not keep which keyword was written, so it is found in the tokens.
+     (Tkn.Token pos Tkn.OpenParen : Tkn.Token _ Tkn.DefineProcedure : Tkn.Token _ (Tkn.Symbol name) : rest)
+         | Tkn.Token _ Tkn.OpenParen : Tkn.Token _ Tkn.CloseParen : _ <- afterReturnType rest
+         -> OuroWarning pos (procedureOfNoParameters name) : lintExpression rest
+
      -- Structural recursion to keep scanning down the token stream
      (_ : rest) -> lintExpression rest
      []         -> []
+
+    where
+    -- The tokens after a definition's return type, which is one property tag, if it has one
+    afterReturnType = \case
+        Tkn.Token _ tag : rest
+            | isReturnType tag -> rest
+        tokens                 -> tokens
+
+    isReturnType = \case
+        Tkn.TagUri          -> True
+        Tkn.TagDate         -> True
+        Tkn.TagString       -> True
+        Tkn.TagNumber       -> True
+        Tkn.TagBoolean      -> True
+        Tkn.TagRecord       -> True
+        Tkn.TagArray        -> True
+        Tkn.TagFunction     -> True
+        Tkn.TagProperty _   -> True
+        _notAType           -> False
 
 
 -- lintModule.

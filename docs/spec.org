@@ -127,7 +127,7 @@ An Ouro file (a module) is a sequence of top-level declarations: its imports and
 Every body is exactly one expression: a function's body is its result, and a graph's body is its document (usually a record). Private values are bound around that expression with =let=. A function's header can also declare its types (see [[*Functions: =define/procedure=, =fn= and calls][signatures]]).
 
 #+BEGIN_SRC clojure
-(define/procedure getty-aat ()
+(define/constant getty-aat
   "http://vocab.getty.edu/aat/")
 
 (define/procedure type-node #record (#string aat-id label)
@@ -182,14 +182,14 @@ A module uses another's functions by importing it, and offers its own by exporti
 =ouro build [DIR] [-g module/graph ...]= builds the project in =DIR=, the current directory when it is not given; it is the only command that compiles Ouro (=ouro compile= was removed in 0.5). A project needs no file of its own: without one, its modules are the files in =DIR= and its graphs are written to =DIR/out=. A =package.ouro= in =DIR= changes that, and holds one function, =package=, whose value is the project's settings:
 
 #+BEGIN_SRC clojure
-(define/procedure package ()
+(define/constant package
   (:sources "src"
    :outputs "dist"))
 #+END_SRC
 
 - *The folder is the project.* =DIR= is never looked above: a folder that does not exist is a message, "No folder typo", not the build of a project above it.
 - *One function.* =package.ouro= is lexed, parsed and evaluated as a module is, and its settings are the value of =(package)=, so they are Ouro values, ~:outputs (+ "di" "st")~ included. It can import the bundled modules, and only them (any other import is =SCP0006=). It holds nothing but its function: a graph, an export or another function is =BLD0006=; a function named =inputs=, =build= or =exports= is =BLD0010=, those names being kept for later versions of =package.ouro=; =package= takes no parameters (=BLD0008=); and without a function named =package= the file is =BLD0007=, which names the function it found, or, for an empty file, suggests deleting it, since a project needs none. Its declarations are checked before its settings, since the settings are its function's value.
-- *Settings.* None is required, so ~(define/procedure package () #record-empty)~ is every default. =:sources=, a String, is the source folder, relative to =DIR=, ="."= when it is not given; a folder that does not exist is =BLD0005=. =:outputs=, a String, is where the graphs are written, ="out"= when it is not given. =:graphs=, an Array of Strings even when it names one, chooses the graphs built (see /The graphs chosen/), every one when it is not given. =:ouro=, a String, is the version of Ouro the project needs, numbers apart by dots, as ="0.5"=: a version newer than the compiler's is =BLD0015=, which names both, and one that is not numbers apart by dots is =BLD0016=; versions are compared number by number, a missing number being 0, so ="0.5"= is =0.5.0.0=. Any other setting, =:name= included, is =BLD0000=, which suggests the nearest, =:sorces= for =:sources=. A setting of the wrong type is =TYP0000=, saying what the setting is. A value that is not a record is =TYP0000= too. Every wrong setting is reported, at the function, since an evaluated record keeps no position for each attribute pair.
+- *Settings.* None is required, so ~(define/constant package #record-empty)~ is every default. =:sources=, a String, is the source folder, relative to =DIR=, ="."= when it is not given; a folder that does not exist is =BLD0005=. =:outputs=, a String, is where the graphs are written, ="out"= when it is not given. =:graphs=, an Array of Strings even when it names one, chooses the graphs built (see /The graphs chosen/), every one when it is not given. =:ouro=, a String, is the version of Ouro the project needs, numbers apart by dots, as ="0.5"=: a version newer than the compiler's is =BLD0015=, which names both, and one that is not numbers apart by dots is =BLD0016=; versions are compared number by number, a missing number being 0, so ="0.5"= is =0.5.0.0=. Any other setting, =:name= included, is =BLD0000=, which suggests the nearest, =:sorces= for =:sources=. A setting of the wrong type is =TYP0000=, saying what the setting is. A value that is not a record is =TYP0000= too. Every wrong setting is reported, at the function, since an evaluated record keeps no position for each attribute pair.
 - *Modules.* Every =.ouro= file under the source folder is a module, named by its path under it, written with =/=: =src/people/bob.ouro= under ="src"= is =people/bob=. Skipped: hidden folders (=.git=, =.jj=), the =:outputs= folder, the =vendor/= folder, every =package.ouro=, and every folder holding one, which is a project of its own. Folders are compared as they are on disk, so a source folder written through =..= still skips the outputs. A module whose path starts with =std= or =aat=, the folders of the bundled modules, is =BLD0009=, reported in its file, and is not built.
 - *Every graph.* Every graph of every module, modules nothing imports included, is written to =<outputs>/<module>/<graph>.json=: the graph =g= of =people/bob= is written to =out/people/bob/g.json=, its folders made. A module of functions only writes nothing. A module imported by many is loaded once, so its warnings are reported once. Modules are built in the order of their names.
 - *The graphs chosen.* =-g module/graph=, given any number of times, builds only the graphs it names, and replaces =:graphs=; without =-g=, =:graphs= chooses them; without either, every graph of every module is built. A graph is named by its module and its name, split at the last =/=: =people/bob/g= is the graph =g= of =people/bob=. Only the modules of the graphs chosen, and what they import, are compiled, so a module not chosen cannot fail the build, and only the graphs chosen are written, in the order they are named within each module. A name not written =module/graph= is =BLD0018=; a module the project does not build is =BLD0017=, which suggests the closest module; a graph its module does not have is =SCP0004=, shown at the module's closest graph, or, for a module with no graphs, =SCP0005=. An error in a =-g= is reported at the argument itself, =-g people/persn=, and one in =:graphs= at the =package= function. =:graphs ()= builds nothing.
@@ -221,7 +221,7 @@ Block comments are written ~#| … |#~. A symbol starts with a letter, one of th
 
 A source file is UTF-8, on every platform. A letter is any Unicode letter, so =café= is a name and =:naïve= a key, and strings hold any text. A leading byte order mark is dropped and CRLF line endings become LF, so a file reads the same wherever it was saved; a file that is not valid UTF-8 is an error, not garbled text, and so is a file that cannot be read, such as one that does not exist, rather than an exception. The library reads no files: it decodes the bytes it is given (~Data.Ouro.decodeSource~), and the command line reads them (~CLI.Source.readSource~). A file that ends with a delimiter still open is =SYN0001=, reported at the innermost delimiter still open, in the file it is in: "Expected: ')' to close this; Got: the end of the file". The compiler's messages are UTF-8 too: on Windows the console's code page is switched to UTF-8 (65001) while =ouro= runs, and restored when it exits.
 
-A trailing =!= on a function name is allowed but has no meaning. Names live in one namespace, values and functions share it, and an inner value shadows an outer function of the same name. A =define/procedure= may take the name of a built-in, as a definition can in Scheme, and replaces it throughout the file: in calls, in =case= guards, and under any symbol the built-in is also written with, so ~(define/procedure = ...)~ replaces =eq=. The compiler warns when it does (=WRN0003=). A =define/procedure= may take a special form's name too, and shadows the form throughout the file, with the same warning, except the forms read by their syntax (see [[*Special forms][special forms]]). A =/= qualifies an imported name, =base/aat=, so a =define/procedure=, a parameter or a =let= binding cannot have one: =/= and =/== themselves are names, being unqualified. Functions and graphs are named in kebab-case, =make-place=: a name with a capital or an underscore is a warning (=WRN0004=) that suggests the kebab-case spelling, so =makePlace= and =make_place= are both =make-place=. Attribute keys and local bindings are exempt, since keys follow the data's vocabulary (=:_label=).
+A trailing =!= on a function name is allowed but has no meaning. Names live in one namespace, values and functions share it, and an inner value shadows an outer function of the same name. A =define/procedure= may take the name of a built-in, as a definition can in Scheme, and replaces it throughout the file: in calls, in =case= guards, and under any symbol the built-in is also written with, so ~(define/procedure = ...)~ replaces =eq=. The compiler warns when it does (=WRN0003=). A =define/procedure= may take a special form's name too, and shadows the form throughout the file, with the same warning, except the forms read by their syntax (see [[*Special forms][special forms]]). A =/= qualifies an imported name, =base/aat=, so a =define/procedure=, a parameter or a =let= binding cannot have one: =/= and =/== themselves are names, being unqualified. Functions and graphs are named in kebab-case, =make-place=: a name with a capital or an underscore is a warning (=WRN0004=) that suggests the kebab-case spelling, so =makePlace= and =make_place= are both =make-place=. Attribute keys and local bindings are exempt, since keys follow the data's vocabulary (=:_label=). A =define/procedure= of no parameters, ~(define/procedure c () value)~, with a return type or without, is a constant, worked out once per graph whichever keyword defines it, so it is a warning (=WRN0006=) that suggests ~(define/constant c value)~; the parsed tree does not keep which keyword was written, so the linter finds it in the tokens.
 
 ** Formal grammar (EBNF)
 
@@ -343,7 +343,7 @@ Arrays, like JSON arrays, can hold values of any type: ~(1 "a" (:k 1) (2 3))~.
 *Inlays are layers.* =inlay= splices a record's attribute pairs into the surrounding record, but a key still appears once. An attribute pair written in the record wins over an inlaid one with the same key, wherever the =inlay= is placed, and a later =inlay= wins over an earlier one:
 
 #+BEGIN_SRC clojure
-(define/procedure base () (:type "Type" :_label "Painting"))
+(define/constant base (:type "Type" :_label "Painting"))
 
 (:_label "Spring" (inlay (base)))   ; {"_label": "Spring", "type": "Type"}
 #+END_SRC
@@ -351,7 +351,7 @@ Arrays, like JSON arrays, can hold values of any type: ~(1 "a" (:k 1) (2 3))~.
 An inlaid record's context is layered the same way, by the context's =Monoid=: the record's =@context= is the inlays' contexts, in order, then its own written context, as one context array. Because JSON-LD applies a context array in order, the written context, applied last, overrides a term an inlay's context also defines, and a later inlay's overrides an earlier one's; terms only an inlay defines stay in scope. The same context reaching a record twice in a row, as when an inlaid node and the record both name Linked Art's context, is written once.
 
 #+BEGIN_SRC clojure
-(define/procedure c () (:context "https://a.org/c.json" :a 1))
+(define/constant c (:context "https://a.org/c.json" :a 1))
 
 ((inlay (c)) :context "https://w.org/c.json" :b 2)
 ; {"@context": ["https://a.org/c.json", "https://w.org/c.json"], "a": 1, "b": 2}
@@ -1300,12 +1300,13 @@ Unbound names are now found by the static analysis, which ranks every name in sc
 :END:
 The call was read as the special form, with a confusing error about =fn= syntax. A binding now shadows a special form, as in Scheme, so the call is the parameter's.
 
-** OPEN Zero-argument functions re-evaluate on every call
+** FIXED Zero-argument functions re-evaluate on every call
 :PROPERTIES:
 :ID:       12
 :FOUND:    2026-10-12
+:FIXED_IN: 0.6.0.0
 :END:
-As pure constants they could be shared.
+As pure constants they could be shared. /Fixed/ (2026-11-12, 0b7120c): a function of no parameters named as a value is worked out once per graph and that value reused, whichever keyword defines it, and =define/constant= is the way to write one, which a =define/procedure= of no parameters is warned towards (=WRN0006=, 2026-11-15). Left as they are on purpose: a call, =(c)=, is evaluated each time; a =(fn () …)= written inside a function is evaluated each time it is named, since it closes over a frame each call binds afresh; and each graph evaluates its constants on its own.
 
 ** OPEN Code health
 :PROPERTIES:

@@ -490,6 +490,16 @@ data LinterWarning
       { shadowingModule :: Text -- The module's name
       , shadowingFile   :: Text -- The project's file that replaces it
       }
+
+    -- LINT WARNING: PROCEDURE OF NO PARAMETERS
+    -- Occurs when a define/procedure takes no parameters, (define/procedure c () value). A
+    -- function of no parameters is a constant, its value worked out once per graph, whichever
+    -- keyword defines it, and define/constant says so.
+    --
+    -- * Remediation: Issue warning. Suggest define/constant.
+    | ProcedureOfNoParameters
+      { constantName :: Text -- The function's name
+      }
     deriving (Show, Eq, Ord, Generic)
 
 

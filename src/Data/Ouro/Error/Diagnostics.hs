@@ -564,6 +564,10 @@ notKebabCase kind name kebab = Lint $ NotKebabCase
     , kebabName       = kebab
     }
 
+-- Create a warning for a define/procedure of no parameters, which is a constant
+procedureOfNoParameters :: Text -> WarningContext
+procedureOfNoParameters name = Lint $ ProcedureOfNoParameters { constantName = name }
+
 -- Create a compile-time elided property assignment semantic warning
 elidedPropertyAssign :: Text -> Text -> WarningContext
 elidedPropertyAssign key construct = Semantic $ ElidedPropertyAssign
@@ -629,6 +633,11 @@ warningBlurb = \case
         -> "A module of the project with the name of a bundled module is imported in its place: " <> file <> " replaces the bundled '" <> name <> "'.\n\n"
         <> "Perhaps rename the file, unless replacing the bundled module is intended."
 
+    Lint (ProcedureOfNoParameters name)
+        -> "A function of no parameters is a constant: named as a value it is its result, worked out once per graph, "
+        <> "whichever keyword defines it.\n\n"
+        <> "Perhaps define it as one: (define/constant " <> name <> " value)."
+
     Semantic (ElidedPropertyAssign key construct)
         -> "The expression assigned to the property attribute '" <> key <> "' evaluates exclusively to a compile-time '"
         <> construct <> "' block. Because elided control structures leave zero footprint in final binary payloads, "
@@ -649,6 +658,7 @@ warningSummary = \case
     Lint (ShadowedBuiltin name)         -> "The function '" <> name <> "' replaces the built-in '" <> name <> "'"
     Lint (NotKebabCase kind name _)     -> "The " <> kind <> " '" <> name <> "' is not named in kebab-case"
     Lint (ShadowedBundledModule name _) -> "The project's module '" <> name <> "' replaces the bundled '" <> name <> "'"
+    Lint (ProcedureOfNoParameters name) -> "The procedure '" <> name <> "' takes no parameters, so it is a constant"
     Semantic (ElidedPropertyAssign k _) -> "Property assignment '" <> k <> "' binds to an elided value"
     Vocab (UnboundTypeReference t _)    -> "Unbound schema type reference '" <> t <> "'"
 

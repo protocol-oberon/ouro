@@ -244,8 +244,8 @@ importedModules = Group "Modules: imported modules, in memory"
     base        = ("base", "(export one)\n(define/procedure one () 1)")
     left        = ("left", "(import base)\n(export f)\n(define/procedure f () (+ (base/one) 10))")
     right       = ("right", "(import base)\n(export f)\n(define/procedure f () (+ (base/one) 20))")
-    badlyNamed  = ("badly-named", "(export badName)\n(define/procedure badName () 1)")
-    usesBadly n = (n, "(import badly-named)\n(export f)\n(define/procedure f () (badly-named/badName))")
+    badlyNamed  = ("badly-named", "(export badName)\n(define/constant badName 1)")
+    usesBadly n = (n, "(import badly-named)\n(export f)\n(define/constant f (badly-named/badName))")
     unparsed    = ("unparsed", "(export f)\n(define/procedure f)")
 
 

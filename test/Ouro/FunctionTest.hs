@@ -148,7 +148,7 @@ signatures = Group "Functions: signatures are properties in the header"
                                                             "(define/procedure f (#number) 1) (graph g (:r (f)))")
 
     -- A return type says what the result is, so a typed one-value array is not a mistake
-    , ("#array silences the one-value warning",   compilesWithoutWarnings "(define/procedure f #array () (\"x\")) (graph g (:r (f) :s (let ($h (fn #array () (\"y\"))) (h))))")
+    , ("#array silences the one-value warning",   compilesWithoutWarnings "(define/constant f #array (\"x\")) (graph g (:r (f) :s (let ($h (fn #array () (\"y\"))) (h))))")
     ]
 
 
@@ -481,6 +481,14 @@ constants = Group "Functions: a function of no parameters, named, is its value"
                                                                  "{\"r\": \"a\"}")
     , ("whose return type is checked",            failsWith "expectedProperty = \"#string\""
                                                             "(define/constant c #string 1) (graph g (:r c))")
+    , ("a define/procedure of no parameters warns", warnsWith "The procedure 'c' takes no parameters, so it is a constant"
+                                                            "(define/procedure c () 1) (graph g (:r c))")
+    , ("suggesting define/constant",              warnsWith "Perhaps define it as one: (define/constant c value)."
+                                                            "(define/procedure c () 1) (graph g (:r c))")
+    , ("as it does with a return type",           warnsWith "The procedure 'c' takes no parameters"
+                                                            "(define/procedure c #string () \"a\") (graph g (:r c))")
+    , ("a define/procedure of parameters does not", compilesWithoutWarnings "(define/procedure f (x) x) (graph g (:r (f 1)))")
+    , ("nor does a fn of none",                   compilesWithoutWarnings "(graph g (:r (let ($h (fn () 1)) (h))))")
     , ("a name that begins with defn/const is a name", failsWith "Invalid top-level keyword: Symbol"
                                                             "(defn/constant c 1) (graph g (:r 1))")
     , ("define/property is read, but is not yet a form", failsWith "Invalid top-level keyword: DefineProperty"

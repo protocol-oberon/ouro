@@ -9,6 +9,10 @@ version is 0.x, a new minor version may break programs, and each change that doe
 
 ## [Unreleased]
 
+### Added
+- A `define/procedure` of no parameters warns (`WRN0006`) and suggests `define/constant`: a
+  function of no parameters is a constant, worked out once per graph. <!-- ulotxkko -->
+
 ## [0.6.0.0] - 2026-11-15
 
 ### Changed

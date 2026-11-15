@@ -1,2 +1,2 @@
-(define/procedure inputs () 1)
+(define/constant inputs 1)
 (define/constant package (:sources "."))

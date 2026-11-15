@@ -622,6 +622,11 @@ splitWarningContext ctx =
                , [ labeled "Replaced by: " (highlightDiagnostic file) ]
                , Just blurb
                )
+        Lint (ProcedureOfNoParameters name)
+            -> ( title
+               , [ labeled "Constant: " (highlightDiagnostic name) ]
+               , Just blurb
+               )
         Semantic (ElidedPropertyAssign key construct)
             -> ( title
                , [ labeled "Omitted Attribute: " (highlightDiagnostic key)

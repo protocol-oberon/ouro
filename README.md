@@ -133,7 +133,7 @@ A project that extends Linked Art adds its own terms after it, as an array:
 ```
 
 - A key starting with `@` is a JSON-LD keyword: `(:@vocab "https://example.org/" :@language "en")` is a local context. Any other key defines a term, which maps to an IRI or to an expanded definition record (`:@id`, `:@type`, `:@container`, ...).
-- A context is a value like any other, so a function can build one: `(define/procedure linked-art () "https://linked.art/ns/v1/linked-art.json")`, then `:context (list linked-art (:ex "https://example.org/ns/"))`.
+- A context is a value like any other, so a function can build one: `(define/constant linked-art "https://linked.art/ns/v1/linked-art.json")`, then `:context (list linked-art (:ex "https://example.org/ns/"))`.
 - A malformed context is reported where it is written: a remote context that is not an absolute URL, an unknown `@` keyword, or a term mapped to a Number, for example.
 - `:@context` means the same as `:context`. Ouro has no `null`, so a context cannot clear another, and no keyword or term is set to `null`; a record without `:context` has no `@context`.
 
@@ -417,7 +417,7 @@ current record. For example the following Ouro code:
 Inlays are layers. Since each key can appear once in a record, when an inlaid record has a key that is already written in the record, the written attribute pair wins, wherever the inlay is placed. When two inlays share a key, the later inlay wins. This makes inlaying a template and overriding some of its attribute pairs straightforward:
 
 ``` clojure
-(define/procedure base () (:type "Type" :_label "Painting"))
+(define/constant base (:type "Type" :_label "Painting"))
 
 (graph overridden
   (:_label "Spring"
@@ -872,7 +872,8 @@ A function's types are written as built-in properties in its header. One between
 - Each argument is checked where the call is written, so a mismatch is reported at the argument, in the call. The result is checked where the body is.
 - An argument is checked even if the function never uses it.
 - Nothing is inferred: an untyped parameter or result is not checked.
-- A return type of `#array` says that a one-value Array is intended, so `(define/procedure f #array () ("x"))` does not warn.
+- A return type of `#array` says that a one-value Array is intended, so `(define/constant f #array ("x"))` does not warn.
+- A `define/procedure` of no parameters is a constant, so it warns (`WRN0006`) and suggests `define/constant`.
 
 ### When signatures are checked
 
@@ -1244,7 +1245,7 @@ Only the modules of the graphs named, and what they import, are compiled, so a m
 A `package.ouro` in the project's folder changes the defaults. It holds one function, `package`, whose value is the project's settings, none of them required:
 
 ``` clojure
-(define/procedure package ()
+(define/constant package
   (:sources "src"
    :outputs "dist"
    :graphs  ("provenance/spring/purchase-of-spring")
