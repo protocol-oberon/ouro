@@ -18,7 +18,7 @@
       (with :context        "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as  (list activity-type/auction-event))
       (with :identified_by  (list (base/name vocab/primary-name "Impressionist & Modern Evening Sale")))
-      (with :timespan       (with (time/span "2014-11-05T17:00:00Z" "2014-11-05T23:59:59Z") :_label "Nov 5, 2014"))
+      (with :timespan       (with (time/span #date "2014-11-05T17:00:00Z" #date "2014-11-05T23:59:59Z") :_label "Nov 5, 2014"))
       (with :took_place_at  ((:id            (example "place/christies_nyc")
                               :type          "Place"
                               :_label        "Christie's, New York"

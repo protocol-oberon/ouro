@@ -17,7 +17,7 @@
                                       (adjoin :classified_as (:id #uri "http://vocab.getty.edu/aat/300456841" :type "Type"))
                                       (with :created_by (:type      "Creation"
                                                          :technique ((:id #uri "http://vocab.getty.edu/aat/300456842" :type "Type"))
-                                                         :timespan  (time/span "2024-11-07T20:50:00Z" "2024-11-07T20:50:00Z")))
+                                                         :timespan  (let ($made #date "2024-11-07T20:50:00Z") (time/span made made))))
                                       (with :subject_to ((:type          "Right"
                                                           :classified_as ((:id #uri "https://creativecommons.org/licenses/by/4.0/" :type "Type" :_label "CC-BY"))
                                                           :identified_by ((:type "Name" :content "CC-BY 4.0"))))))))))

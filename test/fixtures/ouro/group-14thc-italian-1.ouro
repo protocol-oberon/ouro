@@ -18,7 +18,7 @@
       (with :identified_by          (list (base/name vocab/primary-name "Unidentified 14th Century Italian")))
       (with :members_exemplified_by ((:type "Person"
                                       :born (:type          "Birth"
-                                             :timespan      (time/span "1300-01-01T00:00:00Z" "1399-12-31T00:00:00Z")
+                                             :timespan      (time/span #date "1300-01-01T00:00:00Z" #date "1399-12-31T00:00:00Z")
                                              :took_place_at ((:id     #uri "https://vocab.getty.edu/tgn/1000080"
                                                               :type   "Place"
                                                               :_label "Italy"))))))))

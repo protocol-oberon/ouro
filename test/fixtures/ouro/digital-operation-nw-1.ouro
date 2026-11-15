@@ -10,8 +10,7 @@
 (define/procedure digital #record (#string slug #string label)
   (:id (example (+ "digital/" slug)) :type "DigitalObject" :_label label))
 
-;; A web page, published over three days; linked.art ends them at midnight, so the span is
-;; written out
+;; A web page, published over two days, from midnight to midnight
 (graph digital-operation-nw-1
   (-> (digital "operation_nw/1" "Operation Night Watch Publication")
       (with :context           "https://linked.art/ns/v1/linked-art.json")
@@ -22,6 +21,7 @@
       (with :format            "text/html")
       (with :conforms_to       ((:id #uri "http://w3.org/TR/html" :type "InformationObject")))
       (with :created_by        (:type           "Creation"
-                                :timespan       (time/span "2019-07-19T00:00:00Z" "2019-07-21T00:00:00Z")
+                                :timespan       (let ($published #date "2019-07-19T00:00:00Z")
+                                                  (time/span published (+ published (days 2))))
                                 :carried_out_by ((:id (example "group/rijksmuseum") :type "Group" :_label "Rijksmuseum"))))
       (with :digitally_carries ((:id (example "text/operation_nw_en") :type "LinguisticObject" :_label "Operation Night Watch in English")))))

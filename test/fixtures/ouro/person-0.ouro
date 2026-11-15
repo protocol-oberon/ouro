@@ -16,10 +16,10 @@
   (:type "Place" :_label label))
 
 ;; Born and died over a day, from midnight to midnight, at a place
-(define/procedure life-event #record (#string type #string label #string day #string next #string where)
+(define/procedure life-event #record (#string type #string label #date day #string where)
   (:type          type
    :_label        label
-   :timespan      (time/span (+ day "T00:00:00Z") (+ next "T00:00:00Z"))
+   :timespan      (time/span day (+ day (days 1)))
    :took_place_at (list (place where))))
 
 ;; A person's life: gender and nationality, birth and death, working life, home and address
@@ -29,9 +29,9 @@
       (with :classified_as  (list gender/male nationality/dutch))
       (with :identified_by  ((:type "Name" :content "Rembrandt Harmenszoon van Rijn")))
       (with :referred_to_by (list (base/statement statement-type/biography-statement "Rembrandt was a Dutch draughtsman, painter and printmaker.")))
-      (with :born           (life-event "Birth" "Birth of Rembrandt" "1606-07-15" "1606-07-16" "Leiden"))
-      (with :died           (life-event "Death" "Death of Rembrandt" "1669-10-04" "1669-10-05" "Amsterdam"))
-      (with :carried_out    (list (-> (actor/active (time/span "1631-01-01T00:00:00Z" "1669-10-05T00:00:00Z"))
+      (with :born           (life-event "Birth" "Birth of Rembrandt" #date "1606-07-15T00:00:00Z" "Leiden"))
+      (with :died           (life-event "Death" "Death of Rembrandt" #date "1669-10-04T00:00:00Z" "Amsterdam"))
+      (with :carried_out    (list (-> (actor/active (time/span #date "1631-01-01T00:00:00Z" #date "1669-10-05T00:00:00Z"))
                                       (with :_label        "Active Dates")
                                       (with :took_place_at (list (place "Amsterdam"))))))
       (with :residence      (list (place "Nieuwe Doelenstraat")))

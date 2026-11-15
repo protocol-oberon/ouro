@@ -14,5 +14,5 @@
   (-> (object "nightwatch/43" "Night Watch by Rembrandt")
       (with :context     "https://linked.art/ns/v1/linked-art.json")
       (with :produced_by (:type     "Production"
-                          :timespan (with (time/span "1642-01-01T00:00:00Z" "1842-12-31T23:59:59Z")
+                          :timespan (with (time/year-range "1642" "1842")
                                      :identified_by ((:id (example "Name/1642") :type "Name" :classified_as (list vocab/display-name))))))))
