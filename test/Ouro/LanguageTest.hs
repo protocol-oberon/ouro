@@ -689,6 +689,16 @@ stringBuiltins = Group "Strings: built-ins, each taking the string first"
     , ("so an accession number can be built",       compilesToJSON "(graph g (:r (+ \"C-\" (pad-start (to-string 7) 4 \"0\"))))"
                                                                    "{\"r\": \"C-0007\"}")
 
+      -- Building strings: + joins two, -> threads the pieces in one by one
+    , ("a string of many pieces is built with ->",  compilesToJSON "(graph g (let ($kind \"place\" $slug \"amsterdam\") (:r (-> \"https://example.org/\" (+ kind) (+ \"/\") (+ slug)))))"
+                                                                   "{\"r\": \"https://example.org/place/amsterdam\"}")
+    , ("a hole puts the value second",              compilesToJSON "(graph g (:r (-> 7 (to-string) (pad-start 4 \"0\") (+ \"C-\" ?))))"
+                                                                   "{\"r\": \"C-0007\"}")
+    , ("an Array of pieces is folded from \"\"",    compilesToJSON "(graph g (let ($kind \"place\") (:r (-> (list \"https://example.org/\" kind) (fold \"\" +)))))"
+                                                                   "{\"r\": \"https://example.org/place\"}")
+    , ("or joined with a separator",                compilesToJSON "(graph g (:r (-> (\" Manet\" \"Proust \") (map trim) (join \", \"))))"
+                                                                   "{\"r\": \"Manet, Proust\"}")
+
       -- ranges, Haskell's, both ends included
     , ("a range counts from start to end",          compilesToJSON "(graph g (:a (1..5) :b (0..0) :c (5..1) :d (-2..2)))"
                                                                    "{\"a\": [1, 2, 3, 4, 5], \"b\": [0], \"c\": [], \"d\": [-2, -1, 0, 1, 2]}")

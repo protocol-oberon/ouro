@@ -716,6 +716,26 @@ Any other value, such as a record or a `#uri`, is a type error.
 
 A Number is written as JavaScript writes one, in the output and by `to-string`: a whole number as an integer, `123456789`, and any other in plain decimal, `0.00001`.
 
+**Building strings:** `+` joins two Strings, as it adds two Numbers. A String of more pieces is built with `->`, which threads the value in as each step's first argument, so every `(+ piece)` adds a piece to what has been built so far:
+
+``` clojure
+(-> "https://example.org/"
+    (+ kind)
+    (+ "/")
+    (+ slug))                                       ; "https://example.org/place/amsterdam"
+
+(-> n (to-string) (pad-start 4 "0") (+ "C-" ?))     ; 7 is "C-0007": a hole puts the value second
+```
+
+When the pieces are already an Array, thread it into a `fold` from `""`, or into `join` with a separator:
+
+``` clojure
+(-> (list "https://example.org/" kind "/" slug) (fold "" +))
+(-> labels (map trim) (join ", "))                  ; "Manet, Proust"
+```
+
+Every String built-in takes its String first, so a value is built and cleaned in one pipeline.
+
 **Ranges and `zip`:** `(start..end)` is the whole numbers from start to end, both included, as Haskell's `[1..5]`, and `(first second .. end)` counts in steps. `zip` pairs two Arrays of the same length.
 
 | Syntax                     | Result                           | Behaviour / Domain Rules                                  |
@@ -736,7 +756,7 @@ Together they number a list without writing the numbers, and a summary comes fro
                (fn ((?n ?grams))
                  (:id    (+ "https://example.org/coin/C-" (pad-start (to-string n) 4 "0"))
                   :grams grams)))
-   :range (join (list (to-string (min weights)) "to" (to-string (max weights)) "g") " ")))
+   :range (-> (to-string (min weights)) (+ " to ") (+ (to-string (max weights))) (+ " g"))))
 ```
 
 ## Functions
