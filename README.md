@@ -1198,7 +1198,7 @@ If you prefer a traditional Haskell environment, you can build Ouro directly fro
 The ouro compiler has the following commands (shown via running `ouro -h`):
 
 ``` bash
-Ouro v0.5.0.0
+Ouro v0.6.0.0
 
 Usage: ouro COMMAND [-v|--version]
 
@@ -1248,7 +1248,7 @@ A `package.ouro` in the project's folder changes the defaults. It holds one func
   (:sources "src"
    :outputs "dist"
    :graphs  ("provenance/spring/purchase-of-spring")
-   :ouro    "0.5"))
+   :ouro    "0.6"))
 ```
 
 - `:sources` is the folder the modules are in, `"."` when not given; `:outputs` is where the graphs are written, `"out"` when not given.

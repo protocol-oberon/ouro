@@ -4,8 +4,8 @@ Error [BLD0015]: Newer Ouro
 1 │ (define/constant package (:ouro "99.0"))
   │ ^
   │ Needed: 99.0
-  │ This:   0.5.0.0
+  │ This:   0.6.0.0
   │ 
 
-The project needs Ouro 99.0, and this is Ouro 0.5.0.0. Perhaps update Ouro, or lower :ouro if the
+The project needs Ouro 99.0, and this is Ouro 0.6.0.0. Perhaps update Ouro, or lower :ouro if the
 project builds with this version.
