@@ -14,19 +14,19 @@ version is 0.x, a new minor version may break programs, and each change that doe
 ### Changed
 - **Breaking:** `define/procedure`, `define/property` and `define/constant` replace `defn`,
   `defn/property` and `defn/const`. A `/` always means a variant of what comes before it. The
-  old words, and a bare `define`, are errors that name their replacement. <!-- okwrrvyr -->
+  old words, and a bare `define`, are errors that name their replacement. ([03d7e99])
 - **Breaking:** every form takes its subject first, so `->` threads through all of them:
   `(map xs f)`, `(filter xs f)`, `(forall xs f)`, `(exists xs f)`, `(omits xs f)`,
-  `(insert coll i x)`, `(replace-at coll i x)` and `(get-or record default key ...)`. <!-- usyozyln -->
+  `(insert coll i x)`, `(replace-at coll i x)` and `(get-or record default key ...)`. ([8cd535e])
 - **Breaking:** `satisfies` asks its question value first, `(satisfies x #p)`, so it never looks
   like the assertion `#p x`. As the head of a `case` branch, `(satisfies #p)` is an ordinary
-  guard, with the target put first. <!-- usyozyln -->
+  guard, with the target put first. ([8cd535e])
 - **Breaking:** every built-in takes a fixed number of arguments, and many values are an Array.
   Arithmetic and comparisons take two operands; `(+ 1 2 3)` and `(< a b c)` are arity errors
-  whose hint is the fold or `all`. `and`, `or`, `union`, `intersect` and `setminus` take two. <!-- knpqkwuw -->
-- **Breaking:** `min` and `max` take one Array of Numbers. <!-- ywmtrptr -->
+  whose hint is the fold or `all`. `and`, `or`, `union`, `intersect` and `setminus` take two. ([bea690a])
+- **Breaking:** `min` and `max` take one Array of Numbers. ([aaeb9bd])
 - A call of a built-in with the wrong number of arguments is reported where it is written,
-  even in a function nothing calls, as a call of a defined function already was. <!-- lrpqytku -->
+  even in a function nothing calls, as a call of a defined function already was. ([db079b8])
 - **Breaking:** Ouro has no null. The word is an error where it is written, and a context
   cannot clear another or set anything to null. ([5a22957])
 - A function of no parameters is evaluated once per graph. ([0b7120c])
@@ -41,21 +41,21 @@ version is 0.x, a new minor version may break programs, and each change that doe
   ([3d956b9], [2c00794])
 
 ### Added
-- `fold`, a left fold: `(fold (1 2 3) 0 +)` is `6`. <!-- knpqkwuw -->
+- `fold`, a left fold: `(fold (1 2 3) 0 +)` is `6`. ([bea690a])
 - `all` and `any`, the n-ary `and` and `or` over an Array of Booleans, also written `⋀` and
-  `⋁`. Over an Array written in place they stop at the element that decides. <!-- knpqkwuw -->
+  `⋁`. Over an Array written in place they stop at the element that decides. ([bea690a])
 - String built-ins: `to-string`, `split`, `join`, `upper-case`, `lower-case`, `trim`,
   `starts-with`, `ends-with`, `slice`, `pad-start` and `replace-all`, each taking its String
-  first. <!-- szvtrnxu -->
+  first. ([7d06946])
 - Ranges, `(1..5)` and `(2 4 .. 10)`, as in Haskell, and `zip`, which pairs two Arrays of one
-  length. <!-- yvyknlsp -->
-- The README shows how to build a String of many pieces with `->`. <!-- tplxpxky -->
+  length. ([bc6a009])
+- The README shows how to build a String of many pieces with `->`. ([834261a])
 
 ### Fixed
 - A whole number is written whole, and any other in plain decimal, as JavaScript writes
-  numbers, not in scientific notation (gap 48). <!-- szvtrnxu -->
+  numbers, not in scientific notation (gap 48). ([7d06946])
 - A `define/constant` or `define/property` written in an expression is reported as a local
-  definition, as a `define/procedure` is (gap 49). <!-- mrxmsmxu -->
+  definition, as a `define/procedure` is (gap 49). ([abd6f0b])
 - A name that only begins with `true`, `false` or `null` is read as a name (gap 47). ([176a723])
 - A failed module is reported once, however many modules import it (gap 40). ([6adb240])
 - The names of removed forms are free as keys and bindings (gap 42). ([b09d13c])
@@ -124,6 +124,15 @@ version is 0.x, a new minor version may break programs, and each change that doe
 [0.5.0.0]: https://github.com/protocol-oberon/ouro/compare/v0.0.0.1...v0.5.0.0
 [0.0.0.1]: https://github.com/protocol-oberon/ouro/releases/tag/v0.0.0.1
 
+[03d7e99]: https://github.com/protocol-oberon/ouro/commit/03d7e99
+[8cd535e]: https://github.com/protocol-oberon/ouro/commit/8cd535e
+[bea690a]: https://github.com/protocol-oberon/ouro/commit/bea690a
+[aaeb9bd]: https://github.com/protocol-oberon/ouro/commit/aaeb9bd
+[db079b8]: https://github.com/protocol-oberon/ouro/commit/db079b8
+[7d06946]: https://github.com/protocol-oberon/ouro/commit/7d06946
+[bc6a009]: https://github.com/protocol-oberon/ouro/commit/bc6a009
+[834261a]: https://github.com/protocol-oberon/ouro/commit/834261a
+[abd6f0b]: https://github.com/protocol-oberon/ouro/commit/abd6f0b
 [5a22957]: https://github.com/protocol-oberon/ouro/commit/5a22957
 [0b7120c]: https://github.com/protocol-oberon/ouro/commit/0b7120c
 [e53a1ad]: https://github.com/protocol-oberon/ouro/commit/e53a1ad
