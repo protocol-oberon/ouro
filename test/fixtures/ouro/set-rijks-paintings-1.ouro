@@ -1,24 +1,22 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/set/rijks_paintings/1
+(import std/base)
+(import std/vocab)
+(import aat/activity-type)
+(import aat/set-type)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure set #record (#string slug #string label)
+  (:id (example (+ "set/" slug)) :type "Set" :_label label))
+
+;; A collection within a collection, curated by a department
 (graph set-rijks-paintings-1
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/set/rijks_paintings/1"
-   :type "Set"
-   :_label "Paintings of the Rijksmuseum"
-   :classified_as ((:id "http://vocab.getty.edu/aat/300025976"
-                    :type "Type"
-                    :_label "Collection"))
-   :identified_by ((:type "Name"
-                    :classified_as ((:id "http://vocab.getty.edu/aat/300404670"
-                                     :type "Type"
-                                     :_label "Primary Name"))
-                    :content "Paintings of the Rijksmuseum"))
-   :member_of ((:id "https://linked.art/example/set/rijks_objects"
-                :type "Set"
-                :_label "Collection of the Rijksmuseum"))
-   :used_for ((:type "Activity"
-               :classified_as ((:id "http://vocab.getty.edu/aat/300054277"
-                                :type "Type"
-                                :_label "Curating"))
-               :carried_out_by ((:id "https://linked.art/example/group/rijks_paintings_dept"
-                                 :type "Group"
-                                 :_label "Paintings Department"))))))
+  (-> (set "rijks_paintings/1" "Paintings of the Rijksmuseum")
+      (with :context       "https://linked.art/ns/v1/linked-art.json")
+      (with :classified_as (list set-type/collection))
+      (with :identified_by (list (base/name vocab/primary-name "Paintings of the Rijksmuseum")))
+      (with :member_of     (list (set "rijks_objects" "Collection of the Rijksmuseum")))
+      (with :used_for      ((:type           "Activity"
+                             :classified_as  (list activity-type/curating)
+                             :carried_out_by ((:id (example "group/rijks_paintings_dept") :type "Group" :_label "Paintings Department")))))))

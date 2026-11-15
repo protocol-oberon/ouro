@@ -1,19 +1,19 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/set/24477_16_objects/1
+(import std/base)
+(import std/vocab)
+(import aat/identifier-type)
+(import aat/set-type)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure set #record (#string slug #string label)
+  (:id (example (+ "set/" slug)) :type "Set" :_label label))
+
+;; An auction lot: the set of objects sold together, named and numbered
 (graph set-24477-16-objects-1
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/set/24477_16_objects/1"
-   :type "Set"
-   :_label "Set of Objects for Lot 16"
-   :classified_as ((:id "http://vocab.getty.edu/aat/300411307"
-                    :type "Type"
-                    :_label "Auction Lot"))
-   :identified_by ((:type "Name"
-                    :classified_as ((:id "http://vocab.getty.edu/aat/300404670"
-                                     :type "Type"
-                                     :_label "Primary Name"))
-                    :content "Lot 16: Le Printemps")
-                   (:type "Identifier"
-                    :classified_as ((:id "http://vocab.getty.edu/aat/300404628"
-                                     :type "Type"
-                                     :_label "Lot Number"))
-                    :content "16"))))
+  (-> (set "24477_16_objects/1" "Set of Objects for Lot 16")
+      (with :context       "https://linked.art/ns/v1/linked-art.json")
+      (with :classified_as (list set-type/auction-lot))
+      (with :identified_by (list (base/name vocab/primary-name "Lot 16: Le Printemps")
+                                 (base/identifier identifier-type/lot-number "16")))))

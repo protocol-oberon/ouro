@@ -1,17 +1,20 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/set/archive_sfl/2
+(import std/base)
+(import std/vocab)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure set #record (#string slug #string label)
+  (:id (example (+ "set/" slug)) :type "Set" :_label label))
+
+;; linked.art labels AAT's Archival Sub-Grouping "Archival SubGrouping"
+(define/constant archival-subgrouping (base/aat "300404023" "Archival SubGrouping"))
+
+;; The box an archival grouping's members are kept in
 (graph set-archive-sfl-2
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/set/archive_sfl/2"
-   :type "Set"
-   :_label "Stieglitz Family Letters"
-   :classified_as ((:id "http://vocab.getty.edu/aat/300404023"
-                    :type "Type"
-                    :_label "Archival SubGrouping"))
-   :identified_by ((:type "Name"
-                    :classified_as ((:id "http://vocab.getty.edu/aat/300404670"
-                                     :type "Type"
-                                     :_label "Primary Name"))
-                    :content "Stieglitz Family Letters"))
-   :members_contained_by ((:id "https://linked.art/example/object/box55"
-                           :type "HumanMadeObject"
-                           :_label "Archival Box 55"))))
+  (-> (set "archive_sfl/2" "Stieglitz Family Letters")
+      (with :context              "https://linked.art/ns/v1/linked-art.json")
+      (with :classified_as        (list archival-subgrouping))
+      (with :identified_by        (list (base/name vocab/primary-name "Stieglitz Family Letters")))
+      (with :members_contained_by ((:id (example "object/box55") :type "HumanMadeObject" :_label "Archival Box 55")))))

@@ -1,14 +1,16 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/set/rijks_objects/1
+(import std/base)
+(import std/vocab)
+(import aat/set-type)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure set #record (#string slug #string label)
+  (:id (example (+ "set/" slug)) :type "Set" :_label label))
+
 (graph set-rijks-objects-1
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/set/rijks_objects/1"
-   :type "Set"
-   :_label "Collection of the Rijksmuseum"
-   :classified_as ((:id "http://vocab.getty.edu/aat/300025976"
-                    :type "Type"
-                    :_label "Collection"))
-   :identified_by ((:type "Name"
-                    :classified_as ((:id "http://vocab.getty.edu/aat/300404670"
-                                     :type "Type"
-                                     :_label "Primary Name"))
-                    :content "Collection of the Rijksmuseum"))))
+  (-> (set "rijks_objects/1" "Collection of the Rijksmuseum")
+      (with :context       "https://linked.art/ns/v1/linked-art.json")
+      (with :classified_as (list set-type/collection))
+      (with :identified_by (list (base/name vocab/primary-name "Collection of the Rijksmuseum")))))
