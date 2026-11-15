@@ -23,7 +23,7 @@ withAat src = T.concat [ "(import aat/" <> m <> ") " | m <- modules ] <> src
     modules = [ "name-type", "identifier-type", "statement-type", "object-type", "place-type", "group-type", "digital-type"
               , "set-type", "dimension-type", "language", "language/iso", "unit", "material", "currency"
               , "currency/iso as currency-iso", "nationality", "occupation", "shape", "activity-type", "price-type"
-              , "role-type", "style", "visual-type", "gender" ]
+              , "role-type", "style", "visual-type", "gender", "right-type", "provenance-type" ]
 
 aatToJSON :: Text -> Text -> Property
 aatToJSON src = compilesToJSON (withAat src)
@@ -76,7 +76,7 @@ recommendedTerms = Group "aat: Linked Art's recommended terms"
     , ("every language has an iso variant",        everyTermHasIso "aat/language" 31)
     , ("an iso currency has its code as its notation", aatToJSON "(graph g (currency-iso/us-dollars))"
                                                              ("{" <> aat "300411994" <> ", \"type\": \"Currency\", \"_label\": \"US Dollars\", \"notation\": \"USD\"}"))
-    , ("every currency has an iso variant",        everyTermHasIso "aat/currency" 6)
+    , ("every currency has an iso variant",        everyTermHasIso "aat/currency" 7)
     , ("a style is classified Style",              aatToJSON "(graph g (style/baroque))"
                                                              ("{" <> aat "300021147" <> ", \"type\": \"Type\", \"_label\": \"Baroque\", \"classified_as\": [{" <> aat "300015646" <> ", \"type\": \"Type\", \"_label\": \"Style\"}]}"))
     , ("a gender is classified Gender",            aatToJSON "(graph g (gender/male))"
@@ -107,7 +107,7 @@ everyTermGenerated = withTests 1 . property $ do
         missing   = [ number | number <- terms, not (any (("\"" <> number <> "\"") `T.isInfixOf`) sources) ]
     exported <- traverse (fmap length . exportsOf) [ file | (_, file) <- sections ]
     length recommended === 195
-    length sources === 22
+    length sources === 24
     sum exported === length terms
     missing === []
     where

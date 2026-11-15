@@ -1,22 +1,22 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/provenance/mona_lisa_theft/1
+(import std/vocab)
+(import aat/provenance-type)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure provenance #record (#string slug #string label)
+  (:id (example (+ "provenance/" slug)) :type "Activity" :_label label :classified_as (list vocab/provenance-activity)))
+
+(define/procedure node #record (#string path #string type #string label)
+  (:id (example path) :type type :_label label))
+
+;; A theft moves custody, never title
 (graph provenance-mona-lisa-theft-1
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/provenance/mona_lisa_theft/1"
-   :type "Activity"
-   :_label "Theft of Mona Lisa"
-   :classified_as ((:id "http://vocab.getty.edu/aat/300055863"
-                    :type "Type"
-                    :_label "Provenance Activity"))
-   :part ((:type "TransferOfCustody"
-           :classified_as ((:id "http://vocab.getty.edu/aat/300055292"
-                            :type "Type"
-                            :_label "Theft"))
-           :transferred_custody_of ((:id "https://linked.art/example/object/monalisa"
-                                     :type "HumanMadeObject"
-                                     :_label "Mona Lisa"))
-           :transferred_custody_from ((:id "https://linked.art/example/group/louvre"
-                                       :type "Group"
-                                       :_label "Louvre"))
-           :transferred_custody_to ((:id "https://linked.art/example/person/peruggia"
-                                     :type "Person"
-                                     :_label "Vincenzo Peruggia"))))))
+  (-> (provenance "mona_lisa_theft/1" "Theft of Mona Lisa")
+      (with :context "https://linked.art/ns/v1/linked-art.json")
+      (with :part    ((:type                     "TransferOfCustody"
+                       :classified_as            (list provenance-type/theft)
+                       :transferred_custody_of   (list (node "object/monalisa" "HumanMadeObject" "Mona Lisa"))
+                       :transferred_custody_from (list (node "group/louvre" "Group" "Louvre"))
+                       :transferred_custody_to   (list (node "person/peruggia" "Person" "Vincenzo Peruggia")))))))

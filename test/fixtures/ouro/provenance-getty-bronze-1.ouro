@@ -1,24 +1,21 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/provenance/getty_bronze/1
+(import std/vocab)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure provenance #record (#string slug #string label)
+  (:id (example (+ "provenance/" slug)) :type "Activity" :_label label :classified_as (list vocab/provenance-activity)))
+
+(define/procedure node #record (#string path #string type #string label)
+  (:id (example path) :type type :_label label))
+
+(define/constant youth  (node "object/victorious_youth" "HumanMadeObject" "Victorious Youth"))
+(define/constant finder (node "group/ferruccio" "Group" "Owners of Ferri Ferruccio"))
+
+;; A find: the object is encountered, and its finders take title of it from no one
 (graph provenance-getty-bronze-1
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/provenance/getty_bronze/1"
-   :type "Activity"
-   :_label "Discovery of Victorious Youth"
-   :classified_as ((:id "http://vocab.getty.edu/aat/300055863"
-                    :type "Type"
-                    :_label "Provenance Activity"))
-   :part ((:type "Encounter"
-           :_label "Encounter of Sculpture"
-           :carried_out_by ((:id "https://linked.art/example/group/ferruccio"
-                             :type "Group"
-                             :_label "Owners of Ferri Ferruccio"))
-           :encountered ((:id "https://linked.art/example/object/victorious_youth"
-                          :type "HumanMadeObject"
-                          :_label "Victorious Youth")))
-          (:type "Acquisition"
-           :transferred_title_of ((:id "https://linked.art/example/object/victorious_youth"
-                                   :type "HumanMadeObject"
-                                   :_label "Victorious Youth"))
-           :transferred_title_to ((:id "https://linked.art/example/group/ferruccio"
-                                   :type "Group"
-                                   :_label "Owners of Ferri Ferruccio"))))))
+  (-> (provenance "getty_bronze/1" "Discovery of Victorious Youth")
+      (with :context "https://linked.art/ns/v1/linked-art.json")
+      (with :part    ((:type "Encounter" :_label "Encounter of Sculpture" :carried_out_by (list finder) :encountered (list youth))
+                      (:type "Acquisition" :transferred_title_of (list youth) :transferred_title_to (list finder))))))

@@ -9,7 +9,8 @@
         euros
         japanese-yen
         swiss-franc
-        us-dollars)
+        us-dollars
+        french-francs)
 
 (define/constant british-pounds  (doc "British Pounds, a currency, written GBP.") (with currency/british-pounds :notation "GBP"))
 (define/constant canadian-dollar (doc "Canadian Dollars, a currency, written CAD.") (with currency/canadian-dollar :notation "CAD"))
@@ -17,3 +18,4 @@
 (define/constant japanese-yen    (doc "Japanese Yen, a currency, written JPY.") (with currency/japanese-yen :notation "JPY"))
 (define/constant swiss-franc     (doc "Swiss Francs, a currency, written CHF.") (with currency/swiss-franc :notation "CHF"))
 (define/constant us-dollars      (doc "US Dollars, a currency, written USD.") (with currency/us-dollars :notation "USD"))
+(define/constant french-francs   (doc "French Francs, a currency. From Linked Art's examples, not its recommended list, written FRF.") (with currency/french-francs :notation "FRF"))

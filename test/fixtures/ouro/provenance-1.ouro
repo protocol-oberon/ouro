@@ -1,53 +1,35 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/provenance/1
+(import std/base)
+(import std/provenance)
+(import std/time)
+(import std/vocab)
+(import aat/currency/iso)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure provenance #record (#string slug #string label)
+  (:id (example (+ "provenance/" slug)) :type "Activity" :_label label :classified_as (list vocab/provenance-activity)))
+
+;; A museum's own records, at its own URIs
+(define/procedure museum #record (#string path #string type #string label)
+  (:id #uri (+ "http://example.museum/" path) :type type :_label label))
+
+(define/constant st-george (museum "object/1" "HumanMadeObject" "St George and the Dragon"))
+(define/constant simpson   (museum "person/2" "Person" "Simpson"))
+(define/constant adams     (museum "person/1" "Person" "Adams"))
+
+;; A purchase at auction: title from the seller to the buyer, money the other way
 (graph provenance-1
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/provenance/1"
-   :type "Activity"
-   :_label "St George from Simpson to Adams"
-   :classified_as ((:id "http://vocab.getty.edu/aat/300055863"
-                    :type "Type"
-                    :_label "Provenance Activity"))
-   :identified_by ((:type "Name"
-                    :content "Purchase of Lot 0055a, Durer's St George and the Dragon")
-                   (:type "Identifier"
-                    :content "0055a"))
-   :timespan (:type "TimeSpan"
-              :_label "1820 Mar 09"
-              :begin_of_the_begin "1820-03-09T00:00:00Z"
-              :end_of_the_end "1820-03-09T23:59:59Z")
-   :took_place_at ((:id "http://vocab.getty.edu/tgn/7011781"
-                    :type "Place"
-                    :_label "London"))
-   :carried_out_by ((:id "http://vocab.getty.edu/ulan/500451765"
-                     :type "Group"
-                     :_label "Edward Foster & Son"))
-   :used_specific_object ((:id "http://example.org/set/Br1908/0055"
-                           :type "Set"
-                           :_label "Set of Objects for Lot 0055"))
-   :caused_by ((:id "http://example.org/auction/Br1908/0055"
-                :type "Activity"
-                :_label "Auction of Lot 0055"))
-   :part ((:type "Acquisition"
-           :transferred_title_of ((:id "http://example.museum/object/1"
-                                   :type "HumanMadeObject"
-                                   :_label "St George and the Dragon"))
-           :transferred_title_from ((:id "http://example.museum/person/2"
-                                     :type "Person"
-                                     :_label "Simpson"))
-           :transferred_title_to ((:id "http://example.museum/person/1"
-                                   :type "Person"
-                                   :_label "Adams")))
-          (:type "Payment"
-           :paid_amount (:type "MonetaryAmount"
-                         :_label "8.8 pounds"
-                         :value 8.8
-                         :currency (:id "http://vocab.getty.edu/aat/300411998"
-                                    :type "Currency"
-                                    :_label "British Pounds"
-                                    :notation "GBP"))
-           :paid_from ((:id "http://example.museum/person/1"
-                        :type "Person"
-                        :_label "Adams"))
-           :paid_to ((:id "http://example.museum/person/2"
-                      :type "Person"
-                      :_label "Simpson"))))))
+  (-> (provenance "1" "St George from Simpson to Adams")
+      (with :context              "https://linked.art/ns/v1/linked-art.json")
+      (with :identified_by        ((:type "Name" :content "Purchase of Lot 0055a, Durer's St George and the Dragon")
+                                   (:type "Identifier" :content "0055a")))
+      (with :timespan             (with (time/day "1820-03-09") :_label "1820 Mar 09"))
+      (with :took_place_at        (list (base/tgn "7011781" "London")))
+      (with :carried_out_by       (list (base/ulan "500451765" "Group" "Edward Foster & Son")))
+      (with :used_specific_object ((:id #uri "http://example.org/set/Br1908/0055" :type "Set" :_label "Set of Objects for Lot 0055")))
+      (with :caused_by            ((:id #uri "http://example.org/auction/Br1908/0055" :type "Activity" :_label "Auction of Lot 0055")))
+      (with :part                 (list (provenance/acquisition st-george simpson adams)
+                                        (provenance/payment (with (provenance/money 8.8 iso/british-pounds) :_label "8.8 pounds")
+                                                            adams simpson)))))

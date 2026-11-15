@@ -36,6 +36,8 @@ my %sections = (
     "Shapes"            => ["shape",           "std/base",       "base/shape",          "each classified as Shape, as Linked Art requires",       "a shape"],
     "Activity Types"    => ["activity-type",   "std/base",       "base/aat",            "each a Type, to classify an Activity"],
     "Price Types"       => ["price-type",      "std/base",       "base/aat",            "each a Type, to classify a MonetaryAmount"],
+    "Right Types"       => ["right-type",      "std/base",       "base/aat",            "each a Type, to classify a Right"],
+    "Provenance Types"  => ["provenance-type", "std/base",       "base/aat",            "each a Type, to classify an event of provenance or a part of one"],
     "Genders"           => ["gender",          "std/actor",      "actor/gender",        "each classified as Gender, as Linked Art requires"],
     "Styles"            => ["style",           "std/base",       "base/style",          "each classified as Style, as Linked Art requires"],
     "Visual Types"      => ["visual-type",     "std/base",       "base/aat",            "each a Type, to classify a VisualItem"],
@@ -65,6 +67,7 @@ my %variants = (
 %iso4217 = (
     "british-pounds" => "GBP", "canadian-dollar" => "CAD", "euros"      => "EUR",
     "japanese-yen"   => "JPY", "swiss-franc"     => "CHF", "us-dollars" => "USD",
+    "french-francs"  => "FRF",
 );
 
 %iso = (

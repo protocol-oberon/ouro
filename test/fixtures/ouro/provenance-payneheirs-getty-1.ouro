@@ -1,23 +1,22 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/provenance/payneheirs_getty/1
+(import std/provenance)
+(import std/vocab)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure provenance #record (#string slug #string label)
+  (:id (example (+ "provenance/" slug)) :type "Activity" :_label label :classified_as (list vocab/provenance-activity)))
+
+(define/procedure node #record (#string path #string type #string label)
+  (:id (example path) :type type :_label label))
+
+;; A purchase through an agent, who carries out the acquisition for the buyer
 (graph provenance-payneheirs-getty-1
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/provenance/payneheirs_getty/1"
-   :type "Activity"
-   :_label "Purchase of Spring for Getty"
-   :classified_as ((:id "http://vocab.getty.edu/aat/300055863"
-                    :type "Type"
-                    :_label "Provenance Activity"))
-   :part ((:type "Acquisition"
-           :_label "Acquisition of Spring"
-           :carried_out_by ((:id "https://linked.art/example/person/naumann"
-                             :type "Person"
-                             :_label "Otto Naumann"))
-           :transferred_title_of ((:id "https://linked.art/example/object/spring"
-                                   :type "HumanMadeObject"
-                                   :_label "Spring"))
-           :transferred_title_from ((:id "https://linked.art/example/group/payne_heirs"
-                                     :type "Group"
-                                     :_label "Family of Oliver Payne"))
-           :transferred_title_to ((:id "https://linked.art/example/group/getty"
-                                   :type "Group"
-                                   :_label "J. Paul Getty Museum"))))))
+  (-> (provenance "payneheirs_getty/1" "Purchase of Spring for Getty")
+      (with :context "https://linked.art/ns/v1/linked-art.json")
+      (with :part    (list (-> (provenance/acquisition (node "object/spring" "HumanMadeObject" "Spring")
+                                                       (node "group/payne_heirs" "Group" "Family of Oliver Payne")
+                                                       (node "group/getty" "Group" "J. Paul Getty Museum"))
+                               (with :_label         "Acquisition of Spring")
+                               (with :carried_out_by (list (node "person/naumann" "Person" "Otto Naumann"))))))))

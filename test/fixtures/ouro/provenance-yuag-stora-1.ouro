@@ -1,31 +1,26 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/provenance/yuag_stora/1
+(import std/vocab)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure provenance #record (#string slug #string label)
+  (:id (example (+ "provenance/" slug)) :type "Activity" :_label label :classified_as (list vocab/provenance-activity)))
+
+(define/procedure node #record (#string path #string type #string label)
+  (:id (example path) :type type :_label label))
+
+(define/constant feigen (node "group/feigen" "Group" "Richard Feigen Gallery"))
+(define/constant yuag   (node "group/yuag" "Group" "Yale University Art Gallery"))
+
+;; An exchange: two objects, each passing between the same two owners
 (graph provenance-yuag-stora-1
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/provenance/yuag_stora/1"
-   :type "Activity"
-   :_label "Exchange of Objects"
-   :classified_as ((:id "http://vocab.getty.edu/aat/300055863"
-                    :type "Type"
-                    :_label "Provenance Activity"))
-   :part ((:type "Acquisition"
-           :_label "Acquisition of Personnages"
-           :transferred_title_of ((:id "https://linked.art/example/object/masson_personnages"
-                                   :type "HumanMadeObject"
-                                   :_label "Personnages dans un parc")
-                                  (:id "https://linked.art/example/object/beckmann_nude"
-                                   :type "HumanMadeObject"
-                                   :_label "Nude Woman by Beckmann"))
-           :transferred_title_from ((:id "https://linked.art/example/group/feigen"
-                                     :type "Group"
-                                     :_label "Richard Feigen Gallery")
-                                    (:id "https://linked.art/example/group/yuag"
-                                     :type "Group"
-                                     :_label "Yale University Art Gallery"))
-           :transferred_title_to ((:id "https://linked.art/example/group/yuag"
-                                   :type "Group"
-                                   :_label "Yale University Art Gallery")
-                                  (:id "https://linked.art/example/group/feigen"
-                                   :type "Group"
-                                   :_label "Richard Feigen Gallery")))
-          (:type "Acquisition"
-           :_label "Acquisition of Nude"))))
+  (-> (provenance "yuag_stora/1" "Exchange of Objects")
+      (with :context "https://linked.art/ns/v1/linked-art.json")
+      (with :part    ((:type                   "Acquisition"
+                       :_label                 "Acquisition of Personnages"
+                       :transferred_title_of   (list (node "object/masson_personnages" "HumanMadeObject" "Personnages dans un parc")
+                                                     (node "object/beckmann_nude" "HumanMadeObject" "Nude Woman by Beckmann"))
+                       :transferred_title_from (list feigen yuag)
+                       :transferred_title_to   (list yuag feigen))
+                      (:type "Acquisition" :_label "Acquisition of Nude")))))

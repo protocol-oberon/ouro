@@ -1,53 +1,34 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/provenance/4
+(import std/vocab)
+(import aat/object-type)
+(import aat/right-type)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure provenance #record (#string slug #string label)
+  (:id (example (+ "provenance/" slug)) :type "Activity" :_label label :classified_as (list vocab/provenance-activity)))
+
+(define/constant percent (:id #uri "http://qudt.org/3.0.0/vocab/unit/Percent" :type "MeasurementUnit" :_label "Percent"))
+
+(define/procedure ownership #record (#string label)
+  (:type "Right" :_label label :classified_as (list right-type/ownership-right)))
+
+;; A share of ownership: a Right measured in percent, possessed by its owner
+(define/procedure share #record (#string label #number part #string owner)
+  (-> (ownership label)
+      (with :dimension    ((:type "Dimension" :value part :unit percent)))
+      (with :possessed_by ((:type "Group" :_label owner)))))
+
+;; Two dealers trade shares: each new share establishes a right and invalidates the old one.
+;; linked.art gives the 60% share the value 70, kept here as it publishes it.
 (graph provenance-4
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/provenance/4"
-   :type "Activity"
-   :_label "Trading Shares of Painting between Two Dealers"
-   :classified_as ((:id "http://vocab.getty.edu/aat/300055863"
-                    :type "Type"
-                    :_label "Provenance Activity"))
-   :part ((:type "RightAcquisition"
-           :establishes ((:type "Right"
-                          :_label "40% Ownership by Dealer 1"
-                          :classified_as ((:id "http://vocab.getty.edu/aat/300055603"
-                                           :type "Type"
-                                           :_label "Ownership Right"))
-                          :dimension ((:type "Dimension"
-                                       :value 40
-                                       :unit (:id "http://qudt.org/3.0.0/vocab/unit/Percent"
-                                              :type "MeasurementUnit"
-                                              :_label "Percent")))
-                          :possessed_by ((:type "Group"
-                                          :_label "Dealer 1"))
-                          :applies_to ((:type "HumanMadeObject"
-                                        :_label "Painting"
-                                        :classified_as ((:id "http://vocab.getty.edu/aat/300033618"
-                                                         :type "Type"
-                                                         :_label "Painting"
-                                                         :classified_as ((:id "http://vocab.getty.edu/aat/300435443"
-                                                                          :type "Type"
-                                                                          :_label "Type of Work"))))))))
-           :invalidates ((:type "Right"
-                          :_label "30% Ownership by Dealer 1"
-                          :classified_as ((:id "http://vocab.getty.edu/aat/300055603"
-                                           :type "Type"
-                                           :_label "Ownership Right")))))
-          (:type "RightAcquisition"
-           :establishes ((:type "Right"
-                          :_label "60% Ownership by Dealer 2"
-                          :classified_as ((:id "http://vocab.getty.edu/aat/300055603"
-                                           :type "Type"
-                                           :_label "Ownership Right"))
-                          :dimension ((:type "Dimension"
-                                       :value 70
-                                       :unit (:id "http://qudt.org/3.0.0/vocab/unit/Percent"
-                                              :type "MeasurementUnit"
-                                              :_label "Percent")))
-                          :possessed_by ((:type "Group"
-                                          :_label "Dealer 2"))))
-           :invalidates ((:type "Right"
-                          :_label "70% Ownership by Dealer 2"
-                          :classified_as ((:id "http://vocab.getty.edu/aat/300055603"
-                                           :type "Type"
-                                           :_label "Ownership Right"))))))))
+  (-> (provenance "4" "Trading Shares of Painting between Two Dealers")
+      (with :context "https://linked.art/ns/v1/linked-art.json")
+      (with :part    ((:type        "RightAcquisition"
+                       :establishes (list (with (share "40% Ownership by Dealer 1" 40 "Dealer 1")
+                                           :applies_to ((:type "HumanMadeObject" :_label "Painting" :classified_as (list object-type/painting)))))
+                       :invalidates (list (ownership "30% Ownership by Dealer 1")))
+                      (:type        "RightAcquisition"
+                       :establishes (list (share "60% Ownership by Dealer 2" 70 "Dealer 2"))
+                       :invalidates (list (ownership "70% Ownership by Dealer 2")))))))

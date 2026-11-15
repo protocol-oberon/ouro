@@ -1,22 +1,22 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/provenance/spring_aic/1
+(import std/vocab)
+(import aat/provenance-type)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure provenance #record (#string slug #string label)
+  (:id (example (+ "provenance/" slug)) :type "Activity" :_label label :classified_as (list vocab/provenance-activity)))
+
+(define/procedure node #record (#string path #string type #string label)
+  (:id (example path) :type type :_label label))
+
+;; A loan: custody passes to the borrower for a while
 (graph provenance-spring-aic-1
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/provenance/spring_aic/1"
-   :type "Activity"
-   :_label "Loan of Spring to AIC"
-   :classified_as ((:id "http://vocab.getty.edu/aat/300055863"
-                    :type "Type"
-                    :_label "Provenance Activity"))
-   :part ((:type "TransferOfCustody"
-           :classified_as ((:id "http://vocab.getty.edu/aat/300417645"
-                            :type "Type"
-                            :_label "Loan"))
-           :transferred_custody_of ((:id "https://linked.art/example/object/spring"
-                                     :type "HumanMadeObject"
-                                     :_label "Spring"))
-           :transferred_custody_from ((:id "https://linked.art/example/group/getty"
-                                       :type "Group"
-                                       :_label "Getty Museum"))
-           :transferred_custody_to ((:id "https://linked.art/example/group/aic"
-                                     :type "Group"
-                                     :_label "Art Institute of Chicago"))))))
+  (-> (provenance "spring_aic/1" "Loan of Spring to AIC")
+      (with :context "https://linked.art/ns/v1/linked-art.json")
+      (with :part    ((:type                     "TransferOfCustody"
+                       :classified_as            (list provenance-type/loan)
+                       :transferred_custody_of   (list (node "object/spring" "HumanMadeObject" "Spring"))
+                       :transferred_custody_from (list (node "group/getty" "Group" "Getty Museum"))
+                       :transferred_custody_to   (list (node "group/aic" "Group" "Art Institute of Chicago")))))))

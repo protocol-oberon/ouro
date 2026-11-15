@@ -1,31 +1,29 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/provenance/sharp_sale/1
+(import std/provenance)
+(import std/vocab)
+(import aat/currency/iso)
+(import aat/provenance-type)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure provenance #record (#string slug #string label)
+  (:id (example (+ "provenance/" slug)) :type "Activity" :_label label :classified_as (list vocab/provenance-activity)))
+
+(define/procedure node #record (#string path #string type #string label)
+  (:id (example path) :type type :_label label))
+
+(define/constant thief (node "person/alter" "Person" "Jerry Alter"))
+
+;; The sale of a stolen painting: custody passes, but no title does, and the thief is paid
 (graph provenance-sharp-sale-1
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/provenance/sharp_sale/1"
-   :type "Activity"
-   :_label "Purchase of Stolen Painting"
-   :classified_as ((:id "http://vocab.getty.edu/aat/300055863"
-                    :type "Type"
-                    :_label "Provenance Activity"))
-   :part ((:type "TransferOfCustody"
-           :_label "Sale of Painting"
-           :classified_as ((:id "http://vocab.getty.edu/aat/300438484"
-                            :type "Type"
-                            :_label "sale of stolen goods"))
-           :transferred_custody_of ((:id "https://linked.art/example/object/cheyenne"
-                                     :type "HumanMadeObject"
-                                     :_label "Cheyenne Oklahoma"))
-           :transferred_custody_from ((:id "https://linked.art/example/person/alter"
-                                       :type "Person"
-                                       :_label "Jerry Alter")))
-          (:type "Payment"
-           :paid_amount (:type "MonetaryAmount"
-                         :_label "Payment to Thief"
-                         :value 52650
-                         :currency (:id "http://vocab.getty.edu/aat/300411994"
-                                    :type "Currency"
-                                    :_label "US Dollars"
-                                    :notation "USD"))
-           :paid_to ((:id "https://linked.art/example/person/alter"
-                      :type "Person"
-                      :_label "Jerry Alter"))))))
+  (-> (provenance "sharp_sale/1" "Purchase of Stolen Painting")
+      (with :context "https://linked.art/ns/v1/linked-art.json")
+      (with :part    ((:type                     "TransferOfCustody"
+                       :_label                   "Sale of Painting"
+                       :classified_as            (list provenance-type/sale-of-stolen-goods)
+                       :transferred_custody_of   (list (node "object/cheyenne" "HumanMadeObject" "Cheyenne Oklahoma"))
+                       :transferred_custody_from (list thief))
+                      (:type        "Payment"
+                       :paid_amount (with (provenance/money 52650 iso/us-dollars) :_label "Payment to Thief")
+                       :paid_to     (list thief))))))

@@ -320,7 +320,7 @@ A module added to =lib/= is not noticed by an incremental build. =file-embed= tr
 
 **** =aat=
 
-=aat= holds Linked Art's recommended terms (linked.art/model/vocab/recommended), 195 of them, and the terms its examples use beyond them. It has one module per section of Linked Art's list, sixteen, and one each for the activity, price, role and visual types, the styles and the genders its examples use:
+=aat= holds Linked Art's recommended terms (linked.art/model/vocab/recommended), 195 of them, and the terms its examples use beyond them. It has one module per section of Linked Art's list, sixteen, and one each for the activity, price, role, visual, right and provenance types, the styles and the genders its examples use:
 
 1. =name-type=
 2. =identifier-type=
@@ -344,6 +344,8 @@ A module added to =lib/= is not noticed by an incremental build. =file-embed= tr
 20. =style=
 21. =visual-type=
 22. =gender=
+23. =right-type=
+24. =provenance-type=
 
 - Each term is a constant, built with =std='s constructor for its kind, so =aat= imports =std=, never the reverse:
 

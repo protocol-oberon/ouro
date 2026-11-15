@@ -1,14 +1,14 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/provenance/coffin_promise/40
+(import std/vocab)
+(import aat/provenance-type)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure provenance #record (#string slug #string label)
+  (:id (example (+ "provenance/" slug)) :type "Activity" :_label label :classified_as (list vocab/provenance-activity)))
+
 (graph provenance-coffin-promise-40
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/provenance/coffin_promise/40"
-   :type "Activity"
-   :_label "Promised Gift of Painting"
-   :classified_as ((:id "http://vocab.getty.edu/aat/300055863"
-                    :type "Type"
-                    :_label "Provenance Activity"))
-   :part ((:type "Activity"
-           :_label "Promise of Gift"
-           :classified_as ((:id "http://vocab.getty.edu/aat/300435599"
-                            :type "Type"
-                            :_label "Promise"))))))
+  (-> (provenance "coffin_promise/40" "Promised Gift of Painting")
+      (with :context "https://linked.art/ns/v1/linked-art.json")
+      (with :part    ((:type "Activity" :_label "Promise of Gift" :classified_as (list provenance-type/promise))))))

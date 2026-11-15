@@ -1,19 +1,20 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/provenance/wiley_move/1
+(import std/vocab)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure provenance #record (#string slug #string label)
+  (:id (example (+ "provenance/" slug)) :type "Activity" :_label label :classified_as (list vocab/provenance-activity)))
+
+(define/procedure node #record (#string path #string type #string label)
+  (:id (example path) :type type :_label label))
+
+;; A move from one gallery to another: no title or custody passes
 (graph provenance-wiley-move-1
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/provenance/wiley_move/1"
-   :type "Activity"
-   :_label "Movement of Wiley Painting"
-   :classified_as ((:id "http://vocab.getty.edu/aat/300055863"
-                    :type "Type"
-                    :_label "Provenance Activity"))
-   :part ((:type "Move"
-           :moved ((:id "https://linked.art/example/object/yiadom-boakye"
-                    :type "HumanMadeObject"
-                    :_label "Portrait of Lynette Yiadom-Boakye"))
-           :moved_from (:id "https://linked.art/example/place/ycba_gallery"
-                        :type "Place"
-                        :_label "YCBA Gallery")
-           :moved_to (:id "https://linked.art/example/place/yuag_gallery"
-                      :type "Place"
-                      :_label "YUAG Gallery")))))
+  (-> (provenance "wiley_move/1" "Movement of Wiley Painting")
+      (with :context "https://linked.art/ns/v1/linked-art.json")
+      (with :part    ((:type       "Move"
+                       :moved      (list (node "object/yiadom-boakye" "HumanMadeObject" "Portrait of Lynette Yiadom-Boakye"))
+                       :moved_from (node "place/ycba_gallery" "Place" "YCBA Gallery")
+                       :moved_to   (node "place/yuag_gallery" "Place" "YUAG Gallery"))))))

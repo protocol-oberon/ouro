@@ -1,19 +1,20 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/provenance/transfer/1
+(import std/vocab)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure provenance #record (#string slug #string label)
+  (:id (example (+ "provenance/" slug)) :type "Activity" :_label label :classified_as (list vocab/provenance-activity)))
+
+(define/procedure node #record (#string path #string type #string label)
+  (:id (example path) :type type :_label label))
+
+;; A transfer, when what passed, title or custody, is not known
 (graph provenance-transfer-1
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/provenance/transfer/1"
-   :type "Activity"
-   :_label "Transfer of Painting"
-   :classified_as ((:id "http://vocab.getty.edu/aat/300055863"
-                    :type "Type"
-                    :_label "Provenance Activity"))
-   :part ((:type "Transfer"
-           :transferred ((:id "https://linked.art/example/object/example"
-                          :type "HumanMadeObject"
-                          :_label "Example Painting"))
-           :transferred_from ((:id "https://linked.art/example/person/person1"
-                               :type "Person"
-                               :_label "Person 1"))
-           :transferred_to ((:id "https://linked.art/example/person/person2"
-                             :type "Person"
-                             :_label "Person 2"))))))
+  (-> (provenance "transfer/1" "Transfer of Painting")
+      (with :context "https://linked.art/ns/v1/linked-art.json")
+      (with :part    ((:type             "Transfer"
+                       :transferred      (list (node "object/example" "HumanMadeObject" "Example Painting"))
+                       :transferred_from (list (node "person/person1" "Person" "Person 1"))
+                       :transferred_to   (list (node "person/person2" "Person" "Person 2")))))))

@@ -43,3 +43,16 @@ Portrait	300015637	The VisualItem is a portrait
 ## Role Types
 Director	300025654	The part of a creation is the work of its director
 Producer	300197742	The part of a creation is the work of its producer
+## Currencies
+French Francs	300412016	french francs
+## Right Types
+Ownership Right	300055603	The Right is ownership of the thing it applies to
+Copyright	300055598	The Right is copyright in the thing it applies to
+## Provenance Types
+Promise	300435599	The Activity is a promise, as of a gift or a payment
+Commissioning	300393199	The Activity or Payment is a commission
+Theft	300055292	The TransferOfCustody is a theft
+sale of stolen goods	300438484	The TransferOfCustody is a sale of stolen goods
+Loan	300417645	The TransferOfCustody is a loan
+Return of Loan	300438467	The TransferOfCustody is the return of a loan
+Gift	300417637	The Activity is a gift

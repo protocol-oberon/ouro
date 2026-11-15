@@ -1,31 +1,25 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/provenance/coffin_promise/1
+(import std/base)
+(import std/vocab)
+(import aat/provenance-type)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure provenance #record (#string slug #string label)
+  (:id (example (+ "provenance/" slug)) :type "Activity" :_label label :classified_as (list vocab/provenance-activity)))
+
+(define/procedure node #record (#string path #string type #string label)
+  (:id (example path) :type type :_label label))
+
+;; A gift promised: the promise is the event, the gift still to come
 (graph provenance-coffin-promise-1
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/provenance/coffin_promise/1"
-   :type "Activity"
-   :_label "Promised Gift of Coffin"
-   :classified_as ((:id "http://vocab.getty.edu/aat/300055863"
-                    :type "Type"
-                    :_label "Provenance Activity"))
-   :part ((:type "Activity"
-           :_label "Promise of Gift"
-           :classified_as ((:id "http://vocab.getty.edu/aat/300435599"
-                            :type "Type"
-                            :_label "Promise"))
-           :referred_to_by ((:type "LinguisticObject"
-                             :classified_as ((:id "http://vocab.getty.edu/aat/300435416"
-                                              :type "Type"
-                                              :_label "Description"
-                                              :classified_as ((:id "http://vocab.getty.edu/aat/300418049"
-                                                               :type "Type"
-                                                               :_label "Brief Text"))))
-                             :content "Promised gift of Thomas Jaffe, B.A. 1971"))
-           :carried_out_by ((:id "https://linked.art/example/person/jaffe"
-                             :type "Person"
-                             :_label "Thomas Jaffe"))
-           :used_specific_object ((:id "https://linked.art/example/object/coffin"
-                                   :type "HumanMadeObject"
-                                   :_label "Coffin"))
-           :participant ((:id "https://linked.art/example/group/yuag"
-                          :type "Group"
-                          :_label "Yale University Art Gallery"))))))
+  (-> (provenance "coffin_promise/1" "Promised Gift of Coffin")
+      (with :context "https://linked.art/ns/v1/linked-art.json")
+      (with :part    ((:type                 "Activity"
+                       :_label               "Promise of Gift"
+                       :classified_as        (list provenance-type/promise)
+                       :referred_to_by       (list (base/description "Promised gift of Thomas Jaffe, B.A. 1971"))
+                       :carried_out_by       (list (node "person/jaffe" "Person" "Thomas Jaffe"))
+                       :used_specific_object (list (node "object/coffin" "HumanMadeObject" "Coffin"))
+                       :participant          (list (node "group/yuag" "Group" "Yale University Art Gallery")))))))
