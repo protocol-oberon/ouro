@@ -185,9 +185,11 @@ evalExpr expr = do
                                                Just _found            -> Primitive (I.Boolean True))
                                  <$> evalExpr rootTarget
 
-        -- (get-or default record key ...): the value at the path, or the default when a record
-        -- on the way has no such key or an Array no such index. The default is evaluated only when it is used.
-        S.Form _ (S.Symbol _ "get-or" : defaultExpr : rootTarget : pathExpressions@(_ : _))
+        -- (get-or record default key ...): the value at the path, or the default when a record
+        -- on the way has no such key or an Array no such index. The record comes first, as in
+        -- every path form, and the default before the path, whose end it would otherwise blur.
+        -- The default is evaluated only when it is used.
+        S.Form _ (S.Symbol _ "get-or" : rootTarget : defaultExpr : pathExpressions@(_ : _))
             -> case validatePath pathExpressions of
                    Left  err  -> pure (EvalError err)
                    Right keys -> evalExpr rootTarget >>= \root -> case findPath root keys of
@@ -202,8 +204,8 @@ evalExpr expr = do
                & pure
 
         S.Form pos (S.Symbol _ "get-or" : _)
-            -> lexicalError "get-or is written (get-or default record key ...): the value to use when a key is missing, a Record, then the path of keys."
-               & withBlurb "Perhaps write (get-or () book ntp46), which is the Record's ntp46, or () when it has none."
+            -> lexicalError "get-or is written (get-or record default key ...): a Record, the value to use when a key is missing, then the path of keys."
+               & withBlurb "Perhaps write (get-or book () ntp46), which is the Record's ntp46, or () when it has none."
                & OuroError pos
                & EvalError
                & pure
@@ -227,57 +229,59 @@ evalExpr expr = do
 
         S.Form _ (S.Symbol _ "list" : items)             -> Array <$> mapM evalExpr items
 
-        -- (map f array): calls f on each element. Each call is an ordinary call, written
+        -- (map array f): calls f on each element. The Array comes first, as every form takes
+        -- what it works on, so '->' threads through it. Each call is an ordinary call, written
         -- in a frame that binds the function and the element to names that cannot be
         -- written in Ouro, so arity, signatures and the recursion check apply as usual.
-        S.Form pos [S.Symbol _ "map", fnExpr, arrExpr]
+        S.Form pos [S.Symbol _ "map", arrExpr, fnExpr]
             -> do
-               fnVal  <- evalExpr fnExpr
                arrVal <- evalExpr arrExpr
-               case (fnVal, arrVal) of
+               fnVal  <- evalExpr fnExpr
+               case (arrVal, fnVal) of
                    (EvalError err, _) -> pure (EvalError err)
                    (_, EvalError err) -> pure (EvalError err)
 
-                   (f, _)
+                   (_, f)
                        | not (callable f)
                        -> typeMismatch "a function to map with" (humanReadableType f)
-                          & withBlurb "map calls a function on each element of an Array: (map f array), e.g. (map (+ ? 1) (1 2 3))."
+                          & withBlurb "map calls a function on each element of an Array: (map array f), e.g. (map (1 2 3) (+ ? 1))."
                           & OuroError (S.exprPos fnExpr)
                           & EvalError
                           & pure
 
-                   (f, arr)
+                   (arr, f)
                        | Just elems <- L.asArray arr
                        -> Array <$> mapM (callOnElement pos fnExpr arrExpr f) elems
 
-                   (_, arr)
+                   (arr, _)
                        -> typeMismatch "an Array to map over" (humanReadableType arr)
-                          & withBlurb "map calls a function on each element of an Array: (map f (1 2 3))."
+                          & withBlurb "map calls a function on each element of an Array: (map (1 2 3) f)."
                           & OuroError (S.exprPos arrExpr)
                           & EvalError
                           & pure
 
         S.Form pos (S.Symbol _ "map" : _)
-            -> lexicalError "map is written (map f array): a function, then the Array to call it on."
-               & withBlurb "Perhaps write (map (+ ? 1) (1 2 3)), or (map f xs) with a function f."
+            -> lexicalError "map is written (map array f): the Array, then a function to call on each element."
+               & withBlurb "Perhaps write (map (1 2 3) (+ ? 1)), or (map xs f) with a function f."
                & OuroError pos
                & EvalError
                & pure
 
-        -- (exists f array), (forall f array), (omits f array), (filter f array): f is called
-        -- on each element, as map calls it, and must answer with a Boolean. exists, forall
-        -- and omits stop at the element that decides the answer, as or and and stop at an
-        -- operand; omits is exists the other way round.
-        S.Form pos [S.Symbol _ form, fnExpr, arrExpr]
+        -- (exists array f), (forall array f), (omits array f), (filter array f): f is called
+        -- on each element, as map calls it, and must answer with a Boolean. The Array is the
+        -- domain, written first as in ∀x ∈ xs. f(x). exists, forall and omits stop at the
+        -- element that decides the answer, as or and and stop at an operand; omits is exists
+        -- the other way round.
+        S.Form pos [S.Symbol _ form, arrExpr, fnExpr]
             | form `elem` ["exists", "forall", "omits", "filter"]
             -> do
-               fnVal  <- evalExpr fnExpr
                arrVal <- evalExpr arrExpr
-               case (fnVal, arrVal) of
+               fnVal  <- evalExpr fnExpr
+               case (arrVal, fnVal) of
                    (EvalError err, _) -> pure (EvalError err)
                    (_, EvalError err) -> pure (EvalError err)
 
-                   (f, _)
+                   (_, f)
                        | not (callable f)
                        -> typeMismatch ("a function for " <> form <> " to call") (humanReadableType f)
                           & withBlurb (predicateUsage form)
@@ -285,7 +289,7 @@ evalExpr expr = do
                           & EvalError
                           & pure
 
-                   (f, arr)
+                   (arr, f)
                        | Just elems <- L.asArray arr
                        -> let answer element = predicateVerdict form (S.exprPos arrExpr)
                                                <$> callOnElement pos fnExpr arrExpr f element
@@ -295,7 +299,7 @@ evalExpr expr = do
                                  "omits"  -> negateAnswer <$> decideOn True answer elems
                                  _filter  -> keepWhere answer elems
 
-                   (_, arr)
+                   (arr, _)
                        -> typeMismatch ("an Array for " <> form <> " to go through") (humanReadableType arr)
                           & withBlurb (predicateUsage form)
                           & OuroError (S.exprPos arrExpr)
@@ -304,7 +308,7 @@ evalExpr expr = do
 
         S.Form pos (S.Symbol _ form : _)
             | form `elem` ["exists", "forall", "omits", "filter"]
-            -> lexicalError (form <> " is written (" <> form <> " f array): a function that answers true or false, then the Array to call it on.")
+            -> lexicalError (form <> " is written (" <> form <> " array f): the Array, then a function that answers true or false for each element.")
                & withBlurb (predicateUsage form)
                & OuroError pos
                & EvalError
@@ -377,9 +381,11 @@ evalExpr expr = do
                & EvalError
                & pure
 
-        -- (satisfies #p x): whether x has the property #p, as a Boolean. Only the property's
-        -- check failing is false: an error in x, or a property that is not one, stays an error
-        S.Form _ [S.Symbol _ "satisfies", S.Tagged tagPos tag subject]
+        -- (satisfies x #p): whether x has the property #p, as a Boolean, asked as x ∈ #p is,
+        -- the value first; #p x states it. Only the property's check failing is false: an
+        -- error in x, or a property that is not one, stays an error. The property, written
+        -- last, has nothing after it, so it is read as a property on its own.
+        S.Form _ [S.Symbol _ "satisfies", subject, S.Tagged tagPos tag (S.Hole _ "%subject")]
             | not (isSubjectHole subject)
             -> evalExpr subject >>= \case
                    err@(EvalError _) -> pure err
@@ -389,8 +395,8 @@ evalExpr expr = do
                                             _hasIt                                               -> pure (Primitive (I.Boolean True))
 
         S.Form pos (S.Symbol _ "satisfies" : _)
-            -> lexicalError "satisfies is written (satisfies #property value), or as the head of a case branch, ((satisfies #property) result)."
-               & withBlurb "Perhaps write (satisfies #string x), or (case x ((satisfies #string) \"text\") (otherwise \"other\"))."
+            -> lexicalError "satisfies is written (satisfies value #property), or as the head of a case branch, ((satisfies #property) result)."
+               & withBlurb "Perhaps write (satisfies x #string), or (case x ((satisfies #string) \"text\") (otherwise \"other\"))."
                & OuroError pos
                & EvalError
                & pure
@@ -443,18 +449,19 @@ evalExpr expr = do
         S.Form pos (S.Symbol _ "nth" : _)
             -> pure (EvalError (removedNth pos))
 
-        S.Form _ [S.Symbol _ opName, posExpr, payloadExpr, structExpr]
+        -- (insert coll i x) and (replace-at coll i x): the collection first, as get takes it
+        S.Form _ [S.Symbol _ opName, structExpr, posExpr, payloadExpr]
             | opName `elem` ["insert", "replace-at"]
             -> do
+               structVal  <- evalExpr structExpr
                posVal     <- evalExpr posExpr
                payloadVal <- evalExpr payloadExpr
-               structVal  <- evalExpr structExpr
 
                case (posVal, payloadVal, structVal) of
-                   -- Error Propagation
+                   -- Error Propagation, in the order the arguments are written
+                   (_, _, EvalError e) -> pure $ EvalError e
                    (EvalError e, _, _) -> pure $ EvalError e
                    (_, EvalError e, _) -> pure $ EvalError e
-                   (_, _, EvalError e) -> pure $ EvalError e
 
                    -- Array manipulation: any value can be an element, but a ':key value'
                    -- attribute pair belongs in a record
@@ -1033,7 +1040,7 @@ keepWhere answer = go []
 predicateUsage :: Text -> Text
 predicateUsage form =
     form <> " calls a function that answers true or false on each element of an Array: ("
-    <> form <> " f array), e.g. (" <> form <> " (> ? 1) (1 2 3))."
+    <> form <> " array f), e.g. (" <> form <> " (1 2 3) (> ? 1))."
 
 
 -- A ':key value' attribute pair, as a value, belongs in a record, not an array

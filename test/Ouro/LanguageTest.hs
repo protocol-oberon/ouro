@@ -122,9 +122,9 @@ serialisation = Group "Serialisation: only values reach the output"
 -- The behaviour of the special forms and built-ins, as documented in the specification
 formsAndBuiltins :: Group
 formsAndBuiltins = Group "Special forms and built-ins"
-    [ ("insert an attribute pair into a record",    compilesToJSON "(graph g (:r (insert 0 :k 1 (:a 2))))"
+    [ ("insert an attribute pair into a record",    compilesToJSON "(graph g (:r (insert (:a 2) 0 :k 1)))"
                                                                    "{\"r\": {\"k\": 1, \"a\": 2}}")
-    , ("insert counts negative indexes from the end", compilesToJSON "(graph g (:r (insert -1 4 (1 2 3))))"
+    , ("insert counts negative indexes from the end", compilesToJSON "(graph g (:r (insert (1 2 3) -1 4)))"
                                                                    "{\"r\": [1, 2, 4, 3]}")
     , ("get indexes an Array",                      compilesToJSON "(graph g (:r (get (1 2 3) -1) :s (get (1 2 3) 0)))"
                                                                    "{\"r\": 3, \"s\": 1}")
@@ -158,7 +158,7 @@ formsAndBuiltins = Group "Special forms and built-ins"
                                                               "(graph g (:r (len #uri \"https://a.org/x\")))")
     , ("len takes one argument",                    failsWith "IncorrectArity"
                                                               "(graph g (:r (len (1) (2))))")
-    , ("len is an ordinary function value",         compilesToJSON "(graph g (:r (map len (\"ab\" (1 2 3)))))"
+    , ("len is an ordinary function value",         compilesToJSON "(graph g (:r (map (\"ab\" (1 2 3)) len)))"
                                                                    "{\"r\": [2, 3]}")
     , ("comparisons chain",                         compilesToJSON "(graph g (:a (eq 1 1 1) :b (neq 1 2)))"
                                                                    "{\"a\": true, \"b\": true}")
@@ -173,7 +173,7 @@ formsAndBuiltins = Group "Special forms and built-ins"
     , ("a fn too, with no name to recurse by",      failsWith "a recursive function call"
                                                               "(graph g (let ($w (fn (x) (x x))) (:r (w w))))")
     , ("and through map",                           failsWith "a recursive function call"
-                                                              "(graph g (let ($w (fn (x) (map (fn (y) (y y)) (list x)))) (:r (w w))))")
+                                                              "(graph g (let ($w (fn (x) (map (list x) (fn (y) (y y))))) (:r (w w))))")
     , ("brackets are reserved",                     failsWith "an unrecognized compiler macro token shape"
                                                               "(graph g (:a [1 2]))")
 
@@ -185,7 +185,7 @@ formsAndBuiltins = Group "Special forms and built-ins"
                                                               "(graph g (let ($k \"key\") (:a 1 (attr k 2))))")
     , ("and inside an array",                       failsWith "The (attr key value) form has been removed"
                                                               "(graph g (:r ((attr \"k\" 1))))")
-    , ("insert takes a written attribute pair",     compilesToJSON "(graph g (:r (insert 2 :_label \"Proust\" (:id \"1\" :type \"Person\"))))"
+    , ("insert takes a written attribute pair",     compilesToJSON "(graph g (:r (insert (:id \"1\" :type \"Person\") 2 :_label \"Proust\")))"
                                                                    "{\"r\": {\"id\": \"1\", \"type\": \"Person\", \"_label\": \"Proust\"}}")
 
     -- (and a ...) is true when every operand is, and (or a ...) when one is. Each stops
@@ -206,7 +206,7 @@ formsAndBuiltins = Group "Special forms and built-ins"
                                                               "(graph g (:r (or 1 true)))")
     , ("and and or combine comparisons",            compilesToJSON "(graph g (:r (and (> 2 1) (or (eq \"a\" \"b\") (eq \"a\" \"a\")))))"
                                                                    "{\"r\": true}")
-    , ("and and or take holes",                     compilesToJSON "(graph g (:r (let ($f (and ? true)) (f false)) :s (map (or ? false) (true false))))"
+    , ("and and or take holes",                     compilesToJSON "(graph g (:r (let ($f (and ? true)) (f false)) :s (map (true false) (or ? false))))"
                                                                    "{\"r\": false, \"s\": [true, false]}")
     , ("and and or are threading steps",            compilesToJSON "(graph g (:r (-> true (and false)) :s (-> false (or true))))"
                                                                    "{\"r\": false, \"s\": true}")
@@ -260,11 +260,11 @@ recordKeys = Group "Records: each key once"
     , ("a written attribute pair settles two inlays", compilesToJSON "(define/procedure a () (:k 1)) (define/procedure b () (:k 2)) (graph g (:k 3 (inlay (a)) (inlay (b))))"
                                                                    "{\"k\": 3}")
     , ("insert cannot add an existing key",         failsWith "already has an attribute"
-                                                              "(graph g (:r (insert 0 :a 9 (:a 1))))")
-    , ("replace-at can keep the attribute pair's own key", compilesToJSON "(graph g (:r (replace-at 0 :a 9 (:a 1 :b 2))))"
+                                                              "(graph g (:r (insert (:a 1) 0 :a 9)))")
+    , ("replace-at can keep the attribute pair's own key", compilesToJSON "(graph g (:r (replace-at (:a 1 :b 2) 0 :a 9)))"
                                                                    "{\"r\": {\"a\": 9, \"b\": 2}}")
     , ("replace-at cannot duplicate another key",   failsWith "already has an attribute"
-                                                              "(graph g (:r (replace-at 0 :b 9 (:a 1 :b 2))))")
+                                                              "(graph g (:r (replace-at (:a 1 :b 2) 0 :b 9)))")
 
       -- A key is its value's: a key with none is an error, and a compact IRI is one key
     , ("a key followed by a key has no value",      importsFailAt "SYN0011" ("inline-test", 1, 11) ["valuelessKey = \"a\"", "followedBy = \"the key ':b'\"", "The key ':a' has no value"] []
@@ -326,10 +326,10 @@ types = Group "Types: the rules as they are"
                                                                    "{\"r\": [1, \"a\", 2, 3], \"s\": [1, 2, \"a\"]}")
     , ("+ joins empty arrays",                      compilesToJSON "(graph g (:r (+ () (1)) :s (+ () ()) :t (+ #array-empty (1))))"
                                                                    "{\"r\": [1], \"s\": [], \"t\": [1]}")
-    , ("insert takes any value into an array",      compilesToJSON "(graph g (:r (insert 0 \"x\" (1 2)) :s (insert 0 1 #array-empty)))"
+    , ("insert takes any value into an array",      compilesToJSON "(graph g (:r (insert (1 2) 0 \"x\") :s (insert #array-empty 0 1)))"
                                                                    "{\"r\": [\"x\", 1, 2], \"s\": [1]}")
     , ("an attribute pair cannot be inserted into an array", failsWith "a datatype for insertion matching"
-                                                              "(graph g (:r (insert 0 :k 1 (1 2))))")
+                                                              "(graph g (:r (insert (1 2) 0 :k 1)))")
     , ("a mixed array is described as mixed",       failsWith "an Array of mixed values"
                                                               "(graph g (:r (+ 1 (1 \"a\"))))")
 
@@ -472,7 +472,7 @@ encoding = Group "Encoding: source files are UTF-8"
                                                                  "{\"r\": \"x\", \"na\239ve\": 1}")
     , ("\955 is fn",                         compilesToJSON "(graph g (let ($inc (\955 (x) (+ x 1))) (:r (inc 1))))"
                                                                  "{\"r\": 2}")
-    , ("with a signature and a pattern",     compilesToJSON "(graph g (:r (map (\955 #number ((?a ?b)) (+ a b)) ((1 2) (3 4)))))"
+    , ("with a signature and a pattern",     compilesToJSON "(graph g (:r (map ((1 2) (3 4)) (\955 #number ((?a ?b)) (+ a b)))))"
                                                                  "{\"r\": [3, 7]}")
     , ("\955 can name a function, as fn",     compilesToJSON "(define/procedure \955 (x) x) (graph g (:r (fn 1)))"
                                                             "{\"r\": 1}")
@@ -482,7 +482,7 @@ encoding = Group "Encoding: source files are UTF-8"
       -- The symbols of logic and sets are their names
     , ("\172 \8743 \8744 are not, and, or",  compilesToJSON "(graph g (:a (\172 true) :b (\8743 true false) :c (\8744 false true)))"
                                                                  "{\"a\": false, \"b\": false, \"c\": true}")
-    , ("\8704 \8707 \8708 are the quantifiers", compilesToJSON "(graph g (:a (\8704 (> ? 0) (1 2)) :b (\8707 (> ? 1) (1 2)) :c (\8708 (> ? 5) (1 2))))"
+    , ("\8704 \8707 \8708 are the quantifiers", compilesToJSON "(graph g (:a (\8704 (1 2) (> ? 0)) :b (\8707 (1 2) (> ? 1)) :c (\8708 (1 2) (> ? 5))))"
                                                                     "{\"a\": true, \"b\": true, \"c\": true}")
     , ("\8746 \8745 \8726 \8838 are the set operations", compilesToJSON "(graph g (:a (\8746 (1) (2)) :b (\8745 (1 2) (2)) :c (\8726 (1 2) (2)) :d (\8838 (1) (1 2))))"
                                                                             "{\"a\": [1, 2], \"b\": [2], \"c\": [1], \"d\": true}")
@@ -565,45 +565,45 @@ logicAndCollections = Group "Built-ins: logic, arrays and records"
                                                            "(graph g (:r (not true false)))")
 
       -- exists, forall and filter
-    , ("exists finds an element",                compilesToJSON "(graph g (:r (exists (> ? 2) (1 2 3))))"
+    , ("exists finds an element",                compilesToJSON "(graph g (:r (exists (1 2 3) (> ? 2))))"
                                                                 "{\"r\": true}")
-    , ("exists of nothing is false",             compilesToJSON "(graph g (:r (exists (> ? 2) ())))"
+    , ("exists of nothing is false",             compilesToJSON "(graph g (:r (exists () (> ? 2))))"
                                                                 "{\"r\": false}")
-    , ("forall checks each element",             compilesToJSON "(graph g (:a (forall (> ? 0) (1 2 3)) :b (forall (> ? 1) (1 2 3))))"
+    , ("forall checks each element",             compilesToJSON "(graph g (:a (forall (1 2 3) (> ? 0)) :b (forall (1 2 3) (> ? 1))))"
                                                                 "{\"a\": true, \"b\": false}")
-    , ("forall of nothing is true",              compilesToJSON "(graph g (:r (forall (> ? 2) ())))"
+    , ("forall of nothing is true",              compilesToJSON "(graph g (:r (forall () (> ? 2))))"
                                                                 "{\"r\": true}")
-    , ("exists stops at the deciding element",   compilesToJSON "(graph g (:r (exists (fn (x) (> (len x) 1)) (\"ab\" 5))))"
+    , ("exists stops at the deciding element",   compilesToJSON "(graph g (:r (exists (\"ab\" 5) (fn (x) (> (len x) 1)))))"
                                                                 "{\"r\": true}")
-    , ("forall stops at the deciding element",   compilesToJSON "(graph g (:r (forall (fn (x) (> (len x) 5)) (\"ab\" 5))))"
+    , ("forall stops at the deciding element",   compilesToJSON "(graph g (:r (forall (\"ab\" 5) (fn (x) (> (len x) 5)))))"
                                                                 "{\"r\": false}")
-    , ("none is not exists",                     compilesToJSON "(graph g (:r (not (exists (eq ? 3) (1 2)))))"
+    , ("none is not exists",                     compilesToJSON "(graph g (:r (not (exists (1 2) (eq ? 3)))))"
                                                                 "{\"r\": true}")
-    , ("omits is true when no element answers true", compilesToJSON "(graph g (:a (omits (> ? 2) (1 2)) :b (omits (> ? 2) (1 5))))"
+    , ("omits is true when no element answers true", compilesToJSON "(graph g (:a (omits (1 2) (> ? 2)) :b (omits (1 5) (> ? 2))))"
                                                                     "{\"a\": true, \"b\": false}")
-    , ("omits of nothing is true",               compilesToJSON "(graph g (:r (omits (> ? 2) ())))"
+    , ("omits of nothing is true",               compilesToJSON "(graph g (:r (omits () (> ? 2))))"
                                                                 "{\"r\": true}")
-    , ("omits stops at the deciding element",    compilesToJSON "(graph g (:r (omits (fn (x) (> (len x) 1)) (\"ab\" 5))))"
+    , ("omits stops at the deciding element",    compilesToJSON "(graph g (:r (omits (\"ab\" 5) (fn (x) (> (len x) 1)))))"
                                                                 "{\"r\": false}")
-    , ("omits finds no contradiction",           compilesToJSON "(graph g (let ($book (:tp46 (\"a\" \"b\") :ntp46 (\"c\"))) (:r (omits (contains (get-or () book ntp46) ?) (get-or () book tp46)))))"
+    , ("omits finds no contradiction",           compilesToJSON "(graph g (let ($book (:tp46 (\"a\" \"b\") :ntp46 (\"c\"))) (:r (omits (get-or book () tp46) (contains (get-or book () ntp46) ?)))))"
                                                                 "{\"r\": true}")
     , ("omits needs a function",                 failsWith "a function for omits to call"
-                                                           "(graph g (:r (omits 1 (1 2))))")
+                                                           "(graph g (:r (omits (1 2) 1)))")
     , ("omits can name a function",              compilesToJSON "(define/procedure omits (x) x) (graph g (:r (omits 1)))"
                                                            "{\"r\": 1}")
-    , ("filter keeps the matching elements",     compilesToJSON "(graph g (:r (filter (> ? 1) (1 2 3))))"
+    , ("filter keeps the matching elements",     compilesToJSON "(graph g (:r (filter (1 2 3) (> ? 1))))"
                                                                 "{\"r\": [2, 3]}")
-    , ("filter with has",                        compilesToJSON "(graph g (:r (filter (fn (p) (has p name)) ((:name \"a\") (:id 1)))))"
+    , ("filter with has",                        compilesToJSON "(graph g (:r (filter ((:name \"a\") (:id 1)) (fn (p) (has p name)))))"
                                                                 "{\"r\": [{\"name\": \"a\"}]}")
-    , ("a hole for the array",                   compilesToJSON "(graph g (let ($big (exists (> ? 2) ?)) (:r (big (1 5)))))"
+    , ("a hole for the array",                   compilesToJSON "(graph g (let ($big (exists ? (> ? 2))) (:r (big (1 5)))))"
                                                                 "{\"r\": true}")
     , ("the answer must be a Boolean",           failsWith "expectedProperty = \"#boolean\""
-                                                           "(graph g (:r (exists (+ ? 1) (1 2))))")
+                                                           "(graph g (:r (exists (1 2) (+ ? 1))))")
     , ("exists needs a function",                failsWith "a function for exists to call"
-                                                           "(graph g (:r (exists 1 (1 2))))")
+                                                           "(graph g (:r (exists (1 2) 1)))")
     , ("forall needs an Array",                  failsWith "an Array for forall to go through"
-                                                           "(graph g (:r (forall (> ? 1) 5)))")
-    , ("a malformed filter is an error",         failsWith "filter is written (filter f array)"
+                                                           "(graph g (:r (forall 5 (> ? 1))))")
+    , ("a malformed filter is an error",         failsWith "filter is written (filter array f)"
                                                            "(graph g (:r (filter (> ? 1))))")
     , ("exists can name a function",             compilesToJSON "(define/procedure exists (x) x) (graph g (:r (exists 1)))"
                                                            "{\"r\": 1}")
@@ -631,14 +631,14 @@ logicAndCollections = Group "Built-ins: logic, arrays and records"
                                                                 "{\"a\": true, \"b\": false}")
     , ("has reports a path through a value",     failsWith "a Record to look up"
                                                            "(graph g (:r (has (:x 1) x y)))")
-    , ("get-or gives the value when it is there", compilesToJSON "(graph g (:r (get-or \"none\" (:x 1) x)))"
+    , ("get-or gives the value when it is there", compilesToJSON "(graph g (:r (get-or (:x 1) \"none\" x)))"
                                                                  "{\"r\": 1}")
-    , ("get-or gives the default when it is not", compilesToJSON "(graph g (:a (get-or \"none\" (:x 1) z) :b (get-or 0 (:x (:y 1)) x z)))"
+    , ("get-or gives the default when it is not", compilesToJSON "(graph g (:a (get-or (:x 1) \"none\" z) :b (get-or (:x (:y 1)) 0 x z)))"
                                                                  "{\"a\": \"none\", \"b\": 0}")
-    , ("get-or evaluates the default only when used", compilesToJSON "(graph g (:r (get-or (get () 5) (:x 1) x)))"
+    , ("get-or evaluates the default only when used", compilesToJSON "(graph g (:r (get-or (:x 1) (get () 5) x)))"
                                                                      "{\"r\": 1}")
-    , ("a malformed get-or is an error",         failsWith "get-or is written (get-or default record key ...)"
-                                                           "(graph g (:r (get-or 1 (:x 1))))")
+    , ("a malformed get-or is an error",         failsWith "get-or is written (get-or record default key ...)"
+                                                           "(graph g (:r (get-or (:x 1) 1)))")
 
       -- indexes in paths
     , ("get takes an index into an Array",       compilesToJSON "(graph g (:r (get (:k ((:a 1) (:a 2))) k 1 a)))"
@@ -655,7 +655,7 @@ logicAndCollections = Group "Built-ins: logic, arrays and records"
                                                            "(graph g (:r (get (:k ((:a 1))) k a)))")
     , ("has is false past the end",              compilesToJSON "(graph g (:a (has (:k (1 2)) k 1) :b (has (:k (1 2)) k 2)))"
                                                                 "{\"a\": true, \"b\": false}")
-    , ("get-or gives the default past the end",  compilesToJSON "(graph g (:r (get-or 0 (:k ()) k 0)))"
+    , ("get-or gives the default past the end",  compilesToJSON "(graph g (:r (get-or (:k ()) 0 k 0)))"
                                                                 "{\"r\": 0}")
     , ("image takes no index",                   failsWith "a set has no positions"
                                                            "(graph g (:r (image (:k (1 2)) k 0)))")
@@ -677,7 +677,7 @@ logicAndCollections = Group "Built-ins: logic, arrays and records"
                                                                 "{\"r\": [{\"id\": 1}]}")
     , ("image compares kinds by id",             compilesToJSON "(graph g (:r (image (:p ((:t ((:id \"a\" :_label \"x\"))) (:t ((:id \"a\" :_label \"y\"))))) p t id)))"
                                                                 "{\"r\": [\"a\"]}")
-    , ("image takes a hole",                     compilesToJSON "(graph g (:r (map (image ? k) ((:k 1) (:k (2 3))))))"
+    , ("image takes a hole",                     compilesToJSON "(graph g (:r (map ((:k 1) (:k (2 3))) (image ? k))))"
                                                                 "{\"r\": [[1], [2, 3]]}")
     , ("image reports a value on the way",       failsWith "a Record to follow 'j' from"
                                                            "(graph g (:r (image (:k 1) k j)))")
@@ -697,7 +697,7 @@ logicAndCollections = Group "Built-ins: logic, arrays and records"
                                                                 "{\"a\": [1, 3], \"b\": [2], \"c\": [1, 2]}")
     , ("sets compare records by value",          compilesToJSON "(graph g (:r (intersect ((:a 1) (:b 2)) ((:a 1)))))"
                                                                 "{\"r\": [{\"a\": 1}]}")
-    , ("set operations take holes",              compilesToJSON "(graph g (:r (map (setminus ? (2)) ((1 2) (2 3)))))"
+    , ("set operations take holes",              compilesToJSON "(graph g (:r (map ((1 2) (2 3)) (setminus ? (2)))))"
                                                                 "{\"r\": [[1], [3]]}")
     , ("a set must be an Array",                 failsWith "an Array, as a set"
                                                            "(graph g (:r (union (1) 2)))")
@@ -715,7 +715,7 @@ logicAndCollections = Group "Built-ins: logic, arrays and records"
                                                                 "{\"a\": [1, 2, 3, 4], \"b\": []}")
     , ("intersections of an Array of Arrays",    compilesToJSON "(graph g (:r (intersections ((1 2 3) (2 3) (3 2)))))"
                                                                 "{\"r\": [2, 3]}")
-    , ("unions of computed sets",                compilesToJSON "(graph g (:r (unions (map (get ? k) ((:k (1)) (:k (1 2)))))))"
+    , ("unions of computed sets",                compilesToJSON "(graph g (:r (unions (map ((:k (1)) (:k (1 2))) (get ? k)))))"
                                                                 "{\"r\": [1, 2]}")
     , ("intersections of nothing is an error",   failsWith "at least one Array to intersect"
                                                            "(graph g (:r (intersections ())))")
@@ -752,16 +752,20 @@ conditions = Group "Case: conditions"
                                                                   "{\"r\": \"y\"}")
 
       -- satisfies asks a property; in a branch head, of the case's target
-    , ("satisfies asks a property",              compilesToJSON "(graph g (:a (satisfies #string \"x\") :b (satisfies #number \"x\") :c (satisfies #uri \"https://a.org/x\") :d (satisfies #uri \"nope\")))"
+    , ("satisfies asks a property, the value first", compilesToJSON "(graph g (:a (satisfies \"x\" #string) :b (satisfies \"x\" #number) :c (satisfies \"https://a.org/x\" #uri) :d (satisfies \"nope\" #uri)))"
                                                                 "{\"a\": true, \"b\": false, \"c\": true, \"d\": false}")
     , ("satisfies keeps errors",                 failsWith "Index"
-                                                           "(graph g (:r (satisfies #string (get () 5))))")
-    , ("satisfies heads a branch",               compilesToJSON "(graph g (:r (map (fn (v) (case v ((satisfies #uri) \"an identifier\") ((satisfies #number) \"a number\") (otherwise \"other\"))) (list #uri \"https://a.org/1\" 3 \"x\"))))"
+                                                           "(graph g (:r (satisfies (get () 5) #string)))")
+    , ("satisfies heads a branch",               compilesToJSON "(graph g (:r (map (list #uri \"https://a.org/1\" 3 \"x\") (fn (v) (case v ((satisfies #uri) \"an identifier\") ((satisfies #number) \"a number\") (otherwise \"other\"))))))"
                                                                 "{\"r\": [\"an identifier\", \"a number\", \"other\"]}")
     , ("\8872 is satisfies",                     compilesToJSON "(graph g (:r (case 3 ((\8872 #number) \"n\") (otherwise \"o\"))))"
                                                                 "{\"r\": \"n\"}")
+    , ("a -> step can be satisfies",             compilesToJSON "(graph g (:a (-> 3 (satisfies #number)) :b (-> \"x\" (satisfies #number))))"
+                                                                "{\"a\": true, \"b\": false}")
+    , ("satisfies takes a hole for the value",   compilesToJSON "(graph g (:r (filter (1 \"x\" 2) (satisfies ? #number))))"
+                                                                "{\"r\": [1, 2]}")
     , ("a subject-less satisfies needs a case",  failsWith "satisfies is written"
-                                                           "(graph g (:r (map (satisfies #string) (list 1))))")
+                                                           "(graph g (:r (map (list 1) (satisfies #string))))")
     , ("a property on its own is misplaced",     failsWith "A property on its own"
                                                            "(graph g (:r (list #string)))")
     , ("satisfies can name a function",          compilesToJSON "(define/procedure satisfies (x) x) (graph g (:r (satisfies 1)))"
@@ -948,7 +952,7 @@ specialFormsAreBindings = Group "Special forms are bindings, as in Scheme"
                                                                    "{\"a\": 1, \"b\": [1, 2]}")
     , ("an inlay is shadowed too",                  compilesToJSON "(graph g (let ($inlay (fn (x) x)) (:r ((inlay 1) 2))))"
                                                                    "{\"r\": [1, 2]}")
-    , ("Canon's forms are not captured",            compilesToJSON "(graph g (let ($case 1 $fn 2 $inlay 3) (:r (or false true) :s (map (+ ? 1) (1 2)) :t (with (:a 1) :b 2))))"
+    , ("Canon's forms are not captured",            compilesToJSON "(graph g (let ($case 1 $fn 2 $inlay 3) (:r (or false true) :s (map (1 2) (+ ? 1)) :t (with (:a 1) :b 2))))"
                                                                    "{\"r\": true, \"s\": [2, 3], \"t\": {\"a\": 1, \"b\": 2}}")
     , ("nor is a guard's",                          compilesToJSON "(graph g (let ($let 4) (:r (case 5 ((< 3) \"small\") (otherwise \"big\")))))"
                                                                    "{\"r\": \"big\"}")
@@ -1007,7 +1011,7 @@ knownGaps = Group "Known gaps: current and fixed"
                                                                      "(graph g (:ex:a/b 1 :y 2))")
     , ("gap 31: a '#' ends a key",                   importsFailAt "SYN0000" ("inline-test", 1, 16) ["Unknown property: #b"] []
                                                                      "(graph g (:ex:a#b 1 :y 2))")
-    , ("gap 39: insert floors a fractional index",   compilesToJSON "(graph g (:r (insert 1.5 \"x\" (1 2))))"
+    , ("gap 39: insert floors a fractional index",   compilesToJSON "(graph g (:r (insert (1 2) 1.5 \"x\")))"
                                                                    "{\"r\": [1, \"x\", 2]}")
     , ("gap 41: WRN0000 says a value is erased",     warnsWith "will be completely erased"
                                                                "(graph g (:r (#record-empty \"x\")))")

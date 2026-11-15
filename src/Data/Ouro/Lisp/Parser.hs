@@ -491,9 +491,10 @@ parseTaggedNode :: SourcePos -> S.ReaderTag -> Parser S.Expr
 parseTaggedNode tagPos tagType = do
                                  stream <- remainingTokens
                                  case stream of
-                                     -- A property on its own, at the end of a form: (satisfies #string).
-                                     -- Its subject is a hole that cannot be written in Ouro, filled
-                                     -- in by the case it heads, and reported anywhere else
+                                     -- A property on its own, at the end of a form: (satisfies x #string),
+                                     -- or a case head's (satisfies #string). Its subject is a hole that
+                                     -- cannot be written in Ouro: satisfies takes its value before it,
+                                     -- and anywhere else it is reported
                                      t : _ | Tkn.CloseParen <- Tkn.tokenType t
                                          -> pure $ S.Tagged tagPos tagType (S.Hole tagPos "%subject")
 

@@ -117,11 +117,11 @@ recursion = Group "Static analysis: recursion goes down into a value"
                                                                  "{\"r\": 1}")
     , ("a let binding of a part",                 compilesToJSON "(define/procedure f (n) (let ($p (get n part)) (f p))) (graph g (:r 1))"
                                                                  "{\"r\": 1}")
-    , ("an element, through map by name",         compilesToJSON "(define/procedure f (x) (map f x)) (graph g (:r 1))"
+    , ("an element, through map by name",         compilesToJSON "(define/procedure f (x) (map x f)) (graph g (:r 1))"
                                                                  "{\"r\": 1}")
-    , ("an element of get-or, through a fn",      compilesToJSON "(define/procedure walk (n) (map (fn (p) (walk p)) (get-or () n part))) (graph g (:r 1))"
+    , ("an element of get-or, through a fn",      compilesToJSON "(define/procedure walk (n) (map (get-or n () part) (fn (p) (walk p)))) (graph g (:r 1))"
                                                                  "{\"r\": 1}")
-    , ("an element of image, through forall",     compilesToJSON "(define/procedure named (n) (forall named (image n part))) (graph g (:r 1))"
+    , ("an element of image, through forall",     compilesToJSON "(define/procedure named (n) (forall (image n part) named)) (graph g (:r 1))"
                                                                  "{\"r\": 1}")
     , ("mutual, one call going down is enough",   compilesToJSON "(define/procedure f (n) (h n)) (define/procedure h (n) (f (get n b))) (graph g (:r 1))"
                                                                  "{\"r\": 1}")
@@ -138,7 +138,7 @@ recursion = Group "Static analysis: recursion goes down into a value"
     , ("a number counting down",                  failsWith "A number counting down is not a part."
                                                                 "(define/procedure f (n) (case n (0 0) (otherwise (f (- n 1))))) (graph g (:r 1))")
     , ("get-or may pass its fallback, again",     failsWith "'f' calls itself, and might never finish."
-                                                                "(define/procedure f (n) (f (get-or () n part))) (graph g (:r 1))")
+                                                                "(define/procedure f (n) (f (get-or n () part))) (graph g (:r 1))")
     , ("a rest hole alone may be all of it",      failsWith "'f' calls itself, and might never finish."
                                                                 "(define/procedure f ((?..t)) (f t)) (graph g (:r 1))")
     , ("a let binding of the whole",              failsWith "'f' calls itself, and might never finish."
@@ -159,11 +159,11 @@ recursion = Group "Static analysis: recursion goes down into a value"
 -- its value. A function calling itself any other way is still stopped when it does.
 descending :: Group
 descending = Group "Recursion: a call that goes down into a value runs"
-    [ ("a tree, at every depth",                  compilesToJSON "(define/procedure outline (n) (:label (get n _label) :parts (map outline (get-or () n part)))) (graph g (:r (outline (:_label \"Altarpiece\" :part ((:_label \"Panel\") (:_label \"Predella\" :part ((:_label \"Scene\"))))))))"
+    [ ("a tree, at every depth",                  compilesToJSON "(define/procedure outline (n) (:label (get n _label) :parts (map (get-or n () part) outline))) (graph g (:r (outline (:_label \"Altarpiece\" :part ((:_label \"Panel\") (:_label \"Predella\" :part ((:_label \"Scene\"))))))))"
                                                                  "{\"r\": {\"label\": \"Altarpiece\", \"parts\": [{\"label\": \"Panel\", \"parts\": []}, {\"label\": \"Predella\", \"parts\": [{\"label\": \"Scene\", \"parts\": []}]}]}}")
     , ("the rest of an Array",                    compilesToJSON "(define/procedure final (xs) (case xs ((?x) x) ((?h ?..t) (final t)) (otherwise 0))) (graph g (:r (final (1 2 3))))"
                                                                  "{\"r\": 3}")
-    , ("through a fn given to map",               compilesToJSON "(define/procedure depth (n) (map (fn (p) (depth p)) (get-or () n part))) (graph g (:r (depth (:part ((:part ()))))))"
+    , ("through a fn given to map",               compilesToJSON "(define/procedure depth (n) (map (get-or n () part) (fn (p) (depth p)))) (graph g (:r (depth (:part ((:part ()))))))"
                                                                  "{\"r\": [[]]}")
     , ("mutual recursion",                        compilesToJSON "(define/procedure a (n) (case n ((?h ?..t) (b t)) (otherwise \"a\"))) (define/procedure b (n) (case n ((?h ?..t) (a t)) (otherwise \"b\"))) (graph g (:r (a (1 2 3))))"
                                                                  "{\"r\": \"b\"}")

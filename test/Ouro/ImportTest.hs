@@ -171,9 +171,9 @@ importedModules = Group "Modules: imported modules, in memory"
       -- Imported functions are values like any other
     , ("an imported function as a value",          compilesToJSON "(import std/base) (graph g (let ($f base/aat) (f \"1\" \"A\")))"
                                                                   "{\"id\": \"http://vocab.getty.edu/aat/1\", \"type\": \"Type\", \"_label\": \"A\"}")
-    , ("with a hole",                              compilesToJSON "(import std/base) (graph g (:r (map (base/aat ? \"A\") (\"1\" \"2\"))))"
+    , ("with a hole",                              compilesToJSON "(import std/base) (graph g (:r (map (\"1\" \"2\") (base/aat ? \"A\"))))"
                                                                   "{\"r\": [{\"id\": \"http://vocab.getty.edu/aat/1\", \"type\": \"Type\", \"_label\": \"A\"}, {\"id\": \"http://vocab.getty.edu/aat/2\", \"type\": \"Type\", \"_label\": \"A\"}]}")
-    , ("passed to map",                            compilesToJSON "(import std/base) (graph g (:r (len (map base/description (\"A\" \"B\")))))"
+    , ("passed to map",                            compilesToJSON "(import std/base) (graph g (:r (len (map (\"A\" \"B\") base/description))))"
                                                                   "{\"r\": 2}")
     , ("as a step of ->",                          importsToJSON [helpers] "(import helpers) (graph g (:r (-> \"Ann\" (helpers/greet))))"
                                                                           "{\"r\": \"Hello, Ann\"}")

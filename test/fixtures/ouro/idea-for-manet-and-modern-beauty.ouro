@@ -17,7 +17,7 @@
                                  (base/ulan "500010363" "Person" "Manet")))
       ;; A pattern parameter takes each pair apart
       (with :created_by    (:type           "Creation"
-                            :carried_out_by (map (λ ((?slug ?label)) (person slug label))
-                                                 (("allan" "Scott Allan")
+                            :carried_out_by (map (("allan" "Scott Allan")
                                                   ("beeny" "Emily Beeny")
-                                                  ("groom" "Gloria Groom")))))))
+                                                  ("groom" "Gloria Groom"))
+                                                 (λ ((?slug ?label)) (person slug label)))))))

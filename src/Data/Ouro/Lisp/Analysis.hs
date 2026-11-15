@@ -329,10 +329,10 @@ size scope = \case
     S.Form _ items
         | shadowsForm (bound scope) items                         -> Map.empty
     S.Form _ (S.Symbol _ "get" : target : _ : _)                  -> partOf (size scope target)
-    S.Form _ (S.Symbol _ "get-or" : fallback : target : _ : _)
+    S.Form _ (S.Symbol _ "get-or" : target : fallback : _ : _)
         | empty fallback                                          -> noLargerThan (size scope target)
     S.Form _ (S.Symbol _ "image" : target : _ : _)                -> noLargerThan (size scope target)
-    S.Form _ [S.Symbol _ "filter", _, xs]                         -> noLargerThan (size scope xs)
+    S.Form _ [S.Symbol _ "filter", xs, _]                         -> noLargerThan (size scope xs)
     _unknown                                                      -> Map.empty
     where
     empty = \case
@@ -438,16 +438,16 @@ form scope pos items = case items of
     S.Symbol _ "get" : target : _path                -> names scope target
     S.Symbol _ "has" : target : _ : _                -> names scope target
     S.Symbol _ "has" : _                             -> mempty
-    S.Symbol _ "get-or" : fallback : target : _ : _  -> names scope fallback <> names scope target
+    S.Symbol _ "get-or" : target : fallback : _ : _  -> names scope target <> names scope fallback
     S.Symbol _ "get-or" : _                          -> mempty
     S.Symbol _ "image" : target : _ : _              -> names scope target
     S.Symbol _ "image" : _                           -> mempty
 
     S.Symbol _ "list" : elements                     -> foldMap (names scope) elements
-    [S.Symbol _ "map", f, xs]                        -> applied scope (elementSize scope xs) f <> names scope xs
+    [S.Symbol _ "map", xs, f]                        -> names scope xs <> applied scope (elementSize scope xs) f
     S.Symbol _ "map" : _                             -> mempty
-    [S.Symbol _ quantifier, f, xs]
-        | quantifier `elem` quantifiers              -> applied scope (elementSize scope xs) f <> names scope xs
+    [S.Symbol _ quantifier, xs, f]
+        | quantifier `elem` quantifiers              -> names scope xs <> applied scope (elementSize scope xs) f
     S.Symbol _ quantifier : _
         | quantifier `elem` quantifiers              -> mempty
     [S.Symbol _ "%apply", f, x]                      -> applied scope (size scope x) f <> names scope x
@@ -460,7 +460,7 @@ form scope pos items = case items of
     S.Symbol _ (S.formName -> "let") : _             -> mempty
 
     S.Symbol _ "when" : _                            -> mempty
-    [S.Symbol _ "satisfies", S.Tagged _ _ subject]
+    [S.Symbol _ "satisfies", subject, S.Tagged _ _ (S.Hole _ "%subject")]
         | not (isSubjectHole subject)                -> names scope subject
     S.Symbol _ "satisfies" : _                       -> mempty
     S.Symbol _ keyword : _
@@ -477,8 +477,8 @@ form scope pos items = case items of
         | otherwise                                  -> mempty
 
     S.Symbol _ "nth" : _                             -> mempty
-    [S.Symbol _ op, a, b, c]
-        | op `elem` ["insert", "replace-at"]         -> foldMap (names scope) [a, b, c]
+    [S.Symbol _ op, coll, i, x]
+        | op `elem` ["insert", "replace-at"]         -> foldMap (names scope) [coll, i, x]
 
     -- Anything else is what its elements make it. A call's head is a name like any other.
     _otherForm -> case determineBlockTarget items of

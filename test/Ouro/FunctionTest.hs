@@ -171,7 +171,7 @@ placeholders = Group "Functions: a call with holes is a function of them"
                                                                  "{\"r\": 13, \"s\": false}")
     , ("special forms take holes",                compilesToJSON "(graph g (let ($second (get ? 1) $a (get ? a)) (:r (second (10 20)) :s (a (:a 5)))))"
                                                                  "{\"r\": 20, \"s\": 5}")
-    , ("insert, replace-at and list take holes",  compilesToJSON "(graph g (let ($ins (insert 0 ? (1 2)) $rep (replace-at 0 ? (1 2)) $pair (list ? ?)) (:r (ins 0) :s (rep 9) :t (pair 1 2))))"
+    , ("insert, replace-at and list take holes",  compilesToJSON "(graph g (let ($ins (insert (1 2) 0 ?) $rep (replace-at (1 2) 0 ?) $pair (list ? ?)) (:r (ins 0) :s (rep 9) :t (pair 1 2))))"
                                                                  "{\"r\": [0, 1, 2], \"s\": [9, 2], \"t\": [1, 2]}")
     , ("a placeholder is a value",                compilesToJSON "(define/procedure apply (f x) (f x)) (graph g (:r (apply (+ ? 1) 1)))"
                                                                  "{\"r\": 2}")
@@ -210,44 +210,44 @@ placeholders = Group "Functions: a call with holes is a function of them"
 -- arity, signatures and the recursion check apply as they do anywhere else.
 mapping :: Group
 mapping = Group "Functions: map calls a function on each element"
-    [ ("map with a placeholder",                  compilesToJSON "(graph g (:r (map (+ ? 1) (1 2 3))))"
+    [ ("map with a placeholder",                  compilesToJSON "(graph g (:r (map (1 2 3) (+ ? 1))))"
                                                                  "{\"r\": [2, 3, 4]}")
-    , ("map with a defn",                         compilesToJSON "(define/procedure label (who) (:_label who)) (graph g (:r (map label (\"Manet\" \"Proust\"))))"
+    , ("map with a defn",                         compilesToJSON "(define/procedure label (who) (:_label who)) (graph g (:r (map (\"Manet\" \"Proust\") label)))"
                                                                  "{\"r\": [{\"_label\": \"Manet\"}, {\"_label\": \"Proust\"}]}")
-    , ("map with a fn over records",              compilesToJSON "(graph g (:r (map (fn (r) (get r id)) ((:id 1) (:id 2)))))"
+    , ("map with a fn over records",              compilesToJSON "(graph g (:r (map ((:id 1) (:id 2)) (fn (r) (get r id)))))"
                                                                  "{\"r\": [1, 2]}")
-    , ("map with a built-in",                     compilesToJSON "(graph g (:r (map (+ #date \"2020-01-01T00:00:00Z\" ?) (map years (1 2)))))"
+    , ("map with a built-in",                     compilesToJSON "(graph g (:r (map (map (1 2) years) (+ #date \"2020-01-01T00:00:00Z\" ?))))"
                                                                  "{\"r\": [\"2021-01-01T00:00:00Z\", \"2022-01-01T00:00:00Z\"]}")
-    , ("map over an empty array",                 compilesToJSON "(graph g (:r (map (+ ? 1) ()) :s (map (+ ? 1) #array-empty)))"
+    , ("map over an empty array",                 compilesToJSON "(graph g (:r (map () (+ ? 1)) :s (map #array-empty (+ ? 1))))"
                                                                  "{\"r\": [], \"s\": []}")
-    , ("map with a hole is a function",           compilesToJSON "(graph g (let ($inc-all (map (+ ? 1) ?)) (:r (inc-all (1 2)))))"
+    , ("map with a hole is a function",           compilesToJSON "(graph g (let ($inc-all (map ? (+ ? 1))) (:r (inc-all (1 2)))))"
                                                                  "{\"r\": [2, 3]}")
     , ("map is only reserved as a function name", compilesToJSON "(graph g (let ($map 5) (:map map :r map)))"
                                                                  "{\"map\": 5, \"r\": 5}")
 
     -- Each element is checked by the function's signature, and reported at the Array
     , ("a typed parameter checks each element",   failsWith "expectedProperty = \"#number\", actualProperty = \"#string\""
-                                                            "(define/procedure double (#number n) (* n 2)) (graph g (:r (map double (1 \"x\" 3))))")
-    , ("it is reported at the array",             failsWith "line 1, col 72"
-                                                            "(define/procedure double (#number n) (* n 2)) (graph g (:r (map double (1 \"x\" 3))))")
+                                                            "(define/procedure double (#number n) (* n 2)) (graph g (:r (map (1 \"x\" 3) double)))")
+    , ("it is reported at the array",             failsWith "line 1, col 65"
+                                                            "(define/procedure double (#number n) (* n 2)) (graph g (:r (map (1 \"x\" 3) double)))")
     , ("a result is checked by the return type",  failsWith "expectedProperty = \"#number\""
-                                                            "(graph g (:r (map (fn #number (n) (+ n \"!\")) (\"a\"))))")
+                                                            "(graph g (:r (map (\"a\") (fn #number (n) (+ n \"!\")))))")
 
     -- Errors
     , ("the function takes one argument",         failsWith "IncorrectArity"
-                                                            "(graph g (:r (map (fn (a b) a) (1 2))))")
+                                                            "(graph g (:r (map (1 2) (fn (a b) a))))")
     , ("map needs a function",                    failsWith "a function to map with"
-                                                            "(graph g (:r (map 1 (1 2))))")
+                                                            "(graph g (:r (map (1 2) 1)))")
     , ("map needs an array",                      failsWith "an Array to map over"
-                                                            "(graph g (:r (map (+ ? 1) 5)))")
+                                                            "(graph g (:r (map 5 (+ ? 1))))")
     , ("a record is not an array",                failsWith "an Array to map over"
-                                                            "(graph g (:r (map (+ ? 1) (:a 1))))")
-    , ("map takes a function and an array",       failsWith "map is written (map f array)"
+                                                            "(graph g (:r (map (:a 1) (+ ? 1))))")
+    , ("map takes an array and a function",       failsWith "map is written (map array f)"
                                                             "(graph g (:r (map (+ ? 1))))")
     , ("map can name a function, which shadows it", compilesToJSON "(define/procedure map (x) x) (graph g (:r (map 1)))"
                                                             "{\"r\": 1}")
     , ("a function maps itself until an element is no Array", failsWith "an Array to map over"
-                                                            "(define/procedure f (x) (map f x)) (graph g (:r (f (1))))")
+                                                            "(define/procedure f (x) (map x f)) (graph g (:r (f (1))))")
     ]
 
 
@@ -267,7 +267,7 @@ destructuring = Group "Functions: a parameter can be a pattern"
                                                                  "{\"r\": 6}")
     , ("a property before a pattern",             compilesToJSON "(graph g (let ($f (fn (#array (?a ?b)) (+ a b))) (:r (f (1 2)))))"
                                                                  "{\"r\": 3}")
-    , ("map with a pattern parameter",            compilesToJSON "(graph g (:r (map (fn ((?slug ?label)) (:id slug :_label label)) ((\"allan\" \"Scott Allan\") (\"beeny\" \"Emily Beeny\")))))"
+    , ("map with a pattern parameter",            compilesToJSON "(graph g (:r (map ((\"allan\" \"Scott Allan\") (\"beeny\" \"Emily Beeny\")) (fn ((?slug ?label)) (:id slug :_label label)))))"
                                                                  "{\"r\": [{\"id\": \"allan\", \"_label\": \"Scott Allan\"}, {\"id\": \"beeny\", \"_label\": \"Emily Beeny\"}]}")
     , ("a defn's pattern is desugared",           compilesToJSON "(define/procedure f (((+ 1 2 3) ?x)) x) (graph g (:r (f (6 1))))"
                                                                  "{\"r\": 1}")
@@ -291,8 +291,8 @@ destructuring = Group "Functions: a parameter can be a pattern"
                                                             "(graph g (let ($f (fn ((?a ?b)) 1)) (:r (f 5))))")
     , ("it is reported at the argument",          failsWith "line 1, col 44"
                                                             "(graph g (let ($f (fn ((?a ?b)) 1)) (:r (f 5))))")
-    , ("in map it is reported at the array",      failsWith "line 1, col 36"
-                                                            "(graph g (:r (map (fn ((?a ?b)) a) ((1 2) (3)))))")
+    , ("in map it is reported at the array",      failsWith "line 1, col 19"
+                                                            "(graph g (:r (map ((1 2) (3)) (fn ((?a ?b)) a))))")
     , ("the property is checked before the pattern", failsWith "expectedProperty = \"#record\""
                                                             "(graph g (let ($f (fn (#record (?a ?b)) a)) (:r (f (1 2)))))")
 
@@ -339,7 +339,7 @@ threading = Group "Functions: with and -> build a value step by step"
                                                                  "{\"r\": 2}")
     , ("(-> ? ...) is a function",                compilesToJSON "(graph g (let ($f (-> ? (+ 1) (* 2))) (:r (f 3))))"
                                                                  "{\"r\": 8}")
-    , ("which can be mapped",                     compilesToJSON "(graph g (:r (map (-> ? (with :seen true)) ((:a 1) (:a 2)))))"
+    , ("which can be mapped",                     compilesToJSON "(graph g (:r (map ((:a 1) (:a 2)) (-> ? (with :seen true)))))"
                                                                  "{\"r\": [{\"a\": 1, \"seen\": true}, {\"a\": 2, \"seen\": true}]}")
     , ("pipelines nest",                          compilesToJSON "(graph g (:r (-> (-> 1 (+ 1)) (* 10))))"
                                                                  "{\"r\": 20}")
@@ -414,7 +414,7 @@ adjoining = Group "Functions: adjoin adds to a property's set of values"
     -- A step, and a function by the placeholder rule
     , ("-> threads adjoin with with",             compilesToJSON "(graph g (:r (-> (:t \"X\") (with :_label \"L\") (adjoin :k 1) (adjoin :k 1 :k2 2))))"
                                                                  "{\"r\": {\"t\": \"X\", \"_label\": \"L\", \"k\": [1], \"k2\": [2]}}")
-    , ("(-> ? (adjoin ...)) can be mapped",       compilesToJSON "(graph g (:r (map (-> ? (adjoin :k 9)) ((:k 1) (:j 2)))))"
+    , ("(-> ? (adjoin ...)) can be mapped",       compilesToJSON "(graph g (:r (map ((:k 1) (:j 2)) (-> ? (adjoin :k 9)))))"
                                                                  "{\"r\": [{\"k\": [1, 9]}, {\"j\": 2, \"k\": [9]}]}")
     , ("a pipeline builds a Linked Art record",   compilesToJSON ( "(define/procedure aat (id label) (:id #uri (+ \"http://vocab.getty.edu/aat/\" id) :type \"Type\" :_label label)) "
                                                                 <> "(graph g (-> (:id #uri \"https://linked.art/example/place/amsterdam/1\" :type \"Place\" :_label \"Amsterdam\") "
@@ -519,8 +519,8 @@ constants = Group "Functions: a function of no parameters, named, is its value"
     , ("-> calls a constant with the value",      failsWith "It is called (c)."
                                                             "(define/procedure c () 1) (graph g (:r (-> 5 c)))")
     , ("map receives its value",                  failsWith "a function to map with"
-                                                            "(define/procedure c () 1) (graph g (:r (map c (1 2))))")
-    , ("a constant is not #function",             compilesToJSON "(define/procedure c () 1) (graph g (:a (satisfies #function c) :b (satisfies #number c)))"
+                                                            "(define/procedure c () 1) (graph g (:r (map (1 2) c)))")
+    , ("a constant is not #function",             compilesToJSON "(define/procedure c () 1) (graph g (:a (satisfies c #function) :b (satisfies c #number)))"
                                                                  "{\"a\": false, \"b\": true}")
     , ("passed on, it is its value",              failsWith "is a Record, not a function"
                                                             "(define/procedure mk () (:v 1)) (define/procedure call (make) (make)) (graph g (:r (call mk)))")

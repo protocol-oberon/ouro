@@ -591,7 +591,7 @@ handleSubset pos = \case
 -- handleUnions and handleIntersections.
 --
 -- The union and the intersection of one Array of Arrays, for sets that are computed rather
--- than written: (unions (map (get ? classified_as) parts)) is every classification of
+-- than written: (unions (map parts (get ? classified_as))) is every classification of
 -- every part. The union of no sets is (), and the intersection of no sets is an error.
 handleUnions :: SourcePos -> [L.Expr] -> Reader Env L.Expr
 handleUnions pos = overSets pos "unions" $ \case

@@ -265,7 +265,7 @@ removedAttrForm :: SourcePos -> OuroError
 removedAttrForm pos =
     lexicalError "The (attr key value) form has been removed."
     & withBlurb ( "An attribute pair is written :key value, as in (:_label \"Proust\"), and insert takes one the same way: "
-               <> "(insert 0 :_label \"Proust\" record). A key can no longer be computed from a value."
+               <> "(insert record 0 :_label \"Proust\"). A key can no longer be computed from a value."
                 )
     & OuroError pos
 

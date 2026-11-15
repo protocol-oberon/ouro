@@ -17,10 +17,11 @@ import           Data.Text                         (Text)
 --
 --   ((when (has book ntp46)) e)   ((%when (has book ntp46)) e)
 --   ((< 10 20) e)                 ((%when (< %target 10 20)) e)
---   ((satisfies #uri) e)          ((%when (satisfies #uri %target)) e)
+--   ((satisfies #uri) e)          ((%when (satisfies %target #uri)) e)
 --
--- A comparison guard, and a property on its own, are about the case's target, so the case
--- binds its target once, to a name that cannot be written in Ouro, and the condition names it:
+-- A guard is about the case's target, which it takes first, as a '->' step takes the value
+-- threaded into it: a comparison, or satisfies, whose subject comes first. The case binds
+-- its target once, to a name that cannot be written in Ouro, and the condition names it:
 --
 --   (case x ((< 10) e) ...)   (let ((%bind "%target" x)) (case %target ((%when (< %target 10)) e) ...))
 --
@@ -51,19 +52,17 @@ guards = topDown $ \case
         S.Form bPos [whenForm@(S.Form gPos (S.Symbol wPos "when" : _)), body]
             -> S.Form bPos [S.Form gPos [S.Symbol wPos "%when", whenForm], body]
         S.Form bPos [S.Form gPos (opNode@(S.Symbol _ op) : operands), body]
-            | op `elem` guardOperators
+            | op `elem` guardHeads
             -> S.Form bPos [ S.Form gPos [S.Symbol gPos "%when", evaluated (S.Form gPos (opNode : S.Symbol gPos "%target" : operands))]
-                           , body ]
-        S.Form bPos [S.Form gPos [sSym@(S.Symbol _ "satisfies"), S.Tagged tPos tag (S.Hole _ "%subject")], body]
-            -> S.Form bPos [ S.Form gPos [S.Symbol gPos "%when", S.Form gPos [sSym, S.Tagged tPos tag (S.Symbol tPos "%target")]]
                            , body ]
         branch
             -> branch
 
     comparesTarget = \case
-        S.Form _ [S.Form _ [S.Symbol _ "satisfies", S.Tagged _ _ (S.Hole _ "%subject")], _] -> True
-        S.Form _ [S.Form _ (S.Symbol _ op : _), _]                                          -> op `elem` guardOperators
-        _notAGuard                                                                          -> False
+        S.Form _ [S.Form _ (S.Symbol _ op : _), _] -> op `elem` guardHeads
+        _notAGuard                                 -> False
+
+    guardHeads = "satisfies" : guardOperators
 
     -- The passes a condition would have had, had it not been in a branch head
     evaluated = connectives . placeholders
