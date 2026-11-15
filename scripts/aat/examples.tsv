@@ -1,3 +1,5 @@
+## Identifier Types
+Lot Number	300404628	An identifier of a lot in an auction
 ## Statement Types
 Biography Statement	300435422	A statement about the life or history of a person or group
 Abstract	300026032	A brief summary of the content of a work
@@ -7,6 +9,8 @@ Auction House (place)	300005234	The Place is an auction house's location
 Society	300026009	The Group is a society of people with a shared interest
 Studio	300404275	The Group is an artist's studio, its assistants working with the artist
 Auction House (organization)	300417515	The Group is an auction house
+## Set Types
+Auction Lot	300411307	The Set is a lot of objects in an auction
 ## Dimension Types
 File Size	300265863	The Dimension measures the size of a digital file
 ## Activity Types
@@ -14,3 +18,7 @@ Auction Event	300054751	The Activity is an auction, of a set of lots
 Auction of Lot	300420001	The Activity is the auction of one lot, part of an auction event
 Exhibiting in multiple locations	300054773	The Activity is an exhibition over all its venues
 Conservation Activity	300404519	The Activity is the conservation of an object
+Curating	300054277	The Activity is the curating of a collection
+## Price Types
+Starting Price	300417242	The MonetaryAmount is the price an auction of a lot starts at
+Estimated Price	300417244	The MonetaryAmount is an estimate of a lot's price

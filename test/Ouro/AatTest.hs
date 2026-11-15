@@ -19,9 +19,10 @@ import           Utils                         (compilesToJSON,
 withAat :: Text -> Text
 withAat src = T.concat [ "(import aat/" <> m <> ") " | m <- modules ] <> src
     where
+    -- The two iso variants share their qualifier, so one is imported under another
     modules = [ "name-type", "identifier-type", "statement-type", "object-type", "place-type", "group-type", "digital-type"
-              , "set-type", "dimension-type", "language", "language/iso", "unit", "material", "currency", "nationality"
-              , "occupation", "shape", "activity-type" ]
+              , "set-type", "dimension-type", "language", "language/iso", "unit", "material", "currency"
+              , "currency/iso as currency-iso", "nationality", "occupation", "shape", "activity-type", "price-type" ]
 
 aatToJSON :: Text -> Text -> Property
 aatToJSON src = compilesToJSON (withAat src)
@@ -71,7 +72,12 @@ recommendedTerms = Group "aat: Linked Art's recommended terms"
                                                              ("{" <> aat "300388277" <> ", \"type\": \"Language\", \"_label\": \"English\", \"notation\": \"en\"}"))
     , ("Ancient Greek's code is ISO 639-3's",      aatToJSON "(graph g (iso/ancient-greek))"
                                                              ("{" <> aat "300387827" <> ", \"type\": \"Language\", \"_label\": \"Ancient Greek\", \"notation\": \"grc\"}"))
-    , ("every language has an iso variant",        everyLanguageHasIso)
+    , ("every language has an iso variant",        everyTermHasIso "aat/language" 31)
+    , ("an iso currency has its code as its notation", aatToJSON "(graph g (currency-iso/us-dollars))"
+                                                             ("{" <> aat "300411994" <> ", \"type\": \"Currency\", \"_label\": \"US Dollars\", \"notation\": \"USD\"}"))
+    , ("every currency has an iso variant",        everyTermHasIso "aat/currency" 6)
+    , ("a price type is a plain Type",             aatToJSON "(graph g (price-type/starting-price))"
+                                                             ("{" <> aat "300417242" <> ", \"type\": \"Type\", \"_label\": \"Starting Price\"}"))
     , ("a term of the examples joins its section", aatToJSON "(graph g (group-type/society))"
                                                              ("{" <> aat "300026009" <> ", \"type\": \"Type\", \"_label\": \"Society\"}"))
     , ("an activity type is a plain Type",         aatToJSON "(graph g (activity-type/auction-event))"
@@ -89,12 +95,12 @@ everyTermGenerated = withTests 1 . property $ do
     recommended <- table "scripts/aat/recommended.tsv"
     examples    <- table "scripts/aat/examples.tsv"
     let terms     = recommended <> examples
-        sections  = [ entry | entry@(path, _) <- Map.toList bundled, "aat/" `T.isPrefixOf` path, path /= "aat/language/iso" ]
+        sections  = [ entry | entry@(path, _) <- Map.toList bundled, "aat/" `T.isPrefixOf` path, not ("/iso" `T.isSuffixOf` path) ]
         sources   = [ source | (_, (_, source)) <- sections ]
         missing   = [ number | number <- terms, not (any (("\"" <> number <> "\"") `T.isInfixOf`) sources) ]
     exported <- traverse (fmap length . exportsOf) [ file | (_, file) <- sections ]
     length recommended === 195
-    length sources === 17
+    length sources === 18
     sum exported === length terms
     missing === []
     where
@@ -102,13 +108,13 @@ everyTermGenerated = withTests 1 . property $ do
         text <- evalIO (readSourceFile path) >>= either (\err -> annotate (T.unpack err) >> failure) pure
         pure [ number | line <- T.lines text, not ("##" `T.isPrefixOf` line), [_, number, _] <- [T.splitOn "\t" (T.strip line)] ]
 
--- aat/language/iso, a variant of aat/language, exports exactly its languages
-everyLanguageHasIso :: Property
-everyLanguageHasIso = withTests 1 . property $ do
-    languages <- traverse exportsOf (Map.lookup "aat/language" bundled)
-    iso       <- traverse exportsOf (Map.lookup "aat/language/iso" bundled)
-    fmap length languages === Just 31
-    iso === languages
+-- A module's iso variant, aat/language/iso or aat/currency/iso, exports exactly its terms
+everyTermHasIso :: Text -> Int -> Property
+everyTermHasIso path count = withTests 1 . property $ do
+    terms <- traverse exportsOf (Map.lookup path bundled)
+    iso   <- traverse exportsOf (Map.lookup (path <> "/iso") bundled)
+    fmap length terms === Just count
+    iso === terms
 
 -- The names a bundled module exports
 exportsOf :: (FilePath, Text) -> PropertyT IO [Text]
