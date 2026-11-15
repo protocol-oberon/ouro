@@ -1,8 +1,7 @@
 dist-newstyle/
 .direnv
 .envrc
-test/fixtures/ouro/test.ouro
-test/fixtures/json/test.json
+scratch/
 out/
 \#*#
 .#*
