@@ -75,8 +75,7 @@ Ouro is still written as s-expressions, but it is no longer homoiconic in practi
 
 ** Referential transparency
 
-Ouro has no side effects, no mutable state, no quoting, and no recursion but what goes down into a value.
-So it finishes (see the recursion rule under Functions).
+Ouro has no side effects, no mutable state, no quoting, and employs a recursion check to ensure termination of compilation and the generation of the JSON target.
 
 Every expression can be replaced by its value without changing the program.
 - ~((+ 2 4) 3)~ and ~(6 3)~ are the same array, match the same patterns and serialise identically.
@@ -84,12 +83,9 @@ Every expression can be replaced by its value without changing the program.
 
 ** Lexical scope, lazily
 
-Every name means what it meant where it was written.
-- To find what a name refers to, read outward through the enclosing parentheses, never through the call stack.
+Every name means what it meant where it was written. To find what a name refers to, read outward through the enclosing parentheses, never through the call stack.
 
-- *Order independence:* a record's attribute pairs and a =let='s bindings refer to each other in any order.
-  - This is Scheme's =letrec=.
-  - Curators can write a graph in the order that reads best.
+- *Order independence:* a record's attribute pairs and a =let='s bindings refer to each other in any order (This is Scheme's =letrec=). Curators can write a graph in the order that reads best.
 
 - *Call-by-need:* every binding is a promise, evaluated at most once, only when needed, where it was written.
   - A binding is a record's attribute pair, a =let= binding or a function's argument.
@@ -97,46 +93,38 @@ Every name means what it meant where it was written.
 
 - *Cycles are errors:* a binding that depends on itself is reported ("…references itself…"), never run forever.
 
-- *No hidden errors:* once the output is built, every promise it never needed is forced.
-  - So an error in an unused binding is still reported.
+- *No hidden errors:* once the output is built, every promise it never needed is forced. So an error in an unused binding is still reported.
 
-- *Names are checked as written:* before anything is evaluated, the static analysis resolves every name by these rules.
-  - It covers every function and graph, of the module and of every module it imports.
+- *Names are checked as written:* before anything is evaluated, the static analysis resolves every name by these rules. It covers every function and graph, of the module and of every module it imports.
   - An unbound name is reported even in a function no graph calls, or a =case= branch not taken.
   - Its "Perhaps you meant" is ranked over every name in scope there, local bindings included.
   - A path's keys, as in ~(get r part)~, are keys, not names.
 
 ** No runtime
 
-Ouro is a compiler, not an interpreter for a program that runs later.
-- All names, calls and patterns are resolved at compile time; the result is a static JSON-LD document.
-- There is no virtual machine, no I/O and no network access during compilation.
+Ouro is a compiler, not an interpreter for a program that runs later. All names, calls and patterns are resolved at compile time; the result is a static JSON-LD document. There is no virtual machine, no I/O and no network access during compilation.
+
 - See [[*6. Architectural Boundaries][Architectural Boundaries]].
 
 ** Dynamic code, static output
 
-Ouro is dynamically typed, with optional type annotations that are checked when values cross them.
-Its output is statically typed: everything is evaluated at compile time.
-So every document passes the verification gate before a byte is written.
+Ouro is dynamically typed, with optional type refinements that are checked when values cross them. Its output is statically typed: everything is evaluated at compile time. So every document passes the verification gate before a byte is written.
 
-Evaluation happens in a flexible, dynamically typed sandbox (~L.Expr~), in which errors are values.
-- Before anything is serialised, the evaluated tree must pass the verification gate.
-- It is then collapsed into ~I.Expr~, a GADT indexed by JSON-LD kinds.
+Evaluation happens in a flexible, dynamically typed sandbox (~L.Expr~), in which errors are values. Before anything is serialised, the evaluated tree must pass the verification gate, It is then collapsed into ~I.Expr~, a GADT indexed by JSON-LD kinds.
+
 - Ouro is dynamic where curators write code, and static where the output is produced.
 
-The annotations are built-in properties, written on an expression or in a function's signature.
-- Signatures are described under [[*Functions: =define/procedure=, =fn= and calls][functions]].
-- They are checked when values reach them, not as static types are.
-  - No annotation is checked before evaluation.
-  - An annotation on code that is never evaluated is never checked.
-- Only names, and the arity of a call of a known function, are checked before evaluation.
-  - See [[*Lexical scope, lazily][lexical scope]].
-- When a check fails, the blame falls where it belongs.
+Signatures are described under [[*Functions: =define/procedure=, =fn= and calls][functions]]. They are checked when values reach them, not as static types are. No annotation is checked before evaluation and an annotation on code that is never evaluated is never checked.
+
+Only names, and the arity of a call of a known function, are checked before evaluation.
+
+- See [[*Lexical scope, lazily][lexical scope]].
+
+When a check fails, the blame falls where it belongs.
   - A bad argument is reported at the call.
   - A bad result is reported at the function's body.
 
-This is not gradual typing in the sense of Siek and Taha.
-There, annotated code is checked statically, and checks are inserted only at the boundary with untyped code.
+This is not gradual typing in the sense of Siek and Taha. There, annotated code is checked statically, and checks are inserted only at the boundary with untyped code.
 
 ** Errors for curators
 
@@ -145,11 +133,13 @@ Errors are part of the design, not an afterthought.
 - Every error is reported with its position, a short message and a blurb that suggests a fix.
 - Evaluation continues past an error, so one compile reports them all.
 
-Names are checked before evaluation, and every unbound one is reported together.
-A program with one is not evaluated, so its other errors are reported once its names are put right.
+Names are checked before evaluation, and every unbound one is reported together. A program with one is not evaluated, so its other errors are reported once its names are put right.
 
 Removed syntax is recognised and answered with its replacement.
-- For example: "The (nth index array) form has been replaced by get."
+
+#+begin_example
+"The (nth index array) form has been replaced by get."
+#+end_example
 
 A function written where a value belongs, or called with the wrong number of arguments, is shown with how it is called.
 - It is shown by its parameters' names: "Perhaps call it: (aat id label)", "It is called (c)."
@@ -160,31 +150,30 @@ A function written where a value belongs, or called with the wrong number of arg
 
 ** Deterministic serialisation
 
-Records keep their attribute pairs in source order: association lists, not maps.
-The serialiser is a single fold over the frozen GADT.
-The same input always produces byte-identical output.
+Records keep their attribute pairs in source order: association lists, not maps. The serialiser is a single fold over the frozen GADT, the same input always produces byte-identical output.
 
 ** The Ouro compilation pipeline
 
 The flow from source to JSON is strictly linear (~Data.Ouro.compile~):
 
-| Pass | Module                        | Input → Output                                      |
-|------+-------------------------------+-----------------------------------------------------|
-|    1 | ~Lisp.Lexer~                  | source text → ~[Token]~                             |
-|    2 | ~Error.Linter~                | ~[Token]~ → warnings (does not stop compilation)    |
-|    3 | ~Lisp.Parser~                 | ~[Token]~ → ~Module~ of =define/procedure= and =graph= ~S.Expr~ |
-|  3.0 | ~Error.Linter~                | ~Module~ → warnings (does not stop compilation)     |
-|  3.1 | ~Lisp.Canon~                  | ~S.Expr~ → placeholders, then desugared ~S.Expr~    |
-|  3.2 | ~Lisp.Analysis~               | ~Module~ → errors: names, arity, recursion descends |
-|  3.3 | ~Data.Ouro~                   | select the target graph (with a "did you mean")     |
-|    4 | ~Lisp.Eval.Engine~            | ~S.Expr~ → ~(L.Expr, [OuroError])~                  |
-|    5 | ~Data.Ouro.validateAST~       | the verification gate                               |
-|    6 | ~Lisp.Eval.Types.freeze~      | ~L.Expr~ → ~I.Expr 'Primitive~                      |
-|    7 | ~Json.Serializer.toJSON~      | ~I.Expr~ → JSON text                                |
+| Pass | Module                   | Input → Output                                                  |
+|------+--------------------------+-----------------------------------------------------------------|
+|    1 | ~Lisp.Lexer~             | source text → ~[Token]~                                         |
+|    2 | ~Error.Linter~           | ~[Token]~ → warnings (does not stop compilation)                |
+|    3 | ~Lisp.Parser~            | ~[Token]~ → ~Module~ of =define/procedure= and =graph= ~S.Expr~ |
+|  3.0 | ~Error.Linter~           | ~Module~ → warnings (does not stop compilation)                 |
+|  3.1 | ~Lisp.Canon~             | ~S.Expr~ → placeholders, then desugared ~S.Expr~                |
+|  3.2 | ~Lisp.Analysis~          | ~Module~ → errors: names, arity, recursion descends             |
+|  3.3 | ~Data.Ouro~              | select the target graph (with a "did you mean")                 |
+|    4 | ~Lisp.Eval.Engine~       | ~S.Expr~ → ~(L.Expr, [OuroError])~                              |
+|    5 | ~Data.Ouro.validateAST~  | the verification gate                                           |
+|    6 | ~Lisp.Eval.Types.freeze~ | ~L.Expr~ → ~I.Expr 'Primitive~                                  |
+|    7 | ~Json.Serializer.toJSON~ | ~I.Expr~ → JSON text                                            |
 
-Errors from passes 1 and 3 stop compilation immediately (there is no tree to continue with).
-The static analysis (3.2) runs once the modules imported are loaded, each of which is analysed too.
+Errors from passes 1 and 3 stop compilation immediately (there is no tree to continue with). The static analysis (3.2) runs once the modules imported are loaded, each of which is analysed too.
+
 - Its errors are collected and reported together, and stop compilation before evaluation.
+
 From pass 4 onwards, errors are collected and reported together.
 
 * The Language (Syntax Layer)
@@ -238,14 +227,11 @@ Compiles (with ~ouro compile file.ouro -t spring~) to:
 }
 #+END_SRC
 
-Only graphs are serialised. Functions exist to build and reuse values.
-A module-wide constant is a function of no parameters, such as =getty-aat= above.
+Only graphs are serialised. Functions exist to build and reuse values. A module-wide constant is a function of no parameters, such as =getty-aat= above.
 
 ** Modules: =import= and =export=
 
-A module uses another's functions by importing it, and offers its own by exporting them.
-Both are written first in the file, before any =define/procedure= or =graph=.
-So a file's dependencies, and what it offers, are the first thing read.
+A module uses another's functions by importing it, and offers its own by exporting them, both are written first in the file, before any =define/procedure= or =graph=. A file's dependencies, and what it offers, are the first thing read.
 
 #+BEGIN_SRC clojure
 (import std/base)                     ; base/aat, base/name, ...
@@ -274,22 +260,25 @@ An imported module is lexed, parsed, linted and desugared on its own.
 - It is loaded once, however often it is imported.
 - It has its own root frame: its functions close over its own functions and imports, never the importer's.
 - A local function with the same name as an imported one is a different function, =name= and =base/name=.
+
 *** The bundled modules
 
-The bundled modules ship inside the compiler, embedded from =lib/= when it is built, so they need no file on disk.
-- =std= is a folder of eight, holding Linked Art's own patterns, one module per section of its model.
-  - Importing a =std/= module says its functions build Linked Art's nodes.
-- =aat= is a second folder: Linked Art's recommended terms.
-- =(import std)= is an error (=SCP0006=) that says =std= is a folder and lists its modules.
-- A module added to =lib/= is not noticed by an incremental build.
-  - =file-embed= tracks the files it embedded, and neither GHC nor cabal watches the folder.
-  - So a test checks that every file in =lib/= is bundled.
-  - =cabal clean= then =cabal build all= brings a stale build up to date.
+The bundled modules ship inside the compiler, embedded from =lib/= when it is built, so they need no file on disk. =std= is a folder of eight, holding Linked Art's own patterns, one module per section of its model.
+
+- Importing a =std/= module says its functions build Linked Art's nodes.
+
+=aat= is a second folder: Linked Art's recommended terms. - =(import std)= is an error (=SCP0006=) that says =std= is a folder and lists its modules.
+
+A module added to =lib/= is not noticed by an incremental build. =file-embed= tracks the files it embedded, and neither GHC nor cabal watches the folder.
+
+- So a test checks that every file in =lib/= is bundled.
+- =cabal clean= then =cabal build all= brings a stale build up to date.
 
 **** =std=
 
 - =std/vocab= holds the 18 terms Linked Art requires, and imports nothing.
   - Each is a function of no parameters, written as a value: =vocab/primary-name=.
+
 - =std/base= holds the base patterns, and imports =std/vocab=.
   - They are constructors that take values and build a node.
   - They never extend a record: a record is a literal, or threaded through =with= and =adjoin=.
@@ -297,6 +286,7 @@ The bundled modules ship inside the compiler, embedded from =lib/= when it is bu
   - Types classified by their meta-type: =work-type=, =style=, =shape=, =nationality=, =occupation=, =statement-kind=.
   - Embedded nodes: =name= and =identifier=, each taking its kind first, and =description=.
   - =statement=, which classifies its kind as Brief Text.
+
 - =std/time= holds time spans, whose end is included.
   - =span=, from two dates.
   - =day=, =month= and =year=, from a date written to that precision: =(time/day "1832-01-23")=, =(time/year "1881")=.
@@ -306,6 +296,7 @@ The bundled modules ship inside the compiler, embedded from =lib/= when it is bu
     - =(time/between (time/span a b) (time/span c d))= sets all four of a TimeSpan's ends.
   - An event is written as a literal: =(:type "Birth" :timespan (time/day "1832-01-23"))=.
     - Linked Art's events share their properties, so a constructor per event would add nothing.
+
 - The rest follow Linked Art's sections.
   - =std/object=:
     - dimensions, =(object/height 379.5 object/centimeters)=, with =width=, =depth=, =weight=;
@@ -323,16 +314,30 @@ The bundled modules ship inside the compiler, embedded from =lib/= when it is bu
     - They are linked by the record's own =used_specific_object=, =influenced_by= and =member_of=.
   - =std/digital=: =picture=, an image for =representation=, and =web-page=, for =subject_of=.
     - =image= is a special form, so the image is =picture=.
+
 - A place's geometry, =defined_by=, is a WKT string written as it is.
 
 **** =aat=
 
-=aat= holds Linked Art's recommended terms (linked.art/model/vocab/recommended), 195 of them.
-- It has one module per section of Linked Art's list, sixteen in all:
-  - =name-type=, =identifier-type=, =statement-type=, =object-type=;
-  - =place-type=, =group-type=, =digital-type=, =set-type=, =dimension-type=;
-  - =language=, =unit=, =material=, =currency=;
-  - =nationality=, =occupation= and =shape=.
+=aat= holds Linked Art's recommended terms (linked.art/model/vocab/recommended), 195 of them. It has one module per section of Linked Art's list, sixteen in all:
+
+1. =name-type=
+2. =identifier-type=
+3. =statement-type=
+4. =object-type=
+5. =place-type=
+6. =group-type=
+7. =digital-type=
+8. =set-type=
+9. =dimension-type=
+10. =language=
+11. =unit=
+12. =material=
+13. =currency=
+14. =nationality=
+15. =occupation=
+16. =shape=
+
 - Each term is a constant, built with =std='s constructor for its kind, so =aat= imports =std=, never the reverse:
 
   | Kind                                | Built with                                           |
@@ -347,34 +352,37 @@ The bundled modules ship inside the compiler, embedded from =lib/= when it is bu
   | a nationality, occupation or shape  | =base/nationality=, =base/occupation=, =base/shape=  |
 
 - The qualifier says the kind, so a language and a nationality share a name: =language/dutch=, =nationality/dutch=.
+
 - A term is named from Linked Art's name: =partsUnit= is =parts=, =Museum (as Place)= is =place-type/museum=.
+
 - It is labelled with Linked Art's description, each word capitalised and existing capitals kept.
   - =US Dollars=, =(Music) Composer=.
   - A Type keeps Linked Art's name as its label, and its description as its documentation.
+
 - Seven are renamed.
   - The six time units are =year-unit=, =month-unit=, =day-unit=, =hour-unit=, =minute-unit= and =second-unit=.
     - =years= and its kin are built-ins.
   - Map is =map-object=, since =map= is a special form.
+
 - Units and currencies are in =std/object= and =std/provenance= too, with lower-case unit labels there.
+
 - The modules are generated by =scripts/aat/generate.pl= from =scripts/aat/recommended.tsv=.
   - That table is what =scripts/aat/extract.pl= takes from Linked Art's page.
   - A test checks that every term of the table is in the modules.
 
 *** Resolving an import
 
-- Module paths are written with =/= on every platform.
-  - Bundled modules are embedded with the platform's separator, but named with =/= too.
-- An import whose first segment is =std= or =aat= is always a bundled module, whatever the project holds.
-  - A project's =std/base.ouro= is never imported.
-  - A =std/= module only the project has is not found (=SCP0006=).
-  - =ouro build= reports a module under =:sources= whose path starts with =std= or =aat= as =BLD0009=.
-  - =WRN0005=, raised when a project module replaced a bundled one, is retired, and its code is not reused.
-- Any other module is a file of the project, or of a library vendored in it.
-  - For =ouro build=, an import whose first segment names a collection is read from that library.
-    - A collection is a folder of =vendor/=.
-    - The rest of the import's path is read from the library's source folder.
-  - Any other =(import a/b)= reads =a/b.ouro= under the source folder of the importing module's own library.
-  - For the project's own modules, that is its =:sources= (see [[*Builds: =package.ouro= and =ouro build=][Builds]]).
+Module paths are written with =/= on every platform. Bundled modules are embedded with the platform's separator, but named with =/= too.
+
+An import whose first segment is =std= or =aat= is always a bundled module, whatever the project holds.
+
+A project's =std/base.ouro= is never imported.
+- A =std/= module only the project has is not found (=SCP0006=).
+- =ouro build= reports a module under =:sources= whose path starts with =std= or =aat= as =BLD0009=.
+- =WRN0005=, raised when a project module replaced a bundled one, is retired, and its code is not reused.
+
+Any other module is a file of the project, or of a library vendored in it. For =ouro build=, an import whose first segment names a collection is read from that library. A collection is a folder of =vendor/=, the rest of the import's path is read from the library's source folder. Any other =(import a/b)= reads =a/b.ouro= under the source folder of the importing module's own library. For the project's own modules, that is its =:sources= (see [[*Builds: =package.ouro= and =ouro build=][Builds]]).
+
 *** Errors
 
 | Code      | Meaning                                                                       |
@@ -388,21 +396,25 @@ The bundled modules ship inside the compiler, embedded from =lib/= when it is bu
 
 - =SCP0006= names the files looked for and the folders of bundled modules, with the nearest bundled module's name.
   - Every missing module in a file is reported, not only the first.
+
 - =SCP0007= suggests the import when the qualifier names a bundled module.
   - For ~(base/name "A")~ without ~(import std/base)~, it suggests the import.
+
 - =SCP0008= lists what the module does export.
+
 - =SCP0009= is reported at the import that closes the circle, with its path, =a → b → a=.
   - The path names only the modules on the circle.
   - Imports go one way, so a module is checked before the modules that import it.
+
 - =SCP0011= names the files, at the import.
   - A program embedding Ouro with several roots can meet it; the command line has one source folder, so never does.
-- A module that cannot be loaded is reported once, however many modules import it.
-- An error or warning inside an imported module is reported, and shown, in that module's file and line.
-- A failed import stops the compile, so nothing after it is reported as its echo.
+
+A module that cannot be loaded is reported once, however many modules import it, an error or warning inside an imported module is reported, and shown, in that module's file and line and a failed import stops the compile, so nothing after it is reported as its echo.
 
 ** Builds: =package.ouro= and =ouro build=
 
 =ouro build [DIR] [-g module/graph ...]= builds the project in =DIR=, the current directory when it is not given.
+
 - It is the only command that compiles Ouro: =ouro compile= was removed in 0.5.
 - A project needs no file of its own.
   - Without one, its modules are the files in =DIR=, and its graphs are written to =DIR/out=.
@@ -421,16 +433,18 @@ A folder that does not exist is a message, "No folder typo", not the build of a 
 
 *** One function
 
-=package.ouro= is lexed, parsed and evaluated as a module is.
-- Its settings are the value of =(package)=, so they are Ouro values, ~:outputs (+ "di" "st")~ included.
-- It can import the bundled modules, and only them: any other import is =SCP0006=.
-- It holds nothing but its function:
-  - a graph, an export or another function is =BLD0006=;
-  - a function named =inputs=, =build= or =exports= is =BLD0010=, the names kept for later versions;
-  - =package= takes no parameters (=BLD0008=);
-  - without a function named =package=, the file is =BLD0007=.
+=package.ouro= is lexed, parsed and evaluated as a module is. Its settings are the value of =(package)=, so they are Ouro values, ~:outputs (+ "di" "st")~ included. It can import the bundled modules, and only them: any other import is =SCP0006=.
+
+=package.ouro=  holds nothing but its function, which is a single graph /package/.
+- A graph, an export or another function is =BLD0006=;
+
+- A function named =inputs=, =build= or =exports= is =BLD0010=, the names kept for later versions;
+
+- =package= takes no parameters (=BLD0008=);
+  - Without a function named =package=, the file is =BLD0007=.
     - It names the function it found.
     - For an empty file, it suggests deleting it, since a project needs none.
+
 - Its declarations are checked before its settings, since the settings are its function's value.
 
 *** Settings
@@ -445,77 +459,93 @@ None is required, so ~(define/constant package #record-empty)~ is every default.
 | =:ouro=    | String           | the version of Ouro the project needs      | no check            |
 
 - A =:sources= folder that does not exist is =BLD0005=.
+
 - =:graphs= is an Array even when it names one graph.
+
 - =:ouro= is numbers apart by dots, as ="0.5"=.
   - A version newer than the compiler's is =BLD0015=, which names both.
   - One that is not numbers apart by dots is =BLD0016=.
   - Versions are compared number by number, a missing number being 0, so ="0.5"= is =0.5.0.0=.
+
 - Any other setting, =:name= included, is =BLD0000=, which suggests the nearest: =:sorces= for =:sources=.
+
 - A setting of the wrong type is =TYP0000=, saying what the setting is.
+
 - A value that is not a record is =TYP0000= too.
+
 - Every wrong setting is reported, at the function.
   - An evaluated record keeps no position for each attribute pair.
 
 *** Modules
 
 Every =.ouro= file under the source folder is a module, named by its path under it, written with =/=.
+
 - =src/people/bob.ouro= under ="src"= is =people/bob=.
+
 - Skipped:
   - hidden folders (=.git=, =.jj=);
   - the =:outputs= folder and the =vendor/= folder;
   - every =package.ouro=, and every folder holding one, which is a project of its own.
+
 - Folders are compared as they are on disk, so a source folder written through =..= still skips the outputs.
+
 - A module whose path starts with =std= or =aat=, the folders of the bundled modules, is =BLD0009=.
   - It is reported in its file, and is not built.
 
 *** Every graph
 
 Every graph of every module, modules nothing imports included, is written to =<outputs>/<module>/<graph>.json=.
+
 - The graph =g= of =people/bob= is written to =out/people/bob/g.json=, its folders made.
+
 - A module of functions only writes nothing.
+
 - A module imported by many is loaded once, so its warnings are reported once.
+
 - Modules are built in the order of their names.
 
 *** The graphs chosen
 
-=-g module/graph=, given any number of times, builds only the graphs it names, and replaces =:graphs=.
-- Without =-g=, =:graphs= chooses them; without either, every graph of every module is built.
-- A graph is named by its module and its name, split at the last =/=: =people/bob/g= is =g= of =people/bob=.
-- Only the modules of the graphs chosen, and what they import, are compiled.
-  - So a module not chosen cannot fail the build.
-  - Only the graphs chosen are written, in the order they are named within each module.
-- Errors:
+=-g module/graph=, given any number of times, builds only the graphs it names, and replaces =:graphs=. Without =-g=, =:graphs= chooses them; without either, every graph of every module is built. A graph is named by its module and its name, split at the last =/=: =people/bob/g= is =g= of =people/bob=. Only the modules of the graphs chosen, and what they import, are compiled.
+
+- So a module not chosen cannot fail the build. Only the graphs chosen are written, in the order they are named within each module.
+
+- *Errors*:
   - a name not written =module/graph= is =BLD0018=;
   - a module the project does not build is =BLD0017=, which suggests the closest module;
   - a graph its module does not have is =SCP0004=, shown at the module's closest graph;
   - for a module with no graphs, it is =SCP0005=.
+
 - An error in a =-g= is reported at the argument itself, =-g people/persn=.
+
 - An error in =:graphs= is reported at the =package= function.
+
 - =:graphs ()= builds nothing.
 
 *** Vendored libraries
 
-A library is used by copying it into =vendor/=, beside =package.ouro=.
-- Every folder of =vendor/= is a /collection/, named after the folder.
-- There is no other place for libraries.
+A library is used by copying it into =vendor/=, beside =package.ouro=. Every folder of =vendor/= is a /collection/, named after the folder. There is no other place for libraries.
 
-=(import tate/people)= reads =people.ouro= from the source folder of =vendor/tate=.
-- That is its own =package.ouro='s =:sources=, or else the folder itself.
-- That =package.ouro= is checked as the project's is.
+=(import tate/people)= reads =people.ouro= from the source folder of =vendor/tate=. That is its own =package.ouro='s =:sources=, or else the folder itself. That =package.ouro= is checked as the project's is.
+
 - A source folder that does not exist is =BLD0005=.
 
 A library works unchanged once copied in.
+
 - Its own imports resolve against its own source folder.
+
 - Its =people= and the project's =people= are different modules, which never meet.
+
 - It imports another library by the other's collection name, so its dependencies are vendored beside it.
+
 - Its modules are compiled only when imported.
   - So its graphs are never written.
   - A module of it nothing imports never fails the build.
 
-Errors:
-- a collection named =std= or =aat= is =BLD0011=;
-- a library with a =vendor/= of its own is =BLD0012=, since vendoring is flat;
-- a collection's name that is also a top-level folder or module of a source folder is =BLD0013=.
+*Errors*:
+- A collection named =std= or =aat= is =BLD0011=.
+- A library with a =vendor/= of its own is =BLD0012=, since vendoring is flat.
+- A collection's name that is also a top-level folder or module of a source folder is =BLD0013=.
   - The source folder is the project's or a library's.
   - It is reported when the build starts, whether or not anything imports it.
   - So =(import tate/…)= never has two meanings.
@@ -523,8 +553,8 @@ Errors:
 
 *** Module keys and case
 
-A module is known by its file, as spelt on disk, relative to the project's folder.
-- =src/people.ouro=, =vendor/tate/people.ouro=.
+A module is known by its file, as spelt on disk, relative to the project's folder =src/people.ouro=, =vendor/tate/people.ouro=.
+
 - So a file is loaded once however it is reached, and an import cycle names the files.
 
 An import spelt in another case than its file, =(import People)= for =people.ouro=, is =BLD0014=.
@@ -547,22 +577,22 @@ These are never raised, and their codes are not reused:
 
 ** Lexical elements
 
-| Element       | Written as                                    | Notes                                              |
-|---------------+-----------------------------------------------+----------------------------------------------------|
-| Line comment  | =;; text=                                     | from =;= to the end of the line                    |
-| Block comment | ~#\vert … \vert#~                             | may span lines                                     |
-| String        | ="text"=                                      | Haskell-style character escapes                    |
-| Number        | =42=, =-3.5=, =1e3=                           | a Double: integers are exact up to 2^53            |
-| Boolean       | =true=, =false=                               | Ouro has no null (see below)                       |
-| Symbol        | =artist=, =type-node=, =+=, =∧=, =legacy!=    | see below                                          |
-| Attribute     | =:key=, =:@vocab=, =:crm:P2_has_type=         | a pair's key (see below)                           |
-| Binding       | =$name=                                       | any symbol; a private binding, only inside a =let= |
-| Property      | =#uri=, =#date=, =#string=, =#titled=         | a property of what follows (see below)             |
-| Empty values  | =#record-empty=, =#array-empty=, =()=         | ={}=, =[]= and =[]=                                |
-| Hole          | =?=, =?name=, =?..name=                       | a placeholder in a call, or part of a pattern      |
-| Delimiters    | =( )=                                         | =[ ]= is reserved: it parses, but means nothing    |
-| Range         | =(1..500)=, =(2 4 .. 10)=                     | see below                                          |
-| Keywords      | =define/procedure=, =define/constant=, =graph= | see below                                         |
+| Element       | Written as                                     | Notes                                              |
+|---------------+------------------------------------------------+----------------------------------------------------|
+| Line comment  | =;; text=                                      | from =;= to the end of the line                    |
+| Block comment | ~#\vert … \vert#~                              | may span lines                                     |
+| String        | ="text"=                                       | Haskell-style character escapes                    |
+| Number        | =42=, =-3.5=, =1e3=                            | a Double: integers are exact up to 2^53            |
+| Boolean       | =true=, =false=                                | Ouro has no null (see below)                       |
+| Symbol        | =artist=, =type-node=, =+=, =∧=, =legacy!=     | see below                                          |
+| Attribute     | =:key=, =:@vocab=, =:crm:P2_has_type=          | a pair's key (see below)                           |
+| Binding       | =$name=                                        | any symbol; a private binding, only inside a =let= |
+| Property      | =#uri=, =#date=, =#string=, =#titled=          | a property of what follows (see below)             |
+| Empty values  | =#record-empty=, =#array-empty=, =()=          | ={}=, =[]= and =[]=                                |
+| Hole          | =?=, =?name=, =?..name=                        | a placeholder in a call, or part of a pattern      |
+| Delimiters    | =( )=                                          | =[ ]= is reserved: it parses, but means nothing    |
+| Range         | =(1..500)=, =(2 4 .. 10)=                      | see below                                          |
+| Keywords      | =define/procedure=, =define/constant=, =graph= | see below                                          |
 
 *** Booleans and null
 
@@ -577,78 +607,81 @@ A symbol starts with one of:
 - one of the operator characters ~_ + - * / < > = ! & | ~~;
 - one of the symbols of logic and sets ~¬ ∧ ∨ ⋀ ⋁ ∀ ∃ ∄ ∪ ∩ ∖ ⊆ ⋃ ⋂ ⊨~.
 
-It may also contain digits, ~?~ and ~'~, and =:= after its first character.
-On its own, each symbol of logic and sets, like =λ=, is read as the name it stands for.
-See [[*Functions: =define/procedure=, =fn= and calls][functions]].
+It may also contain digits, ~?~ and ~'~, and =:= after its first character. On its own, each symbol of logic and sets, like =λ=, is read as the name it stands for. See [[*Functions: =define/procedure=, =fn= and calls][functions]].
 
 *** Attributes
 
-An attribute is letters, digits, =-= and =_=, after an optional =@=.
-It may hold =:= after its first character, so a compact IRI is one key.
+An attribute is letters, digits, =-= and =_=, after an optional =@=. It may hold =:= after its first character, so a compact IRI is one key.
 
 *** Properties
 
 =#uri=, =#date=, =#string=, =#number=, =#boolean=, =#record=, =#array= and =#function= are the built-in properties.
+
 - Any other name that begins with a letter, =#titled=, is read whole as a property defined in Ouro.
 - So is a qualified one, =#people/titled=.
 - Nothing checks one yet, so it is =Unknown property: #people/titled=.
 
 *** Ranges
 
-=..= is read after one or two expressions and before one, alone in their parentheses.
-Anywhere else it is an error.
+=..= is read after one or two expressions and before one, alone in their parentheses. Anywhere else it is an error.
 
 *** Keywords
 
 The keywords are =define/procedure=, =define/constant=, =define/property=, =graph=, =import= and =export=.
+
 - A definition names its kind.
   - =define= on its own, or of another kind (=define/graph=), is an error.
   - Its message: ='define' is not a definition: say what is defined, …=.
+
 - =defn=, =defn/const= and =defn/property=, which these replace, are errors that name their replacement.
   - =defn is now define/procedure: …=.
+
 - A name that only begins with one of them, =defined=, =defnode=, =defn/constant=, is a symbol.
+
 - =define/property= is read, but is not yet a form, so it is an invalid top-level keyword.
+
 - No import is qualified =define= or =defn=, since its functions would read as these.
   - ~(import lib/define)~ is an error, and ~as define~ and ~as defn~ are not names.
 
 *** Source files
 
-A source file is UTF-8, on every platform.
-- A letter is any Unicode letter, so =café= is a name and =:naïve= a key, and strings hold any text.
-- A leading byte order mark is dropped, and CRLF line endings become LF.
-  - So a file reads the same wherever it was saved.
+A source file is UTF-8, on every platform. A letter is any Unicode letter, so =café= is a name and =:naïve= a key, and strings hold any text. A leading byte order mark is dropped, and CRLF line endings become LF.
+
 - A file that is not valid UTF-8 is an error, not garbled text.
+
 - A file that cannot be read, such as one that does not exist, is an error too, rather than an exception.
+
 - The library reads no files.
   - It decodes the bytes it is given (~Data.Ouro.decodeSource~).
   - The command line reads them (~CLI.Source.readSource~).
+
 - A file that ends with a delimiter still open is =SYN0001=.
   - It is reported at the innermost delimiter still open, in the file it is in.
   - "Expected: ')' to close this; Got: the end of the file".
+
 - The compiler's messages are UTF-8 too.
   - On Windows, the console's code page is switched to UTF-8 (65001) while =ouro= runs, and restored when it exits.
 
 *** Names
 
-Names live in one namespace: values and functions share it.
-- An inner value shadows an outer function of the same name.
+Names live in one namespace: values and functions share it. Shadowing is allowed, an inner value shadows an outer function of the same name.
+
 - A trailing =!= on a function name is allowed, but has no meaning.
 
-A =define/procedure= may take the name of a built-in, as a definition can in Scheme.
-- It replaces the built-in throughout the file:
-  - in calls;
-  - in =case= guards;
+A =define/procedure= may take the name of a built-in, as a definition can in Scheme. It replaces the built-in throughout the file:
+
+- In calls;
+- In =case= guards;
   - under any symbol the built-in is also written with, so ~(define/procedure = ...)~ replaces =eq=.
 - The compiler warns when it does (=WRN0003=).
 - It may take a special form's name too, and shadows the form throughout the file, with the same warning.
   - The exception is the forms read by their syntax (see [[*Special forms][special forms]]).
 
-A =/= qualifies an imported name, =base/aat=.
-- So a =define/procedure=, a parameter or a =let= binding cannot have one.
+A =/= qualifies an imported name, =base/aat=. So a =define/procedure=, a parameter or a =let= binding cannot have one.
+
 - =/= and =/== themselves are names, being unqualified.
 
-Functions and graphs are named in kebab-case, =make-place=.
-- A name with a capital or an underscore is a warning (=WRN0004=) that suggests the kebab-case spelling.
+Functions and graphs are named in kebab-case, =make-place=. A name with a capital or an underscore is a warning (=WRN0004=) that suggests the kebab-case spelling.
 - So =makePlace= and =make_place= are both =make-place=.
 - Attribute keys and local bindings are exempt, since keys follow the data's vocabulary (=:_label=).
 
@@ -659,9 +692,7 @@ A =define/procedure= of no parameters, ~(define/procedure c () value)~, is a con
 
 ** Formal grammar (EBNF)
 
-The grammar below describes the language accepted by the parser and evaluator together.
-Several productions share the same parenthesised notation.
-[[*Structural classification][Structural classification]] decides which one a form is.
+The grammar below describes the language accepted by the parser and evaluator together. Several productions share the same parenthesised notation, [[*Structural classification][Structural classification]] decides which one a form is.
 
 #+BEGIN_SRC ebnf
 (* ---------- Modules ---------- *)
@@ -866,8 +897,7 @@ There are two ways to bind a name, with a difference in serialisation:
 | =(:name expr ...)= (a record) | its fields     | yes, every field       | the record's own expressions  |
 | =(let ($name expr ...) body)= | its bindings   | no, only =body=        | the bindings and =body=       |
 
-Both are recursive, as =letrec= is: the bindings can refer to each other in any order, and a cycle is an error.
-An inner binding shadows an outer one, but a binding is always evaluated in the scope where it was written:
+Both are recursive, as =letrec= is: the bindings can refer to each other in any order, and a cycle is an error. An inner binding shadows an outer one, but a binding is always evaluated in the scope where it was written:
 
 #+BEGIN_SRC clojure
 (let ($artist "Manet"
@@ -914,14 +944,14 @@ Both kinds of function take an optional signature:
 
 The symbols of logic and sets are read the same way, as the names they stand for:
 
-| Symbol | Name     | Symbol | Name      | Symbol | Name            |
-|--------+----------+--------+-----------+--------+-----------------|
-| =¬=    | =not=    | =∀=    | =forall=  | =⊆=    | =subset=        |
-| =∧=    | =and=    | =∃=    | =exists=  | =⋃=    | =unions=        |
-| =∨=    | =or=     | =∄=    | =omits=   | =⋂=    | =intersections= |
-| =⋀=    | =all=    | =∪=    | =union=   | =⊨=    | =satisfies=     |
-| =⋁=    | =any=    | =∩=    | =intersect= | ~=~  | =eq=            |
-|        |          | =∖=    | =setminus= | ~/=~  | =neq=           |
+| Symbol | Name  | Symbol | Name        | Symbol | Name            |
+|--------+-------+--------+-------------+--------+-----------------|
+| =¬=    | =not= | =∀=    | =forall=    | =⊆=    | =subset=        |
+| =∧=    | =and= | =∃=    | =exists=    | =⋃=    | =unions=        |
+| =∨=    | =or=  | =∄=    | =omits=     | =⋂=    | =intersections= |
+| =⋀=    | =all= | =∪=    | =union=     | =⊨=    | =satisfies=     |
+| =⋁=    | =any= | =∩=    | =intersect= | ~=~    | =eq=            |
+|        |       | =∖=    | =setminus=  | ~/=~   | =neq=           |
 
 - ~(∀ xs (> ? 0))~ is ~(forall xs (> ? 0))~, and messages name the word.
 - A longer name that begins with a symbol, such as =∧x=, is an ordinary symbol.
@@ -937,11 +967,12 @@ A local function is a =let=-bound =fn=:
 
 *** The body
 
-A function's body is one expression, written exactly as it would be anywhere else, and its value is the result.
-- A body can be a =let=, so a function binds its private values the same way a graph does.
+A function's body is one expression, written exactly as it would be anywhere else, and its value is the result. The body can include a =let=, so a function binds its private values the same way a graph does.
+
 - Parentheses around values make an array, so ~(fn () ("hello"))~ returns ~["hello"]~.
   - The compiler warns (=WRN0002=) when a result is a single plain value in parentheses.
   - A return type of =#array= says the array is intended, and silences it.
+
 - A =define/procedure= body is checked when the file is parsed.
   - Apart from its =doc=, it must be one expression.
   - It cannot be a spliced record: ~(define/procedure f (x) :k v)~.
@@ -950,22 +981,29 @@ A function's body is one expression, written exactly as it would be anywhere els
 *** Documentation
 
 A =define/procedure= is documented with a =(doc "...")= among the direct elements of its body.
-- It goes before or after the result:
-  ~(define/procedure place #record (#string slug #string label) (doc "A Linked Art Place.") (base/tgn ...))~.
+
+- It goes before or after the result: ~(define/procedure place #record (#string slug #string label) (doc "A Linked Art Place.") (base/tgn ...))~.
+
 - The parser takes it out of the body and keeps it with the function.
   - It is never evaluated, and it is not part of the result.
+
 - A function has at most one, holding a single string.
+
 - A =doc= anywhere else is an error: inside a result, in a =fn=, or in a graph.
   - It is reported when the file is parsed, so it is found even in a function that is never called.
+
 - =doc= cannot name a function.
 
 *** Arity
 
 A call with the wrong number of arguments is an error. Functions are not curried.
+
 - A call written with a function's name is checked before evaluation, wherever it is written.
   - The function is the module's, one an import exports, or a built-in.
   - This holds even in a function no graph calls.
+
 - A function reached through a value, a parameter, a =let= binding or =map= is checked when it is called.
+
 - A built-in's number of arguments is listed with it (~Builtins.builtinArity~), with the hint for a wrong one.
   - The evaluator gives the same hint.
   - A binding of its name, or a function of the module, is its own, as in Scheme.
@@ -974,68 +1012,93 @@ A call with the wrong number of arguments is an error. Functions are not curried
 *** Constants: functions of no parameters
 
 A function of no parameters, named, is its value: a constant.
+
 - =vocab/artwork= written as a value is =(vocab/artwork)=.
+
 - This holds for a =define/procedure=, an imported function, and a =let=-bound =(fn () …)=.
+
 - Ouro has no effects, so such a function cannot be told from its value.
   - This is Haskell's reading of a definition of no arguments.
   - Other Lisps keep a constant (=def=) apart from a procedure.
+
 - ~(define/constant c value)~ writes one.
   - It is ~(define/procedure c () value)~, and takes a return type and a =doc= as a =define/procedure= does.
 
 It is evaluated as the call is.
+
 - So its return type, the blame for an error in its body, and the recursion check apply.
+
 - =(define/procedure a () a)= is recursion.
 
 At the head of a call, a name is the function itself.
+
 - So =(c)= still calls it, and =(c 1)= and =(-> x c)= are arity errors.
+
 - A call, =(c)=, is evaluated each time.
 
 A function of no parameters cannot be passed as a function.
+
 - =(map xs c)= receives its value, and =(satisfies c #function)= is =false=.
+
 - An expression that evaluates to such a function without naming it is not called.
   - As a =case= that returns =(fn () 3)=.
 
 When it is evaluated:
+
 - one that closes over its module's root frame alone, as every =define/procedure= does, is evaluated once;
   - that is the first time it is named in a graph's evaluation;
   - that value is every later use's: nothing it can see varies;
+
 - a =(fn () …)= written inside a function closes over a frame each call binds afresh;
   - so it is evaluated each time it is named;
   - ~(define/procedure make (x) (let ($k (fn () x)) k))~ gives =1= for ~(make 1)~ and =2= for ~(make 2)~;
+
 - each graph is evaluated on its own, so a constant is evaluated once per graph that names it.
 
 *** Arguments are call-by-need
 
 Each argument becomes a promise over the caller's scope.
+
 - It is evaluated at most once, when the function first uses it.
+
 - It always means what it meant at the call site, so a function's own bindings can never capture it.
+
 - An argument the function never uses is still evaluated when the graph is finished, so its errors are reported.
 
 *** Closures
 
 The body is evaluated in the function's closure, extended with a frame for the parameters.
+
 - For a =define/procedure=, the closure is the module.
+
 - For a =fn=, it is the scope where the =fn= was written.
-- A function cannot see its caller's bindings.
+
+A function cannot see its caller's bindings.
 
 *** Recursion goes down into a value
 
-A function may reach itself by its name, directly or through others, only if it goes down into a value each time round.
-- So it finishes: values are finite trees, so a call that always passes on a part of a parameter reaches the leaves.
+A function may reach itself by its name, directly or through others, only if it goes down into a value each time round. This means that functions always terminates: values are finite trees, so a call that always passes on a part of a parameter reaches the leaves.
 
 The static analysis checks it as Lee, Jones and Ben-Amram's size-change termination (2001) does.
+
 - Each call relates the size of each argument it passes to the caller's parameters: a part (smaller), or no larger.
+
 - Every way round a circle of functions, followed until it repeats itself, must pass some parameter a part of itself.
+
 - So ~(define/procedure f (a b) (f b (get a k)))~ is accepted, its arguments changing places.
   - Every second time round, =a= is passed a part of itself.
 
 A part of a parameter is:
+
 - a path into it, ~(get n part)~;
+
 - a hole of a pattern matched against it, in a =case= branch or a parameter;
   - except a rest hole alone in its pattern, ~(?..t)~, which may be all of it;
+
 - an element of it, or of a path into it, passed to a function by =map=, =exists=, =forall=, =omits= or =filter=;
   - named there, ~(map xs walk)~;
   - or as a =fn= written there, ~(map (get-or n () part) (fn (p) (walk p)))~;
+
 - a =let= binding or attribute pair holding one.
 
 No larger is:
@@ -1045,41 +1108,49 @@ No larger is:
 
 Anything else is of unknown size: a computed value, a literal, a number counting down.
 
-A circle that might not finish is an error, whether or not anything calls it.
-- It is reported once, at the name that closes it, the last written.
+A circle that might not finish is an error, whether or not anything calls it. It is reported once, at the name that closes it, the last written. So a file reads the same wherever it was saved.
+
 - ~(define/procedure f (n) (h n)) (define/procedure h (n) (f n))~ is reported at the =f= in =h=.
   - ='f' calls itself, through f → h → f, and might never finish=.
 
-A function by name is a =define/procedure=, or a =fn= bound by a =let= binding or an attribute pair.
-- A binding never sees itself, so such a =fn= names itself only through a sibling.
-- Its name written in it counts: called, passed on, or in a pattern's values.
-- A name not called has arguments of unknown size.
-  - So a =fn= a function returns may not name the function, though calling it could finish.
+A function by name is a =define/procedure=, or a =fn= bound by a =let= binding or an attribute pair. A binding never sees itself, so such a =fn= names itself only through a sibling. Its name written in it counts: called, passed on, or in a pattern's values and a name not called has arguments of unknown size.
+
+- So a =fn= a function returns may not name the function, though calling it could finish.
+
 - A =fn= bound by name has parameters of its own.
   - The parameters of the function around it are of unknown size in it.
 
 A function reached through a value is checked when it is called.
+
 - That is a parameter, or a function a call returns, as in a self-application ~(w w)~.
+
 - Calling a function that is already being called is an error.
   - A function is identified by its name and its definition's position.
+
 - Nesting a call, ~(f (f x))~, is two calls, not recursion.
 
 A call the analysis accepted runs, though its function is already being called, and it alone.
+
 - The evaluator knows it by where the function's name is written.
+
 - So a function that goes down into a value, but is also given itself through a parameter, is stopped there.
   - ('walk' called itself through a value).
+
 - Its arguments are evaluated first, and an error in one is the call's value, ending the recursion.
   - An error is no part of a value.
   - So ~(define/procedure f (n) (f (get n part)))~ stops with =get='s error once a =part= is missing.
+
 - This changes no output: an argument a graph never needs is evaluated anyway, for its errors (see No hidden errors).
 
 *** Functions are values
 
 Functions can be passed as arguments and returned.
+
 - They cannot be compared: =eq= on functions is a type error.
 - They cannot be serialised.
 
 A returned function is called through =let=.
+
 - A form headed by a call is an array, so ~((f x) y)~ does not call the result of ~(f x)~.
 - Bind it first: ~(let ($g (f x)) (g y))~.
 - A function can return a =fn= waiting for the remaining arguments, or a [[*Placeholders][placeholder]], ~(+ ? n)~:
@@ -1094,9 +1165,8 @@ A returned function is called through =let=.
 
 *** Signatures
 
-A function's types are built-in properties in its header.
-- One between the name and the parameters is the return type.
-- One before a parameter is that parameter's type.
+A function's types are built-in properties in its header. One between the name and the parameters is the return type. One before a parameter is that parameter's type.
+
 - Either can be left out, and so can any parameter's.
 
 #+BEGIN_SRC clojure
@@ -1109,21 +1179,31 @@ A function's types are built-in properties in its header.
 
 - The types are the built-in properties.
   - =#string=, =#number=, =#boolean=, =#uri=, =#date=, =#record=, =#array= and =#function=.
+
 - There is one sigil for types: =#= always names a property, and its position says what it applies to.
+
 - A property in a signature behaves exactly as it would anywhere else.
   - It checks the value, and =#uri= and =#date= convert a string.
   - In =node= above, =id= arrives as a URI.
+
 - Each argument is checked where the call is written, so a mismatch is reported at the argument, in the call.
+
 - The result is checked where the body is, and a mismatch is reported there.
+
 - An argument is checked even if the function never uses it.
+
 - Nothing is inferred: an untyped parameter or result is not checked, and unannotated code behaves as before.
 
 Signatures are checked when values cross them.
+
 - The caller's arguments must have the parameters' properties, and the function's result its return property.
+
 - A signature is checked when a value crosses it, not before evaluation, as a static type is.
+
 - A failed check is reported where the value came from.
   - A bad argument at the call.
   - A bad result at the function's body.
+
 - Ouro evaluates everything at compile time, so the checks cost nothing in the output.
   - Every one has run before the document is written.
 
@@ -1188,22 +1268,29 @@ A parameter can be a pattern, written as a =case= pattern is. It takes one argum
 
 - *A pattern is one parameter*: ~(fn ((?a ?b)) ...)~ takes one argument.
   - Names and patterns can be mixed: ~(define/procedure sum (base (?a ?b)) ...)~.
+
 - *Any pattern* can be written:
   - array patterns;
   - record patterns, open, as in =case=;
   - =?..rest= holes;
   - values compared by value, as in ~(fn (("Person" ?l)) l)~.
   - A pattern must bind something, so it is a record pattern or holds a hole.
+
 - *It is matched when the function is called*, even if the body uses none of its holes, as a typed argument is checked.
   - The holes are bound in a frame around the body.
+
 - *A mismatch is the caller's*: it is reported at the argument in the call, or at the array in =map=.
+
 - *A property before a pattern* checks the argument first: ~(fn (#array (?a ?b)) ...)~.
+
 - *Each name is bound once*: two parameters, two holes, or a hole and a parameter with the same name are an error.
   - It is reported where the function is defined.
+
 - *A pattern's values are evaluated where the function is defined*.
   - A =define/procedure='s pattern sees the module's functions.
   - A =fn='s sees the scope it is written in.
   - Neither sees the function's other parameters: a check against another is written in the body, with =case=.
+
 - *Placeholders leave parameters alone*: a =fn='s parameter list is not read as calls.
   - So a hole in it is always a pattern's.
 
@@ -1214,42 +1301,34 @@ Special forms are recognised by their head symbol.
 *** Their names are bindings
 
 Their names are bound like any other, as in Scheme, which has no reserved words.
+
 - A binding around a form shadows it, and the form is then an ordinary call of the binding.
   - That is an attribute key, a =let= binding, a parameter, a hole, or a =define/procedure= of the module.
   - ~(let ($list (fn (x) (+ x 1))) (list 1))~ is =2=.
-- A key is a binding whose value is also written out, and a value written out cannot be a function.
-  - So a call of a form a key shadows is an error that says so.
-  - ~(:image "x" :r (image y part))~ calls the string ="x"=.
-- The forms Canon writes are not the source's, and use heads no source can spell.
-  - They are =%case=, =%let=, =%fn= and =%inlay=, so no binding captures them.
-  - ~(let ($case 1) (or a b))~ is still =or=.
-  - This is hygiene, as a Scheme macro's =if= means the core =if=.
+
+- A key is a binding whose value is also written out, and a value written out cannot be a function. So a call of a form a key shadows is an error that says so: ~(:image "x" :r (image y part))~ calls the string ="x"=.
+
+- The forms Canon writes are not the source's, and use heads no source can spell: =%case=, =%let=, =%fn= and =%inlay=, so no binding captures them. ~(let ($case 1) (or a b))~ is still =or=. This is hygiene, as a Scheme macro's =if= means the core =if=.
 
 The exception is the forms Canon rewrites by their syntax, before any name is bound:
+
 - =and=, =or=, =->=, =with=, =adjoin= and =thru=;
 - a =case= branch's =(when c)= and =(satisfies #p)= heads.
 
-For these:
-- a binding of one of their names is ignored where Canon reads the form (gap 45);
-- a =define/procedure= cannot take their names, since it could never be called by them (=SYN0008=);
-  - nor the declarations' names: =define/procedure=, =graph=, =doc=.
+A binding of one of their names is ignored where Canon reads the form (gap 45). A =define/procedure= cannot take their names, since it could never be called by them (=SYN0008=), nor the declarations' names: =define/procedure=, =graph=, =doc=.
 
 *** The subject first
 
 Every form and built-in takes the value it works on first:
+
 - the record of a path;
 - the array of =map= and the quantifiers;
 - the collection of =insert=;
 - the value =satisfies= asks about.
 
-So:
-- =->=, which threads a value in as the first argument, threads through every one of them without a hole;
-- a =case= guard, which inserts its target first, is a comparison or =satisfies= alike.
+So =->=, which threads a value in as the first argument, threads through every one of them without a hole, and a =case= guard, which inserts its target first, is a comparison or =satisfies= alike.
 
-A question is written as membership is, the element or the domain first.
-- ~(satisfies x #p)~ is x ∈ #p.
-- ~(forall xs f)~ is ∀x ∈ xs. f(x).
-- The statement =#p x= puts the property first, as P(x) does.
+A question is written as membership is, the element or the domain first: ~(satisfies x #p)~ is x ∈ #p, and ~(forall xs f)~ is ∀x ∈ xs. f(x). The statement =#p x= puts the property first, as P(x) does.
 
 *** The forms
 
@@ -1288,120 +1367,105 @@ A question is written as membership is, the element or the domain first.
 *** =insert= and =replace-at=
 
 - Negative indexes count from the end, as in a path.
+
 - =insert= puts any value into an array, but not a =:key value= attribute pair.
-- Neither can give a record a key it already has: that is an error.
-  - =replace-at= may keep the replaced attribute pair's own key.
+
+- Neither can give a record a key it already has: that is an error. =replace-at= may keep the replaced attribute pair's own key.
 
 *** =get=
 
-=get= evaluates its target and walks the resulting records.
-- So it works through function results, =inlay=, =case= and =let= alike.
-- Only a record's attribute pairs can be reached: =let= bindings are private.
+=get= evaluates its target and walks the resulting records, so it works through function results, =inlay=, =case= and =let= alike. Only a record's attribute pairs can be reached: =let= bindings are private.
 
 Path components are bare symbols or whole numbers: =(get p q r)=, not =(get p :q)=.
+
 - A number indexes an Array, counting from 0, and a negative one counts from the end.
   - ~(get p classified_as 0 _label)~ is the label of the first classification.
   - ~(get xs -1)~ is the last element.
-- An index is written, never computed, and indexes only Arrays.
-  - A record's attribute pairs are reached by key, never by position, since JSON-LD gives them no order.
-- An index past the end is an error.
-- So is an index into anything that is not an Array, or a key into an Array.
-  - The error says to write an index or use =image=.
-- A hole can stand for the target, ~(get ? 0)~, but not for a key or an index.
-  - A path never depends on the values it is given.
+
+- An index is written, never computed, and indexes only Arrays. A record's attribute pairs are reached by key, never by position, since JSON-LD gives them no order.
+
+- An index past the end is an error. So is an index into anything that is not an Array, or a key into an Array, and the error says to write an index or use =image=.
+
+- A hole can stand for the target, ~(get ? 0)~, but not for a key or an index: a path never depends on the values it is given.
 
 *** =map=
 
-~(map array f)~ evaluates =array= and =f=.
+~(map array f)~ evaluates =array= and =f=. The array comes first, as every form takes what it works on first, so =->= threads through =map=. The result is an array of =f= called on each element, in order.
+
 - =array= must be an array: =()= and =#array-empty= are empty arrays.
 - =f= must be a function: a =fn=, a =define/procedure= name, a built-in or a placeholder.
-- The array comes first, as every form takes what it works on first, so =->= threads through =map=.
-- The result is an array of =f= called on each element, in order.
 
-Each element is passed as an ordinary call.
-- It is made in a frame that binds the function and the element to names that cannot be written in Ouro.
-- So arity, signatures and the recursion check apply as they do to any call.
-  - =f= must take one argument.
-  - A typed parameter checks every element.
-  - A mismatch is reported at the array, since an element has no position of its own.
+Each element is passed as an ordinary call, made in a frame that binds the function and the element to names that cannot be written in Ouro. So arity, signatures and the recursion check apply as they do to any call:
 
-With placeholders and patterns:
-- ~(map xs (+ ? 1))~ needs no =fn=, and ~(map ? f)~ is a function waiting for the array.
-- Elements that are themselves arrays or records are taken apart by a [[*Destructuring parameters][pattern parameter]].
-  - ~(map pairs (fn ((?k ?v)) ...))~.
+- =f= must take one argument;
+- a typed parameter checks every element;
+- a mismatch is reported at the array, since an element has no position of its own.
 
-=map= is a special form only at the head of a form.
-- A binding of =map= shadows it there: a key, a =let= binding or a =define/procedure=.
+With placeholders, ~(map xs (+ ? 1))~ needs no =fn=, and ~(map ? f)~ is a function waiting for the array. Elements that are themselves arrays or records are taken apart by a [[*Destructuring parameters][pattern parameter]]: ~(map pairs (fn ((?k ?v)) ...))~.
+
+=map= is a special form only at the head of a form. A binding of =map= shadows it there: a key, a =let= binding or a =define/procedure=.
 
 *** =exists=, =forall=, =omits= and =filter=
 
-Each calls =f= on the elements of an array exactly as =map= does.
-- The same arity, signature and recursion rules apply.
+Each calls =f= on the elements of an array exactly as =map= does, with the same arity, signature and recursion rules. The array is the domain, written first as in ∀x ∈ xs. f(x). They take holes: ~(exists ? (> ? 2))~.
+
 - =f= must answer =#boolean=; an answer that is not a Boolean is reported at the array.
-- =exists=, =forall= and =omits= stop at the element that decides the answer, as =or= and =and= stop at an operand.
-  - So ~(exists (1 "x") (> ? 0))~ is =true= without calling =f= on ="x"=.
-- The array is the domain, written first as in ∀x ∈ xs. f(x).
-- They take holes: ~(exists ? (> ? 2))~.
+
+- =exists=, =forall= and =omits= stop at the element that decides the answer, as =or= and =and= stop at an operand. So ~(exists (1 "x") (> ? 0))~ is =true= without calling =f= on ="x"=.
 
 On an empty array:
+
 - ~(exists () f)~ is =false=;
 - ~(forall () f)~ and ~(omits () f)~ are =true=;
 - ~(filter () f)~ is =()=.
 
-~(omits xs f)~ is ~(not (exists xs f))~, the quantifier =∄=.
-- It is named for what the data omits, not for what does not exist.
-- A document's silence is not a complete observation.
-  - So =omits= says only that the array has no such element, never that no such thing exists.
-- A contradiction check reads ~(omits (get-or book () tp46) (contains (get-or book () ntp46) ?))~.
-  - No type is recorded as both present and absent.
+~(omits xs f)~ is ~(not (exists xs f))~, the quantifier =∄=. It is named for what the data omits, not for what does not exist. A document's silence is not a complete observation, so =omits= says only that the array has no such element, never that no such thing exists.
+
+#+begin_example
+(omits (get-or book () tp46) (contains (get-or book () ntp46) ?))
+#+end_example
+
+This contradiction check says no type is recorded as both present and absent.
 
 *** =has= and =get-or=
 
 Both walk a path as =get= does, and both need at least one key.
+
 - ~(has record key ...)~ is =false= when a record on the way has no such key, or an Array no such index.
+
 - ~(get-or record default key ...)~ is then =default=, which is evaluated only in that case.
-- Anything else that stops the walk is reported as =get= reports it.
-  - That is a value on the way that is not a record, or an error.
+
+- Anything else that stops the walk, a value on the way that is not a record or an error, is reported as =get= reports it.
 
 *** =image=
 
-~(image record key ...)~ reads a path as JSON-LD reads properties, as sets of values.
-- ~(image book part classified_as)~ is every classification of every part.
+~(image record key ...)~ reads a path as JSON-LD reads properties, as sets of values: ~(image book part classified_as)~ is every classification of every part.
 
 At each key:
+
 - a record gives that key's values: an Array is its elements, any other value is one value;
 - an Array gives the key's values from each of its elements;
 - a record without the key adds nothing, so ~(image book tp46)~ is =()= when there is no =tp46=.
 
-The result is always an Array with no repeats.
-- Values are compared as =eq= compares, and kept in the order first reached, as =union= keeps them.
-- A value on the way that is not a record is an error, an Array inside an Array among them.
-- So is the first error reached.
-- Following =id= compares by identity rather than by value.
-  - ~(image book part classified_as id)~ is a set of IRIs, so one type written with two labels is one element.
-- Like =get=, it needs at least one key and takes bare symbols as path components.
-- It takes no indexes, since a set has no positions.
+The result is always an Array with no repeats. Values are compared as =eq= compares, and kept in the order first reached, as =union= keeps them.
 
-Use =get= where the data has one value by construction, and =image= for anything JSON-LD reads as a set.
-- A missing key gives =()= rather than an error, so a misspelt key gives an empty set.
+- A value on the way that is not a record is an error, an Array inside an Array among them. So is the first error reached.
+
+- Following =id= compares by identity rather than by value. ~(image book part classified_as id)~ is a set of IRIs, so one type written with two labels is one element.
+
+- Like =get=, it needs at least one key and takes bare symbols as path components. It takes no indexes, since a set has no positions.
+
+Use =get= where the data has one value by construction, and =image= for anything JSON-LD reads as a set. A missing key gives =()= rather than an error, so a misspelt key gives an empty set.
 
 *** =satisfies=
 
-~(satisfies x #p)~ is a question, where =#p x= is a requirement.
-- It answers =false= when =x= does not have the property, where =#p x= is an error.
-- Only the property's own check gives =false=: an error inside =x= stays an error.
+~(satisfies x #p)~ is a question, where =#p x= is a requirement. It answers =false= when =x= does not have the property, where =#p x= is an error. Only the property's own check gives =false=: an error inside =x= stays an error.
 
-A property written on its own, with nothing after it, is meaningful only at the head of a =case= branch.
-- There, in ~(satisfies #p)~, the case's target fills it in.
-- Anywhere else it is an error.
-- There the head is read by its syntax; elsewhere a binding or a =define/procedure= of =satisfies= shadows it.
+A property written on its own, with nothing after it, is meaningful only at the head of a =case= branch. There, in ~(satisfies #p)~, the case's target fills it in; anywhere else it is an error. There the head is read by its syntax; elsewhere a binding or a =define/procedure= of =satisfies= shadows it.
 
 *** =with= and =->=
 
-~(with base item ...)~ is =base= with =item=s written over it, layered as an =inlay= is.
-- A written attribute pair wins over the base's own.
-- An array base has its elements spliced, so ~(with (1 2) 3 4)~ is ~(1 2 3 4)~.
-- With nothing to add, ~(with base)~ is =base=.
+~(with base item ...)~ is =base= with =item=s written over it, layered as an =inlay= is. A written attribute pair wins over the base's own, and an array base has its elements spliced, so ~(with (1 2) 3 4)~ is ~(1 2 3 4)~. With nothing to add, ~(with base)~ is =base=.
 
 ~(-> x step ...)~ threads =x= through its steps, each receiving the value before it:
 
@@ -1418,18 +1482,16 @@ A property written on its own, with nothing after it, is meaningful only at the 
   - A step that is a function, such as a placeholder ~(- 10 ?)~ or a =fn=, is called with the value.
   - A step receives exactly one value, so ~(+ ? ?)~ is an arity error.
   - A step that is not a function is a type error.
+
 - *=(-> ? step ...)=* is a function of the value, by the placeholder rule: ~(map records (-> ? (with :seen true)))~.
+
 - ~(-> x)~ is =x=.
-- =with= and =->= are rewritten by their syntax before any name is bound (see /Canon-Desugaring/).
-  - So they cannot name a =define/procedure=, and a binding of either is ignored at a call (gap 45).
+
+- =with= and =->= are rewritten by their syntax before any name is bound (see /Canon-Desugaring/). So they cannot name a =define/procedure=, and a binding of either is ignored at a call (gap 45).
 
 *** =adjoin=
 
-~(adjoin base item ...)~ is =with='s dual.
-- It has the same shape, and the same place in =->= and under placeholders.
-- Where =with= sets a key, =adjoin= adds to the key's set of values, as JSON-LD reads a property.
-- So =with= suits a property that holds one value (=_label=, =produced_by=).
-- =adjoin= suits one that holds a set (=classified_as=, =identified_by=):
+~(adjoin base item ...)~ is =with='s dual: the same shape, and the same place in =->= and under placeholders. Where =with= sets a key, =adjoin= adds to the key's set of values, as JSON-LD reads a property. So =with= suits a property that holds one value (=_label=, =produced_by=), and =adjoin= one that holds a set (=classified_as=, =identified_by=):
 
 #+BEGIN_SRC clojure
 (adjoin (:k 1) :k 2)                  ; {"k": [1, 2]}: a single value becomes a set
@@ -1440,26 +1502,21 @@ A property written on its own, with nothing after it, is meaningful only at the 
 (-> (:type "Place") (with :_label "Amsterdam") (adjoin :classified_as (city)))
 #+END_SRC
 
-- *A value is added unless it is already there*, compared as =eq= compares, by value.
-  - Two records are the same value when their attribute pairs are.
-  - So one entity written with two labels is two values.
-- A key that is added to always holds an Array, even of one value.
-- The values already there are not touched, repeats included.
-- *A key keeps its place* in the record, and a new key goes after the others.
-  - =with= puts a key it writes after the base's.
-- *Items* are as =with='s:
-  - attribute pairs;
-  - a context, which is layered as =with= layers it;
-  - =(inlay x)=, whose attribute pairs (or elements) are adjoined.
-  - A key written twice in one =adjoin= is an error, as in a record.
-- *The base* decides: a record takes attribute pairs, an array takes elements.
-  - Anything else is a type error.
-  - So are attribute pairs adjoined to an array, and an element adjoined to a record.
-  - A function among the values cannot be compared, so it is an error, as in =union=.
+- *A value is added unless it is already there*, compared as =eq= compares, by value. Two records are the same value when their attribute pairs are, so one entity written with two labels is two values.
+
+- A key that is added to always holds an Array, even of one value. The values already there are not touched, repeats included.
+
+- *A key keeps its place* in the record, and a new key goes after the others. (=with= puts a key it writes after the base's.)
+
+- *Items* are as =with='s: attribute pairs, a context, which is layered as =with= layers it, and =(inlay x)=, whose attribute pairs (or elements) are adjoined. A key written twice in one =adjoin= is an error, as in a record.
+
+- *The base* decides: a record takes attribute pairs, an array takes elements. Anything else is a type error, as are attribute pairs adjoined to an array and an element adjoined to a record. A function among the values cannot be compared, so it is an error, as in =union=.
+
 - ~(adjoin base)~ is =base=, and adjoining the same values twice is adjoining them once.
+
 - =with= after =adjoin= sets the key; =adjoin= after =with= adds to it.
-- =adjoin= is rewritten by its syntax before any name is bound.
-  - So it cannot name a =define/procedure=, and a binding of it is ignored at a call (gap 45).
+
+- =adjoin= is rewritten by its syntax before any name is bound. So it cannot name a =define/procedure=, and a binding of it is ignored at a call (gap 45).
 
 ** =case= and patterns
 
@@ -1472,24 +1529,15 @@ A property written on its own, with nothing after it, is meaningful only at the 
   (otherwise          "other"))
 #+END_SRC
 
-The target is evaluated once; the branches are tried in order and the first match is evaluated.
-A branch head is:
+The target is evaluated once; the branches are tried in order and the first match is evaluated. A branch head is:
 
 - =otherwise=: always matches; it is required, and must be the last branch.
 
-- *A guard*, a form headed by a comparison: ~>~, ~>=~, ~<~, ~<=~, =eq=, =neq=.
-  - The target is inserted as the comparison's first argument, so ~((< 10) e)~ tests ~(< target 10)~.
-  - A comparison takes two operands, so a guard takes one: ~((< 10 20) e)~ is an arity error.
-  - Two bounds are a =when= over =all=: ~((when (all ((> x 1) (< x 10)))) e)~.
+- *A guard*, a form headed by a comparison: ~>~, ~>=~, ~<~, ~<=~, =eq=, =neq=. The target is inserted as the comparison's first argument, so ~((< 10) e)~ tests ~(< target 10)~. A comparison takes two operands, so a guard takes one: ~((< 10 20) e)~ is an arity error, and two bounds are a =when= over =all=, ~((when (all ((> x 1) (< x 10)))) e)~.
 
-- *A condition*, ~(when cond)~: =cond= must have the property =#boolean=.
-  - =true= takes the branch, and =false= tries the next.
-  - It can use any value in scope, not only the target, but not the names a pattern binds.
-  - =when= is only a branch head, where it is read by its syntax.
-  - Elsewhere, a binding or a =define/procedure= of =when= shadows it.
+- *A condition*, ~(when cond)~: =cond= must have the property =#boolean=; =true= takes the branch and =false= tries the next. It can use any value in scope, not only the target, but not the names a pattern binds. =when= is only a branch head, where it is read by its syntax; elsewhere a binding or a =define/procedure= of =when= shadows it.
 
-- *A property*, ~(satisfies #p)~ or ~(⊨ #p)~: the target satisfies the property =#p=.
-  - This is as ~(satisfies target #p)~ asks: the target is inserted first, as for a comparison.
+- *A property*, ~(satisfies #p)~ or ~(⊨ #p)~: the target satisfies the property =#p=, as ~(satisfies target #p)~ asks. The target is inserted first, as for a comparison.
 
 - *A pattern*, a record form or a form containing a =?= hole (described below).
 
@@ -1499,19 +1547,15 @@ A branch head is:
 
 Patterns match /values/, written in Ouro's own construction syntax:
 
-- *Record patterns*, =(:key pattern ... ?..rest)=, match by key in any order.
-  - They are open: extra attribute pairs are allowed, and =?..rest= binds them as a record.
+- *Record patterns*, =(:key pattern ... ?..rest)=, match by key in any order. They are open: extra attribute pairs are allowed, and =?..rest= binds them as a record.
 
-- *Array patterns*, =(pattern ... ?..rest)=, match by position.
-  - =?..rest= must come last, and binds the remaining elements as an array.
+- *Array patterns*, =(pattern ... ?..rest)=, match by position; =?..rest= must come last and binds the remaining elements as an array.
 
 - *Holes:* =?= matches anything; =?name= binds the value.
 
-- *Anything else* (literals, symbols, calls) is evaluated and compared by value.
-  - So ~((+ 2 4) ?x)~ and ~(6 ?x)~ are the same pattern.
+- *Anything else* (literals, symbols, calls) is evaluated and compared by value, so ~((+ 2 4) ?x)~ and ~(6 ?x)~ are the same pattern.
 
-Pattern variables are bound in a frame around the branch body.
-- A record written in the body shadows them with its own attribute pairs.
+Pattern variables are bound in a frame around the branch body. A record written in the body shadows them with its own attribute pairs.
 
 ** Built-ins
 
@@ -1536,112 +1580,96 @@ Pattern variables are bound in a frame around the branch body.
 
 *** Arity and operators
 
-Every built-in takes a fixed number of arguments, and many values are an array.
-- An operator written with any number of operands but two is an arity error, whose hint is the fold.
+Every built-in takes a fixed number of arguments, and many values are an array. An operator written with any number of operands but two is an arity error, whose hint is the fold.
+
 - Ordering (~>~ ~>=~ ~<~ ~<=~) compares numbers only.
+
 - =+= also joins strings and arrays, and adds durations to dates.
+
 - A chain of comparisons is =all= over its pairs: ~(all ((< a b) (< b c)))~.
 
 *** Strings
 
-Each string built-in takes the String it works on first, so ~(-> label (trim) (upper-case))~ threads.
-- A character is a Unicode code point, as for =len=.
+Each string built-in takes the String it works on first, so ~(-> label (trim) (upper-case))~ threads. A character is a Unicode code point, as for =len=.
 
-~(to-string x)~ writes a value as text, exactly as the JSON output writes it.
-- It takes a String, a finite Number, a Boolean, a URI or a Date.
-- ~(to-string 123456789)~ is ="123456789"=, and ~(to-string 4.9)~ ="4.9"=.
-- A Date is written in ISO-8601 form.
-- A Record or an Array is an error: build its text with =join=.
+~(to-string x)~ writes a String, a finite Number, a Boolean, a URI or a Date as text, exactly as the JSON output writes it: ~(to-string 123456789)~ is ="123456789"=, ~(to-string 4.9)~ ="4.9"=, a Date in ISO-8601 form. A Record or an Array is an error: build its text with =join=.
 
-~(split s separator)~ is the pieces of =s= between each separator, an Array of Strings.
-- ~(split "a, b" ", ")~ is ~("a" "b")~.
-- A String without the separator is one piece, and two separators together give an empty piece.
-- The separator is at least one character.
+~(split s separator)~ is the pieces of =s= between each separator, an Array of Strings: ~(split "a, b" ", ")~ is ~("a" "b")~. A String without the separator is one piece, and two separators together give an empty piece. The separator is at least one character.
 
-~(join strings separator)~ is the reverse: ~(join xs ", ")~ joins Strings.
-- It takes an Array of Strings only: =(map xs to-string)= first for Numbers.
-- An empty Array joins to =""=.
+~(join strings separator)~ is the reverse: ~(join xs ", ")~ joins Strings. It takes an Array of Strings only (=(map xs to-string)= first for Numbers), and an empty Array joins to =""=.
 
 The rest:
+
 - ~(upper-case s)~, ~(lower-case s)~ and ~(trim s)~, which removes the white space at both ends.
+
 - ~(starts-with s prefix)~ and ~(ends-with s suffix)~ answer a Boolean.
-- ~(slice s start end)~ is the characters from =start= up to, not including, =end=.
-  - A negative index counts from the end, as in a path.
-  - So ~(slice "C-0042" 2 6)~ and ~(slice "C-0042" -4 6)~ are both ="0042"=.
-  - Indexes outside the String, or an end before the start, are an error.
-- ~(pad-start s width fill)~ writes the one-character =fill= before =s= until it is =width= characters long.
-  - ~(pad-start "42" 4 "0")~ is ="0042"=.
-  - A String already that long is unchanged.
+
+- ~(slice s start end)~ is the characters from =start= up to, not including, =end=. A negative index counts from the end, as in a path, so ~(slice "C-0042" 2 6)~ and ~(slice "C-0042" -4 6)~ are both ="0042"=. Indexes outside the String, or an end before the start, are an error.
+
+- ~(pad-start s width fill)~ writes the one-character =fill= before =s= until it is =width= characters long: ~(pad-start "42" 4 "0")~ is ="0042"=. A String already that long is unchanged.
+
 - ~(replace-all s old new)~ replaces every =old=, of at least one character, with =new=.
 
 *** Numbers in the output
 
-A Number is written as JavaScript writes one.
+A Number is written as JavaScript writes one. =to-string= writes the same digits.
+
 - A whole number is written as an integer: =123456789=.
-- Any other, between 10^-7 and 10^21, is written in plain decimal: =0.1=, =0.00001=.
-  - It has the fewest digits that read back as the same number.
+
+- Any other, between 10^-7 and 10^21, is written in plain decimal with the fewest digits that read back as the same number: =0.1=, =0.00001=.
+
 - Beyond that range, it is written in scientific notation: =1.0e21=.
-- =to-string= writes the same digits.
 
 *** =min= and =max=
 
-~(min xs)~ and ~(max xs)~ are the smallest and largest Number of an Array.
-- So a summary is worked out from the data rather than typed beside it: ~(:lower (min weights) :upper (max weights))~.
-- They take one Array, as every built-in takes a fixed number of arguments.
-  - Several Numbers are written as one: ~(min (a b c))~.
-  - Anything but one Array is an error.
+~(min xs)~ and ~(max xs)~ are the smallest and largest Number of an Array, so a summary is worked out from the data rather than typed beside it: ~(:lower (min weights) :upper (max weights))~.
+
+- They take one Array, as every built-in takes a fixed number of arguments. Several Numbers are written as one, ~(min (a b c))~, and anything but one Array is an error.
+
 - Ordering compares Numbers only.
+
 - An empty Array is an error: there is no smallest of nothing.
 
 *** Ranges
 
-~(start..end)~ is the whole numbers from =start= to =end=, both included, as Haskell's =[1..500]=.
-- ~(1..5)~ is ~(1 2 3 4 5)~, and an end below the start gives =()=.
-- Each end is an expression, ~(1..n)~, ~(1..(len xs))~, and must be a whole number.
-- =..= is read only between the two ends of a range, alone in its parentheses.
-  - ~(1..2..3)~, ~(..5)~ and a =..= in a record are errors.
-- It is a call of a built-in that cannot be written, =%range=.
-  - So ~(map (1..500) f)~ numbers 500 records without listing them.
+~(start..end)~ is the whole numbers from =start= to =end=, both included, as Haskell's =[1..500]=: ~(1..5)~ is ~(1 2 3 4 5)~, and an end below the start gives =()=.
 
-Two numbers before =..= count in steps of their difference, as Haskell's =[2,4..10]=.
-- ~(2 4 .. 10)~ is ~(2 4 6 8 10)~.
-- ~(5 4 .. 1)~ counts down: ~(5 4 3 2 1)~.
-- The end is included when a step lands on it: ~(1 3 .. 6)~ is ~(1 3 5)~.
-- A step away from the end gives =()=.
-- A step of 0 is an error.
+- Each end is an expression, ~(1..n)~, ~(1..(len xs))~, and must be a whole number.
+
+- =..= is read only between the two ends of a range, alone in its parentheses: ~(1..2..3)~, ~(..5)~ and a =..= in a record are errors.
+
+- It is a call of a built-in that cannot be written, =%range=, so ~(map (1..500) f)~ numbers 500 records without listing them.
+
+Two numbers before =..= count in steps of their difference, as Haskell's =[2,4..10]=:
+
+- ~(2 4 .. 10)~ is ~(2 4 6 8 10)~;
+- ~(5 4 .. 1)~ counts down, ~(5 4 3 2 1)~;
+- the end is included when a step lands on it: ~(1 3 .. 6)~ is ~(1 3 5)~;
+- a step away from the end gives =()=;
+- a step of 0 is an error.
 
 *** =zip=
 
-~(zip xs ys)~ pairs two Arrays element by element, each pair an Array of two.
-- ~(zip (1 2) ("a" "b"))~ is ~((1 "a") (2 "b"))~.
-- With a range it numbers a list: ~(zip (1..(len xs)) xs)~.
-- A pattern parameter takes each pair apart: ~(map (zip (1..(len xs)) xs) (fn ((?n ?x)) ...))~.
-- Arrays of different lengths are an error, rather than the longer one's last elements being lost.
-  - Haskell's =zip= stops at the shorter list, for zipping with an endless one; Ouro has none.
+~(zip xs ys)~ pairs two Arrays element by element, each pair an Array of two: ~(zip (1 2) ("a" "b"))~ is ~((1 "a") (2 "b"))~. With a range it numbers a list, ~(zip (1..(len xs)) xs)~, and a pattern parameter takes each pair apart, ~(map (zip (1..(len xs)) xs) (fn ((?n ?x)) ...))~.
+
+Arrays of different lengths are an error, rather than the longer one's last elements being lost. Haskell's =zip= stops at the shorter list, for zipping with an endless one; Ouro has none.
 
 *** =and=, =or=, =all= and =any=
 
-=and= and =or= are special forms that combine two Booleans, ∧ and ∨.
-- ~(and a b)~ is =true= when both operands are, and ~(or a b)~ when one is.
-- Any other number of operands is an error whose hint is the n-ary form.
+=and= and =or= are special forms that combine two Booleans, ∧ and ∨: ~(and a b)~ is =true= when both operands are, and ~(or a b)~ when one is. Any other number of operands is an error whose hint is the n-ary form.
 
-=all= and =any= are the n-ary =and= and =or=, ⋀ and ⋁.
-- =⋀= and =⋁= are read as their names.
-- They take one array of Booleans, since many values are an array.
-- ~(all ((has r _label) (has r classified_as)))~ is =true= when every element is, and ~(any (...))~ when one is.
-- ~(all ())~ is =true=, and ~(any ())~ is =false=.
+=all= and =any= are the n-ary =and= and =or=, ⋀ and ⋁ (=⋀= and =⋁= are read as their names), over one array of Booleans, since many values are an array. ~(all ((has r _label) (has r classified_as)))~ is =true= when every element is, and ~(any (...))~ when one is; ~(all ())~ is =true= and ~(any ())~ is =false=.
 
-Each evaluates in order, and stops at the operand that decides the answer.
-- So ~(and false (get () 5))~ is =false=.
-- Each operand it reaches must have the property =#boolean=.
-- Unlike other Lisps, Ouro has no truthiness, and the result is always =true= or =false=.
-- =all= and =any= stop only over an array written in place: a literal one, or a =(list ...)=.
-  - That keeps the guard ~(all ((has r year) (> (get r year) 1600)))~ from reading a year =r= does not have.
-  - An array given any other way, a binding or a =map='s result, is evaluated whole, then read in order.
-- A chain of comparisons is =all= over its pairs, and stops the same way.
-  - ~(all ((< 2 1) (< 1 (get () 5))))~ is =false=.
+Each evaluates in order, and stops at the operand that decides the answer, so ~(and false (get () 5))~ is =false=.
+
+- Each operand it reaches must have the property =#boolean=. Unlike other Lisps, Ouro has no truthiness, and the result is always =true= or =false=.
+
+- =all= and =any= stop only over an array written in place, a literal one or a =(list ...)=. That keeps the guard ~(all ((has r year) (> (get r year) 1600)))~ from reading a year =r= does not have. An array given any other way, a binding or a =map='s result, is evaluated whole, then read in order.
+
+- A chain of comparisons is =all= over its pairs, and stops the same way: ~(all ((< 2 1) (< 1 (get () 5))))~ is =false=.
 
 All four:
+
 - are desugared into =case= (see [[*Desugaring (~Canon~)][desugaring]]);
 - take holes like a call, ~(or ? x)~;
 - cannot name a =define/procedure=, being rewritten before any name is bound (gap 45);
@@ -1649,74 +1677,57 @@ All four:
 
 *** =fold=
 
-~(fold array init f)~ calls =f= on the running value and each element in turn, starting from =init=: a left fold.
-- ~(fold (1 2 3) 0 f)~ is ~(f (f (f 0 1) 2) 3)~, and ~(fold () init f)~ is =init=.
-- The array comes first, as every form takes what it works on, so =->= threads into it.
-  - ~(-> xs (map f) (fold 0 +))~.
+~(fold array init f)~ calls =f= on the running value and each element in turn, starting from =init=: a left fold. ~(fold (1 2 3) 0 f)~ is ~(f (f (f 0 1) 2) 3)~, and ~(fold () init f)~ is =init=.
+
+- The array comes first, as every form takes what it works on, so =->= threads into it: ~(-> xs (map f) (fold 0 +))~.
+
 - =f= takes the running value first, as ~(+ total w)~ and ~(adjoin set :member p)~ do.
-- Each call is an ordinary call, as =map= makes one.
-  - So =f= takes exactly two arguments, and its signature checks them.
-  - An error stops the fold, as its value.
+
+- Each call is an ordinary call, as =map= makes one, so =f= takes exactly two arguments and its signature checks them. An error stops the fold, as its value.
+
 - With =+= and =0= it is Σ, so ~(fold weights 0 +)~ sums an array.
 
 *** =len=
 
-=len= takes exactly one argument.
-- An array's elements are counted whatever their types, so ~(len (1 (2 3) (:k 4)))~ is 3.
-- =()= and =#array-empty= have length 0.
-- A string is counted in characters (Unicode code points), not bytes, so ~(len "Málaga")~ is 6.
+=len= takes exactly one argument. It is an ordinary built-in, so ~(map xs len)~ works.
+
+- An array's elements are counted whatever their types, so ~(len (1 (2 3) (:k 4)))~ is 3. =()= and =#array-empty= have length 0.
+
+- A string is counted in characters (Unicode code points), not bytes, so ~(len "Málaga")~ is 6. A string cannot be taken apart in Ouro, so its length cannot be written in Ouro itself.
+
 - Any other value, a record or a URI included, is a type error.
-- A string cannot be taken apart in Ouro, so its length cannot be written in Ouro itself.
-- =len= is an ordinary built-in otherwise, so ~(map xs len)~ works.
 
 *** =contains=, =distinct= and =not=
 
-- =contains= takes two arguments.
-  - ~(contains (1 2 3) 2)~ is =true= when the array has the value as an element.
-  - Elements are compared as =eq= compares, so records and arrays are compared by value.
-  - ~(contains "Amsterdam" "dam")~ is =true= when the string has the other as a substring.
-- =distinct= takes one array, and keeps the first of each value, in order.
-  - ~(distinct (1 2 1 3))~ is ~(1 2 3)~.
+- =contains= takes two arguments. ~(contains (1 2 3) 2)~ is =true= when the array has the value as an element, compared as =eq= compares, so records and arrays are compared by value. ~(contains "Amsterdam" "dam")~ is =true= when the string has the other as a substring.
+
+- =distinct= takes one array and keeps the first of each value, in order: ~(distinct (1 2 1 3))~ is ~(1 2 3)~.
+
 - An array holding a function is a type error for both, since functions cannot be compared.
+
 - =not= takes one =#boolean=.
 
 *** Sets
 
-=union=, =intersect= and =setminus= treat arrays as sets, as JSON-LD reads a property's values.
-- Elements are compared as =eq= compares them, so records and arrays are compared by value.
-- A result has no repeats: the first of each is kept, in the order it is first written.
-  - So the output is always the same.
+=union=, =intersect= and =setminus= treat arrays as sets, as JSON-LD reads a property's values. Elements are compared as =eq= compares them, so records and arrays are compared by value. A result has no repeats: the first of each is kept, in the order it is first written, so the output is always the same.
 
 Each takes two arrays, as every built-in takes a fixed number of arguments:
+
 - ~(union a b)~ is every value in either;
 - ~(intersect a b)~ the values in both, in =a='s order;
 - ~(setminus a b)~ the values of =a= not in =b=.
 
-For all three:
-- many sets are an array of them, for =unions= and =intersections= below;
-- another number of arguments is an arity error that says so;
-- an argument that is not an array, or an array holding a function, is a type error;
-- they are ordinary built-ins, so they can be passed as values and take holes: ~(map groups (setminus ? excluded))~.
+Many sets are an array of them, for =unions= and =intersections= below, and another number of arguments is an arity error that says so. An argument that is not an array, or an array holding a function, is a type error. They are ordinary built-ins, so they can be passed as values and take holes: ~(map groups (setminus ? excluded))~.
 
-~(subset a b)~ takes exactly two arrays, and is =true= when every value of =a= is in =b=: a ⊆ b.
-- That is when ~(setminus a b)~ is empty.
-- ~(subset required (ids obj))~ checks that an object has every one of several classifications.
+~(subset a b)~ takes exactly two arrays, and is =true= when every value of =a= is in =b=, a ⊆ b: that is when ~(setminus a b)~ is empty. ~(subset required (ids obj))~ checks that an object has every one of several classifications.
 
-~(unions xs)~ and ~(intersections xs)~ are the union and intersection of one array of arrays, =⋃= and =⋂=.
-- They are for sets that are computed rather than written.
-- ~(unions (map parts (get ? classified_as)))~ is every classification of every part.
-- ~(unions ())~ is =()=.
-- The intersection of no sets is not defined, so ~(intersections ())~ is an error.
+~(unions xs)~ and ~(intersections xs)~ are the union and intersection of one array of arrays, =⋃= and =⋂=, for sets that are computed rather than written: ~(unions (map parts (get ? classified_as)))~ is every classification of every part. ~(unions ())~ is =()=; the intersection of no sets is not defined, so ~(intersections ())~ is an error.
 
 *** Dates and durations
 
-Dates are shifted with =+= and =-=: ~(+ start (days 19))~.
-- Shifting by months or years clips to the end of a shorter month, instead of rolling over.
-  - So 31 March minus one month is the last day of February.
+Dates are shifted with =+= and =-=: ~(+ start (days 19))~. Shifting by months or years clips to the end of a shorter month instead of rolling over, so 31 March minus one month is the last day of February.
 
-=thru= exists for Linked Art timespans, whose =end_of_the_end= is the last moment of a period.
-- ~(thru (days 1))~ is 1 day 23:59:59.
-- ~(thru (years 0))~ is to the end of the current year:
+=thru= exists for Linked Art timespans, whose =end_of_the_end= is the last moment of a period: ~(thru (days 1))~ is 1 day 23:59:59, and ~(thru (years 0))~ is to the end of the current year:
 
 #+BEGIN_SRC clojure
 :begin_of_the_begin #date "1642-01-01T00:00:00Z"
@@ -1725,8 +1736,7 @@ Dates are shifted with =+= and =-=: ~(+ start (days 19))~.
 
 ** =@context=
 
-A record's JSON-LD context is written =:context value=.
-- The value is an ordinary expression, and it is written as JSON-LD writes a context:
+A record's JSON-LD context is written =:context value=. The value is an ordinary expression, and it is written as JSON-LD writes a context:
 
 #+BEGIN_SRC clojure
 (:context "https://linked.art/ns/v1/linked-art.json" ...)           ; a remote context
@@ -1739,32 +1749,51 @@ A record's JSON-LD context is written =:context value=.
 
 *** A context is a value
 
-A context is a remote context's URL (a String or a =#uri=), a local context record, or an array of them.
-- Ouro has no null, so a context cannot clear another (=@context: null=), and no keyword or term is set to null.
-- It is evaluated like any other value, so a function can build one:
-  - ~(define/procedure linked-art () "https://linked.art/ns/v1/linked-art.json")~;
-  - ~(:context ((linked-art) (:ex "https://example.org/ns/")) ...)~.
+A context is a remote context's URL (a String or a =#uri=), a local context record, or an array of them. Ouro has no null, so a context cannot clear another (=@context: null=), and no keyword or term is set to null.
+
+It is evaluated like any other value, so a function can build one:
+
+#+BEGIN_SRC clojure
+(define/procedure linked-art () "https://linked.art/ns/v1/linked-art.json")
+
+(:context ((linked-art) (:ex "https://example.org/ns/")) ...)
+#+END_SRC
 
 *** Local contexts
 
-A local context holds keywords and term definitions.
-- A key starting with =@= is a JSON-LD keyword, written =:@vocab=.
-- The context keywords are =@vocab=, =@base=, =@language=, =@direction=.
-  - And =@version=, =@protected=, =@propagate= and =@import=.
-- Any other key defines a term, which maps to an IRI or to an expanded definition.
-  - An IRI is a String: an IRI, a compact IRI such as ="ex:condition"=, or another term.
-  - An expanded definition is a record whose keys are among these:
-    - =@id=, =@type=, =@container=, =@language=, =@direction=, =@reverse=;
-    - =@index=, =@nest=, =@prefix=, =@protected=, =@context=.
+A local context holds keywords and term definitions. A key starting with =@= is a JSON-LD keyword, written =:@vocab=. The context keywords are:
+
+1. =@vocab=
+2. =@base=
+3. =@language=
+4. =@direction=
+5. =@version=
+6. =@protected=
+7. =@propagate=
+8. =@import=
+
+Any other key defines a term, which maps to an IRI or to an expanded definition. An IRI is a String: an IRI, a compact IRI such as ="ex:condition"=, or another term. An expanded definition is a record whose keys are among these:
+
+1. =@id=
+2. =@type=
+3. =@container=
+4. =@language=
+5. =@direction=
+6. =@reverse=
+7. =@index=
+8. =@nest=
+9. =@prefix=
+10. =@protected=
+11. =@context=
 
 *** Several contexts
 
-Several contexts are written as an array and serialised as one, applied in order, as JSON-LD processes them.
-- A context with one entry is serialised as that entry.
+Several contexts are written as an array and serialised as one, applied in order, as JSON-LD processes them. A context with one entry is serialised as that entry.
 
 *** Malformed contexts
 
 A malformed context is an error where it is written. It is one of:
+
 - a remote context that is not an absolute URL;
 - an unknown =@= keyword;
 - a term mapped to something other than an IRI or a definition;
@@ -1776,15 +1805,13 @@ Each is a "Malformed Context" error at the context's expression.
 
 *** The key
 
-- =:@context= is JSON-LD's own name for the key, and means the same as =:context=.
-  - Any other key may also start with =@=, so =:@id= and =:@type= can be written in a record.
-- A record has one context: writing it twice is an error.
-- A record can hold only a context, ~(:context "https://...")~.
+=:@context= is JSON-LD's own name for the key, and means the same as =:context=. Any other key may also start with =@=, so =:@id= and =:@type= can be written in a record.
+
+A record has one context: writing it twice is an error. A record can hold only a context, ~(:context "https://...")~.
 
 ** Surface representation (~S.Expr~)
 
-The parser produces an untyped tree, ~S.Expr~, that mirrors the source.
-- Every node carries its ~SourcePos~, so every later error can point at the exact place in the file.
+The parser produces an untyped tree, ~S.Expr~, that mirrors the source. Every node carries its ~SourcePos~, so every later error can point at the exact place in the file.
 
 #+BEGIN_SRC haskell
 -- In src/Data/Ouro/Lisp/Surface.hs
@@ -1808,27 +1835,19 @@ data Param = Param
 
 *** Parameters
 
-A pattern parameter is named by its position, =%arg1=, =%arg2=, ..., which cannot be written in Ouro.
-- So its argument is only reached through the pattern's holes.
+A pattern parameter is named by its position, =%arg1=, =%arg2=, ..., which cannot be written in Ouro, so its argument is only reached through the pattern's holes.
 
-~Function.checkParams~ checks the parameters when a function is defined.
-- The parser checks a =define/procedure='s, and the evaluator a =fn='s.
-- Each pattern must bind something, and each name is bound once.
+~Function.checkParams~ checks the parameters when a function is defined: the parser checks a =define/procedure='s, and the evaluator a =fn='s. Each pattern must bind something, and each name is bound once.
 
 *** Attribute pairs and binders
 
-There is no separate constructor for attribute pairs.
-- The parser reads =:key value= as the form ~(%attr "key" value)~, so a record is a ~Form~ of ~%attr~ forms.
-- =%= cannot be lexed, so the form cannot be written: a key is always written, never computed.
+There is no separate constructor for attribute pairs. The parser reads =:key value= as the form ~(%attr "key" value)~, so a record is a ~Form~ of ~%attr~ forms. =%= cannot be lexed, so the form cannot be written: a key is always written, never computed.
 
-A =$name= is read on its own as ~(%binder "name")~.
-- It is paired with its value only inside a =let= (see [[*Desugaring (~Canon~)][desugaring]]).
+A =$name= is read on its own as ~(%binder "name")~, and paired with its value only inside a =let= (see [[*Desugaring (~Canon~)][desugaring]]).
 
 *** Modules
 
-A module is the parser's other output.
-- It is a registry of =define/procedure= declarations and a registry of =graph= declarations.
-- Each is a ~HigherExpression~ indexed by its kind:
+A module is the parser's other output: a registry of =define/procedure= declarations and a registry of =graph= declarations, each a ~HigherExpression~ indexed by its kind:
 
 #+BEGIN_SRC haskell
 data HigherExpression (t :: Declaration) where
@@ -1836,13 +1855,10 @@ data HigherExpression (t :: Declaration) where
     Graph    :: SourcePos -> Text -> Expr            -> HigherExpression 'GraphExpr
 #+END_SRC
 
-Return types:
-- a =define/procedure='s return type is applied when it is parsed;
-  - its body is stored under the return property, as ~Tagged~;
-- a =fn= is an ordinary form until it is evaluated;
-  - there a return property is read from its parameter list, ~(fn #number (n) ...)~.
+A =define/procedure='s return type is applied when it is parsed: its body is stored under the return property, as ~Tagged~. A =fn= is an ordinary form until it is evaluated, where a return property is read from its parameter list, ~(fn #number (n) ...)~.
 
 The parser also enforces the module-level rules:
+
 - imports and the export come first;
 - an export names functions of the module;
 - two imports cannot share a qualifier;
@@ -1855,9 +1871,7 @@ The lexer reports the retired keywords (=defn=, =defn/const=, =defn/property=) a
 
 ** Desugaring (~Canon~)
 
-Before evaluation, ~Canon.canonicalModule~ rewrites every function body and graph into a smaller core.
-- It runs ~Canon.passes~ in order, one rule per pass.
-- Each pass relies on the ones before it.
+Before evaluation, ~Canon.canonicalModule~ rewrites every function body and graph into a smaller core by running ~Canon.passes~ in order, one rule per pass. Each pass relies on the ones before it.
 
 *** The passes
 
@@ -1875,32 +1889,35 @@ Before evaluation, ~Canon.canonicalModule~ rewrites every function body and grap
 | 10. alternatives | bottom-up | a =case= branch ~(("a" "b") e)~ into one branch per literal                  |
 
 In more detail:
+
 - placeholders leave =case= and =fn= patterns as they are;
+
 - in threading, a step with a hole is already a function, by pass 1;
-- connectives rewrite ~(and a b)~ into ~(%case #boolean a (true #boolean b) (otherwise false))~;
-  - =or= alike;
-  - =all= and =any= over an array written in place into the same chain;
+
+- connectives rewrite ~(and a b)~ into ~(%case #boolean a (true #boolean b) (otherwise false))~, =or= alike, and =all= and =any= over an array written in place into the same chain;
+
 - in guards, a guard names the target, bound once;
+
 - in adjoin, its attribute pairs are grouped into records;
+
 - in thru, as an operand of =+= or =-=, the operation is nested once for each duration.
 
-Nothing is unrolled: every built-in takes a fixed number of arguments.
-- So ~(+ a b c)~ and ~(< a b c)~ are arity errors.
-- Many values are an array: ~(fold xs 0 +)~, ~(all (a b c))~.
+Nothing is unrolled: every built-in takes a fixed number of arguments, so ~(+ a b c)~ and ~(< a b c)~ are arity errors, and many values are an array, ~(fold xs 0 +)~, ~(all (a b c))~.
 
 *** Walks
 
 A pass walks the tree in one of three ways (~Canon.Traverse~):
+
 - top-down, rewriting a form before its parts, when the rule depends on the form's own shape;
 - bottom-up, rewriting a form's parts first;
 - over lists of siblings, for a rule that turns one element into several.
 
-An expression that stands on its own is a list of one: a graph's body, or the payload of a property.
-- A =thru= there has no meaning, and is left for the evaluator to report.
+An expression that stands on its own is a list of one: a graph's body, or the payload of a property. A =thru= there has no meaning, and is left for the evaluator to report.
 
 *** Order
 
 The order matters in five places:
+
 - threading runs before =adjoin= and =with=, so in ~(-> x (with :k v))~ =with= receives =x= as its base;
 - contexts run before =adjoin=, so a context written among its attribute pairs is grouped with them;
 - bindings run before =thru=, so a value that expands into several elements stays inside its binding;
@@ -1912,14 +1929,19 @@ Only =thru= walks siblings.
 *** Modules
 
 Each pass is a module of its own under =Lisp/Canon/=, with the walks in =Traverse.hs=:
-- =Placeholders.hs=, =Threading.hs=, =Connectives.hs=, =Bindings.hs=, =Guards.hs=;
-- =Context.hs=, =Adjoin.hs=, =With.hs=, =Thru.hs=, =Alternatives.hs=.
 
-=Lisp/Canon.hs= is the single entry point.
-- It lists the passes, in order, and runs them.
-- ~Canon.runPasses~ runs any selection of them.
-- A =define/procedure='s parameter patterns go through ~Canon.patternPasses~.
-  - That is every pass but placeholders, threading and connectives, since a pattern is matched, not evaluated.
+1. =Placeholders.hs=
+2. =Threading.hs=
+3. =Connectives.hs=
+4. =Bindings.hs=
+5. =Guards.hs=
+6. =Context.hs=
+7. =Adjoin.hs=
+8. =With.hs=
+9. =Thru.hs=
+10. =Alternatives.hs=
+
+=Lisp/Canon.hs= is the single entry point: it lists the passes, in order, and runs them, and ~Canon.runPasses~ runs any selection of them. A =define/procedure='s parameter patterns go through ~Canon.patternPasses~, every pass but placeholders, threading and connectives, since a pattern is matched, not evaluated.
 
 *** Sugar and core
 
@@ -1943,24 +1965,21 @@ Each pass is a module of its own under =Lisp/Canon/=, with the walks in =Travers
 
 A guard's case, and a property's, is bound as ~(let ((%bind "%target" x)) (case %target ...))~.
 
-- =%adjoin= is a built-in, not a rewrite into =with=.
-  - Only the evaluated base says whether it adds attribute pairs to a record or elements to an array.
-- A =$name= with no value becomes ~(%bind "name")~ and is reported as having no value.
-- A =$name= anywhere outside a =let='s bindings stays ~(%binder "name")~, and is reported where it is evaluated.
+- =%adjoin= is a built-in, not a rewrite into =with=, because only the evaluated base says whether it adds attribute pairs to a record or elements to an array.
+
+- A =$name= with no value becomes ~(%bind "name")~ and is reported as having no value. A =$name= anywhere outside a =let='s bindings stays ~(%binder "name")~, and is reported where it is evaluated.
+
 - The =%= heads cannot be written by users.
-- =%apply= exists because a form headed by a =fn= is an array, not a call.
-  - The evaluator binds the function to a name that cannot be written, and calls it with the threaded value.
-  - This is as =map= does for each element.
-- Nor can a placeholder's parameter names be written.
-  - =%1= cannot be lexed, and =?n= is read as a hole.
-  - So a placeholder never captures a name its call refers to.
-- A hole left after ~Canon.Placeholders.placeholders~ is reported where it is evaluated.
-  - That is a hole outside a call's arguments and =case= patterns.
+
+- =%apply= exists because a form headed by a =fn= is an array, not a call. The evaluator binds the function to a name that cannot be written and calls it with the threaded value, as =map= does for each element.
+
+- Nor can a placeholder's parameter names be written: =%1= cannot be lexed, and =?n= is read as a hole, so a placeholder never captures a name its call refers to.
+
+- A hole left after ~Canon.Placeholders.placeholders~, outside a call's arguments and =case= patterns, is reported where it is evaluated.
 
 ** Structural classification
 
-A plain form can be a record, an array or a call.
-- ~determineBlockTarget~ decides which, from the form's contents alone, before anything is evaluated:
+A plain form can be a record, an array or a call. ~determineBlockTarget~ decides which, from the form's contents alone, before anything is evaluated:
 
 #+BEGIN_SRC haskell
 determineBlockTarget :: [S.Expr] -> BlockTarget
@@ -1987,14 +2006,9 @@ determineBlockTarget items =
 - *Record*: otherwise, if any element is an attribute pair or a context.
 - *Array*: everything else, including the empty form ~()~.
 
-Only the direct elements of a form matter, never their types.
-- ~(1 "a" (:k 1))~ is an array, because its record has its own parentheses.
-- ~(1 :a 2)~ is a record with a loose value, which is an error.
-- A record made only of inlays has no written attribute pair, so it is read as an array.
-  - See [[*Appendix B: Known gaps][known gaps]].
+Only the direct elements of a form matter, never their types: ~(1 "a" (:k 1))~ is an array, because its record has its own parentheses, while ~(1 :a 2)~ is a record with a loose value, which is an error. A record made only of inlays has no written attribute pair, so it is read as an array (see [[*Appendix B: Known gaps][known gaps]]).
 
-Special forms are matched by =evalExpr= before classification, so =let=, =case= and the others never reach it.
-- These rules are why an array beginning with a variable needs =list=.
+Special forms are matched by =evalExpr= before classification, so =let=, =case= and the others never reach it. These rules are why an array beginning with a variable needs =list=.
 
 ** Example projection
 
@@ -2008,22 +2022,15 @@ Special forms are matched by =evalExpr= before classification, so =let=, =case= 
 
 - =:timespan (...)= opens a nested record: its parentheses are the JSON object's braces.
 
-- =:identified_by ((...))= is an array holding one record.
-  - The outer parentheses are the array, the inner ones the record.
+- =:identified_by ((...))= is an array holding one record: the outer parentheses are the array, the inner ones the record.
 
-- =#date= asserts that the string is a timestamp.
-  - The value stays a Date inside Ouro, so it can be shifted with =+=.
-  - It is written back as an ISO-8601 string.
+- =#date= asserts that the string is a timestamp. The value stays a Date inside Ouro, so it can be shifted with =+=, and is written back as an ISO-8601 string.
 
-- =end_of_the_begin= refers to its sibling =begin_of_the_begin=, a binding in the record's own frame.
-  - Order does not matter.
+- =end_of_the_begin= refers to its sibling =begin_of_the_begin=, a binding in the record's own frame. Order does not matter.
 
 * Intermediate Representation and Evaluation
 
-Evaluation turns the surface tree of the selected graph into ~L.Expr~.
-- It is a value tree that may still contain errors and compile-time-only values.
-
-Its design mandates are:
+Evaluation turns the surface tree of the selected graph into ~L.Expr~, a value tree that may still contain errors and compile-time-only values. Its design mandates are:
 
 1. *Lexical, lazy, shared:* bindings are promises evaluated at most once, in the scope where they were written.
 2. *Value-based:* everything (=get=, patterns, comparison) works on evaluated values, never on code.
@@ -2055,8 +2062,7 @@ type NativeFunction = SourcePos -> [Expr] -> Reader Env Expr
 
 Records are association lists, ~[(Text, Expr)]~, rather than maps:
 
-1. *Source order is output order*.
-   - This keeps serialisation deterministic, and the output recognisably shaped like the source.
+1. *Source order is output order*, which keeps serialisation deterministic and the output recognisably shaped like the source.
 2. *Errors stay local:* a failed attribute pair is an ~EvalError~ under its own key; its siblings are unaffected.
 3. *One linear pass* collects every error in a record.
 
@@ -2094,19 +2100,13 @@ data Promise = Promise
 data PromiseState = Unforced | Forcing | Forced Expr
 #+END_SRC
 
-This is the environment model of Scheme (SICP §3.2) with call-by-need bindings.
-- The bindings are as in Launchbury's natural semantics for lazy evaluation.
+This is the environment model of Scheme (SICP §3.2) with call-by-need bindings, as in Launchbury's natural semantics for lazy evaluation:
 
-- *Frames:* an ~Env~ is a chain of immutable frames.
-  - A record, a =let=, a call and a =case= branch each push one frame.
-  - The root frame holds the module's =define/procedure= functions.
+- *Frames:* an ~Env~ is a chain of immutable frames. A record, a =let=, a call and a =case= branch each push one frame. The root frame holds the module's =define/procedure= functions.
 
-- *Promises:* every binding is a promise in the ~Store~, which is the only state in the evaluator.
-  - ~Reader~ carries the current scope downwards.
-  - ~State~ carries the store across, so a promise forced in one place is already forced everywhere else.
+- *Promises:* every binding is a promise in the ~Store~, which is the only state in the evaluator. ~Reader~ carries the current scope downwards; ~State~ carries the store across, so a promise forced in one place is already forced everywhere else.
 
-- *Functions:* each frame's function registry holds only the functions defined in that frame.
-  - So function lookup is lexical too.
+- *Functions:* each frame's function registry holds only the functions defined in that frame, so function lookup is lexical too.
 
 - *Built-ins* read the environment only: ~NativeFunction~ runs in ~Reader Env~, never touching the store.
 
@@ -2115,25 +2115,15 @@ This is the environment model of Scheme (SICP §3.2) with call-by-need bindings.
 
 A record or a =let= is evaluated in two steps:
 
-1. ~collectBindings~ (records) or ~letBindings~ (=let=) sweeps the forms.
-   - It looks for =:key value= attribute pairs (records) or =$name value= bindings (=let=).
-   - It returns their un-evaluated expressions as ~FrameEntry~ values.
-   - A local =define/procedure=, a removed form, is reported here.
+1. ~collectBindings~ (records) or ~letBindings~ (=let=) sweeps the forms for =:key value= attribute pairs (records) or =$name value= bindings (=let=) and returns their un-evaluated expressions as ~FrameEntry~ values. A local =define/procedure=, a removed form, is reported here.
 
-2. ~allocFrame~ allocates one ~Unforced~ promise per entry and builds the frame that binds their names.
-   - Every promise's environment is that same frame, minus the promise's own name.
-   - This is what makes the bindings recursive: each binding sees all of its siblings, in any order.
-   - A binding never sees itself: its own name resolves in the enclosing scope.
+2. ~allocFrame~ allocates one ~Unforced~ promise per entry and builds the frame that binds their names. Every promise's environment is that same frame, minus the promise's own name. This is what makes the bindings recursive, each binding sees all of its siblings in any order, while a binding never sees itself: its own name resolves in the enclosing scope.
 
 #+BEGIN_SRC haskell
 allocFrame :: (Map Text Binding -> Env) -> [FrameEntry] -> EvalM (Env, [Addr])
 #+END_SRC
 
-Only a name that the frame binds to that very promise is hidden from it.
-- A function argument's promise closes over the caller's frame, where the same name is a different binding.
-  - So it is untouched.
-- A record cannot bind a key twice: that is reported when it is emitted.
-- In a =let=, a name bound twice resolves to the first binding.
+Only a name that the frame binds to that very promise is hidden from it. A function argument's promise closes over the caller's frame, where the same name is a different binding, so it is untouched. A record cannot bind a key twice (that is reported when it is emitted); in a =let=, a name bound twice resolves to the first binding.
 
 *** Forcing
 
@@ -2152,59 +2142,41 @@ force evaluator refPos addr = do
                         pure value
 #+END_SRC
 
-A promise is evaluated in /its own/ environment, not the one where it is referenced.
-- This is what makes scoping lexical.
-- Reaching a promise that is still being forced means the binding depends on itself.
-  - That becomes a cycle error instead of an infinite loop.
+A promise is evaluated in /its own/ environment, not the one where it is referenced: this is what makes scoping lexical. Reaching a promise that is still being forced means the binding depends on itself, which becomes a cycle error instead of an infinite loop.
 
 *** Looking up a name
 
-~lookupVar~ walks outward from the current frame.
-- In each frame it checks the bound names, then the functions defined in that frame, then moves to the parent.
-- At the root it falls back to the built-ins.
-- An unbound name is an error with a "Perhaps you meant" suggestion, ranked by edit distance.
+~lookupVar~ walks outward from the current frame. In each frame it checks the bound names, then the functions defined in that frame, then moves to the parent. At the root it falls back to the built-ins. An unbound name is an error with a "Perhaps you meant" suggestion, ranked by edit distance.
 
-The static analysis (~Lisp.Analysis~) has already resolved every name by the same rules.
-- So a program the evaluator runs has none unbound.
-- What a form is, and what a record, a =let=, a parameter or a hole binds, comes from one module both use.
-  - That module is ~Lisp.Analysis.Forms~, so the two cannot disagree about either.
+The static analysis (~Lisp.Analysis~) has already resolved every name by the same rules, so a program the evaluator runs has none unbound. What a form is, and what a record, a =let=, a parameter or a hole binds, comes from one module both use, ~Lisp.Analysis.Forms~, so the two cannot disagree about either.
 
 *** Emitting a record
 
 ~emitProps~ walks the record's forms again, in source order:
 
-- The record's context, ~(%context e)~, is evaluated like any value.
-  - It is read as a JSON-LD context by ~contextFromValue~, and becomes the record's metadata (~I.Context~).
+- The record's context, ~(%context e)~, is evaluated like any value, read as a JSON-LD context by ~contextFromValue~, and becomes the record's metadata (~I.Context~).
 
-- An attribute pair is forced through /its own promise/, found by the position of its =:key=.
-  - So an attribute pair that is both output and referenced is evaluated once.
+- An attribute pair is forced through /its own promise/ (found by the position of its =:key=), so an attribute pair that is both output and referenced is evaluated once.
 
-- =inlay= evaluates its expression and splices the resulting record's attribute pairs in place, as a layer.
-  - An inlaid attribute pair is dropped when the record writes the same key, or when a later =inlay= has it.
-  - Its context is combined under the record's with the metadata =Monoid=, ~inlaid <> rest~.
-  - =rest= already holds the later inlays' contexts and the written one.
+- =inlay= evaluates its expression and splices the resulting record's attribute pairs in place, as a layer: an inlaid attribute pair is dropped when the record writes the same key, or when a later =inlay= has it. Its context is combined under the record's with the metadata =Monoid=, ~inlaid <> rest~, where =rest= already holds the later inlays' contexts and the written one.
 
 - A key written twice, or a second context, is an error at the second occurrence.
 
-- An attribute pair's value must be serialisable, otherwise the attribute pair becomes an error.
-  - It is a primitive, record or array; see the ([[*3. The Verification Gate][verification gate]]).
+- An attribute pair's value must be serialisable (a primitive, record or array; see the [[*3. The Verification Gate][verification gate]]), otherwise the attribute pair becomes an error.
 
-- A loose expression that is not an attribute pair is an error.
-  - "Unbound expressions are not allowed inside =Record= blocks".
+- A loose expression that is not an attribute pair is an error:
+
+  #+begin_example
+  Unbound expressions are not allowed inside Record blocks
+  #+end_example
 
 Arrays (~compileArray~) evaluate their elements in order, with =inlay= splicing arrays.
 
 *** Calling a function
 
-~evalFunction~:
-- checks arity and recursion;
-- allocates one promise per argument over the /caller's/ environment;
-  - under its parameter's property, if the parameter is typed;
-- evaluates the body in the closure extended with a parameter frame.
+~evalFunction~ checks arity and recursion, allocates one promise per argument over the /caller's/ environment (under its parameter's property, if the parameter is typed), and evaluates the body in the closure extended with a parameter frame.
 
-A function already on the call stack is called again only from a call the static analysis accepted.
-- Those are the module's ~acceptedCalls~, known by where the function's name is written.
-- Its arguments are forced first, and an error in one is returned instead:
+A function already on the call stack is called again only from a call the static analysis accepted, the module's ~acceptedCalls~, known by where the function's name is written. Its arguments are forced first, and an error in one is returned instead:
 
 #+BEGIN_SRC haskell
 (_, argAddrs) <- allocFrame (const callerEnv)
@@ -2216,36 +2188,24 @@ let functionEnv = closureEnv
                 & callStack        .~ Set.insert fnId callerStack
 #+END_SRC
 
-Then ~destructure~ forces each pattern parameter's promise and matches it with ~matchPattern~, the matcher =case= uses.
-- The pattern's values are evaluated in the closure, rather than in the parameter frame.
-  - They carry this call's stack, so the recursion check holds.
-- The holes of every pattern are bound, as already-evaluated values, in one frame.
-  - That frame sits between the parameter frame and the body.
-- A value that does not match is reported at its argument.
+Then ~destructure~ forces each pattern parameter's promise and matches it with ~matchPattern~, the matcher =case= uses. The pattern's values are evaluated in the closure, carrying this call's stack so the recursion check holds, rather than in the parameter frame. The holes of every pattern are bound, as already-evaluated values, in one frame between the parameter frame and the body; a value that does not match is reported at its argument.
 
 *** Finishing
 
-~evaluate~ evaluates the graph, then forces every promise that is still ~Unforced~.
-- It repeats until none are left, since forcing can allocate new promises.
-- The errors found in those values are returned alongside the graph:
+~evaluate~ evaluates the graph, then forces every promise that is still ~Unforced~, repeating until none are left (forcing can allocate new promises). The errors found in those values are returned alongside the graph:
 
 #+BEGIN_SRC haskell
 evaluate :: Module -> S.Expr -> (L.Expr, [OuroError])
 #+END_SRC
 
-Only error leaves count.
-- A binding that holds a Duration or a function is fine, as long as it never reaches the output.
-- Forcing a =fn= creates its closure but does not run its body.
-  - So an error inside a function that is never called is not reported.
+Only error leaves count: a binding that holds a Duration or a function is fine as long as it never reaches the output. Forcing a =fn= creates its closure but does not run its body, so an error inside a function that is never called is not reported.
 
 ** Error isolation
 
-Ouro does not short-circuit.
-- Each failure becomes an ~EvalError~ at the position where it happened.
-- The evaluator carries on with the rest of the tree.
-- Operations propagate an error argument rather than failing again, so one mistake produces one message.
+Ouro does not short-circuit. Each failure becomes an ~EvalError~ at the position where it happened, and the evaluator carries on with the rest of the tree. Operations propagate an error argument rather than failing again, so one mistake produces one message.
 
 Errors are constructed in ~Error.Diagnostics~. Each carries:
+
 - a code derived from its constructor: =SYN=, =TYP=, =SCP=, =INT=, and =WRN= for warnings;
 - a message;
 - a blurb.
@@ -2256,25 +2216,19 @@ Before anything is serialised, ~validateAST~ walks the evaluated tree and collec
 
 1. Every ~EvalError~ in the output.
 
-2. Every value that has no JSON form: Durations, functions, built-ins and schema values.
-   - Each is reported at the graph's position, with the key path to the value: ='produced_by.timespan'=.
+2. Every value that has no JSON form: Durations, functions, built-ins and schema values, reported at the graph's position with the key path to the value (for example ='produced_by.timespan'=).
 
 3. Infinity and NaN, which JSON cannot represent.
 
-4. the errors found in unused bindings, passed in from ~evaluate~.
+4. The errors found in unused bindings, passed in from ~evaluate~.
 
-Errors are de-duplicated and sorted by position.
-- An error in a binding that is also in the output is reported once.
-- *A graph compiles if and only if this list is empty.*
+Errors are de-duplicated (an error in a binding that is also in the output is reported once) and sorted by position. *A graph compiles if and only if this list is empty.*
 
-There are two guards against compile-time-only values.
-- ~emitProps~ checks each record attribute pair as it is emitted, which catches most mistakes with a precise position.
-- ~validateAST~ then checks the whole tree, which also covers the graph root and array elements.
+There are two guards against compile-time-only values. ~emitProps~ checks each record attribute pair as it is emitted, which catches most mistakes with a precise position. ~validateAST~ then checks the whole tree, which also covers the graph root and array elements.
 
 ** Type collapse (~freeze~)
 
-A tree that passes the gate contains only ~Primitive~, ~Record~ and ~Array~ nodes.
-- ~freeze~ folds it into the ~I.Expr~ GADT:
+A tree that passes the gate contains only ~Primitive~, ~Record~ and ~Array~ nodes. ~freeze~ folds it into the ~I.Expr~ GADT:
 
 #+BEGIN_SRC haskell
 freeze :: Expr -> I.Expr 'JLD.Primitive
@@ -2285,10 +2239,7 @@ freeze = \case
     other       -> error ("Invariant: Non-serializable node type: " ++ ...)
 #+END_SRC
 
-Building a statically indexed GADT from runtime lists requires an ~unsafeCoerce~ in the bridge to ~I.Expr any~.
-- It is justified by the gate: ~validateAST~ is the lemma that every node is one of the three serialisable shapes.
-- The ~error~ calls in ~freeze~ are internal invariants, not user errors.
-  - Reaching one means a value bypassed the gate, which is a compiler bug.
+Building a statically indexed GADT from runtime lists requires an ~unsafeCoerce~ in the bridge to ~I.Expr any~. It is justified by the gate: ~validateAST~ is the lemma that every node is one of the three serialisable shapes. The ~error~ calls in ~freeze~ are internal invariants, not user errors; reaching one means a value bypassed the gate, which is a compiler bug.
 
 * The Internal Model (~I.Expr~)
 
@@ -2344,14 +2295,11 @@ The indices enforce three boundaries:
 
 - *Leaves are leaves:* primitives are indexed ~'Primitive~ and cannot appear where a list spine is expected.
 
-- *The spine is isolated:* ~Cons~, ~Attr~ and ~Nil~ are indexed ~'List~.
-  - So collection mechanics never leak into a leaf position.
+- *The spine is isolated:* ~Cons~, ~Attr~ and ~Nil~ are indexed ~'List~, so collection mechanics never leak into a leaf position.
 
-- *Metadata has one slot:* the first argument of ~Record~ is the only place a ~'Meta~ value can go.
-  - So a context can never be written as an ordinary value.
+- *Metadata has one slot:* the first argument of ~Record~ is the only place a ~'Meta~ value can go, so a context can never be written as an ordinary value.
 
-~Record~ and ~Array~ are the gates that lift a spine back to a ~'Primitive~ value.
-- The ~Context~ kind is currently unused.
+~Record~ and ~Array~ are the gates that lift a spine back to a ~'Primitive~ value. (The ~Context~ kind is currently unused.)
 
 The context model (~Internal.Schema~) is a context's entries, in order:
 
@@ -2371,39 +2319,25 @@ data ContextValue = CString Text | CNumber Double | CBool Bool | CNull
 
 *** Contexts are a Monoid under concatenation
 
-JSON-LD processes a context array in order, each entry against the context the earlier ones built.
-- So concatenation is how contexts compose.
-- It is associative, and the empty context, which changes nothing, is the identity.
-- Adjacent local contexts are kept apart, not merged, so each keeps its meaning.
+JSON-LD processes a context array in order, each entry against the context the earlier ones built, so concatenation is how contexts compose. It is associative, and the empty context, which changes nothing, is the identity. Adjacent local contexts are kept apart, not merged, so each keeps its meaning.
 
-Applying the same entry twice in a row is applying it once.
-- So where two contexts meet, an entry equal to the one before it is dropped: ~[X] <> [X]~ is ~[X]~.
-- Only neighbours collapse: in ~[X, Y, X]~ the second =X= is applied against what =Y= built, so it is kept.
-- The laws hold for contexts built with =<>=, which never hold two equal neighbours.
+Applying the same entry twice in a row is applying it once, so where two contexts meet, an entry equal to the one before it is dropped: ~[X] <> [X]~ is ~[X]~. Only neighbours collapse: in ~[X, Y, X]~ the second =X= is applied against what =Y= built, so it is kept. The laws hold for contexts built with =<>=, which never hold two equal neighbours.
 
 *** Local contexts are a Monoid under a right-biased union
 
-- A key in both keeps the position of its first occurrence and the value of its later one.
-  - This is as defining a term again replaces it.
-- The empty local context is the identity.
-- A local context is built with ~directive key value~ and ~<>~, so each key appears once.
+A key in both keeps the position of its first occurrence and the value of its later one, as defining a term again replaces it. The empty local context is the identity. A local context is built with ~directive key value~ and ~<>~, so each key appears once.
 
 *** A record's metadata is a Monoid too
 
-It is a Monoid over ~I.Expr 'Meta~.
-- Two =Context=s combine as their =Schema=s do, and =EmptyMeta= is the identity.
-- =inlay= uses it to layer an inlaid record's context under the record's own.
+It is a Monoid over ~I.Expr 'Meta~: two =Context=s combine as their =Schema=s do, and =EmptyMeta= is the identity. =inlay= uses it to layer an inlaid record's context under the record's own.
 
 *** Reading and writing contexts
 
-- ~Eval.Schema.contextFromValue~ reads an evaluated value as a ~Schema~ and checks it.
-- ~Json.Parser~ reads a JSON =@context= the same way for =ouro validate=, keeping a context array's structure.
-- The serialiser writes a ~Schema~ with one entry as that entry, and one with several as an array.
+~Eval.Schema.contextFromValue~ reads an evaluated value as a ~Schema~ and checks it; ~Json.Parser~ reads a JSON =@context= the same way for =ouro validate=, keeping a context array's structure. The serialiser writes a ~Schema~ with one entry as that entry, and one with several as an array.
 
 * The Emission Engine
 
-Serialisation (~Json.Serializer.toJSON~) is a catamorphism over ~I.Expr~.
-- It is one recursive descent, ~buildJSON~, that emits each node exactly once, in order.
+Serialisation (~Json.Serializer.toJSON~) is a catamorphism over ~I.Expr~: one recursive descent, ~buildJSON~, that emits each node exactly once, in order.
 
 #+BEGIN_SRC haskell
 newtype Printer a = Printer
@@ -2414,31 +2348,25 @@ data PrinterState = PrinterState { activeDirectives :: ![ContextEntry]
                                  , outputBuffer     :: !Builder }
 #+END_SRC
 
-- *Reader for layout:* the nesting level flows downwards with ~local~.
-  - So entering a structure indents its children without affecting its siblings.
+- *Reader for layout:* the nesting level flows downwards with ~local~, so entering a structure indents its children without affecting its siblings.
 
-- *State as an append-only buffer:* serialisation is monotonic: output is only ever appended, never rewound.
-  - A ~Text.Lazy.Builder~ accumulates it without repeated string concatenation.
+- *State as an append-only buffer:* serialisation is monotonic: output is only ever appended, never rewound. A ~Text.Lazy.Builder~ accumulates it without repeated string concatenation.
 
-- *Strict fields:* the bang patterns on ~PrinterState~ prevent a chain of unevaluated thunks.
-  - Otherwise one builds up across a deep traversal: the classic lazy-state space leak.
+- *Strict fields:* the bang patterns on ~PrinterState~ prevent a chain of unevaluated thunks from building up across a deep traversal (the classic lazy-state space leak).
 
-- *Identity at the base:* the stack has no ~IO~.
-  - The printer is a pure function from a frozen tree to text; nothing is "run" in a virtual machine.
+- *Identity at the base:* the stack has no ~IO~. The printer is a pure function from a frozen tree to text; nothing is "run" in a virtual machine.
 
 *** The output
 
-The output is UTF-8 with LF line endings and a trailing newline.
-- Numbers that are whole print without a decimal point.
+The output is UTF-8 with LF line endings and a trailing newline. Numbers that are whole print without a decimal point.
 
 Strings, keys, URIs and dates are written as JSON strings:
-- these are written as their two-character escapes:
-  - a quote, a backslash, a newline, a carriage return, a tab, a backspace and a form feed;
+
+- a quote, a backslash, a newline, a carriage return, a tab, a backspace and a form feed are written as their two-character escapes;
 - any other control character is written as a =\u= escape;
 - every other character is written as it is.
 
-The same serialiser backs ~ouro validate~.
-- It parses JSON-LD into ~I.Expr~ (~Json.Parser~) and prints it back, as a check that a document is representable.
+The same serialiser backs ~ouro validate~, which parses JSON-LD into ~I.Expr~ (~Json.Parser~) and prints it back, as a check that a document is representable.
 
 * Architectural Boundaries
 ** Module layering
@@ -2456,42 +2384,38 @@ Dependencies flow in one direction, from the pure JSON-LD core upwards:
 | Command line | the library; nothing in the library imports it               |
 
 The modules of each layer, with =←= for "is imported by":
-- *JSON-LD core:* ~Internal.Kinds~, ~Internal.Schema~, ~Internal.Expr~, ~Internal.Utils~.
-- *JSON I/O:* ~Json.Parser~, ~Json.Serializer~.
-- *Errors:* ~Error.Types~ ← ~Error.Diagnostics~, ~Error.Linter~.
-- *Front end:* ~Lisp.Tokens~, ~Lisp.Lexer~, ~Lisp.Surface~, ~Lisp.Function~, ~Lisp.Parser~, ~Lisp.Module.Types~.
-  - And ~Lisp.Canon~, with its passes.
-- *Evaluator:* ~Eval.Types~ ← ~Eval.Builtins~, ~Eval.Schema~, ~Eval.Pattern~ ← ~Eval.Scope~.
-  - Then ~Eval.Scope~ ← ~Eval.Structural~ ← ~Eval.Engine~.
-- *Pipeline:* ~Data.Ouro~ ← ~Data.Ouro.Build~.
-- *Command line:* =cli/=, the internal library =ouro-cli=.
-  - Its modules are ~CLI.Project~, ~CLI.Parser~, ~CLI.Runner~ and ~CLI.Printer~.
-  - =app/= is ~Main~ only.
 
-Invariants:
+- *JSON-LD core:* ~Internal.Kinds~, ~Internal.Schema~, ~Internal.Expr~, ~Internal.Utils~.
+
+- *JSON I/O:* ~Json.Parser~, ~Json.Serializer~.
+
+- *Errors:* ~Error.Types~ ← ~Error.Diagnostics~, ~Error.Linter~.
+
+- *Front end:* ~Lisp.Tokens~, ~Lisp.Lexer~, ~Lisp.Surface~, ~Lisp.Function~, ~Lisp.Parser~, ~Lisp.Canon~ (and its passes), ~Lisp.Module.Types~.
+
+- *Evaluator:* ~Eval.Types~ ← ~Eval.Builtins~, ~Eval.Schema~, ~Eval.Pattern~ ← ~Eval.Scope~ ← ~Eval.Structural~ ← ~Eval.Engine~.
+
+- *Pipeline:* ~Data.Ouro~ ← ~Data.Ouro.Build~.
+
+- *Command line:* =cli/=, the internal library =ouro-cli= (~CLI.Project~, ~CLI.Parser~, ~CLI.Runner~, ~CLI.Printer~); =app/= is ~Main~ only.
+
+*Invariants*:
 
 - The JSON-LD core never imports the evaluator: ~I.Expr~ knows nothing about Ouro.
 
 - The front end never evaluates: parsing, rule checks and desugaring work on ~S.Expr~ alone.
 
-- Built-ins and the schema parser only read the environment (~Reader Env~).
-  - Only ~Scope~, ~Structural~ and ~Engine~ touch the promise store.
+- Built-ins and the schema parser only read the environment (~Reader Env~); only ~Scope~, ~Structural~ and ~Engine~ touch the promise store.
 
-- One exception to note: ~Error.Diagnostics~ imports ~Eval.Types~, to describe values in messages.
-  - So the error layer is not entirely below the evaluator.
+- One exception to note: ~Error.Diagnostics~ imports ~Eval.Types~ (to describe values in messages), so the error layer is not entirely below the evaluator.
 
 ** Ouro as a structural assembler
 
-Ouro's compiler guarantees structural validity.
-- A compiled graph is well-formed JSON whose values have the types they were asserted to have.
-- It does not resolve vocabularies, fetch remote contexts or check terms against CIDOC-CRM.
+Ouro's compiler guarantees structural validity: a compiled graph is well-formed JSON whose values have the types they were asserted to have. It does not resolve vocabularies, fetch remote contexts or check terms against CIDOC-CRM.
 
-- *Justification:* limiting the compiler to structure keeps it deterministic and offline.
-  - It is immune to failures in external Linked Data services.
+- *Justification:* limiting the compiler to structure keeps it deterministic, offline and immune to failures in external Linked Data services.
 
-- *Boundary rule:* URIs are accepted as literal or computed strings, and keys as written literals.
-  - Semantic expansion is left to specialised tools after compilation, in keeping with the Unix philosophy.
-  - That is context resolution, RDF conversion and shape validation.
+- *Boundary rule:* URIs are accepted as literal or computed strings, and keys as written literals. Semantic expansion (context resolution, RDF conversion, shape validation) is left to specialised tools after compilation, in keeping with the Unix philosophy.
 
 * Appendix A: Removed features
 
@@ -2516,28 +2440,67 @@ Ouro's compiler guarantees structural validity.
 ** How each is reported
 
 These are reported with a message:
-- =defn=, =defn/const=, =defn/property=:
-  - =defn is now define/procedure: (define/procedure name (args) body)=, and so on;
-- =(define :name value ...)=: ='define' is not a definition: say what is defined, …=;
-- =(let (:name value ...) expr)=: =':name' marks a key in the output, but a let's bindings are never output.=;
-- a local definition: =A definition can only appear at the top level of a file.=;
-- spliced graph bodies: =The graph 'g' must be one expression.=;
-- spliced function bodies, =return=:
-  - "has a ':key value' attribute pair directly in its body";
-  - "'return' is no longer needed";
-- =(context (vocab "..." remote-context "..."))=: =The (context (...)) form has been replaced by ':context value'.=;
-- =(attr key value)=: =The (attr key value) form has been removed.=;
-- =(nth i coll)=: =The (nth index array) form has been replaced by get.=.
 
-The rest are reported as nothing in particular:
-- =defun= is an ordinary name;
-- required =!=, quoting, code-shape =get=, dynamic scope and the old evaluation have no message.
+- =defn=, =defn/const=, =defn/property= (and so on for each):
+
+  #+begin_example
+  defn is now define/procedure: (define/procedure name (args) body)
+  #+end_example
+
+- =(define :name value ...)=:
+
+  #+begin_example
+  'define' is not a definition: say what is defined, …
+  #+end_example
+
+- =(let (:name value ...) expr)=:
+
+  #+begin_example
+  ':name' marks a key in the output, but a let's bindings are never output.
+  #+end_example
+
+- a local definition:
+
+  #+begin_example
+  A definition can only appear at the top level of a file.
+  #+end_example
+
+- spliced graph bodies:
+
+  #+begin_example
+  The graph 'g' must be one expression.
+  #+end_example
+
+- spliced function bodies, =return=:
+
+  #+begin_example
+  has a ':key value' attribute pair directly in its body
+  'return' is no longer needed
+  #+end_example
+
+- =(context (vocab "..." remote-context "..."))=:
+
+  #+begin_example
+  The (context (...)) form has been replaced by ':context value'.
+  #+end_example
+
+- =(attr key value)=:
+
+  #+begin_example
+  The (attr key value) form has been removed.
+  #+end_example
+
+- =(nth i coll)=:
+
+  #+begin_example
+  The (nth index array) form has been replaced by get.
+  #+end_example
+
+The rest have no message: =defun= is an ordinary name, and required =!=, quoting, code-shape =get=, dynamic scope and the old evaluation leave nothing to report.
 
 ** Why quoting went
 
-Curators compose and restructure records; they do not manipulate code.
-- Without quoting, code and values cannot be confused.
-- That is what makes the language referentially transparent.
+Curators compose and restructure records; they do not manipulate code. Without quoting, code and values cannot be confused, which is what makes the language referentially transparent.
 
 * Appendix B: Known gaps
 :PROPERTIES:
@@ -2546,27 +2509,21 @@ Curators compose and restructure records; they do not manipulate code.
 
 Recorded 2026-10-12 and kept up to date since; none were caused by the scoping redesign.
 
-Each open gap is pinned by its current, incorrect behaviour, in a test named "gap N: …".
-- A gap of the compiler is in =Language.knownGaps= (=test/Ouro/LanguageTest.hs=, the =ouro-test= suite).
-- A gap of the command line is in the =ouro-cli-test= suite:
-  - in =Project.knownGaps= (=test-cli/Ouro/Cli/ProjectTest.hs=);
-  - or, when only running =ouro= shows it, in =test-cli/Ouro/Cli/CommandTest.hs=.
+Each open gap is pinned by its current, incorrect behaviour, in a test named "gap N: …":
 
-The change that fixes a gap adds a test of the correct behaviour.
-- It keeps the old pin, run negated (=fixedGap=), as "gap N (fixed): …".
-- So the old behaviour coming back fails the suite.
+- a gap of the compiler in =Language.knownGaps= (=test/Ouro/LanguageTest.hs=, the =ouro-test= suite);
+
+- a gap of the command line in the =ouro-cli-test= suite, in =Project.knownGaps= (=test-cli/Ouro/Cli/ProjectTest.hs=) or, when only running =ouro= shows it, in =test-cli/Ouro/Cli/CommandTest.hs=.
+
+The change that fixes a gap adds a test of the correct behaviour and keeps the old pin, run negated (=fixedGap=), as "gap N (fixed): …", so the old behaviour coming back fails the suite.
 
 Each gap is a heading with a state:
+
 - =OPEN= or =FIXED=;
 - =TRIAGE= for one under discussion;
 - =WONTFIX= for one left as it is on purpose, its reason in its body.
 
-Its drawer holds:
-- its number, =ID=, which the tests' names keep;
-- the date it was found;
-- the version that fixed it.
-
-In Emacs, =C-c / t= shows the open ones, and =C-c C-x C-c= the whole list as a table.
+Its drawer holds its number (=ID=, which the tests' names keep), the date it was found and the version that fixed it. In Emacs, =C-c / t= shows the open ones and =C-c C-x C-c= the whole list as a table.
 
 ** FIXED =@context= handling was incomplete
 :PROPERTIES:
@@ -2574,10 +2531,7 @@ In Emacs, =C-c / t= shows the open ones, and =C-c C-x C-c= the whole list as a t
 :FOUND:    2026-10-12
 :FIXED_IN: 0.5.0.0
 :END:
-- Only four directives could be written, with no term definitions or =null=.
-- A remote context with local directives serialised as a nested =@context= object, which is invalid JSON-LD.
-- A context is now a value written as JSON-LD writes it, and several contexts are an array.
-  - See [[*=@context=][=@context=]].
+Only four directives could be written, with no term definitions or =null=, and a remote context with local directives serialised as a nested =@context= object, which is invalid JSON-LD. A context is now a value written as JSON-LD writes it, and several contexts are an array (see [[*=@context=][=@context=]]).
 
 ** FIXED Variadic operators under a built-in property hit an internal error
 :PROPERTIES:
@@ -2593,8 +2547,7 @@ A property's payload is now desugared like any other expression.
 :FOUND:    2026-10-12
 :FIXED_IN: 0.5.0.0
 :END:
-- A guard now chains with the target as its first operand.
-- An operator written with the wrong number of operands is an arity error rather than an internal one.
+A guard now chains with the target as its first operand, and an operator written with the wrong number of operands is an arity error rather than an internal one.
 
 ** FIXED Month and year arithmetic rolled over into the next month (31 March − 1 month was 2 March)
 :PROPERTIES:
@@ -2634,9 +2587,7 @@ A binding now never sees itself, so the name refers outward.
 :FOUND:    2026-10-12
 :FIXED_IN: 0.5.0.0
 :END:
-- Accented names were garbled, and so were the compiler's diagnostics.
-- Source is now read as UTF-8 on every platform, and messages are written as UTF-8.
-  - See [[*Lexical elements][Lexical elements]].
+Accented names were garbled, and so were the compiler's diagnostics. Source is now read as UTF-8 on every platform, and messages are written as UTF-8 (see [[*Lexical elements][Lexical elements]]).
 
 ** FIXED "Perhaps you meant" ranked only the root scope, so a misspelt local name had no suggestion
 :PROPERTIES:
@@ -2644,9 +2595,7 @@ A binding now never sees itself, so the name refers outward.
 :FOUND:    2026-10-12
 :FIXED_IN: 0.5.0.0
 :END:
-- For example, ~artst~ for a =let='s =$artist= had no suggestion.
-- Unbound names are now found by the static analysis.
-  - It ranks every name in scope where the name is written, local bindings included.
+For example, ~artst~ for a =let='s =$artist= had no suggestion. Unbound names are now found by the static analysis, which ranks every name in scope where the name is written, local bindings included.
 
 ** FIXED Messages had stale wording
 :PROPERTIES:
@@ -2655,20 +2604,20 @@ A binding now never sees itself, so the name refers outward.
 :FIXED_IN: 0.5.0.0
 :END:
 The messages were:
+
 - =get='s missing-key blurb mentioned =define=;
 - subtraction's type error named an internal type, "a Date minus a L.Duration";
-- a =$= binding named after a special form (=$get=) was rightly rejected, but called an attribute key;
-  - "Shadowed Attribute", with "primative" misspelt;
+- a =$= binding named after a special form (=$get=) was rightly rejected, but called an attribute key, "Shadowed Attribute", with "primative" misspelt;
 - =WRN0000='s hint named =#record-empty= by its old name, =#obj-empty=, and misspelt "intended";
 - =SCP0001= wrote "Expected :an independent expression", its colon misplaced.
 
-The fix:
-- a reserved name is now =SYN0004= "Reserved Name";
-  - it says it cannot name an attribute key or a =let= binding;
-- the rest read as Ouro is today.
+A reserved name is now =SYN0004= "Reserved Name", which says it cannot name an attribute key or a =let= binding, and the rest read as Ouro is today.
 
-The hint for a function used as a value, which suggested =(name! args)=, was fixed before them.
-- It shows how the function is called, with its parameters' names: =Perhaps call it: (aat id label).=
+The hint for a function used as a value, which suggested =(name! args)=, was fixed before them: it shows how the function is called, with its parameters' names.
+
+#+begin_example
+Perhaps call it: (aat id label).
+#+end_example
 
 ** FIXED A parameter named after a special form, ~(define/procedure call (fn) (fn))~, could not be called
 :PROPERTIES:
@@ -2676,8 +2625,7 @@ The hint for a function used as a value, which suggested =(name! args)=, was fix
 :FOUND:    2026-10-12
 :FIXED_IN: 0.5.0.0
 :END:
-- The call was read as the special form, with a confusing error about =fn= syntax.
-- A binding now shadows a special form, as in Scheme, so the call is the parameter's.
+The call was read as the special form, with a confusing error about =fn= syntax. A binding now shadows a special form, as in Scheme, so the call is the parameter's.
 
 ** FIXED Zero-argument functions re-evaluate on every call
 :PROPERTIES:
@@ -2687,16 +2635,12 @@ The hint for a function used as a value, which suggested =(name! args)=, was fix
 :END:
 As pure constants they could be shared.
 
-/Fixed/ (2026-11-12, 0b7120c):
-- a function of no parameters named as a value is worked out once per graph, and that value reused;
-  - whichever keyword defines it;
-- =define/constant= is the way to write one;
-  - a =define/procedure= of no parameters is warned towards it (=WRN0006=, 2026-11-15).
+/Fixed/ (2026-11-12, 0b7120c): a function of no parameters named as a value is worked out once per graph and that value reused, whichever keyword defines it. =define/constant= is the way to write one, which a =define/procedure= of no parameters is warned towards (=WRN0006=, 2026-11-15).
 
 Left as they are on purpose:
+
 - a call, =(c)=, is evaluated each time;
-- a =(fn () …)= written inside a function is evaluated each time it is named;
-  - it closes over a frame each call binds afresh;
+- a =(fn () …)= written inside a function is evaluated each time it is named, since it closes over a frame each call binds afresh;
 - each graph evaluates its constants on its own.
 
 ** OPEN Code health
@@ -2705,25 +2649,19 @@ Left as they are on purpose:
 :FOUND:    2026-10-12
 :END:
 - The =[ ]= bracket syntax parses but has no meaning.
-- =validate= without =-o= overwrites its input.
-- The CLI's commands are tested only from outside, by running =ouro= (=test-cli/Ouro/Cli/CommandTest.hs=).
-  - They are tested for their exit codes, the files they write and what they print.
 
-Fixed: no test checked an error message's rendering.
-- Each code a source or a project can raise now has a fixture in =test-cli/fixtures/messages/=.
-- Its rendering, as =ouro= prints it without colours, is in a golden file beside it, =CODE-Constructor.txt=.
-- =OURO_ACCEPT=1 cabal test ouro-cli-test= rewrites them.
-- The renderer stayed in the CLI, as the pure =renderDiagnostic= of =cli/CLI/Printer.hs=.
-  - It did not move into the library as planned.
+- =validate= without =-o= overwrites its input.
+
+- The CLI's commands are tested only from outside, by running =ouro= (=test-cli/Ouro/Cli/CommandTest.hs=), for their exit codes, the files they write and what they print.
+
+/Fixed:/ no test checked an error message's rendering. Each code a source or a project can raise now has a fixture in =test-cli/fixtures/messages/=, and its rendering, as =ouro= prints it without colours, in a golden file beside it, =CODE-Constructor.txt=; =OURO_ACCEPT=1 cabal test ouro-cli-test= rewrites them. The renderer stayed in the CLI, as the pure =renderDiagnostic= of =cli/CLI/Printer.hs=, rather than moving into the library as planned.
 
 ** OPEN A record made only of inlays is read as an array
 :PROPERTIES:
 :ID:       14
 :FOUND:    2026-10-12
 :END:
-- ~((inlay (a)) (inlay (b)))~ has no written attribute pair, so structural classification makes it an array.
-- Each =inlay= then expects an array.
-- Workaround: write at least one attribute pair.
+~((inlay (a)) (inlay (b)))~ has no written attribute pair, so structural classification makes it an array, and each =inlay= then expects an array. Workaround: write at least one attribute pair.
 
 ** FIXED Empty arrays could not be joined
 :PROPERTIES:
@@ -2739,27 +2677,21 @@ Arrays are no longer required to be homogeneous, so =+= on two arrays is plain c
 :FOUND:    2026-10-12
 :FIXED_IN: 0.5.0.0
 :END:
-- This gave misleading arity or parenthesis errors.
-- =$name= is now read on its own, and paired with its value only inside a =let=.
-- Elsewhere, it is an error that says to drop the =$=.
+This gave misleading arity or parenthesis errors. =$name= is now read on its own and paired with its value only inside a =let=; elsewhere it is an error that says to drop the =$=.
 
 ** OPEN A URI's empty root path is dropped
 :PROPERTIES:
 :ID:       17
 :FOUND:    2026-10-12
 :END:
-- ~#uri "https://a.org/"~ serialises as ="https://a.org"=, which changes the IRI's text.
-- URIs with a path (Getty's, Linked Art's) are unaffected.
-- It comes from how the URI library renders an empty path.
+~#uri "https://a.org/"~ serialises as ="https://a.org"=, which changes the IRI's text. URIs with a path (Getty's, Linked Art's) are unaffected. It comes from how the URI library renders an empty path.
 
 ** OPEN An attribute pair among array values has no hint
 :PROPERTIES:
 :ID:       18
 :FOUND:    2026-10-12
 :END:
-- ~(1 :a 2)~ is read as a record, since one attribute pair makes the form a record.
-- So =1= is reported as an unbound expression.
-- The error is right, but it could suggest ~(1 (:a 2))~.
+~(1 :a 2)~ is read as a record (one attribute pair makes the form a record), so =1= is reported as an unbound expression. The error is right, but it could suggest ~(1 (:a 2))~.
 
 ** FIXED Strings were not escaped in the output, which is invalid JSON
 :PROPERTIES:
@@ -2767,8 +2699,7 @@ Arrays are no longer required to be homogeneous, so =+= on two arrays is plain c
 :FOUND:    2026-10-12
 :FIXED_IN: 0.5.0.0
 :END:
-- ~"say \"hi\""~ became ="say "hi""=, and =ouro validate= turned ="a\"b"= into ="a"b"=.
-- Quotes, backslashes and control characters are now escaped (see [[*The Emission Engine][The Emission Engine]]).
+~"say \"hi\""~ became ="say "hi""=, and =ouro validate= turned ="a\"b"= into ="a"b"=. Quotes, backslashes and control characters are now escaped (see [[*The Emission Engine][The Emission Engine]]).
 
 ** FIXED =compile -o= needed an existing directory
 :PROPERTIES:
@@ -2776,86 +2707,67 @@ Arrays are no longer required to be homogeneous, so =+= on two arrays is plain c
 :FOUND:    2026-10-12
 :FIXED_IN: 0.5.0.0
 :END:
-- Compiling into one that did not exist reported "Compilation Success", then crashed with ~withFile: does not exist~.
-- The directory is now made, as =ouro build= makes its folders.
+Compiling into one that did not exist reported "Compilation Success" and then crashed with ~withFile: does not exist~. The directory is now made, as =ouro build= makes its folders.
 
 ** OPEN =ouro validate= reads strings with Haskell's escapes, not JSON's
 :PROPERTIES:
 :ID:       21
 :FOUND:    2026-10-12
 :END:
-- It rejects the valid JSON escapes =\u00e9= and =\/=.
-- It accepts the invalid =\x41= and =\65=, both read as =A=.
-- The JSON parser reads string characters with Megaparsec's ~charLiteral~, which follows Haskell's rules.
+It rejects the valid JSON escapes =\u00e9= and =\/=, and accepts the invalid =\x41= and =\65= (both read as =A=). The JSON parser reads string characters with Megaparsec's ~charLiteral~, which follows Haskell's rules.
 
 ** OPEN A URI's empty path segments are dropped
 :PROPERTIES:
 :ID:       22
 :FOUND:    2026-10-12
 :END:
-- ~#uri "https://a.org/x//y"~ serialises as ="https://a.org/x/y"=, which changes the IRI's text.
-  - So does ~#uri "https://a.org//x"~, as ="https://a.org/x"=.
-- A plain string keeps its slashes, and so does a URI's trailing slash.
-- It was found through a stray leading slash, ~(example "/place/...")~.
-  - Its =#uri= return type hid the doubled slash.
-- Like gap 17, it comes from how the URI library renders a path.
+~#uri "https://a.org/x//y"~ serialises as ="https://a.org/x/y"=, and ~#uri "https://a.org//x"~ as ="https://a.org/x"=, which changes the IRI's text. A plain string keeps its slashes, and so does a URI's trailing slash. It was found through a stray leading slash, ~(example "/place/...")~, whose =#uri= return type hid the doubled slash. Like gap 17, it comes from how the URI library renders a path.
 
 ** OPEN An unterminated string is reported where the input ends
 :PROPERTIES:
 :ID:       23
 :FOUND:    2026-10-24
 :END:
-- ~(:r "open)~ is a lexical error at the end of the file, not at the opening quote.
-- So in a long file the error points far from its cause.
-- Found while testing errors inside imported modules (2026-10-24).
+~(:r "open)~ is a lexical error at the end of the file, not at the opening quote, so in a long file the error points far from its cause. Found while testing errors inside imported modules (2026-10-24).
 
 ** OPEN =#date= accepts a year of fewer than four digits
 :PROPERTIES:
 :ID:       24
 :END:
-- ~#date "81-01-01T00:00:00Z"~ is taken as the year 81, and written out as given, =81-01-01T00:00:00Z=.
-- That is not ISO-8601 or =xsd:dateTime=: both need at least four digits, and more are allowed.
-- The parser's =%Y= reads any number of digits.
-- Through =std/time=, =(time/year "81")= gets through too.
+~#date "81-01-01T00:00:00Z"~ is taken as the year 81 and written out as given, =81-01-01T00:00:00Z=, which is not ISO-8601 or =xsd:dateTime= (both need at least four digits; more are allowed). The parser's =%Y= reads any number of digits. Through =std/time=, =(time/year "81")= gets through too.
 
 ** OPEN Warning codes collide across categories
 :PROPERTIES:
 :ID:       25
 :FOUND:    2026-10-25
 :END:
-- A warning's code is =WRN= and its constructor's index within its own category.
-- So the first Lint, Semantic and Vocabulary warnings are all =WRN0000=.
-- Only Lint warnings are raised today, so no two codes a user sees collide yet.
-- The planned error-code redesign replaces the scheme.
-- Found while designing the withdrawn context check (2026-10-25).
+A warning's code is =WRN= and its constructor's index within its own category, so the first Lint, Semantic and Vocabulary warnings are all =WRN0000=. Only Lint warnings are raised today, so no two codes a user sees collide yet. The planned error-code redesign replaces the scheme. Found while designing the withdrawn context check (2026-10-25).
 
 ** OPEN An unknown export is a lexical error
 :PROPERTIES:
 :ID:       26
 :FOUND:    2026-10-25
 :END:
-- ~(export f)~ without a ~(define/procedure f ...)~ is reported as =SYN0000=, a =LexicalError=.
-  - The export was lexed and parsed, though.
-- The message is right, its code and kind are not.
-  - "The module exports 'f', but defines no function by that name".
-- Found while testing the build file (2026-10-25).
+~(export f)~ without a ~(define/procedure f ...)~ is reported as =SYN0000=, a =LexicalError=, though the export was lexed and parsed. The message is right, its code and kind are not:
+
+#+begin_example
+The module exports 'f', but defines no function by that name
+#+end_example
+
+Found while testing the build file (2026-10-25).
 
 ** OPEN A build leaves stale outputs
 :PROPERTIES:
 :ID:       27
 :END:
-- Renaming or removing a graph, or a module, leaves the JSON an earlier build wrote for it in =:outputs=.
-- So =:outputs= can hold graphs the source no longer has.
-- The planned fix is a manifest of what the last build wrote, removing only those files.
+Renaming or removing a graph, or a module, leaves the JSON an earlier build wrote for it in =:outputs=, so =:outputs= can hold graphs the source no longer has. The planned fix is a manifest of what the last build wrote, removing only those files.
 
 ** FIXED A compact IRI key was read as two keys
 :PROPERTIES:
 :ID:       28
 :FIXED_IN: 0.5.0.0
 :END:
-- ~:crm:P2_has_type~ was =:crm= and =:P2_has_type=, and through gap 29 the pair was lost.
-- A key, and a symbol, may now hold =:= after their first character.
-  - So a compact IRI is one key, and a path can name it.
+~:crm:P2_has_type~ was =:crm= and =:P2_has_type=, and through gap 29 the pair was lost. A key, and a symbol, may now hold =:= after their first character, so a compact IRI is one key and a path can name it.
 
 ** FIXED A key followed by a key dropped both, silently
 :PROPERTIES:
@@ -2876,13 +2788,10 @@ It is now =SYN0011=, which names the key and what follows it.
 :ID:       31
 :FOUND:    2026-10-26
 :END:
-A key is letters, digits, =-=, =_= and =:=.
-- So these cannot be written as a key, though JSON-LD allows almost any character in a term:
-  - a term or compact IRI with any other character, such as =ex:a.b=, =ex:a/b= or =ex:a#b=;
-  - a full IRI.
-- Compact IRIs whose suffix is a name, as =crm:P2_has_type= and =dc:title=, are unaffected.
+A key is letters, digits, =-=, =_= and =:=, so a term or compact IRI with any other character, such as =ex:a.b=, =ex:a/b= or =ex:a#b=, or a full IRI, cannot be written as a key, though JSON-LD allows almost any character in a term. Compact IRIs whose suffix is a name, as =crm:P2_has_type= and =dc:title=, are unaffected.
 
 Each is an error, but not one that says so:
+
 - =.= is =SYN0000= "Unexpected token";
 - =/= ends the key, and is read as the symbol =/b= (=SCP0000=, unbound);
 - =#= is read as a property, =#b= (=SYN0000=, "Unknown property").
@@ -2894,13 +2803,9 @@ Found while fixing gap 28 (2026-10-26).
 :ID:       32
 :FIXED_IN: 0.5.0.0
 :END:
-Roots were compared by their text after ~normalise~, which keeps a trailing slash and a =..=.
-- So overlapping roots built a module twice.
-- ~("src" "src/")~ were two roots.
-- ~("src/..")~ built =build.ouro= as a module.
+Roots were compared by their text after ~normalise~, which keeps a trailing slash and a =..=, so overlapping roots built a module twice: ~("src" "src/")~ were two roots, and ~("src/..")~ built =build.ouro= as a module.
 
-=:sources= is now one folder, and folders are compared as they are on disk.
-- So a source folder through =..= skips the outputs folder and =package.ouro=.
+=:sources= is now one folder, and folders are compared as they are on disk, so a source folder through =..= skips the outputs folder and =package.ouro=.
 
 ** FIXED A nested project's build file was built as a module
 :PROPERTIES:
@@ -2917,13 +2822,12 @@ A folder holding a =package.ouro= is now a project of its own, and skipped whole
 A graph is written to =<outputs>/<module>/<graph>.json= whatever its name.
 
 On Windows:
+
 - =a?= cannot be written (=withFile: invalid argument=);
 - =con= is a device (=withFile: does not exist=);
-- =ex:g=, a name gap 28 allows, is written to the alternate data stream =g.json= of a file =ex=;
-  - so the build reports it written, and no file shows it.
+- =ex:g=, a name gap 28 allows, is written to the alternate data stream =g.json= of a file =ex=, so the build reports it written and no file shows it.
 
-Graphs named apart only by case, =G= and =g=, share one file on Windows and macOS.
-- The second overwrites the first, under the first's name.
+Graphs named apart only by case, =G= and =g=, share one file on Windows and macOS: the second overwrites the first, under the first's name.
 
 Found while vetting =build.ouro= (2026-10-29).
 
@@ -2932,10 +2836,7 @@ Found while vetting =build.ouro= (2026-10-29).
 :ID:       35
 :FOUND:    2026-10-29
 :END:
-All or nothing covers compiling; the CLI then writes each graph in turn.
-- So a write that fails leaves the graphs before it written: gap 34, a full disk, a file held open.
-- It ends the build with a Haskell exception and its backtrace, not a diagnostic.
-  - Neither "Build Success" nor "Build Failed" is printed.
+All or nothing covers compiling; the CLI then writes each graph in turn, so a write that fails (gap 34, a full disk, a file held open) leaves the graphs before it written. It ends the build with a Haskell exception and its backtrace, not a diagnostic, and neither "Build Success" nor "Build Failed".
 
 Found while vetting =build.ouro= (2026-10-29).
 
@@ -2944,36 +2845,28 @@ Found while vetting =build.ouro= (2026-10-29).
 :ID:       36
 :FIXED_IN: 0.5.0.0
 :END:
-- The build file was looked for from =DIR= upwards.
-- =DIR= is now the project, never looked above, and a folder that does not exist is a message.
+The build file was looked for from =DIR= upwards. =DIR= is now the project, never looked above, and a folder that does not exist is a message.
 
 ** OPEN Colours are written when the output is not a terminal
 :PROPERTIES:
 :ID:       37
 :FOUND:    2026-10-29
 :END:
-- Diagnostics carry their ANSI colour codes when stderr is redirected to a file or a pipe.
-- So a log or a CI report shows =ESC[0;91;1m= among the words.
-- Neither a terminal check nor =NO_COLOR= is consulted.
-- Found while writing the CLI's tests (2026-10-29).
+Diagnostics carry their ANSI colour codes when stderr is redirected to a file or a pipe, so a log or a CI report shows =ESC[0;91;1m= among the words. Neither a terminal check nor =NO_COLOR= is consulted. Found while writing the CLI's tests (2026-10-29).
 
 ** OPEN =ouro validate= reports its errors on stdout
 :PROPERTIES:
 :ID:       38
 :FOUND:    2026-10-29
 :END:
-- Invalid JSON ("Compilation Error:") and the unimplemented =merge= are written to stdout, with nothing on stderr.
-- =build= writes its diagnostics to stderr.
-- Found while writing the CLI's tests (2026-10-29).
+Invalid JSON ("Compilation Error:") and the unimplemented =merge= are written to stdout, with nothing on stderr, while =build= writes its diagnostics to stderr. Found while writing the CLI's tests (2026-10-29).
 
 ** OPEN =insert= floors a fractional index
 :PROPERTIES:
 :ID:       39
 :FOUND:    2026-10-29
 :END:
-- ~(insert (1 2) 1.5 "x")~ is ~(1 "x" 2)~, the index rounded down without a word.
-- =get= rejects one: "Expected: a whole number to index an Array with".
-- Found while weighing an =#integer= property (2026-10-29).
+~(insert (1 2) 1.5 "x")~ is ~(1 "x" 2)~, the index rounded down without a word, while =get= rejects one, "Expected: a whole number to index an Array with". Found while weighing an =#integer= property (2026-10-29).
 
 ** FIXED A failure was reported once for each route to it
 :PROPERTIES:
@@ -2981,32 +2874,22 @@ Found while vetting =build.ouro= (2026-10-29).
 :FOUND:    2026-11-07
 :FIXED_IN: 0.6.0.0
 :END:
-A module that failed was loaded again each time it was reached, so:
-- one import cycle, =main= → =a= → =b= → =a=, was three =SCP0009= errors;
-  - one from each module on the cycle, and one from =main=;
-- an unreadable module was two =SCP0010= errors, at the module and at its import.
+One import cycle, =main= → =a= → =b= → =a=, was three =SCP0009= errors, one from each module on the cycle and one from =main=, and an unreadable module two =SCP0010= errors, at the module and at its import, since a module that failed was loaded again each time it was reached.
 
-The loader now keeps a failed module with its errors.
-- So each is reported once, however many modules reach it.
-- A cycle is named by its own modules, =a= → =b= → =a=, not from the module whose loading led to it.
-
-Found while writing the messages' golden files (2026-11-07).
+The loader now keeps a failed module with its errors, so each is reported once however many modules reach it. A cycle is named by its own modules, =a= → =b= → =a=, not from the module whose loading led to it. Found while writing the messages' golden files (2026-11-07).
 
 ** OPEN =WRN0000= is never true
 :PROPERTIES:
 :ID:       41
 :FOUND:    2026-11-07
 :END:
-It says a string written after =#record-empty= or =#array-empty= is discarded.
-- "will be completely erased from properties at compile time".
+It says a string written after =#record-empty= or =#array-empty= is discarded:
 
-But:
-- in an array the string is kept: ~(:r (#record-empty "x"))~ is ={"r": [{}, "x"]}=;
-- in a record it is an error, =TYP0000=, which the warning only precedes.
+#+begin_example
+will be completely erased from properties at compile time
+#+end_example
 
-The linter reads tokens, not forms, so it cannot tell the two apart.
-
-Found while fixing gap 10 (2026-11-07).
+But in an array the string is kept, ~(:r (#record-empty "x"))~ being ={"r": [{}, "x"]}=, and in a record it is an error, =TYP0000=, which the warning only precedes. The linter reads tokens, not forms, so it cannot tell the two apart. Found while fixing gap 10 (2026-11-07).
 
 ** FIXED The names of removed forms were still reserved
 :PROPERTIES:
@@ -3014,20 +2897,11 @@ Found while fixing gap 10 (2026-11-07).
 :FOUND:    2026-11-07
 :FIXED_IN: 0.6.0.0
 :END:
-=nth=, =attr=, =define= and =defun= were removed (see Appendix A).
-- But a key or a =let= binding named after one, ~(:attr 1)~ or ~$defun~, was =SYN0004=, "Reserved Name".
-- Nothing would be shadowed.
+=nth=, =attr=, =define= and =defun= were removed (see Appendix A), but a key or a =let= binding named after one, ~(:attr 1)~ or ~$defun~, was =SYN0004=, "Reserved Name", though nothing would be shadowed.
 
-They are now free as keys and bindings.
-- A call of one, ~(nth 0 xs)~, is still reported with its replacement, whatever is bound.
-- A function still cannot be named after one (=SYN0008=), since it could never be called.
+They are now free as keys and bindings. A call of one, ~(nth 0 xs)~, is still reported with its replacement, whatever is bound, and a function still cannot be named after one (=SYN0008=), since it could never be called. Found while fixing gap 10 (2026-11-07).
 
-Found while fixing gap 10 (2026-11-07).
-
-Since then:
-- since gap 43's fix, a binding of one of their names shadows it as it shadows any special form;
-- since 2026-11-08, =define= and =defun= are not forms at all, and their removal messages are gone;
-  - they are ordinary names, which a function can take.
+Since gap 43's fix, a binding of one of their names shadows it as it shadows any special form. Since 2026-11-08 =define= and =defun= are not forms at all, and their removal messages are gone: they are ordinary names, which a function can take.
 
 ** FIXED Which special forms' names were reserved was inconsistent
 :PROPERTIES:
@@ -3035,23 +2909,11 @@ Since then:
 :FOUND:    2026-11-08
 :FIXED_IN: 0.6.0.0
 :END:
-Some names were reserved and others not:
-- a key or a =let= binding named after these is =SYN0004=:
-  - =list=, =case=, =get=, =context=, =inlay=, =insert=, =define/procedure=, =let= or =fn=;
-- one named after any other special form, such as =map=, =with=, =when=, =image= or =->=, is accepted;
-  - ~(let ($map 1) (:r map))~ is ={"r": 1}=.
+A key or a =let= binding named after =list=, =case=, =get=, =context=, =inlay=, =insert=, =define/procedure=, =let= or =fn= is =SYN0004=, but one named after any other special form, such as =map=, =with=, =when=, =image= or =->=, is accepted: ~(let ($map 1) (:r map))~ is ={"r": 1}=.
 
-A special form is recognised by its head symbol.
-- So a binding named after one can be read as a value but never called.
-- ~(let ($map (fn (x) x)) (:r (map 1)))~ is =map='s own error, =SYN0000=.
-- A key is data, so whether keys should be reserved at all is part of the question.
+A special form is recognised by its head symbol, so a binding named after one can be read as a value but never called: ~(let ($map (fn (x) x)) (:r (map 1)))~ is =map='s own error, =SYN0000=. A key is data, so whether keys should be reserved at all is part of the question. Found while fixing gap 42 (2026-11-08).
 
-Found while fixing gap 42 (2026-11-08).
-
-No name is reserved now: a binding of a special form's name shadows the form, as in Scheme.
-- So ~(let ($list 1) (:r list))~ is ={"r": 1}=.
-- ~(let ($map (fn (x) x)) (:r (map 1)))~ calls the binding (see [[*Special forms][special forms]]).
-- =SYN0004= is retired.
+No name is reserved now: a binding of a special form's name shadows the form, as in Scheme, so ~(let ($list 1) (:r list))~ is ={"r": 1}= and ~(let ($map (fn (x) x)) (:r (map 1)))~ calls the binding (see [[*Special forms][special forms]]). =SYN0004= is retired.
 
 ** FIXED Code that was not evaluated was not checked
 :PROPERTIES:
@@ -3059,23 +2921,20 @@ No name is reserved now: a binding of a special form's name shadows the form, as
 :FOUND:    2026-11-08
 :FIXED_IN: 0.6.0.0
 :END:
-Compiling evaluates the graphs, so a mistake off their path was never reported. These all compile:
+Compiling evaluates the graphs, so a mistake off their path was never reported. These all compile, while an unused =let= binding's unbound name is =SCP0000=:
+
 - an unbound name in a function no graph calls, ~(define/procedure f () nope)~;
 - a call with the wrong number of arguments in one;
 - an unbound name in a =case= branch that is not taken;
 - even a function that calls itself, ~(define/procedure f () (f))~.
 
-Meanwhile an unused =let= binding's unbound name is =SCP0000=.
-- A library's broken function is found by whoever first calls it.
+A library's broken function is found by whoever first calls it. Found while weighing static analysis (2026-11-08).
 
-Found while weighing static analysis (2026-11-08).
+- /Fixed for names:/ the static analysis reports an unbound name, qualifier or export wherever it is written, in a function no graph calls, an untaken branch and an imported module alike; the recursion still compiles.
 
-- /Fixed for names:/ the static analysis reports an unbound name, qualifier or export wherever it is written.
-  - That is in a function no graph calls, an untaken branch and an imported module alike.
-  - The recursion still compiles.
 - /Fixed for arity:/ a call written with a function's name is checked against its parameters wherever it is written.
-- /Fixed for recursion/ (2026-11-08), so the gap is fixed.
-  - A function that reaches itself by its name is reported wherever it is written, called or not.
+
+- /Fixed for recursion/ (2026-11-08), so the gap is fixed: a function that reaches itself by its name is reported wherever it is written, called or not.
 
 ** OPEN A binding of a form Canon rewrites is ignored at a call
 :PROPERTIES:
@@ -3083,28 +2942,26 @@ Found while weighing static analysis (2026-11-08).
 :FOUND:    2026-11-08
 :END:
 Canon rewrites some forms by their syntax, before any name is bound:
+
 - =and=, =or=, =->=, =with=, =adjoin= and =thru=;
 - a =case= branch's =(when c)= and =(satisfies #p)= heads.
 
-So a binding of one of their names never shadows them, as a binding shadows every other special form.
-- ~(let ($and (fn (a b) 1)) (:r (and true false)))~ is ={"r": false}=.
-- Their names cannot name a =define/procedure= (=SYN0008=).
-- A key, a =let= binding or a parameter of the name is accepted, and ignored at the call.
+So a binding of one of their names never shadows them, as a binding shadows every other special form: ~(let ($and (fn (a b) 1)) (:r (and true false)))~ is ={"r": false}=. Their names cannot name a =define/procedure= (=SYN0008=), but a key, a =let= binding or a parameter of the name is accepted and ignored at the call.
 
-Scheme avoids this because its expander knows the scope at each point; the fix is a scope-aware Canon.
-
-Found while fixing gap 43 (2026-11-08).
+Scheme avoids this because its expander knows the scope at each point; the fix is a scope-aware Canon. Found while fixing gap 43 (2026-11-08).
 
 ** OPEN An unknown top-level form is named by its Haskell constructor
 :PROPERTIES:
 :ID:       46
 :FOUND:    2026-11-08
 :END:
-A file's top level holds =define/procedure=, =graph=, =import= and =export= forms.
-- Any other, ~(foo f () 1)~, is =SYN0000=, =Invalid top-level keyword: Symbol "foo"=.
-- There is no blurb saying what may be written there.
-- An old =(defun ...)= is now reported this way.
-- Found while making =defun= an ordinary name (2026-11-08).
+A file's top level holds =define/procedure=, =graph=, =import= and =export= forms, and any other, ~(foo f () 1)~, is =SYN0000=, with no blurb saying what may be written there:
+
+#+begin_example
+Invalid top-level keyword: Symbol "foo"
+#+end_example
+
+An old =(defun ...)= is now reported this way. Found while making =defun= an ordinary name (2026-11-08).
 
 ** FIXED A name that began with =true=, =false= or =null= was read as that literal and a name
 :PROPERTIES:
@@ -3112,37 +2969,24 @@ A file's top level holds =define/procedure=, =graph=, =import= and =export= form
 :FOUND:    2026-11-11
 :FIXED_IN: 0.6.0.0
 :END:
-The lexer reads the literals without checking that the word ends there, as it does for the keywords.
-- =defnode= is a symbol.
+The lexer reads the literals without checking that the word ends there, as it does for the keywords (=defnode= is a symbol), so:
 
-So:
 - ~(define/procedure null-result (x) x)~ is =SYN0000=, =Expected a function name=, with no blurb;
 - ~(graph null-results ...)~ is =Expected graph name=;
 - ~(:null-ish 1 :r null-ish)~ reads =null-ish= as =null= and =-ish=, reported as a record of the wrong shape.
 
-A name that only contains them, =truthy=, =is-null=, is a symbol.
+A name that only contains them, =truthy=, =is-null=, is a symbol. Found while sketching a null-result pattern in Ouro (2026-11-11).
 
-Found while sketching a null-result pattern in Ouro (2026-11-11).
-
-/Fixed/ (2026-11-11): a word literal, as a keyword does, ends where a symbol could not go on.
-- So =null-result=, =truer= and =null-ish= are symbols.
-- =true= still ends at a delimiter, a space or a comment.
+/Fixed/ (2026-11-11): a word literal, as a keyword does, ends where a symbol could not go on, so =null-result=, =truer= and =null-ish= are symbols, and =true= still ends at a delimiter, a space or a comment.
 
 ** FIXED A whole number of ten million or more was written in scientific notation
 :PROPERTIES:
 :ID:       48
 :FIXED_IN: 0.6.0.0
 :END:
-The serialiser writes a Number with Haskell's =show=, dropping a trailing =.0=.
-- =show= switches to scientific notation at 10^7 and below 0.1.
-- So ~(:c 123456789)~ is written =1.23456789e8=, and ~(:r 0.00001)~ =1.0e-5=.
-- It is valid JSON and the same number.
-- But a whole number reads as a float to a person, and to a consumer that keeps the lexical form.
-  - This is against "integers are exact up to 2^53" in the Lexer table.
+The serialiser writes a Number with Haskell's =show=, dropping a trailing =.0=, and =show= switches to scientific notation at 10^7 and below 0.1, so ~(:c 123456789)~ is written =1.23456789e8= and ~(:r 0.00001)~ =1.0e-5=. It is valid JSON and the same number, but a whole number reads as a float to a person and to a consumer that keeps the lexical form, against "integers are exact up to 2^53" in the Lexer table.
 
-/Fixed/ (2026-11-13), with =to-string=:
-- one renderer, =renderNumber=, writes a Number for the output and for =to-string=, as JavaScript does;
-- see /Numbers in the output/ under Built-ins.
+/Fixed/ (2026-11-13), with =to-string=: one renderer, =renderNumber=, writes a Number for the output and for =to-string=, as JavaScript does (see /Numbers in the output/ under Built-ins).
 
 ** FIXED A =defn/const= written in an expression was an unknown qualifier =defn=
 :PROPERTIES:
@@ -3150,32 +2994,22 @@ The serialiser writes a Number with Haskell's =show=, dropping a trailing =.0=.
 :FOUND:    2026-11-14
 :FIXED_IN: 0.6.0.0
 :END:
-Inside an expression, the keywords =defn/const= and =defn/property= were read as symbols.
-- They were ="defn/const"= and ="defn/property"=, which look like a qualified name.
-- So ~(graph g (:r (defn/const q 1)))~ was =SCP0007=, =Unknown Qualifier: defn=, with an unbound identifier besides.
-- A local =defn= was =SYN0000=, "A defn can only appear at the top level of a file."
+Inside an expression, the keywords =defn/const= and =defn/property= were read as the symbols ="defn/const"= and ="defn/property"=, which look like a qualified name. So ~(graph g (:r (defn/const q 1)))~ was =SCP0007=, =Unknown Qualifier: defn=, with an unbound identifier besides, where a local =defn= was =SYN0000=, "A defn can only appear at the top level of a file." Found reviewing =defn/property= (2026-11-14).
 
-Found reviewing =defn/property= (2026-11-14).
+/Fixed/ (2026-11-14) by the rename to =define/procedure=, =define/property= and =define/constant=: the keywords a nested definition is recognised by are all three, so each in an expression is =SYN0000=:
 
-/Fixed/ (2026-11-14) by the rename to =define/procedure=, =define/property= and =define/constant=.
-- The keywords a nested definition is recognised by are all three.
-- So each in an expression is =SYN0000=, "A definition can only appear at the top level of a file."
+#+begin_example
+A definition can only appear at the top level of a file.
+#+end_example
 
 ** OPEN Decimal arithmetic is binary floating point
 :PROPERTIES:
 :ID:       51
 :FOUND:    2026-11-15
 :END:
-A Number is a Double, so a decimal written in source, such as =0.1=, has no exact form.
-- Arithmetic on decimals carries rounding error into the output, written as JavaScript would write it:
-  - ~(+ 0.1 0.2)~ is =0.30000000000000004=;
-  - ~(* 3 1.1)~ is =3.3000000000000003=.
-- Curators' numbers are mostly decimal measurements, so a summary worked out from them can show such digits.
-  - Summing the 500 weights of =test.ouro='s hoard, ~(fold weights 0 +)~, gives =1798.6400000000008=.
-- The number tower (=#integer=, =#natural=) does not touch it.
-- Exact decimals would, as a change of representation (an open design).
+A Number is a Double, so a decimal written in source, such as =0.1=, has no exact form, and arithmetic on decimals carries rounding error into the output: ~(+ 0.1 0.2)~ is =0.30000000000000004= and ~(* 3 1.1)~ is =3.3000000000000003=, written as JavaScript would write them.
 
-Found while updating =test.ouro= to 0.6 (2026-11-15).
+Curators' numbers are mostly decimal measurements, so a summary worked out from them can show such digits: summing the 500 weights of =test.ouro='s hoard, ~(fold weights 0 +)~, gives =1798.6400000000008=. The number tower (=#integer=, =#natural=) does not touch it; exact decimals would, as a change of representation (an open design). Found while updating =test.ouro= to 0.6 (2026-11-15).
 
 ** OPEN Compiling many records costs more than linear time
 :PROPERTIES:
@@ -3183,17 +3017,71 @@ Found while updating =test.ouro= to 0.6 (2026-11-15).
 :FOUND:    2026-11-15
 :PINNED:   the benchmark =hoard= (=cabal bench=), not a test: a timing cannot be asserted
 :END:
-A graph that builds many records costs nearly the square of their number.
-- The benchmark is a hoard of coins, each built through =std='s constructors as =test.ouro='s are (2026-11-15):
-  - 100 coins take 85 ms;
-  - 500 take 617 ms;
-  - 2000 take 7.73 s.
-- Five times the coins cost 7.3 times as much, and four times 12.5 times: about n^1.8.
-  - Linear growth would put 2000 coins near 2.5 s.
-- Some step does work in proportion to everything built so far, for each coin.
-- Not yet profiled (=+RTS -p=), so which step is unknown.
-- A fix shows in the benchmark: 2000 coins near four times the cost of 500.
+A graph that builds many records costs nearly the square of their number. The benchmark of a hoard of coins, each built through =std='s constructors as =test.ouro='s are, takes (2026-11-15):
 
-Found while benchmarking the pipeline (2026-11-15).
+- 85 ms for 100 coins;
+- 617 ms for 500;
+- 7.73 s for 2000.
+
+Five times the coins cost 7.3 times as much, and four times 12.5 times, about n^1.8, where linear growth would put 2000 coins near 2.5 s. Some step does work in proportion to everything built so far for each coin. Not yet profiled (=+RTS -p=), so which step is unknown. A fix shows in the benchmark: 2000 coins near four times the cost of 500. Found while benchmarking the pipeline (2026-11-15).
+
+* Appendix C: Benchmarks
+:PROPERTIES:
+:COLUMNS:  %16ITEM %MEASURED %CHANGE %GHC %MACHINE
+:END:
+
+The benchmarks of each version, as =cabal bench= measured them (=bench/Main.hs=, the =ouro-bench= suite).
+
+Each benchmark compiles a program in memory and renders it as JSON: the whole pipeline after reading the file, lexing, parsing, Canon, the static analysis, evaluation and serialisation. The bundled modules are loaded, and nothing is read from disk while it is timed.
+
+The groups:
+
+- *fixtures:* every fixture of =test/fixtures/ouro/=, linked.art's 211 examples and Ouro's own;
+- *hoard:* a generated hoard of 100, 500 and 2000 coins, each built through =std='s constructors.
+
+0.6.0.0 was measured before the two kinds of fixture were joined, so its tables keep them apart, as =canonical= (Ouro's own) and =linked-art=.
+
+Each version is a heading, recorded when the version is released and never changed afterwards. Its drawer holds the date measured, the change measured, the compiler and the machine. Times are tasty-bench's mean, with two standard deviations after =±=, and are comparable only between runs on the same machine.
+
+To record a version:
+
+- =cabal bench --benchmark-options='--csv b.csv'= runs every benchmark and keeps the results as a baseline;
+- =cabal bench --benchmark-options='--baseline b.csv --fail-if-slower 20'= compares a later run with it.
+
+** 0.6.0.0
+:PROPERTIES:
+:MEASURED: 2026-11-15
+:CHANGE:   qrlxsmwz, 0.6.0.0 with lint WRN0006, which changes no timing
+:GHC:      9.10.3, -O1, +RTS -A32m
+:MACHINE:  Intel Core i7-6600U, 2.60 GHz, 8 GB, Windows 10 Pro
+:END:
+
+| canonical                        |          Time |
+|----------------------------------+---------------|
+| amsterdam                        |  7.4 ms ± 0.1 |
+| auction-of-stowe-house           | 13.2 ms ± 1.1 |
+| bust-of-a-man                    |  9.2 ms ± 0.2 |
+| christie-ams                     |  5.8 ms ± 0.4 |
+| idea-for-manet-and-modern-beauty |  7.1 ms ± 0.7 |
+| jeanne-spring                    |  9.0 ms ± 0.7 |
+| purchase-of-spring               | 10.2 ms ± 0.0 |
+| the-night-watch                  |  2.4 ms ± 0.2 |
+
+| hoard      |          Time |
+|------------+---------------|
+| 100 coins  |     55 ms ± 3 |
+| 500 coins  |   569 ms ± 35 |
+| 2000 coins | 7.35 s ± 1.43 |
+
+The hoard grows about n^1.8: gap 52.
+
+| linked-art (211 examples)  |    Time |
+|----------------------------+---------|
+| fastest                    | 0.19 ms |
+| first quartile             | 0.44 ms |
+| median                     | 0.60 ms |
+| third quartile             | 0.83 ms |
+| slowest (=object-0=)       | 3.37 ms |
+| all 211, one after another |  147 ms |
 
 #  LocalWords:  Ouro LD
