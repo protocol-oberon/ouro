@@ -2,7 +2,7 @@ module Ouro.FixtureTest (tests) where
 
 import qualified Data.ByteString            as BS
 import           Data.Char                  (chr, digitToInt)
-import           Data.List                  (sort, sortOn)
+import           Data.List                  (groupBy, sort, sortOn)
 import           Data.Ouro                  (CompilationResult (..), compile,
                                              decodeSource, defaultOptions, toJSON)
 import           Data.String                (fromString)
@@ -29,16 +29,24 @@ import qualified Text.Megaparsec.Char.Lexer as L
 -- keys in any order, since JSON-LD gives them none, and an array's elements in theirs. Their
 -- text is not compared: linked.art's files are written by Python, which escapes every
 -- non-ASCII character and indents its own way. The folder is read when the tests start, so a
--- fixture added to it is tested with no change here.
-tests :: IO Group
+-- fixture added to it is tested with no change here. The fixtures are grouped by their kind,
+-- the word their name begins with, as linked.art's model pages are: object, person, ...
+tests :: IO [Group]
 tests = do
     files <- sort . filter ((== ".ouro") . takeExtension) <$> listDirectory ouroFolder
-    pure $ Group "Fixtures: each compiles to its JSON"
-        ( [ ("an object's keys are compared in any order", sameJson "{\"a\": 1, \"b\": 2}" "{\"b\": 2, \"a\": 1}" True)
-          , ("an array's elements are compared in order",  sameJson "[1, 2]" "[2, 1]" False)
-          , ("a value is compared at every depth",          sameJson "{\"a\": [{\"b\": 1, \"c\": 2}]}" "{\"a\": [{\"c\": 2, \"b\": 1}]}" True)
-          ]
-          <> [ (fromString name, compilesToItsJson name) | file <- files, let name = takeBaseName file ] )
+    let names = takeBaseName <$> files
+    pure $ Group "Fixtures: compared as JSON-LD reads them"
+               [ ("an object's keys are compared in any order", sameJson "{\"a\": 1, \"b\": 2}" "{\"b\": 2, \"a\": 1}" True)
+               , ("an array's elements are compared in order",  sameJson "[1, 2]" "[2, 1]" False)
+               , ("a value is compared at every depth",          sameJson "{\"a\": [{\"b\": 1, \"c\": 2}]}" "{\"a\": [{\"c\": 2, \"b\": 1}]}" True)
+               ]
+         : [ Group (fromString ("Fixtures: " <> kind first <> ", each compiles to its JSON"))
+                   [ (fromString name, compilesToItsJson name) | name <- ofKind ]
+           | ofKind@(first : _) <- groupBy (\a b -> kind a == kind b) names ]
+
+-- A fixture's kind: the word its name begins with, object of object-spring-1
+kind :: String -> String
+kind = takeWhile (/= '-')
 
 -- Whether two JSON texts are the same JSON value, as the fixtures are compared
 sameJson :: Text -> Text -> Bool -> Property

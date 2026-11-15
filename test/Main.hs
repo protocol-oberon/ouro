@@ -1,6 +1,7 @@
 module Main where
 
 import           Hedgehog
+import           Hedgehog.Internal.Property (GroupName (..))
 import qualified Ouro.AatTest        as Aat
 import qualified Ouro.AnalysisTest   as Analysis
 import qualified Ouro.BuildTest      as Build
@@ -22,10 +23,9 @@ main = withUtf8Console $ do
     -- The fixtures are found by listing their folder
     fixtures <- Fixture.tests
 
-    -- mapM runs checkParallel on each Group and returns a list of Bools [True, True, True]
-    results <- mapM checkParallel
-        [ fixtures
-        , Evaluation.tests
+    -- mapM runs checkParallel on each Group, in parts, and returns a list of Bools [True, True, True]
+    results <- mapM checkParallel . concatMap inParts $ fixtures <>
+        [ Evaluation.tests
         , Structural.tests
         -- Scoping redesign: each step adds its group here when it lands
         , Scoping.baseline
@@ -99,3 +99,17 @@ main = withUtf8Console $ do
     case and results of
         True  -> exitSuccess
         False -> exitFailure
+
+
+-- A group in parts of at most 25 properties, each named after it with its number, "Name (2/3)".
+-- Hedgehog redraws a running group in place, in a terminal, and a group taller than the
+-- terminal cannot be redrawn, which garbles the output below it.
+inParts :: Group -> [Group]
+inParts (Group (GroupName name) properties) =
+    case chunks properties of
+        [one] -> [Group (GroupName name) one]
+        parts -> zipWith part [1 :: Int ..] parts
+                 where part i = Group (GroupName (name <> " (" <> show i <> "/" <> show (length parts) <> ")"))
+    where
+    chunks [] = []
+    chunks xs = take 25 xs : chunks (drop 25 xs)
