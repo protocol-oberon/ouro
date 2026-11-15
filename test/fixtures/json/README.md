@@ -30,7 +30,5 @@ label Ouro's `aat` modules give it. Each change is a line of
 
 ## Ouro's own
 
-`bust-of-a-man`, `christie-ams`, `idea-for-manet-and-modern-beauty`, `jeanne-spring`,
-`purchase-of-spring` and `the-night-watch` were written for Ouro, from earlier
-Linked Art examples; `encoding` checks that text is read and written as UTF-8. Where linked.art
-publishes the same example, its version is kept and Ouro's is removed.
+`encoding` checks that text is read and written as UTF-8. The fixtures written for Ouro from
+earlier Linked Art examples were removed, as linked.art publishes each of them.

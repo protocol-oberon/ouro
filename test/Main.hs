@@ -4,7 +4,6 @@ import           Hedgehog
 import qualified Ouro.AatTest        as Aat
 import qualified Ouro.AnalysisTest   as Analysis
 import qualified Ouro.BuildTest      as Build
-import qualified Ouro.CanonicalTest  as Canonical
 import qualified Ouro.EvaluationTest as Evaluation
 import qualified Ouro.FixtureTest    as Fixture
 import qualified Ouro.FunctionTest   as Function
@@ -25,8 +24,7 @@ main = withUtf8Console $ do
 
     -- mapM runs checkParallel on each Group and returns a list of Bools [True, True, True]
     results <- mapM checkParallel
-        [ Canonical.tests
-        , fixtures
+        [ fixtures
         , Evaluation.tests
         , Structural.tests
         -- Scoping redesign: each step adds its group here when it lands

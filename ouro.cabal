@@ -229,7 +229,6 @@ test-suite ouro-test
         Ouro.AatTest
         Ouro.AnalysisTest
         Ouro.BuildTest
-        Ouro.CanonicalTest
         Ouro.StructuralTest
         Ouro.EvaluationTest
         Ouro.FixtureTest
