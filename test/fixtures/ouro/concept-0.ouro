@@ -1,29 +1,18 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/concept/0
+(import std/base)
+(import std/exhibition)
+(import std/vocab)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/constant abstract (base/statement-kind "300026032" "Abstract"))
+
+;; An exhibition as an idea, about an artist, conceived by a curator
 (graph concept-0
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/concept/0"
-   :type "PropositionalObject"
-   :_label "Gainsborough Exh."
-   :classified_as ((:id "http://vocab.getty.edu/aat/300417531"
-                    :type "Type"
-                    :_label "Exhibition"))
-   :identified_by ((:type "Name"
-                    :classified_as ((:id "http://vocab.getty.edu/aat/300404670"
-                                     :type "Type"
-                                     :_label "Primary Name"))
-                    :content "Gainsborough Exhibition"))
-   :referred_to_by ((:type "LinguisticObject"
-                     :classified_as ((:id "http://vocab.getty.edu/aat/300026032"
-                                      :type "Type"
-                                      :_label "Abstract"
-                                      :classified_as ((:id "http://vocab.getty.edu/aat/300418049"
-                                                       :type "Type"
-                                                       :_label "Brief Text"))))
-                     :content "A thorough analysis of the artist's life and work"))
-   :about ((:id "http://vocab.getty.edu/ulan/500115200"
-            :type "Person"
-            :_label "Gainsborough, Thomas"))
-   :created_by (:type "Creation"
-                :carried_out_by ((:id "http://vocab.getty.edu/ulan/500144588"
-                                  :type "Person"
-                                  :_label "Hayes, Brett")))))
+  (-> (exhibition/concept (example "concept/0") "Gainsborough Exh.")
+      (with :context        "https://linked.art/ns/v1/linked-art.json")
+      (with :identified_by  (list (base/name vocab/primary-name "Gainsborough Exhibition")))
+      (with :referred_to_by (list (base/statement abstract "A thorough analysis of the artist's life and work")))
+      (with :about          (list (base/ulan "500115200" "Person" "Gainsborough, Thomas")))
+      (with :created_by     (:type "Creation" :carried_out_by (list (base/ulan "500144588" "Person" "Hayes, Brett"))))))

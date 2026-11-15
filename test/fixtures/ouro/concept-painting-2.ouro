@@ -1,14 +1,16 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/concept/painting/2
+(import std/base)
+(import std/vocab)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure concept #record (#string slug #string label)
+  (:id (example (+ "concept/" slug)) :type "Type" :_label label))
+
+;; A local copy of a Getty term, labelled as the AAT labels it
 (graph concept-painting-2
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/concept/painting/2"
-   :type "Type"
-   :_label "Local Copy of Painting"
-   :identified_by ((:type "Name"
-                    :classified_as ((:id "http://vocab.getty.edu/aat/300404670"
-                                     :type "Type"
-                                     :_label "Primary Name"))
-                    :content "Painting"))
-   :equivalent ((:id "http://vocab.getty.edu/aat/300033618"
-                 :type "Type"
-                 :_label "painting (visual works)"))))
+  (-> (concept "painting/2" "Local Copy of Painting")
+      (with :context       "https://linked.art/ns/v1/linked-art.json")
+      (with :identified_by (list (base/name vocab/primary-name "Painting")))
+      (with :equivalent    (list (base/aat "300033618" "painting (visual works)")))))

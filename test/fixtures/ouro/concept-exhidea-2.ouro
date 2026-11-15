@@ -1,18 +1,13 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/concept/exhidea/2
+(import std/base)
+(import std/exhibition)
+(import std/vocab)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
 (graph concept-exhidea-2
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/concept/exhidea/2"
-   :type "PropositionalObject"
-   :_label "Idea for Manet and Modern Beauty"
-   :classified_as ((:id "http://vocab.getty.edu/aat/300417531"
-                    :type "Type"
-                    :_label "Exhibition"))
-   :identified_by ((:type "Name"
-                    :classified_as ((:id "http://vocab.getty.edu/aat/300404670"
-                                     :type "Type"
-                                     :_label "Primary Name"))
-                    :content "Manet and Modern Beauty"))
-   :created_by (:type "Creation"
-                :influenced_by ((:id "http://vocab.getty.edu/ulan/500010363"
-                                 :type "Person"
-                                 :_label "Manet")))))
+  (-> (exhibition/concept (example "concept/exhidea/2") "Idea for Manet and Modern Beauty")
+      (with :context       "https://linked.art/ns/v1/linked-art.json")
+      (with :identified_by (list (base/name vocab/primary-name "Manet and Modern Beauty")))
+      (with :created_by    (:type "Creation" :influenced_by (list (base/ulan "500010363" "Person" "Manet"))))))

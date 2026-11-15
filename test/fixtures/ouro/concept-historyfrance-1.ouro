@@ -1,13 +1,13 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/concept/historyFrance/1
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure concept #record (#string slug #string label)
+  (:id (example (+ "concept/" slug)) :type "Type" :_label label))
+
 (graph concept-historyfrance-1
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/concept/historyFrance/1"
-   :type "Type"
-   :_label "History of France"
-   :created_by (:type "Creation"
-                :influenced_by ((:id "https://linked.art/example/concept/history"
-                                 :type "Type"
-                                 :_label "History")
-                                (:id "https://linked.art/example/place/france"
-                                 :type "Place"
-                                 :_label "France")))))
+  (-> (concept "historyFrance/1" "History of France")
+      (with :context    "https://linked.art/ns/v1/linked-art.json")
+      (with :created_by (:type          "Creation"
+                         :influenced_by (list (concept "history" "History")
+                                              (:id (example "place/france") :type "Place" :_label "France"))))))

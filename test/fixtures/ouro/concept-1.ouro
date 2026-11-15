@@ -1,23 +1,22 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/concept/1
+(import std/base)
+(import std/vocab)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure concept #record (#string slug #string label)
+  (:id (example (+ "concept/" slug)) :type "Type" :_label label))
+
+;; A local concept: broader than another, equivalent to an external one, made from two others
 (graph concept-1
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/concept/1"
-   :type "Type"
-   :_label "History of France"
-   :identified_by ((:type "Name"
-                    :classified_as ((:id "http://vocab.getty.edu/aat/300404670"
-                                     :type "Type"
-                                     :_label "Primary Name"))
-                    :content "History of France"))
-   :member_of ((:type "Set"
-                :_label "Useful History Concepts"))
-   :broader ((:type "Type"
-              :_label "History of Europe"))
-   :equivalent ((:id "http://id.loc.gov/authorities/subjects/sh85051256"
-                 :type "Type"))
-   :created_by (:type "Creation"
-                :_label "Concept Creation"
-                :influenced_by ((:type "Type"
-                                 :_label "History")
-                                (:type "Place"
-                                 :_label "France")))))
+  (-> (concept "1" "History of France")
+      (with :context       "https://linked.art/ns/v1/linked-art.json")
+      (with :identified_by (list (base/name vocab/primary-name "History of France")))
+      (with :member_of     ((:type "Set" :_label "Useful History Concepts")))
+      (with :broader       ((:type "Type" :_label "History of Europe")))
+      (with :equivalent    ((:id #uri "http://id.loc.gov/authorities/subjects/sh85051256" :type "Type")))
+      (with :created_by    (:type          "Creation"
+                            :_label        "Concept Creation"
+                            :influenced_by ((:type "Type" :_label "History")
+                                            (:type "Place" :_label "France"))))))
