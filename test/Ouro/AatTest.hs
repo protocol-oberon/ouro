@@ -20,7 +20,8 @@ withAat :: Text -> Text
 withAat src = T.concat [ "(import aat/" <> m <> ") " | m <- modules ] <> src
     where
     modules = [ "name-type", "identifier-type", "statement-type", "object-type", "place-type", "group-type", "digital-type"
-              , "set-type", "dimension-type", "language", "unit", "material", "currency", "nationality", "occupation", "shape" ]
+              , "set-type", "dimension-type", "language", "language/iso", "unit", "material", "currency", "nationality"
+              , "occupation", "shape" ]
 
 aatToJSON :: Text -> Text -> Property
 aatToJSON src = compilesToJSON (withAat src)
@@ -66,6 +67,11 @@ recommendedTerms = Group "aat: Linked Art's recommended terms"
                                                              ("{" <> aat "300005768" <> ", \"type\": \"Type\", \"_label\": \"Museum (as Place)\"}"))
     , ("aat is a folder of modules",               failsWith "'aat' is a folder of modules, not a module" "(import aat) (graph g (:r 1))")
     , ("every term of the table is generated",     everyTermGenerated)
+    , ("an iso language has its code as its notation", aatToJSON "(graph g (iso/english))"
+                                                             ("{" <> aat "300388277" <> ", \"type\": \"Language\", \"_label\": \"English\", \"notation\": \"en\"}"))
+    , ("Ancient Greek's code is ISO 639-3's",      aatToJSON "(graph g (iso/ancient-greek))"
+                                                             ("{" <> aat "300387827" <> ", \"type\": \"Language\", \"_label\": \"Ancient Greek\", \"notation\": \"grc\"}"))
+    , ("every language has an iso variant",        everyLanguageHasIso)
     ]
 
 
@@ -76,14 +82,25 @@ everyTermGenerated :: Property
 everyTermGenerated = withTests 1 . property $ do
     table <- evalIO (readSourceFile "scripts/aat/recommended.tsv") >>= either (\err -> annotate (T.unpack err) >> failure) pure
     let terms     = [ number | line <- T.lines table, not ("##" `T.isPrefixOf` line), [_, number, _] <- [T.splitOn "\t" (T.strip line)] ]
-        sources   = [ source | (path, (_, source)) <- Map.toList bundled, "aat/" `T.isPrefixOf` path ]
+        sections  = [ entry | entry@(path, _) <- Map.toList bundled, "aat/" `T.isPrefixOf` path, path /= "aat/language/iso" ]
+        sources   = [ source | (_, (_, source)) <- sections ]
         missing   = [ number | number <- terms, not (any (("\"" <> number <> "\"") `T.isInfixOf`) sources) ]
-    exported <- traverse exportsOf [ (file, source) | (path, (file, source)) <- Map.toList bundled, "aat/" `T.isPrefixOf` path ]
+    exported <- traverse (fmap length . exportsOf) [ file | (_, file) <- sections ]
     length terms === 195
     length sources === 16
     sum exported === length terms
     missing === []
-    where
-    exportsOf (file, source) = case tokenize file source >>= parseModule of
-                                   Right m  -> pure (length (M._exports m))
-                                   Left err -> annotate (show err) >> failure
+
+-- aat/language/iso, a variant of aat/language, exports exactly its languages
+everyLanguageHasIso :: Property
+everyLanguageHasIso = withTests 1 . property $ do
+    languages <- traverse exportsOf (Map.lookup "aat/language" bundled)
+    iso       <- traverse exportsOf (Map.lookup "aat/language/iso" bundled)
+    fmap length languages === Just 31
+    iso === languages
+
+-- The names a bundled module exports
+exportsOf :: (FilePath, Text) -> PropertyT IO [Text]
+exportsOf (file, source) = case tokenize file source >>= parseModule of
+                               Right m  -> pure (map fst (M._exports m))
+                               Left err -> annotate (show err) >> failure
