@@ -1,56 +1,41 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/digital/0
+(import std/base)
+(import std/object)
+(import aat/digital-type)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure digital #record (#string slug #string label)
+  (:id (example (+ "digital/" slug)) :type "DigitalObject" :_label label))
+
+;; Something the digital object points at, known by its URL alone
+(define/procedure at #record (#uri url)
+  (:id url :type "DigitalObject"))
+
+(define/constant pixels          (object/unit "300266190" "pixels"))
+(define/constant owner-assigned  (base/aat "300404621" "Owner-Assigned Number"))
+
 (graph digital-0
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/digital/0"
-   :type "DigitalObject"
-   :_label "Digital Image of Self-Portrait of Van Gogh"
-   :classified_as ((:id "http://vocab.getty.edu/aat/300215302"
-                    :type "Type"
-                    :_label "Digital Image"))
-   :identified_by ((:type "Name"
-                    :content "Self-Portrait Dedicated to Paul Gauguin")
-                   (:type "Identifier"
-                    :classified_as ((:id "http://vocab.getty.edu/aat/300404621"
-                                     :type "Type"
-                                     :_label "Owner-Assigned Number"))
-                    :content "47174896"))
-   :dimension ((:type "Dimension"
-                :classified_as ((:id "http://vocab.getty.edu/aat/300055644"
-                                 :type "Type"
-                                 :_label "Height"))
-                :value 2550
-                :unit (:id "http://vocab.getty.edu/aat/300266190"
-                       :type "MeasurementUnit"
-                       :_label "pixels"))
-               (:type "Dimension"
-                :classified_as ((:id "http://vocab.getty.edu/aat/300055647"
-                                 :type "Type"
-                                 :_label "Width"))
-                :value 2087
-                :unit (:id "http://vocab.getty.edu/aat/300266190"
-                       :type "MeasurementUnit"
-                       :_label "pixels")))
-   :part_of ((:id "https://iiif.harvardartmuseums.org/manifests/object/299843"
-              :type "DigitalObject"
-              :_label "IIIF Manifest"))
-   :member_of ((:id "https://linked.art/example/set/0"
-                :type "Set"
-                :_label "Images of Self-Portraits of Van Gogh"))
-   :access_point ((:id "https://ids.lib.harvard.edu/ids/iiif/47174896/full/full/0/default.jpg"
-                   :type "DigitalObject"))
-   :digitally_shows ((:type "VisualItem"
-                      :_label "Visual Content of Self-Portrait of Van Gogh"))
-   :format "image/jpeg"
-   :digitally_available_via ((:type "DigitalService"
-                              :_label "IIIF Service"
-                              :access_point ((:id "https://ids.lib.harvard.edu/ids/iiif/47174896"
-                                              :type "DigitalObject"))
-                              :conforms_to ((:id "https://iiif.io/api/image/2/context.json"
-                                             :type "InformationObject"))))
-   :created_by (:type "Creation"
-                :carried_out_by ((:id "https://linked.art/example/group/harvardartmuseums.org"
-                                  :type "Group"
-                                  :_label "Harvard Art Museums"))
-                :used_specific_object ((:id "https://harvardartmuseums.org/collections/object/299843"
-                                        :type "HumanMadeObject"
-                                        :_label "Self-Portrait of Van Gogh")))))
+  (-> (digital "0" "Digital Image of Self-Portrait of Van Gogh")
+      (with :context                 "https://linked.art/ns/v1/linked-art.json")
+      (with :classified_as           (list digital-type/digital-image))
+      (with :identified_by           ((:type "Name" :content "Self-Portrait Dedicated to Paul Gauguin")
+                                      (base/identifier owner-assigned "47174896")))
+      (with :dimension               (list (object/height 2550 pixels)
+                                           (object/width 2087 pixels)))
+      (with :part_of                 (list (with (at #uri "https://iiif.harvardartmuseums.org/manifests/object/299843")
+                                                 :_label "IIIF Manifest")))
+      (with :member_of               ((:id (example "set/0") :type "Set" :_label "Images of Self-Portraits of Van Gogh")))
+      (with :access_point            (list (at #uri "https://ids.lib.harvard.edu/ids/iiif/47174896/full/full/0/default.jpg")))
+      (with :digitally_shows         ((:type "VisualItem" :_label "Visual Content of Self-Portrait of Van Gogh")))
+      (with :format                  "image/jpeg")
+      (with :digitally_available_via ((:type         "DigitalService"
+                                       :_label       "IIIF Service"
+                                       :access_point (list (at #uri "https://ids.lib.harvard.edu/ids/iiif/47174896"))
+                                       :conforms_to  ((:id #uri "https://iiif.io/api/image/2/context.json" :type "InformationObject")))))
+      (with :created_by              (:type                 "Creation"
+                                      :carried_out_by       ((:id (example "group/harvardartmuseums.org") :type "Group" :_label "Harvard Art Museums"))
+                                      :used_specific_object ((:id     #uri "https://harvardartmuseums.org/collections/object/299843"
+                                                              :type   "HumanMadeObject"
+                                                              :_label "Self-Portrait of Van Gogh"))))))
