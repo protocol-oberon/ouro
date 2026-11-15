@@ -1292,4 +1292,14 @@ These are agreed directions for Ouro, roughly in the order they will be built. N
 - **Search:** an Ouro Hoogle, finding functions by name, by signature and by their documentation.
 - **Geometry** (on hold): a `#wkt` property for the WKT string of a place's `defined_by`, and functions that build it from numbers, `(place/point 4.9 52.37)`, with `to-string`.
 - **Error codes:** codes generated from what each error is, so that a code alone says what happened, and the same mistake is always worded the same way.
+- **Prose:** a long string written over several lines, as a statement's text often is. `(prose lines)` takes an Array of Strings, trims each, and joins them with single spaces, so the text is written at any width and output as the one paragraph it is:
+
+  ``` clojure
+  (base/statement statement-type/biography-statement
+    (prose ("A group of British painters formed in 1911; although it only lasted two years,"
+            "its name is used in a broader sense to characterize a particular strain of British"
+            "painting from about 1905 to 1920.")))
+  ```
+
+  A `prose` of written strings is the string it joins, so it can be written wherever a string can, a function's `doc` included: `(doc (prose (...)))`.
 
