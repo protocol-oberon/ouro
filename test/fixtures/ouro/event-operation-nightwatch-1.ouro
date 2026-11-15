@@ -2,6 +2,7 @@
 (import std/base)
 (import std/time)
 (import std/vocab)
+(import aat/activity-type)
 
 (define/procedure example #uri (#string path)
   (+ "https://linked.art/example/" path))
@@ -15,7 +16,7 @@
 (graph event-operation-nightwatch-1
   (-> (activity "operation_nightwatch/1" "Conservation Project")
       (with :context        "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as  (list (base/aat "300404519" "Conservation Activity")))
+      (with :classified_as  (list activity-type/conservation-activity))
       (with :identified_by  (list (base/name vocab/primary-name "Operation Night Watch")))
       (with :referred_to_by (list (base/description "Operation Night Watch is the biggest and most wide-ranging ever study of Rembrandt’s most famous painting.")))
       (with :timespan       (time/year-range "2019" "2023"))

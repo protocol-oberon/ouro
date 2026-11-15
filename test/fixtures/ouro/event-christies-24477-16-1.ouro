@@ -1,6 +1,7 @@
 ;; linked.art's example, written in Ouro: https://linked.art/example/event/christies_24477_16/1
 (import std/base)
 (import std/vocab)
+(import aat/activity-type)
 
 (define/procedure example #uri (#string path)
   (+ "https://linked.art/example/" path))
@@ -12,7 +13,7 @@
 (graph event-christies-24477-16-1
   (-> (activity "christies_24477_16/1" "Auction of Lot 16")
       (with :context              "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as        (list (base/aat "300420001" "Auction of Lot")))
+      (with :classified_as        (list activity-type/auction-of-lot))
       (with :identified_by        (list (base/name vocab/primary-name "Auction of Lot 16")))
       (with :used_specific_object ((:id (example "set/24477_16_objects") :type "Set" :_label "Lot 16")))
       (with :part_of              ((:id (example "event/christies_24477") :type "Activity")))))

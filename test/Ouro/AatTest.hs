@@ -21,7 +21,7 @@ withAat src = T.concat [ "(import aat/" <> m <> ") " | m <- modules ] <> src
     where
     modules = [ "name-type", "identifier-type", "statement-type", "object-type", "place-type", "group-type", "digital-type"
               , "set-type", "dimension-type", "language", "language/iso", "unit", "material", "currency", "nationality"
-              , "occupation", "shape" ]
+              , "occupation", "shape", "activity-type" ]
 
 aatToJSON :: Text -> Text -> Property
 aatToJSON src = compilesToJSON (withAat src)
@@ -72,24 +72,35 @@ recommendedTerms = Group "aat: Linked Art's recommended terms"
     , ("Ancient Greek's code is ISO 639-3's",      aatToJSON "(graph g (iso/ancient-greek))"
                                                              ("{" <> aat "300387827" <> ", \"type\": \"Language\", \"_label\": \"Ancient Greek\", \"notation\": \"grc\"}"))
     , ("every language has an iso variant",        everyLanguageHasIso)
+    , ("a term of the examples joins its section", aatToJSON "(graph g (group-type/society))"
+                                                             ("{" <> aat "300026009" <> ", \"type\": \"Type\", \"_label\": \"Society\"}"))
+    , ("an activity type is a plain Type",         aatToJSON "(graph g (activity-type/auction-event))"
+                                                             ("{" <> aat "300054751" <> ", \"type\": \"Type\", \"_label\": \"Auction Event\"}"))
+    , ("a name's trailing parenthesis is dropped", aatToJSON "(graph g (:p (place-type/auction-house) :g (group-type/auction-house)))"
+                                                             ("{\"p\": {" <> aat "300005234" <> ", \"type\": \"Type\", \"_label\": \"Auction House (place)\"}, \"g\": {" <> aat "300417515" <> ", \"type\": \"Type\", \"_label\": \"Auction House (organization)\"}}"))
     ]
 
 
--- Every term of Linked Art's table is a constant of its section's module, by its number: the
--- modules are generated from the table, so a module edited by hand, or not regenerated after
--- the table changed, fails here
+-- Every term of Linked Art's two tables, its recommended terms and those of its examples, is a
+-- constant of its section's module, by its number: the modules are generated from the tables,
+-- so a module edited by hand, or not regenerated after a table changed, fails here
 everyTermGenerated :: Property
 everyTermGenerated = withTests 1 . property $ do
-    table <- evalIO (readSourceFile "scripts/aat/recommended.tsv") >>= either (\err -> annotate (T.unpack err) >> failure) pure
-    let terms     = [ number | line <- T.lines table, not ("##" `T.isPrefixOf` line), [_, number, _] <- [T.splitOn "\t" (T.strip line)] ]
+    recommended <- table "scripts/aat/recommended.tsv"
+    examples    <- table "scripts/aat/examples.tsv"
+    let terms     = recommended <> examples
         sections  = [ entry | entry@(path, _) <- Map.toList bundled, "aat/" `T.isPrefixOf` path, path /= "aat/language/iso" ]
         sources   = [ source | (_, (_, source)) <- sections ]
         missing   = [ number | number <- terms, not (any (("\"" <> number <> "\"") `T.isInfixOf`) sources) ]
     exported <- traverse (fmap length . exportsOf) [ file | (_, file) <- sections ]
-    length terms === 195
-    length sources === 16
+    length recommended === 195
+    length sources === 17
     sum exported === length terms
     missing === []
+    where
+    table path = do
+        text <- evalIO (readSourceFile path) >>= either (\err -> annotate (T.unpack err) >> failure) pure
+        pure [ number | line <- T.lines text, not ("##" `T.isPrefixOf` line), [_, number, _] <- [T.splitOn "\t" (T.strip line)] ]
 
 -- aat/language/iso, a variant of aat/language, exports exactly its languages
 everyLanguageHasIso :: Property

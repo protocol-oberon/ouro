@@ -2,6 +2,7 @@
 (import std/base)
 (import std/time)
 (import std/vocab)
+(import aat/activity-type)
 
 (define/procedure example #uri (#string path)
   (+ "https://linked.art/example/" path))
@@ -13,7 +14,7 @@
 (graph event-exhab-1
   (-> (activity "exhab/1" "Manet and Modern Beauty")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as (list (base/aat "300054773" "Exhibiting in multiple locations")))
+      (with :classified_as (list activity-type/exhibiting-in-multiple-locations))
       (with :identified_by (list (base/name vocab/primary-name "Manet and Modern Beauty")))
       (with :timespan      (time/day-range "2019-05-26" "2020-01-12"))
       (with :influenced_by ((:id (example "concept/exhidea") :type "PropositionalObject" :_label "Idea for Manet and Modern Beauty")))))

@@ -13,8 +13,8 @@
 (define/procedure at #record (#uri url)
   (:id url :type "DigitalObject"))
 
-(define/constant pixels          (object/unit "300266190" "pixels"))
-(define/constant owner-assigned  (base/aat "300404621" "Owner-Assigned Number"))
+;; linked.art labels AAT's Local Number "Owner-Assigned Number"
+(define/constant owner-assigned (base/aat "300404621" "Owner-Assigned Number"))
 
 (graph digital-0
   (-> (digital "0" "Digital Image of Self-Portrait of Van Gogh")
@@ -22,8 +22,8 @@
       (with :classified_as           (list digital-type/digital-image))
       (with :identified_by           ((:type "Name" :content "Self-Portrait Dedicated to Paul Gauguin")
                                       (base/identifier owner-assigned "47174896")))
-      (with :dimension               (list (object/height 2550 pixels)
-                                           (object/width 2087 pixels)))
+      (with :dimension               (list (object/height 2550 object/pixels)
+                                           (object/width 2087 object/pixels)))
       (with :part_of                 (list (with (at #uri "https://iiif.harvardartmuseums.org/manifests/object/299843")
                                                  :_label "IIIF Manifest")))
       (with :member_of               ((:id (example "set/0") :type "Set" :_label "Images of Self-Portraits of Van Gogh")))

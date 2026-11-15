@@ -193,7 +193,7 @@ object = Group "std/object: physical characteristics"
                                                              "[\"Dimensions Statement\", \"Materials Statement\"]")
     , ("part-type is classified Part Type",        stdToJSON "(graph g (object/part-type \"300014844\" \"Support\"))"
                                                              "{\"id\": \"http://vocab.getty.edu/aat/300014844\", \"type\": \"Type\", \"_label\": \"Support\", \"classified_as\": [{\"id\": \"http://vocab.getty.edu/aat/300241583\", \"type\": \"Type\", \"_label\": \"Part Type\"}]}")
-    , ("std/object exports these only",            stdFailsWith "exports: centimeters, depth, dimension, dimension-statement, feet, grams, height, inches, kilograms, material, material-statement, meters, millimeters, part-type, pounds, unit, weight, width."
+    , ("std/object exports these only",            stdFailsWith "exports: centimeters, day-unit, depth, dimension, dimension-statement, feet, grams, height, inches, kilobytes, kilograms, material, material-statement, meters, millimeters, part-type, pixels, pounds, unit, weight, width."
                                                                 "(graph g object/nope)")
     ]
 

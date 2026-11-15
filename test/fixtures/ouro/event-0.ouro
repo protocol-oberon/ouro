@@ -1,6 +1,7 @@
 ;; linked.art's example, written in Ouro: https://linked.art/example/event/0
 (import std/base)
 (import std/time)
+(import aat/activity-type)
 
 (define/procedure example #uri (#string path)
   (+ "https://linked.art/example/" path))
@@ -8,7 +9,7 @@
 (define/procedure activity #record (#string slug #string label)
   (:id (example (+ "event/" slug)) :type "Activity" :_label label))
 
-(define/constant auction-event  (base/aat "300054751" "Auction Event"))
+;; linked.art labels AAT's Local Number "Owner-Assigned Number", and its Display Name "Display Title"
 (define/constant owner-assigned (base/aat "300404621" "Owner-Assigned Number"))
 (define/constant display-title  (base/aat "300404669" "Display Title"))
 
@@ -16,7 +17,7 @@
 (graph event-0
   (-> (activity "0" "Foster Auction of March 1820")
       (with :context              "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as        (list auction-event))
+      (with :classified_as        (list activity-type/auction-event))
       (with :identified_by        ((:type "Name" :content "Edward Foster Auction of March 1820")
                                    (base/identifier owner-assigned "Br1908")))
       (with :referred_to_by       (list (base/description "Besides paintings, this sale included a few lots with musical instruments and watches. The owners were a number of dealers who regularly consigned their wares to this auctioneer, despite the fact that the title page names \"A Gentleman\" as the owner.")))

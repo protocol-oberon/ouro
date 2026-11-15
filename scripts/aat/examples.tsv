@@ -1,0 +1,16 @@
+## Statement Types
+Biography Statement	300435422	A statement about the life or history of a person or group
+Abstract	300026032	A brief summary of the content of a work
+## Place Types
+Auction House (place)	300005234	The Place is an auction house's location
+## Group Types
+Society	300026009	The Group is a society of people with a shared interest
+Studio	300404275	The Group is an artist's studio, its assistants working with the artist
+Auction House (organization)	300417515	The Group is an auction house
+## Dimension Types
+File Size	300265863	The Dimension measures the size of a digital file
+## Activity Types
+Auction Event	300054751	The Activity is an auction, of a set of lots
+Auction of Lot	300420001	The Activity is the auction of one lot, part of an auction event
+Exhibiting in multiple locations	300054773	The Activity is an exhibition over all its venues
+Conservation Activity	300404519	The Activity is the conservation of an object

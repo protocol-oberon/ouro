@@ -1,17 +1,14 @@
 ;; linked.art's example, written in Ouro: https://linked.art/example/digital/operation_nw/1
-(import std/base)
 (import std/object)
 (import std/time)
 (import aat/digital-type)
+(import aat/dimension-type)
 
 (define/procedure example #uri (#string path)
   (+ "https://linked.art/example/" path))
 
 (define/procedure digital #record (#string slug #string label)
   (:id (example (+ "digital/" slug)) :type "DigitalObject" :_label label))
-
-(define/constant file-size (base/aat "300265863" "File Size"))
-(define/constant kilobytes (object/unit "300265870" "kilobytes"))
 
 ;; A web page, published over three days; linked.art ends them at midnight, so the span is
 ;; written out
@@ -20,7 +17,7 @@
       (with :context           "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as     (list digital-type/web-page))
       (with :identified_by     ((:type "Name" :content "Operation Night Watch")))
-      (with :dimension         (list (with (object/dimension file-size 220 kilobytes) :_label "220 kb")))
+      (with :dimension         (list (with (object/dimension dimension-type/file-size 220 object/kilobytes) :_label "220 kb")))
       (with :access_point      ((:id #uri "https://www.rijksmuseum.nl/en/stories/operation-night-watch" :type "DigitalObject")))
       (with :format            "text/html")
       (with :conforms_to       ((:id #uri "http://w3.org/TR/html" :type "InformationObject")))

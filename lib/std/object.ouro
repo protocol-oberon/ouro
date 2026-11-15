@@ -1,7 +1,7 @@
 ;; std/object: an object's physical characteristics, from linked.art/model/object/physical:
 ;; its dimensions, the units they are measured in, its materials, and the statements and
-;; part types that describe them. Units are Linked Art's recommended ones, typed
-;; MeasurementUnit; a material is typed Material, with no meta-type.
+;; part types that describe them. Units are Linked Art's recommended ones, and those its
+;; examples use, typed MeasurementUnit; a material is typed Material, with no meta-type.
 (import std/base)
 
 (export dimension
@@ -18,6 +18,9 @@
         grams
         kilograms
         pounds
+        day-unit
+        pixels
+        kilobytes
         material
         dimension-statement
         material-statement
@@ -59,6 +62,9 @@
 (define/constant grams       (doc "Grams, a unit of weight.")       (unit "300379225" "grams"))
 (define/constant kilograms   (doc "Kilograms, a unit of weight.")   (unit "300379226" "kilograms"))
 (define/constant pounds      (doc "Pounds, a unit of weight.")      (unit "300379254" "pounds"))
+(define/constant day-unit    (doc "Days, a unit of time, for a duration; days is the built-in.") (unit "300379242" "days"))
+(define/constant pixels      (doc "Pixels, a unit of a digital image's size.") (unit "300266190" "pixels"))
+(define/constant kilobytes   (doc "Kilobytes, a unit of a digital file's size.") (unit "300265870" "kilobytes"))
 
 ;; Materials, statements and parts
 

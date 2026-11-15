@@ -1,5 +1,6 @@
 ;; linked.art's example, written in Ouro: https://linked.art/example/group/harwoodstudio/1
 (import std/base)
+(import aat/group-type)
 
 (define/procedure example #uri (#string path)
   (+ "https://linked.art/example/" path))
@@ -7,12 +8,10 @@
 (define/procedure group #record (#string slug #string label)
   (:id (example (+ "group/" slug)) :type "Group" :_label label))
 
-(define/constant studio (base/aat "300404275" "Studio"))
-
 ;; A studio, formed under the influence of its master
 (graph group-harwoodstudio-1
   (-> (group "harwoodstudio/1" "Studio of Francis Harwood")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as (list studio))
+      (with :classified_as (list group-type/studio))
       (with :formed_by     (:type          "Formation"
                             :influenced_by (list (base/ulan "500015886" "Person" "Francis Harwood"))))))

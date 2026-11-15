@@ -1,16 +1,17 @@
 # Generates the bundled aat/ modules, lib/aat/*.ouro, from Linked Art's recommended terms,
-# the table extract.pl writes: one module per section of the table, one constant per term,
-# built with the std constructor of the pattern Linked Art gives that kind of term.
+# the table extract.pl writes, and from the terms Linked Art's examples use beyond them, the
+# table examples.tsv, written by hand in the same form: one module per section, one constant
+# per term, built with the std constructor of the pattern Linked Art gives that kind of term.
 #
-#   perl scripts/aat/generate.pl scripts/aat/recommended.tsv lib/aat
+#   perl scripts/aat/generate.pl scripts/aat/recommended.tsv scripts/aat/examples.tsv lib/aat
 #
-# The modules are generated, never edited: change the table or this script, and run it again.
+# The modules are generated, never edited: change a table or this script, and run it again.
 use strict;
 use warnings;
 use Text::Wrap qw(wrap $columns);
 
-my ($table, $out) = @ARGV;
-die "usage: generate.pl recommended.tsv lib/aat\n" unless $table && $out;
+my ($table, $examples, $out) = @ARGV;
+die "usage: generate.pl recommended.tsv examples.tsv lib/aat\n" unless $table && $examples && $out;
 
 # Each section of the table: its module, the std module and constructor that build its terms,
 # what its terms are, and, for a term that is an instance rather than a Type, what the
@@ -33,6 +34,7 @@ my %sections = (
     "Nationalities"     => ["nationality",     "std/base",       "base/nationality",    "each classified as Nationality, as Linked Art requires", "a nationality"],
     "Occupations"       => ["occupation",      "std/base",       "base/occupation",     "each classified as Occupation, as Linked Art requires",  "an occupation"],
     "Shapes"            => ["shape",           "std/base",       "base/shape",          "each classified as Shape, as Linked Art requires",       "a shape"],
+    "Activity Types"    => ["activity-type",   "std/base",       "base/aat",            "each a Type, to classify an Activity"],
 );
 
 # Names that cannot be a term's own: the time units are built-ins, and map is a special form
@@ -61,10 +63,11 @@ my %iso = (
 );
 
 # A term's function name, from its name in the table: Given Name is given-name, partsUnit is
-# parts, and Museum (as Place) is museum, the module saying it is a Place
+# parts, and Museum (as Place) is museum, the module saying it is a Place, as Auction House
+# (place) is place-type/auction-house
 sub function_name {
     my ($module, $name) = @_;
-    $name =~ s/\s*\(as [^)]*\)//;
+    $name =~ s/\s*\([^)]*\)$//;
     $name =~ s/Unit$//;
     $name = lc $name;
     $name =~ s/[^a-z0-9]+/-/g;
@@ -87,34 +90,44 @@ sub quoted {
     return "\"$text\"";
 }
 
-# The table, by section, in the table's order
-my (@order, %terms, $section);
-open(my $in, "<", $table) or die "cannot read $table: $!\n";
-while (my $line = <$in>) {
-    chomp $line;
-    $line =~ s/\r$//;
-    next if $line eq "";
-    if ($line =~ /^## (.*)$/) {
-        $section = $1;
-        die "unknown section '$section'\n" unless $sections{$section};
-        push @order, $section;
-        next;
+# The tables, by section, in their order: the recommended terms, then those of the examples,
+# each section's after the recommended ones, and a section only the examples have last
+my (@order, %terms, %examined);
+for my $source ([$table, 0], [$examples, 1]) {
+    my ($file, $from_examples) = @$source;
+    my $section;
+    open(my $in, "<", $file) or die "cannot read $file: $!\n";
+    while (my $line = <$in>) {
+        chomp $line;
+        $line =~ s/\r$//;
+        next if $line eq "";
+        if ($line =~ /^## (.*)$/) {
+            $section = $1;
+            die "unknown section '$section'\n" unless $sections{$section};
+            push @order, $section unless $terms{$section};
+            $terms{$section} //= [];
+            next;
+        }
+        my ($name, $number, $description) = split /\t/, $line;
+        die "not an AAT number in '$line'\n" unless $number =~ /^300\d{6}$/;
+        push @{$terms{$section}}, [$name, $number, $description, $from_examples];
+        $examined{$section} = 1 if $from_examples;
     }
-    my ($name, $number, $description) = split /\t/, $line;
-    die "not an AAT number in '$line'\n" unless $number =~ /^300\d{6}$/;
-    push @{$terms{$section}}, [$name, $number, $description];
+    close $in;
 }
 
 for my $section (@order) {
     my ($module, $import, $constructor, $what, $noun) = @{$sections{$section}};
-    my (@names, %seen, @defs);
+    my (@names, %seen, @defs, $recommended);
     for my $term (@{$terms{$section}}) {
-        my ($name, $number, $description) = @$term;
+        my ($name, $number, $description, $from_examples) = @$term;
         my $function = function_name($module, $name);
         die "two terms named '$function' in aat/$module\n" if $seen{$function}++;
         my ($label, $doc) = defined $noun
                           ? (capitalised($description), capitalised($description) . ", $noun.")
                           : ($name, $description =~ /\.$/ ? $description : "$description.");
+        $doc .= " From Linked Art's examples, not its recommended list." if $from_examples;
+        $recommended = 1 unless $from_examples;
         push @names, $function;
         push @defs, [$function, $doc, $number, $label];
     }
@@ -126,8 +139,16 @@ for my $section (@order) {
     open(my $fh, ">", $file) or die "cannot write $file: $!\n";
     binmode $fh;
     $columns = 96;
-    print $fh wrap(";; ", ";; ", "aat/$module: the " . lc($section) . " Linked Art recommends, from linked.art/model/vocab/recommended, $what."
-                               . " Generated by scripts/aat/generate.pl from scripts/aat/recommended.tsv: regenerate it, never edit it.") . "\n";
+    my $source = $recommended && $examined{$section}
+               ? "the " . lc($section) . " Linked Art recommends, from linked.art/model/vocab/recommended, and those its examples use"
+               : $recommended
+               ? "the " . lc($section) . " Linked Art recommends, from linked.art/model/vocab/recommended"
+               : "the " . lc($section) . " Linked Art's examples use";
+    my $tables = $examined{$section}
+               ? ($recommended ? "scripts/aat/recommended.tsv and scripts/aat/examples.tsv" : "scripts/aat/examples.tsv")
+               : "scripts/aat/recommended.tsv";
+    print $fh wrap(";; ", ";; ", "aat/$module: $source, $what."
+                               . " Generated by scripts/aat/generate.pl from $tables: regenerate it, never edit it.") . "\n";
     print $fh "(import $import)\n\n";
     print $fh "(export " . join("\n        ", @names) . ")\n\n";
     for my $def (@defs) {

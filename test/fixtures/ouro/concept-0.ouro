@@ -2,17 +2,16 @@
 (import std/base)
 (import std/exhibition)
 (import std/vocab)
+(import aat/statement-type)
 
 (define/procedure example #uri (#string path)
   (+ "https://linked.art/example/" path))
-
-(define/constant abstract (base/statement-kind "300026032" "Abstract"))
 
 ;; An exhibition as an idea, about an artist, conceived by a curator
 (graph concept-0
   (-> (exhibition/concept (example "concept/0") "Gainsborough Exh.")
       (with :context        "https://linked.art/ns/v1/linked-art.json")
       (with :identified_by  (list (base/name vocab/primary-name "Gainsborough Exhibition")))
-      (with :referred_to_by (list (base/statement abstract "A thorough analysis of the artist's life and work")))
+      (with :referred_to_by (list (base/statement statement-type/abstract"A thorough analysis of the artist's life and work")))
       (with :about          (list (base/ulan "500115200" "Person" "Gainsborough, Thomas")))
       (with :created_by     (:type "Creation" :carried_out_by (list (base/ulan "500144588" "Person" "Hayes, Brett"))))))
