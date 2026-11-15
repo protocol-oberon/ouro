@@ -17,7 +17,7 @@ Their `.ouro` files are conversions of them to Ouro, made for Ouro's tests and b
 
 ## Ouro's own
 
-`amsterdam`, `auction-of-stowe-house`, `bust-of-a-man`, `christie-ams`,
-`idea-for-manet-and-modern-beauty`, `jeanne-spring`, `purchase-of-spring` and `the-night-watch`
-were written for Ouro, from earlier Linked Art examples; `encoding` checks that text is read
-and written as UTF-8.
+`auction-of-stowe-house`, `bust-of-a-man`, `christie-ams`, `idea-for-manet-and-modern-beauty`,
+`jeanne-spring`, `purchase-of-spring` and `the-night-watch` were written for Ouro, from earlier
+Linked Art examples; `encoding` checks that text is read and written as UTF-8. Where linked.art
+publishes the same example, its version is kept and Ouro's is removed.

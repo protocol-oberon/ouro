@@ -1,11 +1,12 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/place/amsterdam_auction_house/1
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure place #record (#string slug #string label)
+  (:id (example (+ "place/" slug)) :type "Place" :_label label))
+
 (graph place-amsterdam-auction-house-1
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/place/amsterdam_auction_house/1"
-   :type "Place"
-   :_label "Christie's AMS"
-   :identified_by ((:type "Name"
-                    :content "Christie's Amsterdam Location"))
-   :part_of ((:id "https://linked.art/example/place/amsterdam"
-              :type "Place"
-              :_label "Amsterdam"))))
+  (-> (place "amsterdam_auction_house/1" "Christie's AMS")
+      (with :context       "https://linked.art/ns/v1/linked-art.json")
+      (with :identified_by ((:type "Name" :content "Christie's Amsterdam Location")))
+      (with :part_of       (list (place "amsterdam" "Amsterdam")))))
