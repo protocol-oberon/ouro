@@ -3028,6 +3028,13 @@ A graph that builds many records costs nearly the square of their number. The be
 
 Five times the coins cost 7.3 times as much, and four times 12.5 times, about n^1.8, where linear growth would put 2000 coins near 2.5 s. Some step does work in proportion to everything built so far for each coin. Not yet profiled (=+RTS -p=), so which step is unknown. A fix shows in the benchmark: 2000 coins near four times the cost of 500. Found while benchmarking the pipeline (2026-11-15).
 
+** OPEN A =#date= before the year 1000 is written without its leading zeros
+:PROPERTIES:
+:ID:       53
+:FOUND:    2026-11-15
+:END:
+~(:d #date "0079-08-24T12:00:00Z")~ is written ={"d": "79-08-24T12:00:00Z"}=, which is not ISO 8601 or =xsd:dateTime=, both needing at least four digits of year. It is the output side of gap 24, which accepts such a year in a =#date=. linked.art's =event/vesuvius/1= writes its dates as strings until it is fixed. Found while writing linked.art's examples in Ouro (2026-11-15).
+
 * Appendix C: Benchmarks
 :PROPERTIES:
 :COLUMNS:  %16ITEM %MEASURED %CHANGE %GHC %MACHINE
