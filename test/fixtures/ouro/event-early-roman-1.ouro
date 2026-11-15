@@ -1,14 +1,15 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/event/early_roman/1
+(import std/base)
+(import std/vocab)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure period #record (#string slug #string label)
+  (:id (example (+ "event/" slug)) :type "Period" :_label label))
+
 (graph event-early-roman-1
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/event/early_roman/1"
-   :type "Period"
-   :_label "Early Roman Empire (31 BCE - 193 CE)"
-   :identified_by ((:type "Name"
-                    :classified_as ((:id "http://vocab.getty.edu/aat/300404670"
-                                     :type "Type"
-                                     :_label "Primary Name"))
-                    :content "Early Roman Empire"))
-   :part_of ((:id "https://linked.art/example/event/roman"
-              :type "Period"
-              :_label "Roman Empire"))))
+  (-> (period "early_roman/1" "Early Roman Empire (31 BCE - 193 CE)")
+      (with :context       "https://linked.art/ns/v1/linked-art.json")
+      (with :identified_by (list (base/name vocab/primary-name "Early Roman Empire")))
+      (with :part_of       (list (period "roman" "Roman Empire")))))

@@ -1,14 +1,15 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/event/vesuvius/2
+(import std/base)
+(import std/vocab)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure event #record (#string slug #string label)
+  (:id (example (+ "event/" slug)) :type "Event" :_label label))
+
 (graph event-vesuvius-2
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/event/vesuvius/2"
-   :type "Event"
-   :_label "Eruption of Vesuvius"
-   :identified_by ((:type "Name"
-                    :classified_as ((:id "http://vocab.getty.edu/aat/300404670"
-                                     :type "Type"
-                                     :_label "Primary Name"))
-                    :content "Eruption of Vesuvius"))
-   :during ((:id "https://linked.art/example/event/early_roman"
-             :type "Period"
-             :_label "Early Roman Empire"))))
+  (-> (event "vesuvius/2" "Eruption of Vesuvius")
+      (with :context       "https://linked.art/ns/v1/linked-art.json")
+      (with :identified_by (list (base/name vocab/primary-name "Eruption of Vesuvius")))
+      (with :during        ((:id (example "event/early_roman") :type "Period" :_label "Early Roman Empire")))))

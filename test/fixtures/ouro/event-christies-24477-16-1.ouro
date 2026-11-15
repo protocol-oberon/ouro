@@ -1,19 +1,18 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/event/christies_24477_16/1
+(import std/base)
+(import std/vocab)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure activity #record (#string slug #string label)
+  (:id (example (+ "event/" slug)) :type "Activity" :_label label))
+
+;; One lot of an auction, part of the auction as a whole
 (graph event-christies-24477-16-1
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/event/christies_24477_16/1"
-   :type "Activity"
-   :_label "Auction of Lot 16"
-   :classified_as ((:id "http://vocab.getty.edu/aat/300420001"
-                    :type "Type"
-                    :_label "Auction of Lot"))
-   :identified_by ((:type "Name"
-                    :classified_as ((:id "http://vocab.getty.edu/aat/300404670"
-                                     :type "Type"
-                                     :_label "Primary Name"))
-                    :content "Auction of Lot 16"))
-   :used_specific_object ((:id "https://linked.art/example/set/24477_16_objects"
-                           :type "Set"
-                           :_label "Lot 16"))
-   :part_of ((:id "https://linked.art/example/event/christies_24477"
-              :type "Activity"))))
+  (-> (activity "christies_24477_16/1" "Auction of Lot 16")
+      (with :context              "https://linked.art/ns/v1/linked-art.json")
+      (with :classified_as        (list (base/aat "300420001" "Auction of Lot")))
+      (with :identified_by        (list (base/name vocab/primary-name "Auction of Lot 16")))
+      (with :used_specific_object ((:id (example "set/24477_16_objects") :type "Set" :_label "Lot 16")))
+      (with :part_of              ((:id (example "event/christies_24477") :type "Activity")))))

@@ -1,21 +1,24 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/event/stowe/1
+(import std/base)
+(import std/object)
+(import std/time)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure activity #record (#string slug #string label)
+  (:id (example (+ "event/" slug)) :type "Activity" :_label label))
+
+(define/constant auction-event (base/aat "300054751" "Auction Event"))
+(define/constant days          (object/unit "300379242" "days"))
+
+;; Three days of auction, begun some day in the first twenty of August and ended some day in
+;; the last three weeks of September
 (graph event-stowe-1
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/event/stowe/1"
-   :type "Activity"
-   :_label "Auction of Stowe House"
-   :classified_as ((:id "http://vocab.getty.edu/aat/300054751"
-                    :type "Type"
-                    :_label "Auction Event"))
-   :timespan (:type "TimeSpan"
-              :identified_by ((:type "Name"
-                               :content "40 days in August and September, 1848"))
-              :begin_of_the_begin "1848-08-01T00:00:00Z"
-              :end_of_the_begin "1848-08-20T23:59:59Z"
-              :begin_of_the_end "1848-09-09T00:00:00Z"
-              :end_of_the_end "1848-09-30T23:59:59Z"
-              :duration (:type "Dimension"
-                         :value 3
-                         :unit (:id "http://vocab.getty.edu/aat/300379242"
-                                :type "MeasurementUnit"
-                                :_label "days")))))
+  (-> (activity "stowe/1" "Auction of Stowe House")
+      (with :context       "https://linked.art/ns/v1/linked-art.json")
+      (with :classified_as (list auction-event))
+      (with :timespan      (with (time/between (time/day-range "1848-08-01" "1848-08-20")
+                                               (time/day-range "1848-09-09" "1848-09-30"))
+                            :identified_by ((:type "Name" :content "40 days in August and September, 1848"))
+                            :duration      (:type "Dimension" :value 3 :unit days)))))

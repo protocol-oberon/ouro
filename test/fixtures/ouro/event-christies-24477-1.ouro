@@ -1,30 +1,28 @@
-;; linked.art's example, converted to Ouro: https://linked.art/
+;; linked.art's example, written in Ouro: https://linked.art/example/event/christies_24477/1
+(import std/base)
+(import std/time)
+(import std/vocab)
+
+(define/procedure example #uri (#string path)
+  (+ "https://linked.art/example/" path))
+
+(define/procedure activity #record (#string slug #string label)
+  (:id (example (+ "event/" slug)) :type "Activity" :_label label))
+
+(define/constant auction-event (base/aat "300054751" "Auction Event"))
+
+;; An evening sale: it begins at five, so its span is written out
 (graph event-christies-24477-1
-  (:@context "https://linked.art/ns/v1/linked-art.json"
-   :id "https://linked.art/example/event/christies_24477/1"
-   :type "Activity"
-   :_label "Impressionist Sale"
-   :classified_as ((:id "http://vocab.getty.edu/aat/300054751"
-                    :type "Type"
-                    :_label "Auction Event"))
-   :identified_by ((:type "Name"
-                    :classified_as ((:id "http://vocab.getty.edu/aat/300404670"
-                                     :type "Type"
-                                     :_label "Primary Name"))
-                    :content "Impressionist & Modern Evening Sale"))
-   :timespan (:type "TimeSpan"
-              :_label "Nov 5, 2014"
-              :begin_of_the_begin "2014-11-05T17:00:00Z"
-              :end_of_the_end "2014-11-05T23:59:59Z")
-   :took_place_at ((:id "https://linked.art/example/place/christies_nyc"
-                    :type "Place"
-                    :_label "Christie's, New York"
-                    :classified_as ((:id "http://vocab.getty.edu/aat/300005234"
-                                     :type "Type"
-                                     :_label "Auction House (place)"))))
-   :carried_out_by ((:id "https://linked.art/example/group/christies"
-                     :type "Group"
-                     :_label "Christie's"
-                     :classified_as ((:id "http://vocab.getty.edu/aat/300417515"
-                                      :type "Type"
-                                      :_label "Auction House (organization)"))))))
+  (-> (activity "christies_24477/1" "Impressionist Sale")
+      (with :context        "https://linked.art/ns/v1/linked-art.json")
+      (with :classified_as  (list auction-event))
+      (with :identified_by  (list (base/name vocab/primary-name "Impressionist & Modern Evening Sale")))
+      (with :timespan       (with (time/span "2014-11-05T17:00:00Z" "2014-11-05T23:59:59Z") :_label "Nov 5, 2014"))
+      (with :took_place_at  ((:id            (example "place/christies_nyc")
+                              :type          "Place"
+                              :_label        "Christie's, New York"
+                              :classified_as (list (base/aat "300005234" "Auction House (place)")))))
+      (with :carried_out_by ((:id            (example "group/christies")
+                              :type          "Group"
+                              :_label        "Christie's"
+                              :classified_as (list (base/aat "300417515" "Auction House (organization)")))))))
