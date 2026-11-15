@@ -47,10 +47,10 @@ recommendedTerms = Group "aat: Linked Art's recommended terms"
                                                              ("{" <> aat "300435438" <> ", \"type\": \"Type\", \"_label\": \"Provenance Statement\", \"classified_as\": [{" <> aat "300418049" <> ", \"type\": \"Type\", \"_label\": \"Brief Text\"}]}"))
     , ("a language is a Language",                 aatToJSON "(graph g (language/english))"
                                                              ("{" <> aat "300388277" <> ", \"type\": \"Language\", \"_label\": \"English\"}"))
-    , ("a unit is a MeasurementUnit",              aatToJSON "(graph g (unit/centimeters))"
-                                                             ("{" <> aat "300379098" <> ", \"type\": \"MeasurementUnit\", \"_label\": \"Centimeters\"}"))
-    , ("a material is a Material",                 aatToJSON "(graph g (material/oil-paint))"
-                                                             ("{" <> aat "300015050" <> ", \"type\": \"Material\", \"_label\": \"Oil\"}"))
+    , ("a unit is a MeasurementUnit, labelled as the list writes it", aatToJSON "(graph g (unit/centimeters))"
+                                                             ("{" <> aat "300379098" <> ", \"type\": \"MeasurementUnit\", \"_label\": \"centimeters\"}"))
+    , ("a material is a Material, labelled as the list writes it", aatToJSON "(graph g (material/oil-paint))"
+                                                             ("{" <> aat "300015050" <> ", \"type\": \"Material\", \"_label\": \"oil\"}"))
     , ("a currency is a Currency",                 aatToJSON "(graph g (currency/us-dollars))"
                                                              ("{" <> aat "300411994" <> ", \"type\": \"Currency\", \"_label\": \"US Dollars\"}"))
     , ("a nationality is classified Nationality",  aatToJSON "(graph g (nationality/dutch))"
@@ -62,7 +62,7 @@ recommendedTerms = Group "aat: Linked Art's recommended terms"
     , ("a language and a nationality share a name", aatToJSON "(graph g (:l (language/dutch) :n (nationality/dutch)))"
                                                              ("{\"l\": {" <> aat "300388256" <> ", \"type\": \"Language\", \"_label\": \"Dutch\"}, \"n\": {" <> aat "300111175" <> ", \"type\": \"Type\", \"_label\": \"Dutch\", \"classified_as\": [{" <> aat "300379842" <> ", \"type\": \"Type\", \"_label\": \"Nationality\"}]}}"))
     , ("a time unit is not its built-in",          aatToJSON "(graph g (unit/year-unit))"
-                                                             ("{" <> aat "300379244" <> ", \"type\": \"MeasurementUnit\", \"_label\": \"Years\"}"))
+                                                             ("{" <> aat "300379244" <> ", \"type\": \"MeasurementUnit\", \"_label\": \"years\"}"))
     , ("Map is not the map special form",          aatToJSON "(graph g (object-type/map-object))"
                                                              ("{" <> aat "300028094" <> ", \"type\": \"Type\", \"_label\": \"Map\", \"classified_as\": [{" <> aat "300435443" <> ", \"type\": \"Type\", \"_label\": \"Type of Work\"}]}"))
     , ("a museum as a place keeps its label",      aatToJSON "(graph g (place-type/museum))"

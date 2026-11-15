@@ -21,7 +21,7 @@ Auction Lot	300411307	The Set is a lot of objects in an auction
 File Size	300265863	The Dimension measures the size of a digital file
 Count Of	300404433	The Dimension counts things, as the pages of a chapter
 ## Measurement Units
-Pages	300194222	pages
+Pages	300194222	Pages
 ## Activity Types
 Auction Event	300054751	The Activity is an auction, of a set of lots
 Auction of Lot	300420001	The Activity is the auction of one lot, part of an auction event
@@ -44,7 +44,7 @@ Portrait	300015637	The VisualItem is a portrait
 Director	300025654	The part of a creation is the work of its director
 Producer	300197742	The part of a creation is the work of its producer
 ## Currencies
-French Francs	300412016	french francs
+French Francs	300412016	French Francs
 ## Right Types
 Ownership Right	300055603	The Right is ownership of the thing it applies to
 Copyright	300055598	The Right is copyright in the thing it applies to

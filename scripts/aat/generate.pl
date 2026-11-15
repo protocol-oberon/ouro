@@ -16,7 +16,8 @@ die "usage: generate.pl recommended.tsv examples.tsv lib/aat\n" unless $table &&
 # Each section of the table: its module, the std module and constructor that build its terms,
 # what its terms are, and, for a term that is an instance rather than a Type, what the
 # documentation says it is. A Type's label is its name in the table, and its documentation the
-# table's description; an instance's label is the table's description, capitalised.
+# table's description; an instance's label is the table's description as the table writes it,
+# lower-case for a material or a unit, and its documentation that description, capitalised.
 my %sections = (
     "Name Types"        => ["name-type",       "std/base",       "base/aat",            "each a Type, to classify a Name"],
     "Identifier Types"  => ["identifier-type", "std/base",       "base/aat",            "each a Type, to classify an Identifier"],
@@ -143,7 +144,7 @@ for my $section (@order) {
         my $function = function_name($module, $name);
         die "two terms named '$function' in aat/$module\n" if $seen{$function}++;
         my ($label, $doc) = defined $noun
-                          ? (capitalised($description), capitalised($description) . ", $noun.")
+                          ? ($description, capitalised($description) . ", $noun.")
                           : ($name, $description =~ /\.$/ ? $description : "$description.");
         $doc .= " From Linked Art's examples, not its recommended list." if $from_examples;
         $recommended = 1 unless $from_examples;

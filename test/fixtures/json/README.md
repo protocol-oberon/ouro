@@ -25,7 +25,7 @@ term once, with the list's label, so these files are changed to it. Each change 
 
 ## Ouro's own
 
-`auction-of-stowe-house`, `bust-of-a-man`, `christie-ams`, `idea-for-manet-and-modern-beauty`,
-`jeanne-spring`, `purchase-of-spring` and `the-night-watch` were written for Ouro, from earlier
+`bust-of-a-man`, `christie-ams`, `idea-for-manet-and-modern-beauty`, `jeanne-spring`,
+`purchase-of-spring` and `the-night-watch` were written for Ouro, from earlier
 Linked Art examples; `encoding` checks that text is read and written as UTF-8. Where linked.art
 publishes the same example, its version is kept and Ouro's is removed.

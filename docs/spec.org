@@ -366,8 +366,7 @@ A module added to =lib/= is not noticed by an incremental build. =file-embed= tr
 
 - A term is named from Linked Art's name, a trailing parenthesis dropped: =partsUnit= is =parts=, =Museum (as Place)= is =place-type/museum=, =Auction House (place)= is =place-type/auction-house=.
 
-- It is labelled with Linked Art's description, each word capitalised and existing capitals kept.
-  - =US Dollars=, =(Music) Composer=.
+- It is labelled with Linked Art's description, as the list writes it: =US Dollars=, =(Music) Composer=, and the materials and units lower-case, =oil=, =centimeters=, as the list and its examples write them.
   - A Type keeps Linked Art's name as its label, and its description as its documentation.
 
 - Seven are renamed.
