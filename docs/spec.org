@@ -1,5 +1,5 @@
 #+title: Ouro Language Specification
-#+TODO: OPEN TRIAGE | FIXED WONTFIX
+#+TODO: OPEN PENDING | FIXED WONTFIX
 
 * Outline
 
@@ -2523,7 +2523,7 @@ Curators compose and restructure records; they do not manipulate code. Without q
 
 * Appendix B: Known gaps
 :PROPERTIES:
-:COLUMNS:  %4ID %8TODO %60ITEM %TAGS %FOUND %FIXED_IN
+:COLUMNS:  %4ID %8TODO %3PRIORITY %60ITEM %TAGS %FOUND %FIXED_IN
 :END:
 
 Recorded 2026-10-12 and kept up to date since; none were caused by the scoping redesign.
@@ -2538,8 +2538,9 @@ The change that fixes a gap adds a test of the correct behaviour and keeps the o
 
 Each gap is a heading with a state:
 
-- =OPEN= or =FIXED=;
-- =TRIAGE= for one under discussion;
+- =OPEN= for one to be fixed, with its priority: =[#A]= high, =[#B]= medium, =[#C]= low;
+- =PENDING= for one whose fix waits on a design, named in its body;
+- =FIXED=;
 - =WONTFIX= for one left as it is on purpose, its reason in its body.
 
 Its drawer holds its number (=ID=, which the tests' names keep), the date it was found and the version that fixed it. In Emacs, =C-c / t= shows the open ones and =C-c C-x C-c= the whole list as a table.
@@ -2662,7 +2663,7 @@ Left as they are on purpose:
 - a =(fn () …)= written inside a function is evaluated each time it is named, since it closes over a frame each call binds afresh;
 - each graph evaluates its constants on its own.
 
-** OPEN Code health
+** OPEN [#C] Code health
 :PROPERTIES:
 :ID:       13
 :FOUND:    2026-10-12
@@ -2675,12 +2676,14 @@ Left as they are on purpose:
 
 /Fixed:/ no test checked an error message's rendering. Each code a source or a project can raise now has a fixture in =test-cli/fixtures/messages/=, and its rendering, as =ouro= prints it without colours, in a golden file beside it, =CODE-Constructor.txt=; =OURO_ACCEPT=1 cabal test ouro-cli-test= rewrites them. The renderer stayed in the CLI, as the pure =renderDiagnostic= of =cli/CLI/Printer.hs=, rather than moving into the library as planned.
 
-** OPEN A record made only of inlays is read as an array
+** PENDING A record made only of inlays is read as an array
 :PROPERTIES:
 :ID:       14
 :FOUND:    2026-10-12
 :END:
 ~((inlay (a)) (inlay (b)))~ has no written attribute pair, so structural classification makes it an array, and each =inlay= then expects an array. Workaround: write at least one attribute pair.
+
+Waits on a decision of syntax: whether an =inlay= makes the form it is written in a record.
 
 ** FIXED Empty arrays could not be joined
 :PROPERTIES:
@@ -2698,14 +2701,14 @@ Arrays are no longer required to be homogeneous, so =+= on two arrays is plain c
 :END:
 This gave misleading arity or parenthesis errors. =$name= is now read on its own and paired with its value only inside a =let=; elsewhere it is an error that says to drop the =$=.
 
-** OPEN A URI's empty root path is dropped
+** OPEN [#A] A URI's empty root path is dropped
 :PROPERTIES:
 :ID:       17
 :FOUND:    2026-10-12
 :END:
 ~#uri "https://a.org/"~ serialises as ="https://a.org"=, which changes the IRI's text. URIs with a path (Getty's, Linked Art's) are unaffected. It comes from how the URI library renders an empty path.
 
-** OPEN An attribute pair among array values has no hint
+** OPEN [#C] An attribute pair among array values has no hint
 :PROPERTIES:
 :ID:       18
 :FOUND:    2026-10-12
@@ -2728,41 +2731,41 @@ This gave misleading arity or parenthesis errors. =$name= is now read on its own
 :END:
 Compiling into one that did not exist reported "Compilation Success" and then crashed with ~withFile: does not exist~. The directory is now made, as =ouro build= makes its folders.
 
-** OPEN =ouro validate= reads strings with Haskell's escapes, not JSON's
+** OPEN [#B] =ouro validate= reads strings with Haskell's escapes, not JSON's
 :PROPERTIES:
 :ID:       21
 :FOUND:    2026-10-12
 :END:
 It rejects the valid JSON escapes =\u00e9= and =\/=, and accepts the invalid =\x41= and =\65= (both read as =A=). The JSON parser reads string characters with Megaparsec's ~charLiteral~, which follows Haskell's rules.
 
-** OPEN A URI's empty path segments are dropped
+** OPEN [#A] A URI's empty path segments are dropped
 :PROPERTIES:
 :ID:       22
 :FOUND:    2026-10-12
 :END:
 ~#uri "https://a.org/x//y"~ serialises as ="https://a.org/x/y"=, and ~#uri "https://a.org//x"~ as ="https://a.org/x"=, which changes the IRI's text. A plain string keeps its slashes, and so does a URI's trailing slash. It was found through a stray leading slash, ~(example "/place/...")~, whose =#uri= return type hid the doubled slash. Like gap 17, it comes from how the URI library renders a path.
 
-** OPEN An unterminated string is reported where the input ends
+** OPEN [#B] An unterminated string is reported where the input ends
 :PROPERTIES:
 :ID:       23
 :FOUND:    2026-10-24
 :END:
 ~(:r "open)~ is a lexical error at the end of the file, not at the opening quote, so in a long file the error points far from its cause. Found while testing errors inside imported modules (2026-10-24).
 
-** OPEN =#date= accepts a year of fewer than four digits
+** OPEN [#A] =#date= accepts a year of fewer than four digits
 :PROPERTIES:
 :ID:       24
 :END:
 ~#date "81-01-01T00:00:00Z"~ is taken as the year 81 and written out as given, =81-01-01T00:00:00Z=, which is not ISO-8601 or =xsd:dateTime= (both need at least four digits; more are allowed). The parser's =%Y= reads any number of digits. Through =std/time=, =(time/year "81")= gets through too.
 
-** OPEN Warning codes collide across categories
+** PENDING Warning codes collide across categories
 :PROPERTIES:
 :ID:       25
 :FOUND:    2026-10-25
 :END:
 A warning's code is =WRN= and its constructor's index within its own category, so the first Lint, Semantic and Vocabulary warnings are all =WRN0000=. Only Lint warnings are raised today, so no two codes a user sees collide yet. The planned error-code redesign replaces the scheme. Found while designing the withdrawn context check (2026-10-25).
 
-** OPEN An unknown export is a lexical error
+** PENDING An unknown export is a lexical error
 :PROPERTIES:
 :ID:       26
 :FOUND:    2026-10-25
@@ -2773,13 +2776,15 @@ A warning's code is =WRN= and its constructor's index within its own category, s
 The module exports 'f', but defines no function by that name
 #+end_example
 
-Found while testing the build file (2026-10-25).
+Found while testing the build file (2026-10-25). Waits on the error-code redesign, which gives it a code of its own.
 
-** OPEN A build leaves stale outputs
+** WONTFIX A build leaves stale outputs
 :PROPERTIES:
 :ID:       27
 :END:
-Renaming or removing a graph, or a module, leaves the JSON an earlier build wrote for it in =:outputs=, so =:outputs= can hold graphs the source no longer has. The planned fix is a manifest of what the last build wrote, removing only those files.
+Renaming or removing a graph, or a module, leaves the JSON an earlier build wrote for it in =:outputs=, so =:outputs= can hold graphs the source no longer has. A fix would be a manifest of what the last build wrote, removing only those files.
+
+Left as it is: builds were set aside as a priority (2026-11-08), and clearing =:outputs= before a build does the same by hand.
 
 ** FIXED A compact IRI key was read as two keys
 :PROPERTIES:
@@ -2802,7 +2807,7 @@ Renaming or removing a graph, or a module, leaves the JSON an earlier build wrot
 :END:
 It is now =SYN0011=, which names the key and what follows it.
 
-** OPEN A key cannot hold =.=, =/= or =#=
+** PENDING A key cannot hold =.=, =/= or =#=
 :PROPERTIES:
 :ID:       31
 :FOUND:    2026-10-26
@@ -2815,7 +2820,7 @@ Each is an error, but not one that says so:
 - =/= ends the key, and is read as the symbol =/b= (=SCP0000=, unbound);
 - =#= is read as a property, =#b= (=SYN0000=, "Unknown property").
 
-Found while fixing gap 28 (2026-10-26).
+Found while fixing gap 28 (2026-10-26). Waits on a design of how such a key is written, as a quoted key perhaps.
 
 ** FIXED Source roots were compared as written, so overlapping roots built a module twice
 :PROPERTIES:
@@ -2833,7 +2838,7 @@ Roots were compared by their text after ~normalise~, which keeps a trailing slas
 :END:
 A folder holding a =package.ouro= is now a project of its own, and skipped whole.
 
-** OPEN A graph's name is not checked as a file name
+** OPEN [#A] A graph's name is not checked as a file name
 :PROPERTIES:
 :ID:       34
 :FOUND:    2026-10-29
@@ -2850,7 +2855,7 @@ Graphs named apart only by case, =G= and =g=, share one file on Windows and macO
 
 Found while vetting =build.ouro= (2026-10-29).
 
-** OPEN A build writes until a write fails
+** OPEN [#B] A build writes until a write fails
 :PROPERTIES:
 :ID:       35
 :FOUND:    2026-10-29
@@ -2866,21 +2871,21 @@ Found while vetting =build.ouro= (2026-10-29).
 :END:
 The build file was looked for from =DIR= upwards. =DIR= is now the project, never looked above, and a folder that does not exist is a message.
 
-** OPEN Colours are written when the output is not a terminal
+** OPEN [#B] Colours are written when the output is not a terminal
 :PROPERTIES:
 :ID:       37
 :FOUND:    2026-10-29
 :END:
 Diagnostics carry their ANSI colour codes when stderr is redirected to a file or a pipe, so a log or a CI report shows =ESC[0;91;1m= among the words. Neither a terminal check nor =NO_COLOR= is consulted. Found while writing the CLI's tests (2026-10-29).
 
-** OPEN =ouro validate= reports its errors on stdout
+** OPEN [#B] =ouro validate= reports its errors on stdout
 :PROPERTIES:
 :ID:       38
 :FOUND:    2026-10-29
 :END:
 Invalid JSON ("Compilation Error:") and the unimplemented =merge= are written to stdout, with nothing on stderr, while =build= writes its diagnostics to stderr. Found while writing the CLI's tests (2026-10-29).
 
-** OPEN =insert= floors a fractional index
+** OPEN [#B] =insert= floors a fractional index
 :PROPERTIES:
 :ID:       39
 :FOUND:    2026-10-29
@@ -2897,7 +2902,7 @@ One import cycle, =main= → =a= → =b= → =a=, was three =SCP0009= errors, on
 
 The loader now keeps a failed module with its errors, so each is reported once however many modules reach it. A cycle is named by its own modules, =a= → =b= → =a=, not from the module whose loading led to it. Found while writing the messages' golden files (2026-11-07).
 
-** OPEN =WRN0000= is never true
+** OPEN [#B] =WRN0000= is never true
 :PROPERTIES:
 :ID:       41
 :FOUND:    2026-11-07
@@ -2955,7 +2960,7 @@ A library's broken function is found by whoever first calls it. Found while weig
 
 - /Fixed for recursion/ (2026-11-08), so the gap is fixed: a function that reaches itself by its name is reported wherever it is written, called or not.
 
-** OPEN A binding of a form Canon rewrites is ignored at a call
+** PENDING A binding of a form Canon rewrites is ignored at a call
 :PROPERTIES:
 :ID:       45
 :FOUND:    2026-11-08
@@ -2969,7 +2974,7 @@ So a binding of one of their names never shadows them, as a binding shadows ever
 
 Scheme avoids this because its expander knows the scope at each point; the fix is a scope-aware Canon. Found while fixing gap 43 (2026-11-08).
 
-** OPEN An unknown top-level form is named by its Haskell constructor
+** OPEN [#B] An unknown top-level form is named by its Haskell constructor
 :PROPERTIES:
 :ID:       46
 :FOUND:    2026-11-08
@@ -3021,7 +3026,7 @@ Inside an expression, the keywords =defn/const= and =defn/property= were read as
 A definition can only appear at the top level of a file.
 #+end_example
 
-** OPEN Decimal arithmetic is binary floating point
+** PENDING Decimal arithmetic is binary floating point
 :PROPERTIES:
 :ID:       51
 :FOUND:    2026-11-15
@@ -3030,7 +3035,7 @@ A Number is a Double, so a decimal written in source, such as =0.1=, has no exac
 
 Curators' numbers are mostly decimal measurements, so a summary worked out from them can show such digits: summing the 500 weights of =test.ouro='s hoard, ~(fold weights 0 +)~, gives =1798.6400000000008=. The number tower (=#integer=, =#natural=) does not touch it; exact decimals would, as a change of representation (an open design). Found while updating =test.ouro= to 0.6 (2026-11-15).
 
-** OPEN Compiling many records costs more than linear time
+** OPEN [#A] Compiling many records costs more than linear time
 :PROPERTIES:
 :ID:       52
 :FOUND:    2026-11-15
@@ -3044,7 +3049,7 @@ A graph that builds many records costs nearly the square of their number. The be
 
 Five times the coins cost 7.3 times as much, and four times 12.5 times, about n^1.8, where linear growth would put 2000 coins near 2.5 s. Some step does work in proportion to everything built so far for each coin. Not yet profiled (=+RTS -p=), so which step is unknown. A fix shows in the benchmark: 2000 coins near four times the cost of 500. Found while benchmarking the pipeline (2026-11-15).
 
-** OPEN A =#date= before the year 1000 is written without its leading zeros
+** OPEN [#A] A =#date= before the year 1000 is written without its leading zeros
 :PROPERTIES:
 :ID:       53
 :FOUND:    2026-11-15
