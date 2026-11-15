@@ -1,4 +1,5 @@
 #+title: Ouro Language Specification
+#+TODO: OPEN TRIAGE | FIXED WONTFIX
 
 * Outline
 
@@ -1203,107 +1204,388 @@ Ouro's compiler guarantees structural validity: a compiled graph is well-formed 
 Why quoting went: curators compose and restructure records; they do not manipulate code. Without quoting, code and values cannot be confused, which is what makes the language referentially transparent.
 
 * Appendix B: Known gaps
+:PROPERTIES:
+:COLUMNS:  %4ID %8TODO %60ITEM %TAGS %FOUND %FIXED_IN
+:END:
 
 Recorded 2026-10-12 and kept up to date since; none were caused by the scoping redesign. Each open gap is pinned by its current, incorrect behaviour, in a test named "gap N: …": a gap of the compiler in =Language.knownGaps= (=test/Ouro/LanguageTest.hs=, the =ouro-test= suite), and a gap of the command line in the =ouro-cli-test= suite, in =Project.knownGaps= (=test-cli/Ouro/Cli/ProjectTest.hs=) or, when only running =ouro= shows it, in =test-cli/Ouro/Cli/CommandTest.hs=. The change that fixes a gap adds a test of the correct behaviour and keeps the old pin, run negated (=fixedGap=), as "gap N (fixed): …", so the old behaviour coming back fails the suite.
 
-1. /Fixed:/ =@context= handling was incomplete: only four directives could be written, with no term definitions or =null=, and a remote context with local directives serialised as a nested =@context= object, which is invalid JSON-LD. A context is now a value written as JSON-LD writes it, and several contexts are an array (see [[*=@context=][=@context=]]).
+Each gap is a heading whose state is =OPEN= or =FIXED=, with =TRIAGE= for one under discussion and =WONTFIX= for one left as it is on purpose, its reason in its body; its drawer holds its number (=ID=, which the tests' names keep), the date it was found and the version that fixed it. In Emacs, =C-c / t= shows the open ones and =C-c C-x C-c= the whole list as a table.
 
-2. /Fixed:/ variadic operators under a built-in property hit an internal error. A property's payload is now desugared like any other expression.
+** FIXED =@context= handling was incomplete
+:PROPERTIES:
+:ID:       1
+:FOUND:    2026-10-12
+:FIXED_IN: 0.5.0.0
+:END:
+Only four directives could be written, with no term definitions or =null=, and a remote context with local directives serialised as a nested =@context= object, which is invalid JSON-LD. A context is now a value written as JSON-LD writes it, and several contexts are an array (see [[*=@context=][=@context=]]).
 
-3. /Fixed:/ guards with more than one operand hit the same internal error. A guard now chains with the target as its first operand, and an operator written with the wrong number of operands is an arity error rather than an internal one.
+** FIXED Variadic operators under a built-in property hit an internal error
+:PROPERTIES:
+:ID:       2
+:FOUND:    2026-10-12
+:FIXED_IN: 0.5.0.0
+:END:
+A property's payload is now desugared like any other expression.
 
-4. /Fixed:/ month and year arithmetic rolled over into the next month (31 March − 1 month was 2 March). It now clips to the end of the shorter month.
+** FIXED Guards with more than one operand hit the same internal error
+:PROPERTIES:
+:ID:       3
+:FOUND:    2026-10-12
+:FIXED_IN: 0.5.0.0
+:END:
+A guard now chains with the target as its first operand, and an operator written with the wrong number of operands is an arity error rather than an internal one.
 
-5. /Fixed, by removal:/ computed keys were dropped inside records, ~((attr k 1))~ producing ={}=. =(attr key value)= was removed (see Appendix A): a key is always written, =:key value=.
+** FIXED Month and year arithmetic rolled over into the next month (31 March − 1 month was 2 March)
+:PROPERTIES:
+:ID:       4
+:FOUND:    2026-10-12
+:FIXED_IN: 0.5.0.0
+:END:
+It now clips to the end of the shorter month.
 
-6. /Fixed:/ duplicate keys were emitted twice. Each key now appears once (see [[*Records and arrays][Records and arrays]]).
+** FIXED Computed keys were dropped inside records, ~((attr k 1))~ producing ={}=
+:PROPERTIES:
+:ID:       5
+:FOUND:    2026-10-12
+:FIXED_IN: 0.5.0.0
+:END:
+/Fixed, by removal./ =(attr key value)= was removed (see Appendix A): a key is always written, =:key value=.
 
-7. /Fixed:/ ~(:name name)~ was a self-reference (a cycle). A binding now never sees itself, so the name refers outward.
+** FIXED Duplicate keys were emitted twice
+:PROPERTIES:
+:ID:       6
+:FOUND:    2026-10-12
+:FIXED_IN: 0.5.0.0
+:END:
+Each key now appears once (see [[*Records and arrays][Records and arrays]]).
 
-8. /Fixed:/ source was read in the Windows code page, so accented names were garbled, and so were the compiler's diagnostics. Source is now read as UTF-8 on every platform, and messages are written as UTF-8 (see [[*Lexical elements][Lexical elements]]).
+** FIXED ~(:name name)~ was a self-reference (a cycle)
+:PROPERTIES:
+:ID:       7
+:FOUND:    2026-10-12
+:FIXED_IN: 0.5.0.0
+:END:
+A binding now never sees itself, so the name refers outward.
 
-9. /Fixed:/ "Perhaps you meant" ranked only the root scope, so a misspelt local name, ~artst~ for a =let='s =$artist=, had no suggestion. Unbound names are now found by the static analysis, which ranks every name in scope where the name is written, local bindings included.
+** FIXED Source was read in the Windows code page, so accented names were garbled, and so were the compiler's diagnostics
+:PROPERTIES:
+:ID:       8
+:FOUND:    2026-10-12
+:FIXED_IN: 0.5.0.0
+:END:
+Source is now read as UTF-8 on every platform, and messages are written as UTF-8 (see [[*Lexical elements][Lexical elements]]).
 
-10. /Fixed:/ messages had stale wording: =get='s missing-key blurb mentioned =define=; subtraction's type error named an internal type, "a Date minus a L.Duration"; a =$= binding named after a special form (=$get=) was rightly rejected, but called an attribute key, "Shadowed Attribute", with "primative" misspelt; =WRN0000='s hint named =#record-empty= by its old name, =#obj-empty=, and misspelt "intended"; =SCP0001= wrote "Expected :an independent expression", its colon misplaced. A reserved name is now =SYN0004= "Reserved Name", which says it cannot name an attribute key or a =let= binding, and the rest read as Ouro is today. The hint for a function used as a value, which suggested =(name! args)=, was fixed before them: it shows how the function is called, with its parameters' names, =Perhaps call it: (aat id label).=
+** FIXED "Perhaps you meant" ranked only the root scope, so a misspelt local name, ~artst~ for a =let='s =$artist=, had no suggestion
+:PROPERTIES:
+:ID:       9
+:FOUND:    2026-10-12
+:FIXED_IN: 0.5.0.0
+:END:
+Unbound names are now found by the static analysis, which ranks every name in scope where the name is written, local bindings included.
 
-11. /Fixed:/ a parameter named after a special form, ~(define/procedure call (fn) (fn))~, could not be called: the call was read as the special form, with a confusing error about =fn= syntax. A binding now shadows a special form, as in Scheme, so the call is the parameter's.
+** FIXED Messages had stale wording
+:PROPERTIES:
+:ID:       10
+:FOUND:    2026-10-12
+:FIXED_IN: 0.5.0.0
+:END:
+=get='s missing-key blurb mentioned =define=; subtraction's type error named an internal type, "a Date minus a L.Duration"; a =$= binding named after a special form (=$get=) was rightly rejected, but called an attribute key, "Shadowed Attribute", with "primative" misspelt; =WRN0000='s hint named =#record-empty= by its old name, =#obj-empty=, and misspelt "intended"; =SCP0001= wrote "Expected :an independent expression", its colon misplaced. A reserved name is now =SYN0004= "Reserved Name", which says it cannot name an attribute key or a =let= binding, and the rest read as Ouro is today. The hint for a function used as a value, which suggested =(name! args)=, was fixed before them: it shows how the function is called, with its parameters' names, =Perhaps call it: (aat id label).=
 
-12. *Zero-argument functions re-evaluate* on every call; as pure constants they could be shared.
+** FIXED A parameter named after a special form, ~(define/procedure call (fn) (fn))~, could not be called
+:PROPERTIES:
+:ID:       11
+:FOUND:    2026-10-12
+:FIXED_IN: 0.5.0.0
+:END:
+The call was read as the special form, with a confusing error about =fn= syntax. A binding now shadows a special form, as in Scheme, so the call is the parameter's.
 
-13. *Code health:* the =[ ]= bracket syntax parses but has no meaning; =validate= without =-o= overwrites its input; the CLI's commands are tested only from outside, by running =ouro= (=test-cli/Ouro/Cli/CommandTest.hs=), for their exit codes, the files they write and what they print. (Fixed: no test checked an error message's rendering. Each code a source or a project can raise now has a fixture in =test-cli/fixtures/messages/=, and its rendering, as =ouro= prints it without colours, in a golden file beside it, =CODE-Constructor.txt=; =OURO_ACCEPT=1 cabal test ouro-cli-test= rewrites them. The renderer stayed in the CLI, as the pure =renderDiagnostic= of =cli/CLI/Printer.hs=, rather than moving into the library as planned.)
+** OPEN Zero-argument functions re-evaluate on every call
+:PROPERTIES:
+:ID:       12
+:FOUND:    2026-10-12
+:END:
+As pure constants they could be shared.
 
-14. *A record made only of inlays is read as an array:* ~((inlay (a)) (inlay (b)))~ has no written attribute pair, so structural classification makes it an array, and each =inlay= then expects an array. Workaround: write at least one attribute pair.
+** OPEN Code health
+:PROPERTIES:
+:ID:       13
+:FOUND:    2026-10-12
+:END:
+The =[ ]= bracket syntax parses but has no meaning; =validate= without =-o= overwrites its input; the CLI's commands are tested only from outside, by running =ouro= (=test-cli/Ouro/Cli/CommandTest.hs=), for their exit codes, the files they write and what they print. (Fixed: no test checked an error message's rendering. Each code a source or a project can raise now has a fixture in =test-cli/fixtures/messages/=, and its rendering, as =ouro= prints it without colours, in a golden file beside it, =CODE-Constructor.txt=; =OURO_ACCEPT=1 cabal test ouro-cli-test= rewrites them. The renderer stayed in the CLI, as the pure =renderDiagnostic= of =cli/CLI/Printer.hs=, rather than moving into the library as planned.)
 
-15. /Fixed:/ empty arrays could not be joined. Arrays are no longer required to be homogeneous, so =+= on two arrays is plain concatenation.
+** OPEN A record made only of inlays is read as an array
+:PROPERTIES:
+:ID:       14
+:FOUND:    2026-10-12
+:END:
+~((inlay (a)) (inlay (b)))~ has no written attribute pair, so structural classification makes it an array, and each =inlay= then expects an array. Workaround: write at least one attribute pair.
 
-16. /Fixed:/ =$name= written as a reference took the next expression as its value, giving misleading arity or parenthesis errors. =$name= is now read on its own and paired with its value only inside a =let=; elsewhere it is an error that says to drop the =$=.
+** FIXED Empty arrays could not be joined
+:PROPERTIES:
+:ID:       15
+:FOUND:    2026-10-12
+:FIXED_IN: 0.5.0.0
+:END:
+Arrays are no longer required to be homogeneous, so =+= on two arrays is plain concatenation.
 
-17. *A URI's empty root path is dropped:* ~#uri "https://a.org/"~ serialises as ="https://a.org"=, which changes the IRI's text. URIs with a path (Getty's, Linked Art's) are unaffected. It comes from how the URI library renders an empty path.
+** FIXED =$name= written as a reference took the next expression as its value, giving misleading arity or parenthesis errors
+:PROPERTIES:
+:ID:       16
+:FOUND:    2026-10-12
+:FIXED_IN: 0.5.0.0
+:END:
+=$name= is now read on its own and paired with its value only inside a =let=; elsewhere it is an error that says to drop the =$=.
 
-18. *An attribute pair among array values has no hint:* ~(1 :a 2)~ is read as a record (one attribute pair makes the form a record), so =1= is reported as an unbound expression. The error is right, but it could suggest ~(1 (:a 2))~.
+** OPEN A URI's empty root path is dropped
+:PROPERTIES:
+:ID:       17
+:FOUND:    2026-10-12
+:END:
+~#uri "https://a.org/"~ serialises as ="https://a.org"=, which changes the IRI's text. URIs with a path (Getty's, Linked Art's) are unaffected. It comes from how the URI library renders an empty path.
 
-19. /Fixed:/ strings were not escaped in the output, so ~"say \"hi\""~ became ="say "hi""=, which is invalid JSON, and =ouro validate= turned ="a\"b"= into ="a"b"=. Quotes, backslashes and control characters are now escaped (see [[*The Emission Engine][The Emission Engine]]).
+** OPEN An attribute pair among array values has no hint
+:PROPERTIES:
+:ID:       18
+:FOUND:    2026-10-12
+:END:
+~(1 :a 2)~ is read as a record (one attribute pair makes the form a record), so =1= is reported as an unbound expression. The error is right, but it could suggest ~(1 (:a 2))~.
 
-20. /Fixed:/ =compile -o= needed an existing directory: compiling into one that did not exist reported "Compilation Success" and then crashed with ~withFile: does not exist~. The directory is now made, as =ouro build= makes its folders.
+** FIXED Strings were not escaped in the output, so ~"say \"hi\""~ became ="say "hi""=, which is invalid JSON, and =ouro validate= turned ="a\"b"= into ="a"b"=
+:PROPERTIES:
+:ID:       19
+:FOUND:    2026-10-12
+:FIXED_IN: 0.5.0.0
+:END:
+Quotes, backslashes and control characters are now escaped (see [[*The Emission Engine][The Emission Engine]]).
 
-21. *=ouro validate= reads strings with Haskell's escapes, not JSON's:* it rejects the valid JSON escapes =\u00e9= and =\/=, and accepts the invalid =\x41= and =\65= (both read as =A=). The JSON parser reads string characters with Megaparsec's ~charLiteral~, which follows Haskell's rules.
+** FIXED =compile -o= needed an existing directory
+:PROPERTIES:
+:ID:       20
+:FOUND:    2026-10-12
+:FIXED_IN: 0.5.0.0
+:END:
+Compiling into one that did not exist reported "Compilation Success" and then crashed with ~withFile: does not exist~. The directory is now made, as =ouro build= makes its folders.
 
-22. *A URI's empty path segments are dropped:* ~#uri "https://a.org/x//y"~ serialises as ="https://a.org/x/y"=, and ~#uri "https://a.org//x"~ as ="https://a.org/x"=, which changes the IRI's text. A plain string keeps its slashes, and so does a URI's trailing slash. It was found through a stray leading slash, ~(example "/place/...")~, whose =#uri= return type hid the doubled slash. Like gap 17, it comes from how the URI library renders a path.
+** OPEN =ouro validate= reads strings with Haskell's escapes, not JSON's
+:PROPERTIES:
+:ID:       21
+:FOUND:    2026-10-12
+:END:
+It rejects the valid JSON escapes =\u00e9= and =\/=, and accepts the invalid =\x41= and =\65= (both read as =A=). The JSON parser reads string characters with Megaparsec's ~charLiteral~, which follows Haskell's rules.
 
-23. *An unterminated string is reported where the input ends:* ~(:r "open)~ is a lexical error at the end of the file, not at the opening quote, so in a long file the error points far from its cause. Found while testing errors inside imported modules (2026-10-24).
+** OPEN A URI's empty path segments are dropped
+:PROPERTIES:
+:ID:       22
+:FOUND:    2026-10-12
+:END:
+~#uri "https://a.org/x//y"~ serialises as ="https://a.org/x/y"=, and ~#uri "https://a.org//x"~ as ="https://a.org/x"=, which changes the IRI's text. A plain string keeps its slashes, and so does a URI's trailing slash. It was found through a stray leading slash, ~(example "/place/...")~, whose =#uri= return type hid the doubled slash. Like gap 17, it comes from how the URI library renders a path.
 
-24. *=#date= accepts a year of fewer than four digits:* ~#date "81-01-01T00:00:00Z"~ is taken as the year 81 and written out as given, =81-01-01T00:00:00Z=, which is not ISO-8601 or =xsd:dateTime= (both need at least four digits; more are allowed). The parser's =%Y= reads any number of digits. Through =std/time=, =(time/year "81")= gets through too.
+** OPEN An unterminated string is reported where the input ends
+:PROPERTIES:
+:ID:       23
+:FOUND:    2026-10-24
+:END:
+~(:r "open)~ is a lexical error at the end of the file, not at the opening quote, so in a long file the error points far from its cause. Found while testing errors inside imported modules (2026-10-24).
 
-25. *Warning codes collide across categories:* a warning's code is =WRN= and its constructor's index within its own category, so the first Lint, Semantic and Vocabulary warnings are all =WRN0000=. Only Lint warnings are raised today, so no two codes a user sees collide yet. The planned error-code redesign replaces the scheme. Found while designing the withdrawn context check (2026-10-25).
+** OPEN =#date= accepts a year of fewer than four digits
+:PROPERTIES:
+:ID:       24
+:END:
+~#date "81-01-01T00:00:00Z"~ is taken as the year 81 and written out as given, =81-01-01T00:00:00Z=, which is not ISO-8601 or =xsd:dateTime= (both need at least four digits; more are allowed). The parser's =%Y= reads any number of digits. Through =std/time=, =(time/year "81")= gets through too.
 
-26. *An unknown export is a lexical error:* ~(export f)~ without a ~(define/procedure f ...)~ is reported as =SYN0000=, a =LexicalError=, though the export was lexed and parsed; the message is right ("The module exports 'f', but defines no function by that name"), its code and kind are not. Found while testing the build file (2026-10-25).
+** OPEN Warning codes collide across categories
+:PROPERTIES:
+:ID:       25
+:FOUND:    2026-10-25
+:END:
+A warning's code is =WRN= and its constructor's index within its own category, so the first Lint, Semantic and Vocabulary warnings are all =WRN0000=. Only Lint warnings are raised today, so no two codes a user sees collide yet. The planned error-code redesign replaces the scheme. Found while designing the withdrawn context check (2026-10-25).
 
-27. *A build leaves stale outputs:* renaming or removing a graph, or a module, leaves the JSON an earlier build wrote for it in =:outputs=, so =:outputs= can hold graphs the source no longer has. The planned fix is a manifest of what the last build wrote, removing only those files.
+** OPEN An unknown export is a lexical error
+:PROPERTIES:
+:ID:       26
+:FOUND:    2026-10-25
+:END:
+~(export f)~ without a ~(define/procedure f ...)~ is reported as =SYN0000=, a =LexicalError=, though the export was lexed and parsed; the message is right ("The module exports 'f', but defines no function by that name"), its code and kind are not. Found while testing the build file (2026-10-25).
 
-28. /Fixed:/ a compact IRI key was read as two keys, so ~:crm:P2_has_type~ was =:crm= and =:P2_has_type=, and through gap 29 the pair was lost. A key, and a symbol, may now hold =:= after their first character, so a compact IRI is one key and a path can name it.
+** OPEN A build leaves stale outputs
+:PROPERTIES:
+:ID:       27
+:END:
+Renaming or removing a graph, or a module, leaves the JSON an earlier build wrote for it in =:outputs=, so =:outputs= can hold graphs the source no longer has. The planned fix is a manifest of what the last build wrote, removing only those files.
 
-29. /Fixed:/ a key followed by a key dropped both, silently: ~(:a :b 1 :y 2)~ compiled to ={"y": 2}=. A key with no value is now =SYN0011= at the key.
+** FIXED A compact IRI key was read as two keys, so ~:crm:P2_has_type~ was =:crm= and =:P2_has_type=, and through gap 29 the pair was lost
+:PROPERTIES:
+:ID:       28
+:FIXED_IN: 0.5.0.0
+:END:
+A key, and a symbol, may now hold =:= after their first character, so a compact IRI is one key and a path can name it.
 
-30. /Fixed:/ a key with no value, ~(:a :b)~, was reported as =SYN0001=, an orphaned closing parenthesis. It is now =SYN0011=, which names the key and what follows it.
+** FIXED A key followed by a key dropped both, silently
+:PROPERTIES:
+:ID:       29
+:FIXED_IN: 0.5.0.0
+:END:
+~(:a :b 1 :y 2)~ compiled to ={"y": 2}=. A key with no value is now =SYN0011= at the key.
 
-31. *A key cannot hold =.=, =/= or =#=:* a key is letters, digits, =-=, =_= and =:=, so a term or compact IRI with any other character, such as =ex:a.b=, =ex:a/b= or =ex:a#b=, or a full IRI, cannot be written as a key, though JSON-LD allows almost any character in a term. Each is an error, but not one that says so: =.= is =SYN0000= "Unexpected token", =/= ends the key and is read as the symbol =/b= (=SCP0000=, unbound), and =#= is read as a property, =#b= (=SYN0000=, "Unknown property"). Compact IRIs whose suffix is a name, as =crm:P2_has_type= and =dc:title=, are unaffected. Found while fixing gap 28 (2026-10-26).
+** FIXED A key with no value, ~(:a :b)~, was reported as =SYN0001=, an orphaned closing parenthesis
+:PROPERTIES:
+:ID:       30
+:FIXED_IN: 0.5.0.0
+:END:
+It is now =SYN0011=, which names the key and what follows it.
 
-32. /Fixed:/ source roots were compared as written, by their text after ~normalise~, which keeps a trailing slash and a =..=, so overlapping roots built a module twice, ~("src" "src/")~ were two roots, and ~("src/..")~ built =build.ouro= as a module. =:sources= is now one folder, and folders are compared as they are on disk, so a source folder through =..= skips the outputs folder and =package.ouro=.
+** OPEN A key cannot hold =.=, =/= or =#=
+:PROPERTIES:
+:ID:       31
+:FOUND:    2026-10-26
+:END:
+A key is letters, digits, =-=, =_= and =:=, so a term or compact IRI with any other character, such as =ex:a.b=, =ex:a/b= or =ex:a#b=, or a full IRI, cannot be written as a key, though JSON-LD allows almost any character in a term. Each is an error, but not one that says so: =.= is =SYN0000= "Unexpected token", =/= ends the key and is read as the symbol =/b= (=SCP0000=, unbound), and =#= is read as a property, =#b= (=SYN0000=, "Unknown property"). Compact IRIs whose suffix is a name, as =crm:P2_has_type= and =dc:title=, are unaffected. Found while fixing gap 28 (2026-10-26).
 
-33. /Fixed:/ a nested project's build file was built as a module. A folder holding a =package.ouro= is now a project of its own, and skipped whole.
+** FIXED Source roots were compared as written, by their text after ~normalise~, which keeps a trailing slash and a =..=, so overlapping roots built a module twice, ~("src" "src/")~ were two roots, and ~("src/..")~ built =build.ouro= as a module. =:sources= is now one folder, and folders are compared as they are on disk, so a source folder through =..= skips the outputs folder and =package.ouro=.
+:PROPERTIES:
+:ID:       32
+:FIXED_IN: 0.5.0.0
+:END:
 
-34. *A graph's name is not checked as a file name:* a graph is written to =<outputs>/<module>/<graph>.json= whatever its name. On Windows, =a?= cannot be written (=withFile: invalid argument=), =con= is a device (=withFile: does not exist=), and =ex:g=, a name gap 28 allows, is written to the alternate data stream =g.json= of a file =ex=, so the build reports it written and no file shows it. Graphs named apart only by case, =G= and =g=, share one file on Windows and macOS: the second overwrites the first, under the first's name. Found while vetting =build.ouro= (2026-10-29).
+** FIXED A nested project's build file was built as a module
+:PROPERTIES:
+:ID:       33
+:FIXED_IN: 0.5.0.0
+:END:
+A folder holding a =package.ouro= is now a project of its own, and skipped whole.
 
-35. *A build writes until a write fails:* all or nothing covers compiling; the CLI then writes each graph in turn, so a write that fails (gap 34, a full disk, a file held open) leaves the graphs before it written, and ends the build with a Haskell exception and its backtrace, not a diagnostic, and neither "Build Success" nor "Build Failed". Found while vetting =build.ouro= (2026-10-29).
+** OPEN A graph's name is not checked as a file name
+:PROPERTIES:
+:ID:       34
+:FOUND:    2026-10-29
+:END:
+A graph is written to =<outputs>/<module>/<graph>.json= whatever its name. On Windows, =a?= cannot be written (=withFile: invalid argument=), =con= is a device (=withFile: does not exist=), and =ex:g=, a name gap 28 allows, is written to the alternate data stream =g.json= of a file =ex=, so the build reports it written and no file shows it. Graphs named apart only by case, =G= and =g=, share one file on Windows and macOS: the second overwrites the first, under the first's name. Found while vetting =build.ouro= (2026-10-29).
 
-36. /Fixed:/ =ouro build DIR= with a folder that does not exist built the project above it, since the build file was looked for from =DIR= upwards. =DIR= is now the project, never looked above, and a folder that does not exist is a message.
+** OPEN A build writes until a write fails
+:PROPERTIES:
+:ID:       35
+:FOUND:    2026-10-29
+:END:
+All or nothing covers compiling; the CLI then writes each graph in turn, so a write that fails (gap 34, a full disk, a file held open) leaves the graphs before it written, and ends the build with a Haskell exception and its backtrace, not a diagnostic, and neither "Build Success" nor "Build Failed". Found while vetting =build.ouro= (2026-10-29).
 
-37. *Colours are written when the output is not a terminal:* diagnostics carry their ANSI colour codes when stderr is redirected to a file or a pipe, so a log or a CI report shows =ESC[0;91;1m= among the words. Neither a terminal check nor =NO_COLOR= is consulted. Found while writing the CLI's tests (2026-10-29).
+** FIXED =ouro build DIR= with a folder that does not exist built the project above it, since the build file was looked for from =DIR= upwards
+:PROPERTIES:
+:ID:       36
+:FIXED_IN: 0.5.0.0
+:END:
+=DIR= is now the project, never looked above, and a folder that does not exist is a message.
 
-38. *=ouro validate= reports its errors on stdout:* invalid JSON ("Compilation Error:") and the unimplemented =merge= are written to stdout, with nothing on stderr, while =build= writes its diagnostics to stderr. Found while writing the CLI's tests (2026-10-29).
+** OPEN Colours are written when the output is not a terminal
+:PROPERTIES:
+:ID:       37
+:FOUND:    2026-10-29
+:END:
+Diagnostics carry their ANSI colour codes when stderr is redirected to a file or a pipe, so a log or a CI report shows =ESC[0;91;1m= among the words. Neither a terminal check nor =NO_COLOR= is consulted. Found while writing the CLI's tests (2026-10-29).
 
-39. *=insert= floors a fractional index:* ~(insert (1 2) 1.5 "x")~ is ~(1 "x" 2)~, the index rounded down without a word, while =get= rejects one, "Expected: a whole number to index an Array with". Found while weighing an =#integer= property (2026-10-29).
+** OPEN =ouro validate= reports its errors on stdout
+:PROPERTIES:
+:ID:       38
+:FOUND:    2026-10-29
+:END:
+Invalid JSON ("Compilation Error:") and the unimplemented =merge= are written to stdout, with nothing on stderr, while =build= writes its diagnostics to stderr. Found while writing the CLI's tests (2026-10-29).
 
-40. /Fixed:/ a failure was reported once for each route to it: one import cycle, =main= → =a= → =b= → =a=, was three =SCP0009= errors, one from each module on the cycle and one from =main=, and an unreadable module two =SCP0010= errors, at the module and at its import, since a module that failed was loaded again each time it was reached. The loader now keeps a failed module with its errors, so each is reported once however many modules reach it, and a cycle is named by its own modules, =a= → =b= → =a=, not from the module whose loading led to it. Found while writing the messages' golden files (2026-11-07).
+** OPEN =insert= floors a fractional index
+:PROPERTIES:
+:ID:       39
+:FOUND:    2026-10-29
+:END:
+~(insert (1 2) 1.5 "x")~ is ~(1 "x" 2)~, the index rounded down without a word, while =get= rejects one, "Expected: a whole number to index an Array with". Found while weighing an =#integer= property (2026-10-29).
 
-41. *=WRN0000= is never true:* it says a string written after =#record-empty= or =#array-empty= is discarded ("will be completely erased from properties at compile time"), but in an array the string is kept, ~(:r (#record-empty "x"))~ being ={"r": [{}, "x"]}=, and in a record it is an error, =TYP0000=, which the warning only precedes. The linter reads tokens, not forms, so it cannot tell the two apart. Found while fixing gap 10 (2026-11-07).
+** FIXED A failure was reported once for each route to it
+:PROPERTIES:
+:ID:       40
+:FOUND:    2026-11-07
+:FIXED_IN: 0.6.0.0
+:END:
+One import cycle, =main= → =a= → =b= → =a=, was three =SCP0009= errors, one from each module on the cycle and one from =main=, and an unreadable module two =SCP0010= errors, at the module and at its import, since a module that failed was loaded again each time it was reached. The loader now keeps a failed module with its errors, so each is reported once however many modules reach it, and a cycle is named by its own modules, =a= → =b= → =a=, not from the module whose loading led to it. Found while writing the messages' golden files (2026-11-07).
 
-42. /Fixed:/ the names of removed forms were still reserved: =nth=, =attr=, =define= and =defun= were removed (see Appendix A), but a key or a =let= binding named after one, ~(:attr 1)~ or ~$defun~, was =SYN0004=, "Reserved Name", though nothing would be shadowed. They are now free as keys and bindings; a call of one, ~(nth 0 xs)~, is still reported with its replacement, whatever is bound, and a function still cannot be named after one (=SYN0008=), since it could never be called. Found while fixing gap 10 (2026-11-07). Since gap 43's fix, a binding of one of their names shadows it as it shadows any special form. Since 2026-11-08 =define= and =defun= are not forms at all, and their removal messages are gone: they are ordinary names, which a function can take.
+** OPEN =WRN0000= is never true
+:PROPERTIES:
+:ID:       41
+:FOUND:    2026-11-07
+:END:
+It says a string written after =#record-empty= or =#array-empty= is discarded ("will be completely erased from properties at compile time"), but in an array the string is kept, ~(:r (#record-empty "x"))~ being ={"r": [{}, "x"]}=, and in a record it is an error, =TYP0000=, which the warning only precedes. The linter reads tokens, not forms, so it cannot tell the two apart. Found while fixing gap 10 (2026-11-07).
 
-43. /Fixed:/ which special forms' names were reserved was inconsistent: a key or a =let= binding named after =list=, =case=, =get=, =context=, =inlay=, =insert=, =define/procedure=, =let= or =fn= is =SYN0004=, but one named after any other special form, such as =map=, =with=, =when=, =image= or =->=, is accepted: ~(let ($map 1) (:r map))~ is ={"r": 1}=. A special form is recognised by its head symbol, so a binding named after one can be read as a value but never called: ~(let ($map (fn (x) x)) (:r (map 1)))~ is =map='s own error, =SYN0000=. A key is data, so whether keys should be reserved at all is part of the question. Found while fixing gap 42 (2026-11-08). No name is reserved now: a binding of a special form's name shadows the form, as in Scheme, so ~(let ($list 1) (:r list))~ is ={"r": 1}= and ~(let ($map (fn (x) x)) (:r (map 1)))~ calls the binding (see [[*Special forms][special forms]]); =SYN0004= is retired.
+** FIXED The names of removed forms were still reserved
+:PROPERTIES:
+:ID:       42
+:FOUND:    2026-11-07
+:FIXED_IN: 0.6.0.0
+:END:
+=nth=, =attr=, =define= and =defun= were removed (see Appendix A), but a key or a =let= binding named after one, ~(:attr 1)~ or ~$defun~, was =SYN0004=, "Reserved Name", though nothing would be shadowed. They are now free as keys and bindings; a call of one, ~(nth 0 xs)~, is still reported with its replacement, whatever is bound, and a function still cannot be named after one (=SYN0008=), since it could never be called. Found while fixing gap 10 (2026-11-07). Since gap 43's fix, a binding of one of their names shadows it as it shadows any special form. Since 2026-11-08 =define= and =defun= are not forms at all, and their removal messages are gone: they are ordinary names, which a function can take.
 
-44. /Fixed:/ code that was not evaluated was not checked: compiling evaluates the graphs, so a mistake off their path was never reported. An unbound name in a function no graph calls, ~(define/procedure f () nope)~, a call with the wrong number of arguments in one, an unbound name in a =case= branch that is not taken, and even a function that calls itself, ~(define/procedure f () (f))~, all compile, while an unused =let= binding's unbound name is =SCP0000=. A library's broken function is found by whoever first calls it. Found while weighing static analysis (2026-11-08). /Fixed for names:/ the static analysis reports an unbound name, qualifier or export wherever it is written, in a function no graph calls, an untaken branch and an imported module alike; the recursion still compiles. /Fixed for arity:/ a call written with a function's name is checked against its parameters wherever it is written. /Fixed for recursion/ (2026-11-08), so the gap is fixed: a function that reaches itself by its name is reported wherever it is written, called or not.
+** FIXED Which special forms' names were reserved was inconsistent
+:PROPERTIES:
+:ID:       43
+:FOUND:    2026-11-08
+:FIXED_IN: 0.6.0.0
+:END:
+A key or a =let= binding named after =list=, =case=, =get=, =context=, =inlay=, =insert=, =define/procedure=, =let= or =fn= is =SYN0004=, but one named after any other special form, such as =map=, =with=, =when=, =image= or =->=, is accepted: ~(let ($map 1) (:r map))~ is ={"r": 1}=. A special form is recognised by its head symbol, so a binding named after one can be read as a value but never called: ~(let ($map (fn (x) x)) (:r (map 1)))~ is =map='s own error, =SYN0000=. A key is data, so whether keys should be reserved at all is part of the question. Found while fixing gap 42 (2026-11-08). No name is reserved now: a binding of a special form's name shadows the form, as in Scheme, so ~(let ($list 1) (:r list))~ is ={"r": 1}= and ~(let ($map (fn (x) x)) (:r (map 1)))~ calls the binding (see [[*Special forms][special forms]]); =SYN0004= is retired.
 
-45. *A binding of a form Canon rewrites is ignored at a call:* Canon rewrites =and=, =or=, =->=, =with=, =adjoin= and =thru=, and a =case= branch's =(when c)= and =(satisfies #p)= heads, by their syntax, before any name is bound, so a binding of one of their names never shadows them as a binding shadows every other special form: ~(let ($and (fn (a b) 1)) (:r (and true false)))~ is ={"r": false}=. Their names cannot name a =define/procedure= (=SYN0008=), but a key, a =let= binding or a parameter of the name is accepted and ignored at the call. Scheme avoids this because its expander knows the scope at each point; the fix is a scope-aware Canon. Found while fixing gap 43 (2026-11-08).
+** FIXED Code that was not evaluated was not checked
+:PROPERTIES:
+:ID:       44
+:FOUND:    2026-11-08
+:FIXED_IN: 0.6.0.0
+:END:
+Compiling evaluates the graphs, so a mistake off their path was never reported. An unbound name in a function no graph calls, ~(define/procedure f () nope)~, a call with the wrong number of arguments in one, an unbound name in a =case= branch that is not taken, and even a function that calls itself, ~(define/procedure f () (f))~, all compile, while an unused =let= binding's unbound name is =SCP0000=. A library's broken function is found by whoever first calls it. Found while weighing static analysis (2026-11-08). /Fixed for names:/ the static analysis reports an unbound name, qualifier or export wherever it is written, in a function no graph calls, an untaken branch and an imported module alike; the recursion still compiles. /Fixed for arity:/ a call written with a function's name is checked against its parameters wherever it is written. /Fixed for recursion/ (2026-11-08), so the gap is fixed: a function that reaches itself by its name is reported wherever it is written, called or not.
 
-46. *An unknown top-level form is named by its Haskell constructor:* a file's top level holds =define/procedure=, =graph=, =import= and =export= forms, and any other, ~(foo f () 1)~, is =SYN0000=, =Invalid top-level keyword: Symbol "foo"=, with no blurb saying what may be written there. An old =(defun ...)= is now reported this way. Found while making =defun= an ordinary name (2026-11-08).
+** OPEN A binding of a form Canon rewrites is ignored at a call
+:PROPERTIES:
+:ID:       45
+:FOUND:    2026-11-08
+:END:
+Canon rewrites =and=, =or=, =->=, =with=, =adjoin= and =thru=, and a =case= branch's =(when c)= and =(satisfies #p)= heads, by their syntax, before any name is bound, so a binding of one of their names never shadows them as a binding shadows every other special form: ~(let ($and (fn (a b) 1)) (:r (and true false)))~ is ={"r": false}=. Their names cannot name a =define/procedure= (=SYN0008=), but a key, a =let= binding or a parameter of the name is accepted and ignored at the call. Scheme avoids this because its expander knows the scope at each point; the fix is a scope-aware Canon. Found while fixing gap 43 (2026-11-08).
 
-47. /Fixed:/ a name that began with =true=, =false= or =null= was read as that literal and a name: the lexer reads the literals without checking that the word ends there, as it does for the keywords (=defnode= is a symbol), so ~(define/procedure null-result (x) x)~ is =SYN0000=, =Expected a function name=, with no blurb, ~(graph null-results ...)~ is =Expected graph name=, and ~(:null-ish 1 :r null-ish)~ reads =null-ish= as =null= and =-ish=, reported as a record of the wrong shape. A name that only contains them, =truthy=, =is-null=, is a symbol. Found while sketching a null-result pattern in Ouro (2026-11-11). /Fixed/ (2026-11-11): a word literal, as a keyword does, ends where a symbol could not go on, so =null-result=, =truer= and =null-ish= are symbols, and =true= still ends at a delimiter, a space or a comment.
+** OPEN An unknown top-level form is named by its Haskell constructor
+:PROPERTIES:
+:ID:       46
+:FOUND:    2026-11-08
+:END:
+A file's top level holds =define/procedure=, =graph=, =import= and =export= forms, and any other, ~(foo f () 1)~, is =SYN0000=, =Invalid top-level keyword: Symbol "foo"=, with no blurb saying what may be written there. An old =(defun ...)= is now reported this way. Found while making =defun= an ordinary name (2026-11-08).
 
-48. /Fixed:/ a whole number of ten million or more was written in scientific notation: the serialiser writes a Number with Haskell's =show=, dropping a trailing =.0=, and =show= switches to scientific notation at 10^7 and below 0.1, so ~(:c 123456789)~ is written =1.23456789e8= and ~(:r 0.00001)~ =1.0e-5=. It is valid JSON and the same number, but a whole number reads as a float to a person and to a consumer that keeps the lexical form, against "integers are exact up to 2^53" in the Lexer table. /Fixed/ (2026-11-13), with =to-string=: one renderer, =renderNumber=, writes a Number for the output and for =to-string=, as JavaScript does (see /Numbers in the output/ under Built-ins).
+** FIXED A name that began with =true=, =false= or =null= was read as that literal and a name
+:PROPERTIES:
+:ID:       47
+:FOUND:    2026-11-11
+:FIXED_IN: 0.6.0.0
+:END:
+The lexer reads the literals without checking that the word ends there, as it does for the keywords (=defnode= is a symbol), so ~(define/procedure null-result (x) x)~ is =SYN0000=, =Expected a function name=, with no blurb, ~(graph null-results ...)~ is =Expected graph name=, and ~(:null-ish 1 :r null-ish)~ reads =null-ish= as =null= and =-ish=, reported as a record of the wrong shape. A name that only contains them, =truthy=, =is-null=, is a symbol. Found while sketching a null-result pattern in Ouro (2026-11-11). /Fixed/ (2026-11-11): a word literal, as a keyword does, ends where a symbol could not go on, so =null-result=, =truer= and =null-ish= are symbols, and =true= still ends at a delimiter, a space or a comment.
 
-49. /Fixed:/ a =defn/const= written in an expression was an unknown qualifier =defn=: inside an expression, the keywords =defn/const= and =defn/property= were read as the symbols ="defn/const"= and ="defn/property"=, which look like a qualified name, so ~(graph g (:r (defn/const q 1)))~ was =SCP0007=, =Unknown Qualifier: defn=, with an unbound identifier besides, where a local =defn= was =SYN0000=, "A defn can only appear at the top level of a file." Found reviewing =defn/property= (2026-11-14). /Fixed/ (2026-11-14) by the rename to =define/procedure=, =define/property= and =define/constant=: the keywords a nested definition is recognised by are all three, so each in an expression is =SYN0000=, "A definition can only appear at the top level of a file."
+** FIXED A whole number of ten million or more was written in scientific notation
+:PROPERTIES:
+:ID:       48
+:FIXED_IN: 0.6.0.0
+:END:
+The serialiser writes a Number with Haskell's =show=, dropping a trailing =.0=, and =show= switches to scientific notation at 10^7 and below 0.1, so ~(:c 123456789)~ is written =1.23456789e8= and ~(:r 0.00001)~ =1.0e-5=. It is valid JSON and the same number, but a whole number reads as a float to a person and to a consumer that keeps the lexical form, against "integers are exact up to 2^53" in the Lexer table. /Fixed/ (2026-11-13), with =to-string=: one renderer, =renderNumber=, writes a Number for the output and for =to-string=, as JavaScript does (see /Numbers in the output/ under Built-ins).
 
-51. *Decimal arithmetic is binary floating point:* a Number is a Double, so a decimal written in source, such as =0.1=, has no exact form, and arithmetic on decimals carries rounding error into the output: ~(+ 0.1 0.2)~ is =0.30000000000000004= and ~(* 3 1.1)~ is =3.3000000000000003=, written as JavaScript would write them. Curators' numbers are mostly decimal measurements, so a summary worked out from them can show such digits: summing the 500 weights of =test.ouro='s hoard, ~(fold weights 0 +)~, gives =1798.6400000000008=. The number tower (=#integer=, =#natural=) does not touch it; exact decimals would, as a change of representation (an open design). Found while updating =test.ouro= to 0.6 (2026-11-15).
+** FIXED A =defn/const= written in an expression was an unknown qualifier =defn=
+:PROPERTIES:
+:ID:       49
+:FOUND:    2026-11-14
+:FIXED_IN: 0.6.0.0
+:END:
+Inside an expression, the keywords =defn/const= and =defn/property= were read as the symbols ="defn/const"= and ="defn/property"=, which look like a qualified name, so ~(graph g (:r (defn/const q 1)))~ was =SCP0007=, =Unknown Qualifier: defn=, with an unbound identifier besides, where a local =defn= was =SYN0000=, "A defn can only appear at the top level of a file." Found reviewing =defn/property= (2026-11-14). /Fixed/ (2026-11-14) by the rename to =define/procedure=, =define/property= and =define/constant=: the keywords a nested definition is recognised by are all three, so each in an expression is =SYN0000=, "A definition can only appear at the top level of a file."
+
+** OPEN Decimal arithmetic is binary floating point
+:PROPERTIES:
+:ID:       51
+:FOUND:    2026-11-15
+:END:
+A Number is a Double, so a decimal written in source, such as =0.1=, has no exact form, and arithmetic on decimals carries rounding error into the output: ~(+ 0.1 0.2)~ is =0.30000000000000004= and ~(* 3 1.1)~ is =3.3000000000000003=, written as JavaScript would write them. Curators' numbers are mostly decimal measurements, so a summary worked out from them can show such digits: summing the 500 weights of =test.ouro='s hoard, ~(fold weights 0 +)~, gives =1798.6400000000008=. The number tower (=#integer=, =#natural=) does not touch it; exact decimals would, as a change of representation (an open design). Found while updating =test.ouro= to 0.6 (2026-11-15).
+
+** OPEN Compiling many records costs more than linear time
+:PROPERTIES:
+:ID:       52
+:FOUND:    2026-11-15
+:PINNED:   the benchmark =hoard= (=cabal bench=), not a test: a timing cannot be asserted
+:END:
+A graph that builds many records costs nearly the square of their number: the benchmark of a hoard of coins, each built through =std='s constructors as =test.ouro='s are, takes 85 ms for 100 coins, 617 ms for 500 and 7.73 s for 2000 (2026-11-15). Five times the coins cost 7.3 times as much, and four times 12.5 times, about n^1.8, where linear growth would put 2000 coins near 2.5 s. Some step does work in proportion to everything built so far for each coin. Not yet profiled (=+RTS -p=), so which step is unknown. A fix shows in the benchmark: 2000 coins near four times the cost of 500. Found while benchmarking the pipeline (2026-11-15).
 
 #  LocalWords:  Ouro LD
