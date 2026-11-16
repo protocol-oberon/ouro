@@ -2904,12 +2904,15 @@ Diagnostics carry their ANSI colour codes when stderr is redirected to a file or
 :END:
 Invalid JSON ("Compilation Error:") and the unimplemented =merge= are written to stdout, with nothing on stderr, while =build= writes its diagnostics to stderr. Found while writing the CLI's tests (2026-10-29).
 
-** OPEN [#B] =insert= floors a fractional index
+** FIXED =insert= floored a fractional index
 :PROPERTIES:
 :ID:       39
 :FOUND:    2026-10-29
+:FIXED_IN: 0.6.1.0
 :END:
-~(insert (1 2) 1.5 "x")~ is ~(1 "x" 2)~, the index rounded down without a word, while =get= rejects one, "Expected: a whole number to index an Array with". Found while weighing an =#integer= refinement (2026-10-29).
+~(insert (1 2) 1.5 "x")~ was ~(1 "x" 2)~, the index rounded down without a word, while =get= rejects one, "Expected: a whole number to index an Array with". Found while weighing an =#integer= refinement (2026-10-29).
+
+/Fixed/ (2026-11-16): =insert= and =replace-at= reject a fractional index as =get= does, =SYN0003= at the index, with a hint that an index counts the elements. A whole number written with a point, =1.0=, is still an index. The number tower will state the same rule as a requirement, =#natural=, once built-ins have them.
 
 ** FIXED A failure was reported once for each route to it
 :PROPERTIES:

@@ -555,6 +555,15 @@ evalExpr expr = do
                    (EvalError e, _, _) -> pure $ EvalError e
                    (_, EvalError e, _) -> pure $ EvalError e
 
+                   -- An index is a whole number, as in a path: a fractional one is never floored
+                   (Primitive (I.Number i), _, _)
+                        | i /= fromIntegral (floor i :: Int)
+                       -> targetMismatch "a whole number to index an Array with" (I.renderNumber i)
+                          & withBlurb ("An index counts the elements: (" <> opName <> " (a b c) 1 x) puts x at the second place.")
+                          & OuroError (S.exprPos posExpr)
+                          & EvalError
+                          & pure
+
                    -- Array manipulation: any value can be an element, but a ':key value'
                    -- attribute pair belongs in a record
                    (Primitive (I.Number i), pVal, target)

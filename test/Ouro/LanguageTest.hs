@@ -406,6 +406,12 @@ types = Group "Types: the rules as they are"
                                                                    "{\"r\": [1], \"s\": [], \"t\": [1]}")
     , ("insert takes any value into an array",      compilesToJSON "(graph g (:r (insert (1 2) 0 \"x\") :s (insert #array-empty 0 1)))"
                                                                    "{\"r\": [\"x\", 1, 2], \"s\": [1]}")
+    , ("insert's index is a whole number",          importsFailAt "SYN0003" ("inline-test", 1, 28) ["a whole number to index an Array with", "1.5"] []
+                                                                   "(graph g (:r (insert (1 2) 1.5 \"x\")))")
+    , ("and so is replace-at's",                    failsWith "a whole number to index an Array with"
+                                                                   "(graph g (:r (replace-at (1 2) 0.5 \"x\")))")
+    , ("a whole number written with a point is one", compilesToJSON "(graph g (:r (insert (1 2) 1.0 \"x\")))"
+                                                                   "{\"r\": [1, \"x\", 2]}")
     , ("an attribute pair cannot be inserted into an array", failsWith "a datatype for insertion matching"
                                                               "(graph g (:r (insert (1 2) 0 :k 1)))")
     , ("a mixed array is described as mixed",       failsWith "an Array of mixed values"
@@ -1227,7 +1233,7 @@ knownGaps = Group "Known gaps: current and fixed"
                                                                      "(graph g (:ex:a/b 1 :y 2))")
     , ("gap 31: a '#' ends a key",                   importsFailAt "SYN0000" ("inline-test", 1, 16) ["Unknown property: #b"] []
                                                                      "(graph g (:ex:a#b 1 :y 2))")
-    , ("gap 39: insert floors a fractional index",   compilesToJSON "(graph g (:r (insert (1 2) 1.5 \"x\")))"
+    , ("gap 39 (fixed): insert floors a fractional index", fixedGap $ compilesToJSON "(graph g (:r (insert (1 2) 1.5 \"x\")))"
                                                                    "{\"r\": [1, \"x\", 2]}")
     , ("gap 41: WRN0000 says a value is erased",     warnsWith "will be completely erased"
                                                                "(graph g (:r (#record-empty \"x\")))")
