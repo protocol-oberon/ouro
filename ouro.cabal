@@ -53,7 +53,10 @@ extra-doc-files:    CHANGELOG.md
 extra-source-files: lib/**/*.ouro
 
 common warnings
-    ghc-options: -Wall
+    -- -Wall, and what it leaves out: code a coming GHC will break, conversions to the type a
+    -- value already has, constraints a signature asks for and does not use, and record updates
+    -- that fail at run time on another constructor
+    ghc-options: -Wall -Wcompat -Widentities -Wredundant-constraints -Wincomplete-record-updates
 
 library
     -- Import common warning flags.
