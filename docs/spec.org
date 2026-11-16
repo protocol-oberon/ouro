@@ -610,7 +610,7 @@ These are never raised, and their codes are not reused:
 | Symbol        | =artist=, =type-node=, =+=, =∧=, =legacy!=     | see below                                          |
 | Attribute     | =:key=, =:@vocab=, =:crm:P2_has_type=          | a pair's key (see below)                           |
 | Binding       | =$name=                                        | any symbol; a private binding, only inside a =let= |
-| Property      | =#uri=, =#date=, =#string=, =#titled=          | a property of what follows (see below)             |
+| Refinement      | =#uri=, =#date=, =#string=, =#titled=          | a refinement of what follows (see below)             |
 | Empty values  | =#record-empty=, =#array-empty=, =()=          | ={}=, =[]= and =[]=                                |
 | Hole          | =?=, =?name=, =?..name=                        | a placeholder in a call, or part of a pattern      |
 | Delimiters    | =( )=                                          | =[= or =]= is an error: Ouro has no brackets       |
@@ -636,11 +636,13 @@ It may also contain digits, ~?~ and ~'~, and =:= after its first character. On i
 
 An attribute is letters, digits, =-= and =_=, after an optional =@=. It may hold =:= after its first character, so a compact IRI is one key.
 
-*** Properties
+*** Refinements
 
-=#uri=, =#date=, =#string=, =#number=, =#boolean=, =#record=, =#array= and =#function= are the built-in properties.
+=#uri=, =#date=, =#string=, =#number=, =#boolean=, =#record=, =#array= and =#function= are the built-in refinements.
 
-- Any other name that begins with a letter, =#titled=, is read whole as a property defined in Ouro.
+- A refinement is what earlier versions called a property, a set of values within its domain; this spec uses the new word, while the keyword =define/property=, the messages ("Expected data to have the property …", "Unknown property: …") and the code still say property, until 0.7 renames them. In this spec "property" otherwise means what it does in JSON-LD and Linked Art: a key of a record, such as =classified_as=.
+
+- Any other name that begins with a letter, =#titled=, is read whole as a refinement defined in Ouro.
 - So is a qualified one, =#people/titled=.
 - Nothing checks one yet, so it is =Unknown property: #people/titled=.
 
@@ -833,7 +835,7 @@ sub-pattern  = hole | record-pattern | array-pattern | expression ;
 Durations and functions are values during compilation, but have no JSON form.
 They must be consumed, added to a date or called, before they reach the output.
 
-*** Built-in properties
+*** Built-in refinements
 
 - =#uri= checks that a string is a URI with a scheme.
 - =#date= checks that a string is an ISO-8601 timestamp, =YYYY-MM-DDTHH:mm:ssZ=.
@@ -842,7 +844,7 @@ They must be consumed, added to a date or called, before they reach the output.
 - An assertion on a value that is already a URI or a Date passes it through.
 - Assertions are how URIs and dates, which look like strings in JSON, keep their meaning inside Ouro.
 
-A value without the property it is typed with is reported with both properties, as they are written:
+A value without the refinement it is typed with is reported with both refinements, as they are written:
 - "Expected data to have the property =#number=, got =#string= instead".
 - For =#uri= and =#date=, the reason is given too, and the expected form is in the blurb:
   - "got a =#string= without a URI scheme";
@@ -1188,7 +1190,7 @@ A returned function is called through =let=.
 
 *** Signatures
 
-A function's types are built-in properties in its header. One between the name and the parameters is the return type. One before a parameter is that parameter's type.
+A function's types are built-in refinements in its header. One between the name and the parameters is the return type. One before a parameter is that parameter's type.
 
 - Either can be left out, and so can any parameter's.
 
@@ -1200,12 +1202,12 @@ A function's types are built-in properties in its header. One between the name a
   (:r (double 21)))               ; {"r": 42}
 #+END_SRC
 
-- The types are the built-in properties.
+- The types are the built-in refinements.
   - =#string=, =#number=, =#boolean=, =#uri=, =#date=, =#record=, =#array= and =#function=.
 
-- There is one sigil for types: =#= always names a property, and its position says what it applies to.
+- There is one sigil for types: =#= always names a refinement, and its position says what it applies to.
 
-- A property in a signature behaves exactly as it would anywhere else.
+- A refinement in a signature behaves exactly as it would anywhere else.
   - It checks the value, and =#uri= and =#date= convert a string.
   - In =node= above, =id= arrives as a URI.
 
@@ -1219,7 +1221,7 @@ A function's types are built-in properties in its header. One between the name a
 
 Signatures are checked when values cross them.
 
-- The caller's arguments must have the parameters' properties, and the function's result its return property.
+- The caller's arguments must have the parameters' refinements, and the function's result its return refinement.
 
 - A signature is checked when a value crosses it, not before evaluation, as a static type is.
 
@@ -1304,7 +1306,7 @@ A parameter can be a pattern, written as a =case= pattern is. It takes one argum
 
 - *A mismatch is the caller's*: it is reported at the argument in the call, or at the array in =map=.
 
-- *A property before a pattern* checks the argument first: ~(fn (#array (?a ?b)) ...)~.
+- *A refinement before a pattern* checks the argument first: ~(fn (#array (?a ?b)) ...)~.
 
 - *Each name is bound once*: two parameters, two holes, or a hole and a parameter with the same name are an error.
   - It is reported where the function is defined.
@@ -1351,7 +1353,7 @@ Every form and built-in takes the value it works on first:
 
 So =->=, which threads a value in as the first argument, threads through every one of them without a hole, and a =case= guard, which inserts its target first, is a comparison or =satisfies= alike.
 
-A question is written as membership is, the element or the domain first: ~(satisfies x #p)~ is x ∈ #p, and ~(forall xs f)~ is ∀x ∈ xs. f(x). The statement =#p x= puts the property first, as P(x) does.
+A question is written as membership is, the element or the domain first: ~(satisfies x #p)~ is x ∈ #p, and ~(forall xs f)~ is ∀x ∈ xs. f(x). The statement =#p x= puts the refinement first, as P(x) does.
 
 *** The forms
 
@@ -1364,7 +1366,7 @@ A question is written as membership is, the element or the domain first: ~(satis
 | =(has record key ...)=                   | =true= when the path of keys reaches a value                           |
 | =(get-or record default key ...)=        | the value at the path, or =default= when a key on the way is missing   |
 | =(image record key ...)=                 | every value the path reaches, as a set, through Arrays                 |
-| =(satisfies x #p)=                       | =true= when =x= has the property =#p=; =false= when it does not        |
+| =(satisfies x #p)=                       | =true= when =x= has the refinement =#p=; =false= when it does not        |
 | =(map array f)=                          | an array of =f= called on each element                                 |
 | =(exists array f)=                       | =true= when =f= answers =true= for some element; stops at the first    |
 | =(forall array f)=                       | =true= when =f= answers =true= for every element; stops at a =false=   |
@@ -1482,9 +1484,9 @@ Use =get= where the data has one value by construction, and =image= for anything
 
 *** =satisfies=
 
-~(satisfies x #p)~ is a question, where =#p x= is a requirement. It answers =false= when =x= does not have the property, where =#p x= is an error. Only the property's own check gives =false=: an error inside =x= stays an error.
+~(satisfies x #p)~ is a question, where =#p x= is a requirement. It answers =false= when =x= does not have the refinement, where =#p x= is an error. Only the refinement's own check gives =false=: an error inside =x= stays an error.
 
-A property written on its own, with nothing after it, is meaningful only at the head of a =case= branch. There, in ~(satisfies #p)~, the case's target fills it in; anywhere else it is an error. There the head is read by its syntax; elsewhere a binding or a =define/procedure= of =satisfies= shadows it.
+A refinement written on its own, with nothing after it, is meaningful only at the head of a =case= branch. There, in ~(satisfies #p)~, the case's target fills it in; anywhere else it is an error. There the head is read by its syntax; elsewhere a binding or a =define/procedure= of =satisfies= shadows it.
 
 *** =with= and =->=
 
@@ -1558,9 +1560,9 @@ The target is evaluated once; the branches are tried in order and the first matc
 
 - *A guard*, a form headed by a comparison: ~>~, ~>=~, ~<~, ~<=~, =eq=, =neq=. The target is inserted as the comparison's first argument, so ~((< 10) e)~ tests ~(< target 10)~. A comparison takes two operands, so a guard takes one: ~((< 10 20) e)~ is an arity error, and two bounds are a =when= over =all=, ~((when (all ((> x 1) (< x 10)))) e)~.
 
-- *A condition*, ~(when cond)~: =cond= must have the property =#boolean=; =true= takes the branch and =false= tries the next. It can use any value in scope, not only the target, but not the names a pattern binds. =when= is only a branch head, where it is read by its syntax; elsewhere a binding or a =define/procedure= of =when= shadows it.
+- *A condition*, ~(when cond)~: =cond= must have the refinement =#boolean=; =true= takes the branch and =false= tries the next. It can use any value in scope, not only the target, but not the names a pattern binds. =when= is only a branch head, where it is read by its syntax; elsewhere a binding or a =define/procedure= of =when= shadows it.
 
-- *A property*, ~(satisfies #p)~ or ~(⊨ #p)~: the target satisfies the property =#p=, as ~(satisfies target #p)~ asks. The target is inserted first, as for a comparison.
+- *A refinement*, ~(satisfies #p)~ or ~(⊨ #p)~: the target satisfies the refinement =#p=, as ~(satisfies target #p)~ asks. The target is inserted first, as for a comparison.
 
 - *A pattern*, a record form or a form containing a =?= hole (described below).
 
@@ -1685,7 +1687,7 @@ Arrays of different lengths are an error, rather than the longer one's last elem
 
 Each evaluates in order, and stops at the operand that decides the answer, so ~(and false (get () 5))~ is =false=.
 
-- Each operand it reaches must have the property =#boolean=. Unlike other Lisps, Ouro has no truthiness, and the result is always =true= or =false=.
+- Each operand it reaches must have the refinement =#boolean=. Unlike other Lisps, Ouro has no truthiness, and the result is always =true= or =false=.
 
 - =all= and =any= stop only over an array written in place, a literal one or a =(list ...)=. That keeps the guard ~(all ((has r year) (> (get r year) 1600)))~ from reading a year =r= does not have. An array given any other way, a binding or a =map='s result, is evaluated whole, then read in order.
 
@@ -1877,7 +1879,7 @@ data HigherExpression (t :: Declaration) where
     Graph    :: SourcePos -> Text -> Expr            -> HigherExpression 'GraphExpr
 #+END_SRC
 
-A =define/procedure='s return type is applied when it is parsed: its body is stored under the return property, as ~Tagged~. A =fn= is an ordinary form until it is evaluated, where a return property is read from its parameter list, ~(fn #number (n) ...)~.
+A =define/procedure='s return type is applied when it is parsed: its body is stored under the return refinement, as ~Tagged~. A =fn= is an ordinary form until it is evaluated, where a return refinement is read from its parameter list, ~(fn #number (n) ...)~.
 
 The parser also enforces the module-level rules:
 
@@ -1934,7 +1936,7 @@ A pass walks the tree in one of three ways (~Canon.Traverse~):
 - bottom-up, rewriting a form's parts first;
 - over lists of siblings, for a rule that turns one element into several.
 
-An expression that stands on its own is a list of one: a graph's body, or the payload of a property. A =thru= there has no meaning, and is left for the evaluator to report.
+An expression that stands on its own is a list of one: a graph's body, or the payload of a refinement. A =thru= there has no meaning, and is left for the evaluator to report.
 
 *** Order
 
@@ -1982,10 +1984,10 @@ Each pass is a module of its own under =Lisp/Canon/=, with the walks in =Travers
 | =case= alternatives ~(("a" "b") e)~     | one branch per literal                                              |
 | a =case= guard ~((< 10) e)~             | ~((%when (< %target 10)) e)~, the case bound as below               |
 | a condition ~((when c) e)~              | ~((%when c) e)~                                                     |
-| a property ~((satisfies #p) e)~         | ~((%when (satisfies %target #p)) e)~, the case bound as for a guard |
+| a refinement ~((satisfies #p) e)~         | ~((%when (satisfies %target #p)) e)~, the case bound as for a guard |
 | =$name value= in a =let='s bindings     | ~(%bind "name" value)~                                              |
 
-A guard's case, and a property's, is bound as ~(let ((%bind "%target" x)) (case %target ...))~.
+A guard's case, and a refinement's, is bound as ~(let ((%bind "%target" x)) (case %target ...))~.
 
 - =%adjoin= is a built-in, not a rewrite into =with=, because only the evaluated base says whether it adds attribute pairs to a record or elements to an array.
 
@@ -2196,7 +2198,7 @@ Arrays (~compileArray~) evaluate their elements in order, with =inlay= splicing 
 
 *** Calling a function
 
-~evalFunction~ checks arity and recursion, allocates one promise per argument over the /caller's/ environment (under its parameter's property, if the parameter is typed), and evaluates the body in the closure extended with a parameter frame.
+~evalFunction~ checks arity and recursion, allocates one promise per argument over the /caller's/ environment (under its parameter's refinement, if the parameter is typed), and evaluates the body in the closure extended with a parameter frame.
 
 A function already on the call stack is called again only from a call the static analysis accepted, the module's ~acceptedCalls~, known by where the function's name is written. Its arguments are forced first, and an error in one is returned instead:
 
@@ -2557,13 +2559,13 @@ Its drawer holds its number (=ID=, which the tests' names keep), the date it was
 :END:
 Only four directives could be written, with no term definitions or =null=, and a remote context with local directives serialised as a nested =@context= object, which is invalid JSON-LD. A context is now a value written as JSON-LD writes it, and several contexts are an array (see [[*=@context=][=@context=]]).
 
-** FIXED Variadic operators under a built-in property hit an internal error
+** FIXED Variadic operators under a built-in refinement hit an internal error
 :PROPERTIES:
 :ID:       2
 :FOUND:    2026-10-12
 :FIXED_IN: 0.5.0.0
 :END:
-A property's payload is now desugared like any other expression.
+A refinement's payload is now desugared like any other expression.
 
 ** FIXED Guards with more than one operand hit the same internal error
 :PROPERTIES:
@@ -2832,7 +2834,7 @@ Each is an error, but not one that says so:
 
 - =.= is =SYN0000= "Unexpected token";
 - =/= ends the key, and is read as the symbol =/b= (=SCP0000=, unbound);
-- =#= is read as a property, =#b= (=SYN0000=, "Unknown property").
+- =#= is read as a refinement, =#b= (=SYN0000=, "Unknown property").
 
 Found while fixing gap 28 (2026-10-26). Waits on a design of how such a key is written, as a quoted key perhaps.
 
@@ -2907,7 +2909,7 @@ Invalid JSON ("Compilation Error:") and the unimplemented =merge= are written to
 :ID:       39
 :FOUND:    2026-10-29
 :END:
-~(insert (1 2) 1.5 "x")~ is ~(1 "x" 2)~, the index rounded down without a word, while =get= rejects one, "Expected: a whole number to index an Array with". Found while weighing an =#integer= property (2026-10-29).
+~(insert (1 2) 1.5 "x")~ is ~(1 "x" 2)~, the index rounded down without a word, while =get= rejects one, "Expected: a whole number to index an Array with". Found while weighing an =#integer= refinement (2026-10-29).
 
 ** FIXED A failure was reported once for each route to it
 :PROPERTIES:
