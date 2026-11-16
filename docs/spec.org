@@ -3094,6 +3094,18 @@ Four times the coins cost 4.6 times as much, about n^1.1, and 2000 coins ten tim
 :END:
 The JSON parser reads =begin_of_the_begin= and =end_of_the_end= as dates, and has an error for one that is not: "Invalid ISO 8601 Timestamp format". It is never reached. The date's parser is tried first, and when it fails the pair is read again as an ordinary one, so ~{"begin_of_the_begin": "hello"}~ is validated and written back as a string, as is a year of two digits, ="81-01-01T00:00:00Z"=. The other two date keys of a TimeSpan, =end_of_the_begin= and =begin_of_the_end=, are not read as dates at all. Found while fixing gap 24 (2026-11-16).
 
+** OPEN [#B] The Array constructor is named =list=
+:PROPERTIES:
+:ID:       55
+:FOUND:    2026-11-16
+:END:
+An Array is built with ~(list 1 2)~, the name Lisps give their lists, though the value is an Array everywhere else: in this spec, in =#array=, in messages, and in JSON. ~(array 1 2)~ is unbound, =SCP0000=. Found while designing the type syntax of 0.7 (2026-11-16), where =array= also names the refinement of every array.
+
+The fix, in two steps so that no release breaks a program that the one before it compiled:
+
+- now: ~(array …)~ is the constructor, and ~(list …)~ still builds an Array, with a deprecation warning naming =array= (=DeprecatedSyntax=, defined and never yet raised);
+- in 0.7: ~(list …)~ is an error naming =array=, as =defn= became one naming =define/procedure=.
+
 * Appendix C: Benchmarks
 :PROPERTIES:
 :COLUMNS:  %16ITEM %MEASURED %CHANGE %GHC %MACHINE

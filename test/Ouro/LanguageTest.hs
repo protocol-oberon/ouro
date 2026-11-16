@@ -1287,4 +1287,8 @@ knownGaps = Group "Known gaps: current and fixed"
                                                     fmap (T.isInfixOf "\"begin_of_the_begin\": \"hello\"" . TL.toStrict)
                                                          (validate "t.json" "{\"timespan\": {\"begin_of_the_begin\": \"hello\"}}" defaultOptions)
                                                     === Right True)
+    , ("gap 55: the Array constructor is named list", compilesToJSON "(graph g (:r (list 1 2)))"
+                                                                     "{\"r\": [1, 2]}")
+    , ("gap 55: and array is unbound",              importsFailAt "SCP0000" ("inline-test", 1, 15) ["array"] []
+                                                                   "(graph g (:r (array 1 2)))")
     ]
