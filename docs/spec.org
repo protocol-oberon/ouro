@@ -3078,6 +3078,13 @@ Four times the coins cost 4.6 times as much, about n^1.1, and 2000 coins ten tim
 
 /Fixed/ (2026-11-16) with gap 24: a year is written with at least four digits, =0079-08-24T12:00:00Z=, in the output, with =to-string= and in =ouro validate='s output. linked.art's =event/vesuvius/1= writes its span with =time/span= and dates again.
 
+** OPEN [#B] =ouro validate= does not check a timespan's dates
+:PROPERTIES:
+:ID:       54
+:FOUND:    2026-11-16
+:END:
+The JSON parser reads =begin_of_the_begin= and =end_of_the_end= as dates, and has an error for one that is not: "Invalid ISO 8601 Timestamp format". It is never reached. The date's parser is tried first, and when it fails the pair is read again as an ordinary one, so ~{"begin_of_the_begin": "hello"}~ is validated and written back as a string, as is a year of two digits, ="81-01-01T00:00:00Z"=. The other two date keys of a TimeSpan, =end_of_the_begin= and =begin_of_the_end=, are not read as dates at all. Found while fixing gap 24 (2026-11-16).
+
 * Appendix C: Benchmarks
 :PROPERTIES:
 :COLUMNS:  %16ITEM %MEASURED %CHANGE %GHC %MACHINE
