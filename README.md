@@ -1287,6 +1287,22 @@ These are agreed directions for Ouro, roughly in the order they will be built. N
   (define/procedure exhibit #record (#titled r) ...)
   ```
 
+- **Types written as sets** (0.7): every type, `string` as much as `titled`, is a set in one tree of refinements rooted at `data`, and a refinement has one name with no `#`. Properties are renamed refinements, defined with `define/refinement`, so that "property" keeps the meaning it has in RDF and Linked Art, a key of a record. `⊢` (`assert`) asserts that a value is in a set, a type error with blame when it is not; `∈` (`in`) asks, answering `true` or `false`, in place of `satisfies`. Types combine as sets do: `(∪ string uri)`, `(∖ record titled)`, `(array titled)` for an array of titled records, `(record :label string)` for a record shape. Angle brackets write any form infix, `<a op b>` being `(op a b)`, so a signature reads as its sets:
+
+  ``` clojure
+  (define/procedure person-name ⊢ name-tree (<given ⊢ string> <family ⊢ string>)
+    (:type "Name"
+     :part ((:type "Name" :content given)
+            (:type "Name" :content family))))
+  ```
+
+  ``` clojure
+  (define/refinement titled <r ⊢ record>
+    (has r _label))
+  ```
+
+  With it, `(list …)` becomes `(array …)`, as the value is an Array everywhere else, and comparisons become words, `lt`, `leq`, `gt` and `geq`, freeing `<` and `>`. Each old spelling becomes an error that names its replacement.
+
 - **The rest of the static analysis:** names, arity and recursion are already checked as written (see [Functions](#functions) and [Lexical Scoping](#lexical-scoping)). Still to come: warnings for unused bindings, imports and functions, once the error codes are redesigned; with properties, property names checked as written too, a recursive property under the same rule as any function; and whether an expression is a call, a record or an array decided there, once, for the evaluator to follow, by the same rules as now.
 - **A REPL and a language server,** bundled with the compiler, as `std` is, so that they run the same parser and evaluator as `build`. The language server is where spelling belongs: a key or class that is not a term of the record's context can be underlined as it is written, with the nearest term offered, without ever stopping a compile.
 - **Search:** an Ouro Hoogle, finding functions by name, by signature and by their documentation.
