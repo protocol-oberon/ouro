@@ -195,7 +195,8 @@ pLiterals = lexeme . withPos $ choice
              -- We use pure () to strictly enforce no spaces between '-' and the digits
              let signHandler = L.signed (pure ())
 
-             num <- signHandler ((try L.float) <|> (fromIntegral <$> L.decimal))
+             -- A whole number is read as an Integer, which no literal overflows, then made a Double
+             num <- signHandler ((try L.float) <|> (fromIntegral <$> (L.decimal :: Parser Integer)))
              pure (Tkn.Number num)
 
    pBoolean :: Parser Tkn.TokenType

@@ -654,88 +654,88 @@ assertTag tag payload = do
 -- #date, or a PropertyMismatch error at the position given
 checkProperty :: S.ReaderTag -> SourcePos -> L.Expr -> EvalM L.Expr
 checkProperty tag pos evaluatedVal = case tag of
-                                 S.Uri         -> assertUri  pos evaluatedVal
-                                 S.Date        -> assertDate pos evaluatedVal
-                                 S.StringTag   -> isString   pos evaluatedVal
-                                 S.NumberTag   -> isNumber   pos evaluatedVal
-                                 S.BooleanTag  -> isBoolean  pos evaluatedVal
-                                 S.RecordTag   -> isRecord   pos evaluatedVal
-                                 S.ArrayTag    -> isArray    pos evaluatedVal
-                                 S.FunctionTag -> isFn       pos evaluatedVal
+                                 S.Uri         -> assertUri  evaluatedVal
+                                 S.Date        -> assertDate evaluatedVal
+                                 S.StringTag   -> isString   evaluatedVal
+                                 S.NumberTag   -> isNumber   evaluatedVal
+                                 S.BooleanTag  -> isBoolean  evaluatedVal
+                                 S.RecordTag   -> isRecord   evaluatedVal
+                                 S.ArrayTag    -> isArray    evaluatedVal
+                                 S.FunctionTag -> isFn       evaluatedVal
                                  _badTag       -> malformedTag (T.pack (show tag)) "#record-empty and #array-empty are values, not properties, so nothing can be asserted with them"
                                                   & OuroError pos
                                                   & EvalError
                                                   & pure
 
     where
-    -- Typed Primitive Helpers
-    isString pos v = case v of
-                         Primitive (I.String _) -> pure v
-                         other                  -> failProperty pos "#string" (propertyOf other) (typeMismatchBlurb other)
+    -- Typed Primitive Helpers, each at the position checkProperty was given
+    isString v = case v of
+                     Primitive (I.String _) -> pure v
+                     other                  -> failProperty "#string" (propertyOf other) (typeMismatchBlurb other)
 
-    isNumber pos v = case v of
-                         Primitive (I.Number _) -> pure v
-                         other                  -> failProperty pos "#number" (propertyOf other) (typeMismatchBlurb other)
+    isNumber v = case v of
+                     Primitive (I.Number _) -> pure v
+                     other                  -> failProperty "#number" (propertyOf other) (typeMismatchBlurb other)
 
-    isRecord pos v = case v of
-                         Record _ _           -> pure v
-                         Primitive I.EmptyRec -> pure v
-                         other                -> failProperty pos "#record" (propertyOf other) (typeMismatchBlurb other)
+    isRecord v = case v of
+                     Record _ _           -> pure v
+                     Primitive I.EmptyRec -> pure v
+                     other                -> failProperty "#record" (propertyOf other) (typeMismatchBlurb other)
 
-    isArray pos v = case L.asArray v of
-                        Just _  -> pure v
-                        Nothing -> failProperty pos "#array" (propertyOf v) (typeMismatchBlurb v)
+    isArray v = case L.asArray v of
+                    Just _  -> pure v
+                    Nothing -> failProperty "#array" (propertyOf v) (typeMismatchBlurb v)
 
-    isFn pos v = case v of
-                     FunctionClosure _ _ _ _ -> pure v
-                     PrimitiveOp _           -> pure v
-                     other                   -> failProperty pos "#function" (propertyOf other) (typeMismatchBlurb other)
+    isFn v = case v of
+                 FunctionClosure _ _ _ _ -> pure v
+                 PrimitiveOp _           -> pure v
+                 other                   -> failProperty "#function" (propertyOf other) (typeMismatchBlurb other)
 
-    isBoolean pos v = case v of
-                          Primitive (I.Boolean _) -> pure v
-                          other                   -> failProperty pos "#boolean" (propertyOf other) (typeMismatchBlurb other)
+    isBoolean v = case v of
+                      Primitive (I.Boolean _) -> pure v
+                      other                   -> failProperty "#boolean" (propertyOf other) (typeMismatchBlurb other)
 
     -- Complex Parsers
-    assertUri :: SourcePos -> L.Expr -> EvalM L.Expr
-    assertUri pos = \case
+    assertUri :: L.Expr -> EvalM L.Expr
+    assertUri = \case
         Primitive (I.String rawText)
             -> case mkUri rawText of
                    Left _
-                       -> failProperty pos "#uri" "a #string that is not a URI" uriBlurb
+                       -> failProperty "#uri" "a #string that is not a URI" uriBlurb
 
                    Right uri
                        -> case URI.uriScheme (uriParsed uri) of
                               Just _
                                   -> pure $ Primitive (I.URI uri)
                               Nothing
-                                  -> failProperty pos "#uri" "a #string without a URI scheme" uriBlurb
+                                  -> failProperty "#uri" "a #string without a URI scheme" uriBlurb
 
         Primitive (I.URI uri)
             -> pure $ Primitive (I.URI uri)
 
         otherVal
-            -> failProperty pos "#uri" (propertyOf otherVal) uriBlurb
+            -> failProperty "#uri" (propertyOf otherVal) uriBlurb
 
-    assertDate :: SourcePos -> L.Expr -> EvalM L.Expr
-    assertDate pos =
+    assertDate :: L.Expr -> EvalM L.Expr
+    assertDate =
         \case
          Primitive (I.String rawText)
              -> case parseISO8601 (T.unpack rawText) of
                     Just    utcTime -> pure $ Primitive (I.Date utcTime)
-                    Nothing         -> failProperty pos "#date" "a #string that is not a date" dateBlurb
+                    Nothing         -> failProperty "#date" "a #string that is not a date" dateBlurb
 
          Primitive (I.Date date)
              -> pure $ Primitive (I.Date date)
 
          otherVal
-             -> failProperty pos "#date" (propertyOf otherVal) dateBlurb
+             -> failProperty "#date" (propertyOf otherVal) dateBlurb
 
     uriBlurb  = "A #uri is a #string with a scheme, such as \"https://linked.art/example/1\"."
     dateBlurb = "A #date is a #string in ISO-8601 form, YYYY-MM-DDTHH:mm:ssZ, such as \"1642-01-01T00:00:00Z\"."
 
     -- A value without the built-in property it is typed with
-    failProperty :: SourcePos -> Text -> Text -> Text -> EvalM L.Expr
-    failProperty pos expected actual blurb =
+    failProperty :: Text -> Text -> Text -> EvalM L.Expr
+    failProperty expected actual blurb =
         propertyMismatch expected actual
         & withBlurb blurb
         & OuroError pos

@@ -60,12 +60,12 @@ withUtf8Console = id
 
 
 shouldCompileTo :: (MonadTest m, MonadIO m) => FilePath -> String -> FilePath -> m ()
-shouldCompileTo test graph trgt = do
+shouldCompileTo source graph expected = do
     -- Both files are read as UTF-8, as the compiler reads its source, whatever the code page
-    testContent <- readUtf8 test
-    trgtContent <- TL.fromStrict <$> readUtf8 trgt
+    testContent <- readUtf8 source
+    trgtContent <- TL.fromStrict <$> readUtf8 expected
 
-    let res = compile test graph testContent
+    let res = compile source graph testContent
 
     case res of
         CompilationSuccess _ ast -> do
