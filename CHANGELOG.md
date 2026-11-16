@@ -12,8 +12,30 @@ version is 0.x, a new minor version may break programs, and each change that doe
 ### Added
 - A `define/procedure` of no parameters warns (`WRN0006`) and suggests `define/constant`: a
   function of no parameters is a constant, worked out once per graph. <!-- ulotxkko -->
+- `aat/language/iso` and `aat/currency/iso`: each language and currency with its ISO code as
+  its notation, ISO 639 and ISO 4217, as Linked Art's examples mostly write them.
+  `(import aat/language/iso)` gives `iso/english`, written `en`. Both are qualified `iso`, so
+  a module using both imports one under another name: `(import aat/currency/iso as
+  currency-iso)`. <!-- twunpuuo --> <!-- tlqmxnst -->
+- Ten `aat` modules of the terms Linked Art's examples use: `activity-type`, `gender`,
+  `part-type`, `price-type`, `provenance-type`, `right-type`, `role-type`, `style`,
+  `technique` and `visual-type`. <!-- vqmoozlo --> <!-- tlqmxnst --> <!-- wvsmqwtz -->
+  <!-- lznntqyo --> <!-- pnsztquq --> <!-- xrzovurp --> <!-- rourkqvx -->
+- The terms Linked Art's examples use beyond its recommended list, in the modules that already
+  existed: object types such as `exhibition-catalog` and `page`, and terms of the dimension,
+  group, identifier, name, place, set and statement types, units, currencies and materials.
+  Each says so in its documentation: "From Linked Art's examples, not its recommended list."
+  <!-- vqmoozlo -->
+- `base/core` is exported: the constructor of the `id`, `type` and `_label` that every node
+  with an id begins with. <!-- mwwtpykn -->
+- `std/object` has the units `day-unit`, `pixels` and `kilobytes`. <!-- vqmoozlo -->
 
 ### Fixed
+- `aat`'s material and unit labels match Linked Art's recommended list, which `aat` is
+  generated from: they were capitalised, and are written as the list and Linked Art's examples
+  write them, lower-case. `material/oil-paint` is labelled `"oil"`, where it was `"Oil"`, and
+  `unit/centimeters` `"centimeters"`. A graph that uses them writes the corrected labels.
+  <!-- nlszpmqz -->
 - `ouro validate` without `-o` writes the JSON to stdout, and nothing else, so it can be piped;
   it no longer writes over its input (gap 13). <!-- llsvvrmw -->
 - A `[` or `]` is an error that says an array is written in parentheses, `(1 2 3)`. The bracket
