@@ -27,6 +27,7 @@ import           Data.Ouro.Error.Diagnostics    (astCorruption,
 import           Data.Ouro.Error.Types          (ErrorContext (..),
                                                  OuroError (..), TypeError (..))
 import qualified Data.Ouro.Internal.Expr        as I
+import           Data.Ouro.Internal.Uri         (mkUri, uriParsed)
 import           Data.Ouro.Lisp.Analysis.Forms  (BlockTarget (..),
                                                  determineBlockTarget,
                                                  hasValidOtherwise,
@@ -698,12 +699,12 @@ checkProperty tag pos evaluatedVal = case tag of
     assertUri :: SourcePos -> L.Expr -> EvalM L.Expr
     assertUri pos = \case
         Primitive (I.String rawText)
-            -> case URI.mkURI rawText of
+            -> case mkUri rawText of
                    Left _
                        -> failProperty pos "#uri" "a #string that is not a URI" uriBlurb
 
                    Right uri
-                       -> case URI.uriScheme uri of
+                       -> case URI.uriScheme (uriParsed uri) of
                               Just _
                                   -> pure $ Primitive (I.URI uri)
                               Nothing

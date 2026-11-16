@@ -1,10 +1,10 @@
 module Data.Ouro.Internal.Schema where
 
-import           Data.List  (intercalate)
-import           Data.Maybe (fromMaybe)
-import           Data.Text  (Text)
-import qualified Data.Text  as T
-import qualified Text.URI   as URI
+import           Data.List              (intercalate)
+import           Data.Maybe             (fromMaybe)
+import           Data.Ouro.Internal.Uri (Uri)
+import           Data.Text              (Text)
+import qualified Data.Text              as T
 
 
 -- Schema.
@@ -55,14 +55,14 @@ entries (Schema xs) = xs
 -- One entry of a context: a remote context's URL, a local context, or null, which clears
 -- the active context.
 data ContextEntry
-    = RemoteContext !URI.URI
+    = RemoteContext !Uri
     | LocalContext  Directives
     | ClearContext
     deriving Eq
 
 instance Show ContextEntry where
     show = \case
-            RemoteContext uri -> "RemoteContext " ++ URI.renderStr uri
+            RemoteContext uri -> "RemoteContext " ++ show uri
             LocalContext  ds  -> "LocalContext "  ++ show ds
             ClearContext      -> "ClearContext"
 

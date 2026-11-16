@@ -14,14 +14,13 @@ import qualified Data.Ouro.Internal.Expr   as Expr
 import qualified Data.Ouro.Internal.Kinds  as JLD
 import           Data.Ouro.Internal.Schema (ContextEntry, Schema (..))
 import qualified Data.Ouro.Internal.Schema as Sch
+import           Data.Ouro.Internal.Uri    (uriText)
 import           Data.Text                 (Text, replicate)
 import qualified Data.Text                 as T
 import qualified Data.Text.Lazy            as TL
 import qualified Data.Text.Lazy.Builder    as B
-import qualified Data.Time.Format          as TF
 import           Lens.Micro                (Lens', over, to, (%~), (^.))
 import           Numeric                   (showHex)
-import qualified Text.URI                  as URI
 
 
 -- Global runtime configuration
@@ -121,8 +120,8 @@ buildJSON = \case
 
               Expr.Boolean   True  -> tell "true"
               Expr.Boolean   False -> tell "false"
-              Expr.URI       uri   -> tell $ escapeString $ URI.render uri
-              Expr.Date      date  -> tell $ escapeString $ T.pack $ TF.formatTime  TF.defaultTimeLocale "%Y-%m-%dT%H:%M:%SZ" date
+              Expr.URI       uri   -> tell $ escapeString $ uriText uri
+              Expr.Date      date  -> tell $ escapeString $ Expr.renderDate date
               Expr.Null            -> tell "null"
               Expr.BlankNode blank -> tell $ escapeString $ "_:" <> blank
               Expr.EmptyArr        -> tell $ "[]"

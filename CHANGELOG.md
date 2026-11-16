@@ -20,6 +20,12 @@ version is 0.x, a new minor version may break programs, and each change that doe
   syntax parsed, but meant nothing (gap 13). <!-- llsvvrmw -->
 - A graph of many records compiles in time near linear in their number, not near its square:
   a hoard of 2000 coins takes 0.76 s, where it took 7.7 s (gap 52). <!-- krokmvot -->
+- A `#uri` is written as it was written: `"https://a.org/"` keeps its slash, and
+  `"https://a.org/x//y"` its empty segment, in the output and in `ouro validate`'s
+  (gaps 17, 22). <!-- uyputzwn -->
+- A `#date`'s year has at least four digits, as ISO 8601 and `xsd:dateTime` require: a year
+  before 1000 is written with its leading zeros, `0079-08-24T12:00:00Z`, and a shorter year,
+  `"81-01-01T00:00:00Z"`, is not a date (gaps 24, 53). <!-- uyputzwn -->
 
 ## [0.6.0.0] - 2026-11-15
 

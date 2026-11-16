@@ -21,6 +21,7 @@ import           Data.Ouro.Error.Diagnostics (binaryOpMismatchBlurb,
 import           Data.Ouro.Error.Types       (ErrorContext (..), OuroError (..),
                                               SyntaxError (..))
 import qualified Data.Ouro.Internal.Expr     as I
+import           Data.Ouro.Internal.Uri      (uriText)
 import           Data.Ouro.Lisp.Eval.Types   (Env, PeriodUnit (..),
                                               humanReadableType)
 import qualified Data.Ouro.Lisp.Eval.Types   as L
@@ -32,10 +33,7 @@ import           Data.Time                   (UTCTime (..), addUTCTime,
 import           Data.Time.Calendar          (addDays,
                                               addGregorianMonthsClip,
                                               addGregorianYearsClip)
-import           Data.Time.Format            (defaultTimeLocale, formatTime,
-                                              parseTimeM)
 import           Text.Megaparsec             (SourcePos)
-import qualified Text.URI                    as URI
 
 
 -- Maps syntax strings to their respective first-class execution handles
@@ -905,7 +903,7 @@ handleMonthsEndModifier = mkDurationHandler "months-end" MonthsToEnd
 
 --- Shared Utility Predicates ---
 parseISO8601 :: String -> Maybe UTCTime
-parseISO8601 s = parseTimeM True defaultTimeLocale "%Y-%m-%dT%H:%M:%SZ" s
+parseISO8601 = I.parseDate
 
 
 --- Strings ---
@@ -960,8 +958,8 @@ handleToString pos = withArity "to-string" 1 written pos
             | not (isNaN n || isInfinite n)
                                      -> string (I.renderNumber n)
         [L.Primitive (I.Boolean b)]  -> string (case b of True -> "true"; False -> "false")
-        [L.Primitive (I.URI uri)]    -> string (URI.render uri)
-        [L.Primitive (I.Date date)]  -> string (T.pack (formatTime defaultTimeLocale "%Y-%m-%dT%H:%M:%SZ" date))
+        [L.Primitive (I.URI uri)]    -> string (uriText uri)
+        [L.Primitive (I.Date date)]  -> string (I.renderDate date)
         other : _                    -> wrongArgument pos "a String, a finite Number, a Boolean, a URI or a Date" toStringBlurb other
         []                           -> wrongArgument pos "a String, a finite Number, a Boolean, a URI or a Date" toStringBlurb (L.Array [])
 

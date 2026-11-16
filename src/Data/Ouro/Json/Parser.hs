@@ -11,16 +11,15 @@ import qualified Data.Ouro.Internal.Expr    as Expr
 import qualified Data.Ouro.Internal.Kinds   as JLD
 import           Data.Ouro.Internal.Schema  (Schema (..))
 import qualified Data.Ouro.Internal.Schema  as Schema
+import           Data.Ouro.Internal.Uri     (Uri, uriParser)
 import           Data.Scientific            (toRealFloat)
 import           Data.Text                  (Text, pack)
-import           Data.Time.Format           (defaultTimeLocale, parseTimeM)
 import           Data.Void                  (Void)
 import           Text.Megaparsec            (ParseErrorBundle, Parsec, between,
                                              choice, manyTill, parse, sepBy,
                                              try, (<|>))
 import           Text.Megaparsec.Char       (char, space1, string)
 import qualified Text.Megaparsec.Char.Lexer as L
-import qualified Text.URI                   as URI
 
 
 
@@ -92,8 +91,8 @@ pRecordField = choice
     ]
 
 
-pQuotedURI :: Parser URI.URI
-pQuotedURI = between (char '"') (char '"') URI.parser
+pQuotedURI :: Parser Uri
+pQuotedURI = between (char '"') (char '"') uriParser
 
 
 -- A JSON-LD context: null, a remote context's URL, a local context, or an array of them,
@@ -187,7 +186,7 @@ pDateAttr = do
                           _                        -> "end_of_the_end"
 
             -- Attempt to parse the timestamp value strictly
-            case parseTimeM True defaultTimeLocale "%Y-%m-%dT%H:%M:%SZ" str of
+            case Expr.parseDate str of
                 Just utcTime -> pure . DataField $ Expr.Attr key (Expr.Date utcTime)
                 -- Halts validation immediately and raises a localized parse error
                 Nothing      -> fail $ "Invalid ISO 8601 Timestamp format for "

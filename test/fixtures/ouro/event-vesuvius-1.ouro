@@ -1,5 +1,6 @@
 ;; linked.art's example, written in Ouro: https://linked.art/example/event/vesuvius/1
 (import std/base)
+(import std/time)
 (import std/vocab)
 
 (define/procedure example #uri (#string path)
@@ -8,13 +9,10 @@
 (define/procedure event #record (#string slug #string label)
   (:id (example (+ "event/" slug)) :type "Event" :_label label))
 
-;; An event that is no one's activity. Its span is written as strings, not dates: a #date
-;; before the year 1000 is written without its leading zeros, 79-08-24 (gap 53)
+;; An event that is no one's activity: from noon on 24 August 79 to the end of the 26th
 (graph event-vesuvius-1
   (-> (event "vesuvius/1" "Eruption of Vesuvius")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :identified_by (list (base/name vocab/primary-name "Eruption of Vesuvius")))
-      (with :timespan      (:type               "TimeSpan"
-                            :begin_of_the_begin "0079-08-24T12:00:00Z"
-                            :end_of_the_end     "0079-08-26T23:59:59Z"))
+      (with :timespan      (time/span #date "0079-08-24T12:00:00Z" #date "0079-08-26T23:59:59Z"))
       (with :took_place_at ((:id (example "place/vesuvius") :type "Place" :_label "Mount Vesuvius")))))

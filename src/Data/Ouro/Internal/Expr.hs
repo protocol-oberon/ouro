@@ -5,15 +5,16 @@
 
 module Data.Ouro.Internal.Expr where
 
+import           Data.Char                 (isDigit)
 import           Data.List                 (intercalate, sortOn)
 import qualified Data.Ouro.Internal.Kinds  as JLD
 import           Data.Ouro.Internal.Schema (Schema)
+import           Data.Ouro.Internal.Uri    (Uri)
 import           Data.Text                 (Text, unpack)
 import qualified Data.Text                 as T
+import           Data.Time                 (UTCTime, defaultTimeLocale,
+                                            formatTime, parseTimeM)
 import           Numeric                   (showFFloat)
-import           Data.Time                 (UTCTime)
-import qualified Text.URI                  as MURI
-import           Text.URI                  (URI)
 
 
 -- Expr t.
@@ -46,7 +47,7 @@ data Expr (t :: JLD.Type) where
     String    :: Text    -> Expr 'JLD.Primitive
     Number    :: Double  -> Expr 'JLD.Primitive
     Boolean   :: Bool    -> Expr 'JLD.Primitive
-    URI       :: URI     -> Expr 'JLD.Primitive
+    URI       :: Uri     -> Expr 'JLD.Primitive
     Date      :: UTCTime -> Expr 'JLD.Primitive
     Null      ::            Expr 'JLD.Primitive
     BlankNode :: Text    -> Expr 'JLD.Primitive
@@ -180,7 +181,7 @@ instance Show (Expr t) where
                              String  txt  -> "String "  ++ show txt
                              Number  n    -> "Number "  ++ show n
                              Boolean b    -> "Boolean " ++ show b
-                             URI     u    -> "URI "     ++ MURI.renderStr u
+                             URI     u    -> "URI "     ++ show u
                              Date    d    -> "Date "    ++ show d
                              Null         -> "Null"
                              BlankNode n  -> "BLANK "   ++ (unpack n)
@@ -242,6 +243,20 @@ instance Show (Expr t) where
                                 False -> "│   "
                 pad       = replicate (length binding) ' '
             in concat env ++ marker ++ binding ++ render (env ++ [parentBar, pad]) isLast val ++ "\n"
+
+
+-- parseDate and renderDate.
+--
+-- A Date as Ouro reads and writes it, in the form ISO 8601 and xsd:dateTime share,
+-- 1642-01-01T00:00:00Z. Both need at least four digits of year: a shorter year is not a
+-- date (gap 24), and a year before 1000 is written with its leading zeros, 0079 (gap 53).
+parseDate :: String -> Maybe UTCTime
+parseDate s = case span isDigit s of
+    (year, '-' : _) | length year >= 4 -> parseTimeM True defaultTimeLocale "%Y-%m-%dT%H:%M:%SZ" s
+    _shortYear                         -> Nothing
+
+renderDate :: UTCTime -> Text
+renderDate = T.pack . formatTime defaultTimeLocale "%0Y-%m-%dT%H:%M:%SZ"
 
 
 -- renderNumber.

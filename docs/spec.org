@@ -2273,7 +2273,7 @@ data Expr (t :: JLD.Type) where
     String    :: Text    -> Expr 'JLD.Primitive
     Number    :: Double  -> Expr 'JLD.Primitive
     Boolean   :: Bool    -> Expr 'JLD.Primitive
-    URI       :: URI     -> Expr 'JLD.Primitive
+    URI       :: Uri     -> Expr 'JLD.Primitive   -- checked as a URI, kept as its text
     Date      :: UTCTime -> Expr 'JLD.Primitive
     Null      ::            Expr 'JLD.Primitive
     BlankNode :: Text    -> Expr 'JLD.Primitive
@@ -2300,7 +2300,7 @@ data Expr (t :: JLD.Type) where
 | number                  | =42=                | ~Number~                | ~Double~       | Primitive |
 | boolean                 | =true=              | ~Boolean~               | ~Bool~         | Primitive |
 | null                    | none: an error      | ~Null~, read by =validate= only | none     | Primitive |
-| IRI                     | =#uri "..."=        | ~URI~                   | ~Text.URI.URI~ | Primitive |
+| IRI                     | =#uri "..."=        | ~URI~                   | ~Uri~, its text | Primitive |
 | xsd:dateTime            | =#date "..."=       | ~Date~                  | ~UTCTime~      | Primitive |
 | blank node              | not yet written     | ~BlankNode~             | ~Text~         | Primitive |
 | ={}= / =[]=             | =#record-empty= / =()= | ~EmptyRec~ / ~EmptyArr~ | none           | Primitive |
@@ -2325,7 +2325,7 @@ The context model (~Internal.Schema~) is a context's entries, in order:
 newtype Schema = Schema [ContextEntry]        -- Monoid: concatenation, mempty = []
 
 data ContextEntry
-    = RemoteContext URI                        -- "https://..."
+    = RemoteContext Uri                        -- "https://..."
     | LocalContext  Directives                 -- {...}
     | ClearContext                             -- null
 
@@ -2702,12 +2702,15 @@ Arrays are no longer required to be homogeneous, so =+= on two arrays is plain c
 :END:
 This gave misleading arity or parenthesis errors. =$name= is now read on its own and paired with its value only inside a =let=; elsewhere it is an error that says to drop the =$=.
 
-** OPEN [#A] A URI's empty root path is dropped
+** FIXED A URI's empty root path was dropped
 :PROPERTIES:
 :ID:       17
 :FOUND:    2026-10-12
+:FIXED_IN: 0.6.1.0
 :END:
-~#uri "https://a.org/"~ serialises as ="https://a.org"=, which changes the IRI's text. URIs with a path (Getty's, Linked Art's) are unaffected. It comes from how the URI library renders an empty path.
+~#uri "https://a.org/"~ serialised as ="https://a.org"=, which changes the IRI's text. URIs with a path (Getty's, Linked Art's) were unaffected. It came from how the URI library renders an empty path.
+
+/Fixed/ (2026-11-16), with gap 22: a URI is kept as the text it was written as, checked by the URI library but never rendered by it (=Data.Ouro.Internal.Uri=), so ~#uri "https://a.org/"~ is written ="https://a.org/"=, in a value, a remote context and =ouro validate='s output alike. linked.art's =object/0= writes the Louvre's id, ="http://louvre.fr/"=, as a =#uri= again.
 
 ** OPEN [#C] An attribute pair among array values has no hint
 :PROPERTIES:
@@ -2739,12 +2742,15 @@ Compiling into one that did not exist reported "Compilation Success" and then cr
 :END:
 It rejects the valid JSON escapes =\u00e9= and =\/=, and accepts the invalid =\x41= and =\65= (both read as =A=). The JSON parser reads string characters with Megaparsec's ~charLiteral~, which follows Haskell's rules.
 
-** OPEN [#A] A URI's empty path segments are dropped
+** FIXED A URI's empty path segments were dropped
 :PROPERTIES:
 :ID:       22
 :FOUND:    2026-10-12
+:FIXED_IN: 0.6.1.0
 :END:
-~#uri "https://a.org/x//y"~ serialises as ="https://a.org/x/y"=, and ~#uri "https://a.org//x"~ as ="https://a.org/x"=, which changes the IRI's text. A plain string keeps its slashes, and so does a URI's trailing slash. It was found through a stray leading slash, ~(example "/place/...")~, whose =#uri= return type hid the doubled slash. Like gap 17, it comes from how the URI library renders a path.
+~#uri "https://a.org/x//y"~ serialised as ="https://a.org/x/y"=, and ~#uri "https://a.org//x"~ as ="https://a.org/x"=, which changes the IRI's text. A plain string kept its slashes, and so did a URI's trailing slash. It was found through a stray leading slash, ~(example "/place/...")~, whose =#uri= return type hid the doubled slash. Like gap 17, it came from how the URI library renders a path.
+
+/Fixed/ (2026-11-16) with gap 17: a URI is written as it was written, every slash kept.
 
 ** OPEN [#B] An unterminated string is reported where the input ends
 :PROPERTIES:
@@ -2753,11 +2759,14 @@ It rejects the valid JSON escapes =\u00e9= and =\/=, and accepts the invalid =\x
 :END:
 ~(:r "open)~ is a lexical error at the end of the file, not at the opening quote, so in a long file the error points far from its cause. Found while testing errors inside imported modules (2026-10-24).
 
-** OPEN [#A] =#date= accepts a year of fewer than four digits
+** FIXED =#date= accepted a year of fewer than four digits
 :PROPERTIES:
 :ID:       24
+:FIXED_IN: 0.6.1.0
 :END:
-~#date "81-01-01T00:00:00Z"~ is taken as the year 81 and written out as given, =81-01-01T00:00:00Z=, which is not ISO-8601 or =xsd:dateTime= (both need at least four digits; more are allowed). The parser's =%Y= reads any number of digits. Through =std/time=, =(time/year "81")= gets through too.
+~#date "81-01-01T00:00:00Z"~ was taken as the year 81 and written out as given, =81-01-01T00:00:00Z=, which is not ISO-8601 or =xsd:dateTime= (both need at least four digits; more are allowed). The parser's =%Y= reads any number of digits. Through =std/time=, =(time/year "81")= got through too.
+
+/Fixed/ (2026-11-16), with gap 53: a date's year has at least four digits, or the string is not a date ("a #string that is not a date"), through =std/time= as well. One function, =parseDate=, reads every date, and =renderDate= writes every one.
 
 ** PENDING Warning codes collide across categories
 :PROPERTIES:
@@ -3059,12 +3068,15 @@ Five times the coins cost 7.3 times as much, and four times 12.5 times, about n^
 
 Four times the coins cost 4.6 times as much, about n^1.1, and 2000 coins ten times less than before.
 
-** OPEN [#A] A =#date= before the year 1000 is written without its leading zeros
+** FIXED A =#date= before the year 1000 was written without its leading zeros
 :PROPERTIES:
 :ID:       53
 :FOUND:    2026-11-15
+:FIXED_IN: 0.6.1.0
 :END:
-~(:d #date "0079-08-24T12:00:00Z")~ is written ={"d": "79-08-24T12:00:00Z"}=, which is not ISO 8601 or =xsd:dateTime=, both needing at least four digits of year. It is the output side of gap 24, which accepts such a year in a =#date=. linked.art's =event/vesuvius/1= writes its dates as strings until it is fixed. Found while writing linked.art's examples in Ouro (2026-11-15).
+~(:d #date "0079-08-24T12:00:00Z")~ was written ={"d": "79-08-24T12:00:00Z"}=, which is not ISO 8601 or =xsd:dateTime=, both needing at least four digits of year. It is the output side of gap 24, which accepted such a year in a =#date=. Found while writing linked.art's examples in Ouro (2026-11-15).
+
+/Fixed/ (2026-11-16) with gap 24: a year is written with at least four digits, =0079-08-24T12:00:00Z=, in the output, with =to-string= and in =ouro validate='s output. linked.art's =event/vesuvius/1= writes its span with =time/span= and dates again.
 
 * Appendix C: Benchmarks
 :PROPERTIES:

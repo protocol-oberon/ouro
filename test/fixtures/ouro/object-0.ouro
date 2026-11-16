@@ -36,8 +36,7 @@
                                (:id #uri "http://data.louvre.example/all_holdings" :type "Set" :_label "Holdings of the Louvre")))
       (with :shows            ((:id #uri "http://data.louvre.example/visual/mona_lisa" :type "VisualItem" :_label "Visual Work of the Mona Lisa")))
       (with :equivalent       ((:id #uri "http://wikidata.org/entity/Q12418" :type "HumanMadeObject" :_label "Mona Lisa")))
-      ;; A string, not a #uri: a URI's empty root path is dropped, http://louvre.fr (gap 17)
-      (with :current_owner    ((:id "http://louvre.fr/" :type "Group" :_label "The Louvre")))
+      (with :current_owner    ((:id #uri "http://louvre.fr/" :type "Group" :_label "The Louvre")))
       (with :current_location (:id #uri "http://galleries.example/louvre/711" :type "Place" :_label "Room 711, Denon Wing, The Louvre, Paris"))
       (with :produced_by      (:type           "Production"
                                :timespan       (with (time/year-range "1503" "1506")

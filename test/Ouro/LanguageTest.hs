@@ -22,7 +22,6 @@ module Ouro.LanguageTest
 ) where
 
 import qualified Data.ByteString           as BS
-import           Data.Maybe                (fromJust)
 import           Data.Ouro                 (LinterWarning (..),
                                             SemanticWarning (..),
                                             VocabularyWarning (..),
@@ -33,12 +32,12 @@ import qualified Data.Ouro.Internal.Expr   as I
 import qualified Data.Ouro.Internal.Kinds  as JLD
 import           Data.Ouro.Internal.Schema (ContextEntry (..), ContextValue (..),
                                             Directives, Schema (..), directive)
+import           Data.Ouro.Internal.Uri    (mkUri)
 import qualified Data.Text                 as T
 import qualified Data.Text.Lazy            as TL
 import           Hedgehog
 import qualified Hedgehog.Gen              as Gen
 import qualified Hedgehog.Range            as Range
-import qualified Text.URI                  as URI
 import           Utils                     (compilesToJSON, emitsExactly,
                                             failsWith, failsWithout, fixedGap,
                                             fixture, importsFailAt,
@@ -446,9 +445,17 @@ types = Group "Types: the rules as they are"
     , ("a date needs ISO-8601 form",                failsWith "actualProperty = \"a #string that is not a date\""
                                                               "(graph g (:r #date \"1642\"))")
 
-      -- A URI keeps the slashes of its path; gaps 17 and 22 are the exceptions
+      -- A URI is written as it was written: every slash of its path is kept
     , ("#uri keeps a trailing slash",               compilesToJSON "(graph g (:u #uri \"https://a.org/x/\"))"
                                                                    "{\"u\": \"https://a.org/x/\"}")
+    , ("and an empty root path",                    compilesToJSON "(graph g (:u #uri \"https://a.org/\"))"
+                                                                   "{\"u\": \"https://a.org/\"}")
+    , ("and an empty path segment",                 compilesToJSON "(graph g (:u #uri \"https://a.org/x//y\"))"
+                                                                   "{\"u\": \"https://a.org/x//y\"}")
+    , ("and a leading one",                         compilesToJSON "(graph g (:u #uri \"https://a.org//x\"))"
+                                                                   "{\"u\": \"https://a.org//x\"}")
+    , ("and so does a remote context",              compilesToJSON "(graph g (:context #uri \"https://a.org/\" :a 1))"
+                                                                   "{\"@context\": \"https://a.org/\", \"a\": 1}")
     , ("a string keeps a doubled slash",            compilesToJSON "(graph g (:u \"https://a.org/x//y\"))"
                                                                    "{\"u\": \"https://a.org/x//y\"}")
     ]
@@ -529,6 +536,16 @@ dates = Group "Dates: calendar arithmetic"
                                                                    "{\"r\": \"2021-02-28T00:00:00Z\", \"s\": \"2024-02-29T00:00:00Z\"}")
     , ("thru a month ends that month",              compilesToJSON ("(graph g (:r (+ " <> date "2020-01-31" <> " (thru (months 1))) :s (+ " <> date "2020-01-31" <> " (thru (months 0)))))")
                                                                    "{\"r\": \"2020-02-29T23:59:59Z\", \"s\": \"2020-01-31T23:59:59Z\"}")
+
+      -- A year has at least four digits, as ISO 8601 and xsd:dateTime require
+    , ("a year before 1000 keeps its leading zeros", compilesToJSON "(graph g (:d #date \"0079-08-24T12:00:00Z\"))"
+                                                                   "{\"d\": \"0079-08-24T12:00:00Z\"}")
+    , ("as its arithmetic and to-string do",        compilesToJSON "(graph g (:d (+ #date \"0079-08-24T12:00:00Z\" (days 2)) :s (to-string #date \"0079-08-24T12:00:00Z\")))"
+                                                                   "{\"d\": \"0079-08-26T12:00:00Z\", \"s\": \"0079-08-24T12:00:00Z\"}")
+    , ("a year of fewer than four digits is not a date", failsWith "a #string that is not a date"
+                                                                   "(graph g (:d #date \"81-01-01T00:00:00Z\"))")
+    , ("nor through std/time",                      failsWith "a #string that is not a date"
+                                                                   "(import std/time) (graph g (:d (time/year \"81\")))")
     , ("thru a year ends that year",                compilesToJSON ("(graph g (:r (+ " <> date "2020-02-29" <> " (thru (years 1)))))")
                                                                    "{\"r\": \"2021-12-31T23:59:59Z\"}")
     , ("days do not clip",                          compilesToJSON ("(graph g (:r (+ " <> date "2020-01-31" <> " (days 30))))")
@@ -1121,7 +1138,7 @@ contextAlgebra = Group "Contexts: combining them is a monoid"
                                                    , remoteEntry <$> Gen.element ["https://a.org/c.json", "https://b.org/c.json"] ])
 
     remoteEntry :: T.Text -> ContextEntry
-    remoteEntry = RemoteContext . fromJust . URI.mkURI
+    remoteEntry = either (error . show) RemoteContext . mkUri
 
     remote :: T.Text -> Schema
     remote = Schema . pure . remoteEntry
@@ -1175,7 +1192,7 @@ knownGaps = Group "Known gaps: current and fixed"
                                                               "(define/procedure call (fn) (fn)) (graph g (:r (call 1)))")
     , ("gap 14: a record of only inlays is an array", failsWith "a valid Array to inlay"
                                                               "(define/procedure a () (:k 1)) (define/procedure b () (:j 2)) (graph g ((inlay (a)) (inlay (b))))")
-    , ("gap 17: a URI's empty root path is dropped", compilesToJSON "(graph g (:u #uri \"https://a.org/\"))"
+    , ("gap 17 (fixed): a URI's empty root path is dropped", fixedGap $ compilesToJSON "(graph g (:u #uri \"https://a.org/\"))"
                                                                    "{\"u\": \"https://a.org\"}")
     , ("gap 18: an attribute pair among values has no hint", failsWithout "(1 (:a 2))"
                                                                  "(graph g (:r (1 :a 2)))")
@@ -1189,13 +1206,13 @@ knownGaps = Group "Known gaps: current and fixed"
                                                     fmap (T.isInfixOf "\"k\": \"A\"" . TL.toStrict)
                                                          (validate "t.json" "{\"k\": \"\\x41\"}" defaultOptions)
                                                     === Right True)
-    , ("gap 22: a URI's empty path segment is dropped", compilesToJSON "(graph g (:u #uri \"https://a.org/x//y\"))"
+    , ("gap 22 (fixed): a URI's empty path segment is dropped", fixedGap $ compilesToJSON "(graph g (:u #uri \"https://a.org/x//y\"))"
                                                                       "{\"u\": \"https://a.org/x/y\"}")
-    , ("gap 22: so is a leading one",              compilesToJSON "(graph g (:u #uri \"https://a.org//x\"))"
+    , ("gap 22 (fixed): so is a leading one",      fixedGap $ compilesToJSON "(graph g (:u #uri \"https://a.org//x\"))"
                                                                    "{\"u\": \"https://a.org/x\"}")
     , ("gap 23: an unterminated string is reported where the input ends", importsFailAt "SYN0000" ("inline-test", 1, 21) ["Malformed or unrecognized lexical token sequence"] []
                                                                                 "(graph g (:r \"open))")
-    , ("gap 24: #date accepts a year of fewer than four digits", compilesToJSON "(graph g (:d #date \"81-01-01T00:00:00Z\"))"
+    , ("gap 24 (fixed): #date accepts a year of fewer than four digits", fixedGap $ compilesToJSON "(graph g (:d #date \"81-01-01T00:00:00Z\"))"
                                                                                 "{\"d\": \"81-01-01T00:00:00Z\"}")
     , ("gap 25: warning codes collide across categories", withTests 1 . property $
                                                     map smartWarningCode [ Lint (UnanchoredLiteral "a" "b")
@@ -1264,6 +1281,6 @@ knownGaps = Group "Known gaps: current and fixed"
                                                                    "(graph g (:r (define/property p (#record r) true)))")
     , ("gap 51: decimal arithmetic is binary floating point", compilesToJSON "(graph g (:a (+ 0.1 0.2) :b (* 3 1.1) :c (fold (3.72 3.36 3.40) 0 +)))"
                                                                    "{\"a\": 0.30000000000000004, \"b\": 3.3000000000000003, \"c\": 10.48}")
-    , ("gap 53: a #date before the year 1000 loses its leading zeros", compilesToJSON "(graph g (:d #date \"0079-08-24T12:00:00Z\"))"
+    , ("gap 53 (fixed): a #date before the year 1000 loses its leading zeros", fixedGap $ compilesToJSON "(graph g (:d #date \"0079-08-24T12:00:00Z\"))"
                                                                    "{\"d\": \"79-08-24T12:00:00Z\"}")
     ]

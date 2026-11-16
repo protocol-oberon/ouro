@@ -71,6 +71,7 @@ library
         Data.Ouro.Internal.Kinds
         Data.Ouro.Internal.Schema
         Data.Ouro.Internal.Source
+        Data.Ouro.Internal.Uri
         Data.Ouro.Internal.Utils
         Data.Ouro.Json.Parser
         Data.Ouro.Json.Serializer

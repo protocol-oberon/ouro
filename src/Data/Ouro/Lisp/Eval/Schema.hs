@@ -13,6 +13,7 @@ import qualified Data.Ouro.Internal.Expr     as I
 import           Data.Ouro.Internal.Schema   (ContextEntry (..), ContextValue (..),
                                               Directives, Schema (..), directive,
                                               isKeyword)
+import           Data.Ouro.Internal.Uri      (mkUri, uriParsed, uriText)
 import           Data.Ouro.Lisp.Eval.Types   (Expr (..), humanReadableType)
 import           Data.Text                   (Text)
 import qualified Data.Text                   as T
@@ -46,7 +47,7 @@ contextFromValue pos = \case
     entry = \case
         EvalError err          -> Left err
         Primitive (I.String t) -> remote t
-        Primitive (I.URI uri)  -> remote (URI.render uri)
+        Primitive (I.URI uri)  -> remote (uriText uri)
         Primitive I.EmptyRec   -> Right (Schema [LocalContext mempty])
         Record _ pairs         -> Schema . pure . LocalContext <$> localContext pairs
         Array _                -> problem "A context array cannot hold another array."
@@ -57,8 +58,8 @@ contextFromValue pos = \case
                                           contextShapes
 
     remote :: Text -> Either OuroError Schema
-    remote t = case URI.mkURI t of
-        Right uri | Just _ <- URI.uriScheme uri -> Right (Schema [RemoteContext uri])
+    remote t = case mkUri t of
+        Right uri | Just _ <- URI.uriScheme (uriParsed uri) -> Right (Schema [RemoteContext uri])
         _ -> problem ("The remote context '" <> t <> "' is not an absolute URL.")
                      "A remote context is the URL of a JSON-LD context document, with its scheme: \"https://linked.art/ns/v1/linked-art.json\"."
 
@@ -166,7 +167,7 @@ termKeywords =
 jsonValue :: Expr -> Either Expr ContextValue
 jsonValue = \case
     Primitive (I.String t)  -> Right (CString t)
-    Primitive (I.URI uri)   -> Right (CString (URI.render uri))
+    Primitive (I.URI uri)   -> Right (CString (uriText uri))
     Primitive (I.Number n)  -> Right (CNumber n)
     Primitive (I.Boolean b) -> Right (CBool b)
     Primitive I.EmptyArr    -> Right (CArray [])
