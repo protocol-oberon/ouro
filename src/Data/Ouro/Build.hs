@@ -17,7 +17,9 @@ import           Data.List.NonEmpty           (NonEmpty (..))
 import qualified Data.List.NonEmpty           as NE
 import qualified Data.Map.Strict              as Map
 import           Data.Ouro                    (evaluateGraph)
-import           Data.Ouro.Error.Diagnostics  (nonExistentGraph)
+import           Data.List                    (inits)
+import           Data.Ouro.Error.Diagnostics  (graphFileName, graphNameCase,
+                                               nonExistentGraph)
 import           Data.Ouro.Error.Types        (ErrorContext (..), OuroError (..),
                                                OuroWarning (..), ScopeError (..))
 import qualified Data.Ouro.Internal.Expr      as I
@@ -62,12 +64,13 @@ buildModules loader modules = buildResult <$> runWriterT (runValidateT build')
     where
     build' = do
         linked <- runLoader loader (loadModules [ (pos, name) | (pos, name, _) <- modules ])
-        let chosen   = [ (name, l, selected pos l graphs) | ((pos, name, graphs), l) <- zip modules linked ]
-            missing  = concat [ errs | (_, _, Left errs) <- chosen ]
-            compiled = [ ((name, graphName), freeze <$> evaluateGraph (linkedImports l) (linkedModule l) graph)
-                       | (name, l, Right graphs) <- chosen
-                       , graph@(Graph _ graphName _) <- graphs ]
-        case NE.nonEmpty (missing <> concat [ toList errs | (_, Left errs) <- compiled ]) of
+        let chosen    = [ (name, l, selected pos l graphs) | ((pos, name, graphs), l) <- zip modules linked ]
+            missing   = concat [ errs | (_, _, Left errs) <- chosen ]
+            unwritten = concat [ fileNames graphs | (_, _, Right graphs) <- chosen ]
+            compiled  = [ ((name, graphName), freeze <$> evaluateGraph (linkedImports l) (linkedModule l) graph)
+                        | (name, l, Right graphs) <- chosen
+                        , graph@(Graph _ graphName _) <- graphs ]
+        case NE.nonEmpty (missing <> unwritten <> concat [ toList errs | (_, Left errs) <- compiled ]) of
             Just errs -> refute errs
             Nothing   -> pure [ (file, value) | (file, Right value) <- compiled ]
 
@@ -89,3 +92,29 @@ buildModules loader modules = buildResult <$> runWriterT (runValidateT build')
     buildResult = \case
         (Right outputs, warnings) -> BuildSuccess warnings outputs
         (Left errs, warnings)     -> BuildFailure warnings errs
+
+
+-- The graphs of a module a build writes, each to a file named after it, module/graph.json, or
+-- why one cannot be written so, at its graph: a name that is not a file name on every system
+-- (BLD0019), and a graph named apart from one before it only by case (BLD0020), since the two
+-- are one file where file names ignore case, as on Windows and macOS.
+fileNames :: [HigherExpression 'GraphExpr] -> [OuroError]
+fileNames graphs = unsafe <> sameFile
+    where
+    unsafe   = [ graphFileName name problem & OuroError pos | Graph pos name _ <- graphs, Just problem <- [notAFileName name] ]
+    sameFile = [ graphNameCase name other & OuroError pos
+               | (before, Graph pos name _) <- zip (inits graphs) graphs
+               , Graph _ other _ <- take 1 [ earlier | earlier@(Graph _ n _) <- before, T.toLower n == T.toLower name ] ]
+
+
+-- Why a graph's name is not a file name on every system, if it is not: a character Windows
+-- refuses in a file name, or a name it keeps for a device, which a file cannot have whatever
+-- follows it, con.json as well as con
+notAFileName :: Text -> Maybe Text
+notAFileName name =
+    case (T.find (`elem` ("<>:\"/\\|?*" :: String)) name, T.toLower name `elem` devices) of
+        (Just char, _)   -> Just ("holds '" <> T.singleton char <> "'")
+        (Nothing, True)  -> Just "is a name Windows keeps for a device"
+        (Nothing, False) -> Nothing
+    where
+    devices = ["con", "prn", "aux", "nul"] <> [ device <> T.pack (show n) | device <- ["com", "lpt"], n <- [1 .. 9 :: Int] ]

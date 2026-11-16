@@ -26,6 +26,9 @@ version is 0.x, a new minor version may break programs, and each change that doe
 - A `#date`'s year has at least four digits, as ISO 8601 and `xsd:dateTime` require: a year
   before 1000 is written with its leading zeros, `0079-08-24T12:00:00Z`, and a shorter year,
   `"81-01-01T00:00:00Z"`, is not a date (gaps 24, 53). <!-- uyputzwn -->
+- A graph built must have a name that is a file name on every system (`BLD0019`), and two graphs
+  of a module cannot be named apart only by case (`BLD0020`), since either would be lost or
+  written over on Windows or macOS; `ex:g` was written to a hidden stream (gap 34). <!-- prsxlxsu -->
 
 ## [0.6.0.0] - 2026-11-15
 

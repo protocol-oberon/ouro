@@ -500,6 +500,22 @@ splitErrorContext = \case
            , Nothing
            )
 
+    Build (GraphFileName name problem)
+        -> ("Graph File Name"
+           , [ labeled "Graph:   " (pretty name)
+             , labeled "Problem: " (pretty problem)
+             ]
+           , Nothing
+           )
+
+    Build (GraphNameCase name other)
+        -> ("Graph Name Case"
+           , [ labeled "Graph:     " (pretty name)
+             , labeled "Same file: " (pretty other)
+             ]
+           , Nothing
+           )
+
     Internal (ErasureValueLeakError block)
         -> ( "Compiler Internal Error"
            , [ labeled "Expected: " "nil (erased)"

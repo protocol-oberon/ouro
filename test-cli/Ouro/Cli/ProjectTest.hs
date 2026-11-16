@@ -117,6 +117,20 @@ projectsOnDisk = Group "Builds: projects on disk"
                                                         evalIO (buildProject (dir </> "typo") []) >>= \case
                                                             Left message -> assert ("No folder " `T.isPrefixOf` message)
                                                             Right _      -> failure)
+
+      -- A graph is written to a file named after it, so its name must be a file name everywhere
+    , ("a graph's name cannot hold '?'",           projectFailsWith "graph-name-char" [("main.ouro", "(graph a? (:r 1))")] "BLD0019" ["holds '?'"])
+    , ("nor ':'",                                  projectFailsWith "graph-name-colon" [("main.ouro", "(graph ex:g (:r 1))")] "BLD0019" ["holds ':'"])
+    , ("nor be a device's name, in any case",      projectFailsWith "graph-name-device" [("main.ouro", "(graph Con (:r 1))")] "BLD0019" ["Con", "device"])
+    , ("a name that only begins so is a name",     projectBuildsTo "graph-name-console" [("main.ouro", "(graph console (:r 1))")] [("out" </> "main" </> "console.json", "{\"r\": 1}")])
+    , ("graphs apart only by case share a file",   projectFailsWith "graph-name-case" [("main.ouro", "(graph G (:r 1))\n(graph g (:r 2))")] "BLD0020" ["g", "G"])
+    , ("but graphs of two modules do not",         projectBuildsTo "graph-name-modules" [("a.ouro", "(graph g (:r 1))"), ("b.ouro", "(graph G (:r 2))")]
+                                                                   [("out" </> "a" </> "g.json", "{\"r\": 1}"), ("out" </> "b" </> "G.json", "{\"r\": 2}")])
+    , ("nothing is written when one cannot be",    withTests 1 . property $ do
+                                                        dir <- evalIO (writeProject "graph-name-nothing" [("main.ouro", "(graph good (:r 1))\n(graph con (:r 2))")])
+                                                        _   <- evalIO (buildProject dir [])
+                                                        written <- evalIO (doesDirectoryExist (dir </> "out"))
+                                                        written === False)
     ]
     where
     package settings = ("package.ouro", "(define/constant package " <> settings <> ")")
@@ -289,9 +303,9 @@ knownGaps = Group "Known gaps: the project, current and fixed"
                                                     dir   <- evalIO (writeProject "gap-33" [ ("main.ouro", "(graph g (:r 1))"), ("sub/package.ouro", "(define/constant package (:sources \"src\"))"), ("sub/src/x.ouro", "(graph g (:r 2))") ])
                                                     found <- evalIO (discoverModules (Project dir (defaultPackage dir)))
                                                     assert (any (`elem` map fst found) ["sub/package", "sub/src/x"]))
-    , ("gap 34: a graph's name is not checked as a file name", filesTo [("main", "(graph a? (:r 1))\n(graph con (:r 2))\n(graph ex:g (:r 3))")]
+    , ("gap 34 (fixed): a graph's name is not checked as a file name", fixedGap $ filesTo [("main", "(graph a? (:r 1))\n(graph con (:r 2))\n(graph ex:g (:r 3))")]
                                                                   [("out" </> "main" </> "a?.json", "{\"r\":1}"), ("out" </> "main" </> "con.json", "{\"r\":2}"), ("out" </> "main" </> "ex:g.json", "{\"r\":3}")])
-    , ("gap 34: nor are names apart only by case",  filesTo [("main", "(graph G (:r 1))\n(graph g (:r 2))")]
+    , ("gap 34 (fixed): nor are names apart only by case", fixedGap $ filesTo [("main", "(graph G (:r 1))\n(graph g (:r 2))")]
                                                              [("out" </> "main" </> "G.json", "{\"r\":1}"), ("out" </> "main" </> "g.json", "{\"r\":2}")])
     , ("gap 36 (fixed): a folder that does not exist builds the project above it", fixedGap . withTests 1 . property $ do
                                                     dir <- evalIO (writeProject "gap-36" [ ("package.ouro", "(define/constant package #record-empty)"), ("main.ouro", "(graph g (:r 1))") ])

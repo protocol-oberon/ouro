@@ -421,6 +421,24 @@ graphSelectionForm written =
               (Build (GraphSelectionForm { writtenSelection = written }))
 
 
+-- A graph built whose name cannot be a file name on every system
+graphFileName :: Text -> Text -> ErrorContext
+graphFileName name problem =
+    withBlurb ( "A graph is written to a file named after it, " <> name <> ".json, so its name must be a file name on every system: "
+             <> "it cannot hold a slash or a backslash, nor any of < > : \" | ? *, nor be a name Windows keeps for a device, con, prn, aux, nul, com1 to com9 or lpt1 to lpt9, in any case."
+              )
+              (Build (GraphFileName { fileNameGraph = name, fileNameProblem = problem }))
+
+
+-- Graphs of one module named apart only by case
+graphNameCase :: Text -> Text -> ErrorContext
+graphNameCase name other =
+    withBlurb ( "Where file names ignore case, as on Windows and macOS, " <> name <> ".json and " <> other <> ".json are one file, so one graph would be written over the other. "
+             <> "Name them apart by more than case."
+              )
+              (Build (GraphNameCase { caseGraph = name, caseOther = other }))
+
+
 -- " Perhaps you meant 'x'." for the closest candidate, when one is close enough
 closest :: Text -> [Text] -> Text
 closest target candidates =

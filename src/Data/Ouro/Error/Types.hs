@@ -401,6 +401,19 @@ data BuildError
     | GraphSelectionForm
       { writtenSelection :: Text
       }
+
+    -- A graph built whose name is not a file name on every system, and why
+    | GraphFileName
+      { fileNameGraph   :: Text
+      , fileNameProblem :: Text   -- "holds '?'", "is a name Windows keeps for a device"
+      }
+
+    -- Graphs of one module, both built, named apart only by case: they would share a file
+    -- where file names ignore case
+    | GraphNameCase
+      { caseGraph :: Text
+      , caseOther :: Text   -- The graph before it, of the same name in another case
+      }
     deriving (Show, Eq, Ord, Generic)
 
 

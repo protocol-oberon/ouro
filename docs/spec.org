@@ -533,7 +533,11 @@ Every graph of every module, modules nothing imports included, is written to =<o
   - a name not written =module/graph= is =BLD0018=;
   - a module the project does not build is =BLD0017=, which suggests the closest module;
   - a graph its module does not have is =SCP0004=, shown at the module's closest graph;
-  - for a module with no graphs, it is =SCP0005=.
+  - for a module with no graphs, it is =SCP0005=;
+  - a graph chosen whose name is not a file name on every system is =BLD0019=: it cannot hold =/=, =\=, =<=, =>=, =:=, ="=, =|=, =?= or =*=, nor be a name Windows keeps for a device, =con=, =prn=, =aux=, =nul=, =com1= to =com9= or =lpt1= to =lpt9=, in any case (=console= is a name);
+  - two graphs chosen from one module, named apart only by case, =G= and =g=, are =BLD0020= at the second, since they are one file where file names ignore case. Graphs of different modules are written to different folders, so they may.
+
+- They are reported with the build's other errors, and like every error they stop the build before anything is written.
 
 - An error in a =-g= is reported at the argument itself, =-g people/persn=.
 
@@ -2848,22 +2852,25 @@ Roots were compared by their text after ~normalise~, which keeps a trailing slas
 :END:
 A folder holding a =package.ouro= is now a project of its own, and skipped whole.
 
-** OPEN [#A] A graph's name is not checked as a file name
+** FIXED A graph's name was not checked as a file name
 :PROPERTIES:
 :ID:       34
 :FOUND:    2026-10-29
+:FIXED_IN: 0.6.1.0
 :END:
-A graph is written to =<outputs>/<module>/<graph>.json= whatever its name.
+A graph was written to =<outputs>/<module>/<graph>.json= whatever its name.
 
 On Windows:
 
-- =a?= cannot be written (=withFile: invalid argument=);
+- =a?= could not be written (=withFile: invalid argument=);
 - =con= is a device (=withFile: does not exist=);
-- =ex:g=, a name gap 28 allows, is written to the alternate data stream =g.json= of a file =ex=, so the build reports it written and no file shows it.
+- =ex:g=, a name gap 28 allows, was written to the alternate data stream =g.json= of a file =ex=, so the build reported it written and no file showed it.
 
-Graphs named apart only by case, =G= and =g=, share one file on Windows and macOS: the second overwrites the first, under the first's name.
+Graphs named apart only by case, =G= and =g=, shared one file on Windows and macOS: the second overwrote the first, under the first's name.
 
 Found while vetting =build.ouro= (2026-10-29).
+
+/Fixed/ (2026-11-16): a build checks the name of every graph it would write. A name that is not a file name on every system is =BLD0019=, and a graph of a module named apart from another only by case is =BLD0020= (see [[*The graphs chosen][the graphs chosen]]). Like any error, either stops the build with nothing written, so a graph is never lost to a file name.
 
 ** OPEN [#B] A build writes until a write fails
 :PROPERTIES:

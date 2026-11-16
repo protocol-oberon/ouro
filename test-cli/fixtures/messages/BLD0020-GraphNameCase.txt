@@ -1,0 +1,23 @@
+Warning [WRN0004]: The graph 'Hoard' is not named in kebab-case
+  ┌── │test-cli/fixtures/messages/BLD0020-GraphNameCase/main.ouro:1:1│
+  │
+1 │ (graph Hoard
+  │ ^
+  │ Kebab-case: hoard
+  │ 
+
+Functions and graphs are named in kebab-case, as in other Lisps: lowercase words joined by '-'.
+Attribute keys and local bindings may be named as their data needs.
+
+Perhaps rename it 'hoard'.
+Error [BLD0020]: Graph Name Case
+  ┌── │test-cli/fixtures/messages/BLD0020-GraphNameCase/main.ouro:4:1│
+  │
+4 │ (graph hoard
+  │ ^
+  │ Graph:     hoard
+  │ Same file: Hoard
+  │ 
+
+Where file names ignore case, as on Windows and macOS, hoard.json and Hoard.json are one file, so one
+graph would be written over the other. Name them apart by more than case.

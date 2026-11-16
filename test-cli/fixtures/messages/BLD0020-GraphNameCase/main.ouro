@@ -1,0 +1,5 @@
+(graph Hoard
+  (:r 1))
+
+(graph hoard
+  (:r 2))
