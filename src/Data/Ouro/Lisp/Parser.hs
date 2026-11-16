@@ -212,14 +212,18 @@ pHigherExpression = do
                              Tkn.Graph           -> pGraph (Tkn.pos startTkn)
                              Tkn.Import          -> pImport (Tkn.pos startTkn)
                              Tkn.Export          -> pExport (Tkn.pos startTkn)
-                             other               -> lexicalError ("Invalid top-level keyword: " <> T.pack (show other))
+                             other               -> lexicalError ("'" <> Tkn.written other <> "' cannot begin a form at the top level of a file")
+                                                    F.& withBlurb topLevelForms
                                                     F.& OuroError (Tkn.pos kwTkn)
                                                     F.& Left
                                                     F.& lift
-        other -> lexicalError ("Higher Expressions must begin with '('. Found: " <> T.pack (show other))
+        other -> lexicalError ("A top-level form begins with '(', not '" <> Tkn.written other <> "'")
+                 F.& withBlurb topLevelForms
                  F.& OuroError (Tkn.pos startTkn)
                  F.& Left
                  F.& lift
+    where
+    topLevelForms = "A file's top level holds (define/procedure ...), (define/constant ...), (graph ...), (import ...) and (export ...) forms; anything else is written inside one of them."
 
 
 -- (define/procedure name (params) body), or (define/constant name body): a function of no

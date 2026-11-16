@@ -489,9 +489,9 @@ constants = Group "Functions: a function of no parameters, named, is its value"
                                                             "(define/procedure c #string () \"a\") (graph g (:r c))")
     , ("a define/procedure of parameters does not", compilesWithoutWarnings "(define/procedure f (x) x) (graph g (:r (f 1)))")
     , ("nor does a fn of none",                   compilesWithoutWarnings "(graph g (:r (let ($h (fn () 1)) (h))))")
-    , ("a name that begins with defn/const is a name", failsWith "Invalid top-level keyword: Symbol"
+    , ("a name that begins with defn/const is a name", failsWith "'defn/constant' cannot begin a form at the top level"
                                                             "(defn/constant c 1) (graph g (:r 1))")
-    , ("define/property is read, but is not yet a form", failsWith "Invalid top-level keyword: DefineProperty"
+    , ("define/property is read, but is not yet a form", failsWith "'define/property' cannot begin a form at the top level"
                                                             "(define/property p (x) true) (graph g (:r 1))")
 
       -- define/procedure, define/property and define/constant replace defn, defn/property and

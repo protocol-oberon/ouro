@@ -663,7 +663,7 @@ The keywords are =define/procedure=, =define/constant=, =define/property=, =grap
 
 - A name that only begins with one of them, =defined=, =defnode=, =defn/constant=, is a symbol.
 
-- =define/property= is read, but is not yet a form, so it is an invalid top-level keyword.
+- =define/property= is read, but is not yet a form, so at the top level it is an error: ='define/property' cannot begin a form at the top level of a file=.
 
 - No import is qualified =define= or =defn=, since its functions would read as these.
   - ~(import lib/define)~ is an error, and ~as define~ and ~as defn~ are not names.
@@ -2996,18 +2996,30 @@ So a binding of one of their names never shadows them, as a binding shadows ever
 
 Scheme avoids this because its expander knows the scope at each point; the fix is a scope-aware Canon. Found while fixing gap 43 (2026-11-08).
 
-** OPEN [#B] An unknown top-level form is named by its Haskell constructor
+** FIXED An unknown top-level form was named by its Haskell constructor
 :PROPERTIES:
 :ID:       46
 :FOUND:    2026-11-08
+:FIXED_IN: 0.6.1.0
 :END:
-A file's top level holds =define/procedure=, =graph=, =import= and =export= forms, and any other, ~(foo f () 1)~, is =SYN0000=, with no blurb saying what may be written there:
+A file's top level holds =define/procedure=, =graph=, =import= and =export= forms, and any other, ~(foo f () 1)~, was =SYN0000=, with no blurb saying what may be written there:
 
 #+begin_example
 Invalid top-level keyword: Symbol "foo"
 #+end_example
 
 An old =(defun ...)= is now reported this way. Found while making =defun= an ordinary name (2026-11-08).
+
+/Fixed/ (2026-11-16): the form is named as it is written, with what a top level may hold:
+
+#+begin_example
+'defun' cannot begin a form at the top level of a file
+
+A file's top level holds (define/procedure ...), (define/constant ...), (graph ...), (import ...) and
+(export ...) forms; anything else is written inside one of them.
+#+end_example
+
+A top level that does not begin with a form, as a stray =:k=, says so the same way: =A top-level form begins with '(', not ':k'=. Every token is written as in a source (=Tokens.written=), so no message shows a Haskell constructor.
 
 ** FIXED A name that began with =true=, =false= or =null= was read as that literal and a name
 :PROPERTIES:

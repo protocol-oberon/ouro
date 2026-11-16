@@ -1263,8 +1263,12 @@ knownGaps = Group "Known gaps: current and fixed"
                                                                    "{\"r\": false}")
     , ("gap 45: and of with",                        compilesToJSON "(graph g (let ($with (fn (a b) 1)) (:r (with (:a 1) :b 2))))"
                                                                    "{\"r\": {\"a\": 1, \"b\": 2}}")
-    , ("gap 46: an unknown top-level form is named by its Haskell constructor", importsFailAt "SYN0000" ("inline-test", 1, 2) ["Invalid top-level keyword: Symbol"] []
+    , ("gap 46 (fixed): an unknown top-level form is named by its Haskell constructor", fixedGap $ importsFailAt "SYN0000" ("inline-test", 1, 2) ["Invalid top-level keyword: Symbol"] []
                                                                    "(foo f () 1)\n(graph g (:r 1))")
+    , ("an unknown top-level form is named as written", importsFailAt "SYN0000" ("inline-test", 1, 2) ["'foo' cannot begin a form at the top level", "A file's top level holds"] []
+                                                                   "(foo f () 1)\n(graph g (:r 1))")
+    , ("and a top level that is not a form",       importsFailAt "SYN0000" ("inline-test", 1, 1) ["A top-level form begins with '(', not ':k'"] []
+                                                                   ":k (graph g (:r 1))")
     , ("gap 47 (fixed): a name that begins with null is read as null and a name", fixedGap $ failsWith "Expected a function name"
                                                                    "(define/procedure null-result (x) x) (graph g (:r (null-result 1)))")
     , ("gap 47 (fixed): and one that begins with true", fixedGap $ failsWith "Expected a function name"

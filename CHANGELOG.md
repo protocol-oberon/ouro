@@ -44,6 +44,9 @@ version is 0.x, a new minor version may break programs, and each change that doe
   a hoard of 2000 coins takes 0.76 s, where it took 7.7 s (gap 52). <!-- krokmvot -->
 - `insert` and `replace-at` reject a fractional index, as `get` does, where they rounded it
   down without a word: `(insert (1 2) 1.5 "x")` is an error (gap 39). <!-- mnqlkzvy -->
+- A form a file's top level cannot hold is named as it is written, `'defun' cannot begin a
+  form at the top level of a file`, with what a top level may hold, where the message named
+  Ouro's own Haskell, `Invalid top-level keyword: Symbol "defun"` (gap 46). <!-- kromzqom -->
 - A `#uri` is written as it was written: `"https://a.org/"` keeps its slash, and
   `"https://a.org/x//y"` its empty segment, in the output and in `ouro validate`'s
   (gaps 17, 22). <!-- uyputzwn -->

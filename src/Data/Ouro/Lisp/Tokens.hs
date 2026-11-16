@@ -1,6 +1,7 @@
 
 module Data.Ouro.Lisp.Tokens where
 
+import           Data.Ouro.Internal.Expr (renderNumber)
 import           Data.Text           (Text)
 import           GHC.Generics        (Generic)
 import           Text.Megaparsec.Pos (SourcePos)
@@ -50,3 +51,37 @@ data TokenType
     -- Hole
     | Hole !Text
     deriving (Show, Eq, Generic)
+
+
+-- A token as it is written in a source, for messages: Symbol "foo" is foo, Attr "id" is :id
+written :: TokenType -> Text
+written = \case
+    OpenParen       -> "("
+    CloseParen      -> ")"
+    DotDot          -> ".."
+    Let             -> "let"
+    Import          -> "import"
+    Export          -> "export"
+    DefineProcedure -> "define/procedure"
+    DefineConstant  -> "define/constant"
+    DefineProperty  -> "define/property"
+    Graph           -> "graph"
+    Attr k          -> ":" <> k
+    Binding b       -> "$" <> b
+    Symbol s        -> s
+    String t        -> "\"" <> t <> "\""
+    Number n        -> renderNumber n
+    Boolean True    -> "true"
+    Boolean False   -> "false"
+    TagUri          -> "#uri"
+    TagDate         -> "#date"
+    TagString       -> "#string"
+    TagNumber       -> "#number"
+    TagBoolean      -> "#boolean"
+    TagRecord       -> "#record"
+    TagArray        -> "#array"
+    TagFunction     -> "#function"
+    TagRecordEmpty  -> "#record-empty"
+    TagArrayEmpty   -> "#array-empty"
+    TagProperty p   -> "#" <> p
+    Hole h          -> h
