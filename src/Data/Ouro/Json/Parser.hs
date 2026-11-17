@@ -81,7 +81,7 @@ pRecordField :: Parser RecordField
 pRecordField = choice
     [ try (symbol "\"@context\"" *> symbol ":") *> (ContextField <$> pSchema)
     , try pURIAttr
-    , try pDateAttr
+    , pDateAttr
     , DataField <$> pAttr
     ]
 
@@ -167,17 +167,13 @@ pURIAttr = do
            pURICase = Expr.URI <$> pQuotedURI
 
 
+-- A TimeSpan's dates. Once a date's key and its colon are read, the value must be a date:
+-- the parser does not go back to read the pair as an ordinary one (gap 54)
 pDateAttr :: Parser RecordField
 pDateAttr = do
-            -- Match either target key string within quotes cleanly
-            rawKey <- try (symbol "\"begin_of_the_begin\"") <|> try (symbol "\"end_of_the_end\"")
-            _   <- symbol ":"
+            key <- try (choice [ dateKey k | k <- dateKeys ] <* symbol ":")
             _   <- char '"'
             str <- lexeme $ manyTill L.charLiteral (char '"')
-
-            let key = case rawKey of
-                          "\"begin_of_the_begin\"" -> "begin_of_the_begin"
-                          _                        -> "end_of_the_end"
 
             -- Attempt to parse the timestamp value strictly
             case Expr.parseDate str of
@@ -187,6 +183,12 @@ pDateAttr = do
                                     ++ show key
                                     ++ ". Expected format: \"YYYY-MM-DDTHH:MM:SSZ\" but got: "
                                     ++ show str
+
+            where
+            dateKeys = ["begin_of_the_begin", "end_of_the_begin", "begin_of_the_end", "end_of_the_end"]
+
+            -- The key in its quotes, as the key itself
+            dateKey k = k <$ try (symbol ("\"" <> k <> "\""))
 
 
 

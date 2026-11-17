@@ -22,6 +22,10 @@ version is 0.x, a new minor version may break programs, and each change that doe
   `intersections`, `image` and `adjoin`) take time near linear in their arrays' length, not
   near its square: the union of 2000 records with themselves takes 0.52 s, where it took
   4.4 s (gap 56). <!-- tmxpswqz -->
+- `ouro validate` checks a TimeSpan's dates: `begin_of_the_begin`, `end_of_the_begin`,
+  `begin_of_the_end` and `end_of_the_end` must each be a date, where a value that was not one
+  was written back as a string, and the middle two were never read as dates (gap 54).
+  <!-- sxvuovpn -->
 
 ## [0.6.1.0] - 2026-11-17
 

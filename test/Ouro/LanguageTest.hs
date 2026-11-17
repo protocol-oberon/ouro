@@ -571,10 +571,26 @@ dates = Group "Dates: calendar arithmetic"
                                                                    "{\"r\": \"2021-12-31T23:59:59Z\"}")
     , ("days do not clip",                          compilesToJSON ("(graph g (:r (+ " <> date "2020-01-31" <> " (days 30))))")
                                                                    "{\"r\": \"2020-03-01T00:00:00Z\"}")
+    , ("validate reads a timespan's four dates",    withTests 1 . property $
+                                                    fmap (\out -> all (\k -> T.isInfixOf ("\"" <> k <> "\": \"1881-01-01T00:00:00Z\"") (TL.toStrict out)) dateKeys)
+                                                         (validate "t.json" (timespan [ (k, "1881-01-01T00:00:00Z") | k <- dateKeys ]) defaultOptions)
+                                                    === Right True)
+    , ("and rejects one that is not a date",        withTests 1 . property $
+                                                    either (T.isInfixOf "Invalid ISO 8601 Timestamp" . T.pack) (const False)
+                                                           (validate "t.json" (timespan [("begin_of_the_begin", "hello")]) defaultOptions)
+                                                    === True)
+    , ("in each of the four keys",                  withTests 1 . property $
+                                                    [ either (const True) (const False) (validate "t.json" (timespan [(k, "81-01-01T00:00:00Z")]) defaultOptions) | k <- dateKeys ]
+                                                    === [True, True, True, True])
     ]
 
     where
     date day = "#date \"" <> day <> "T00:00:00Z\""
+
+    dateKeys = ["begin_of_the_begin", "end_of_the_begin", "begin_of_the_end", "end_of_the_end"]
+
+    -- A JSON record holding a timespan of the given dates
+    timespan pairs = "{\"timespan\": {" <> T.intercalate ", " [ "\"" <> k <> "\": \"" <> v <> "\"" | (k, v) <- pairs ] <> "}}"
 
 
 -- Source files are UTF-8 on every platform: a byte order mark is dropped, CRLF line endings
@@ -1308,7 +1324,7 @@ knownGaps = Group "Known gaps: current and fixed"
                                                                    "{\"a\": 0.30000000000000004, \"b\": 3.3000000000000003, \"c\": 10.48}")
     , ("gap 53 (fixed): a #date before the year 1000 loses its leading zeros", fixedGap $ compilesToJSON "(graph g (:d #date \"0079-08-24T12:00:00Z\"))"
                                                                    "{\"d\": \"79-08-24T12:00:00Z\"}")
-    , ("gap 54: validate keeps a timespan's date that is not one", withTests 1 . property $
+    , ("gap 54 (fixed): validate keeps a timespan's date that is not one", fixedGap . withTests 1 . property $
                                                     fmap (T.isInfixOf "\"begin_of_the_begin\": \"hello\"" . TL.toStrict)
                                                          (validate "t.json" "{\"timespan\": {\"begin_of_the_begin\": \"hello\"}}" defaultOptions)
                                                     === Right True)

@@ -3095,12 +3095,17 @@ Four times the coins cost 4.6 times as much, about n^1.1, and 2000 coins ten tim
 
 /Fixed/ (2026-11-16) with gap 24: a year is written with at least four digits, =0079-08-24T12:00:00Z=, in the output, with =to-string= and in =ouro validate='s output. linked.art's =event/vesuvius/1= writes its span with =time/span= and dates again.
 
-** OPEN [#B] =ouro validate= does not check a timespan's dates
+** FIXED =ouro validate= did not check a timespan's dates
 :PROPERTIES:
 :ID:       54
 :FOUND:    2026-11-16
+:FIXED_IN: 0.6.1.0
 :END:
 The JSON parser reads =begin_of_the_begin= and =end_of_the_end= as dates, and has an error for one that is not: "Invalid ISO 8601 Timestamp format". It is never reached. The date's parser is tried first, and when it fails the pair is read again as an ordinary one, so ~{"begin_of_the_begin": "hello"}~ is validated and written back as a string, as is a year of two digits, ="81-01-01T00:00:00Z"=. The other two date keys of a TimeSpan, =end_of_the_begin= and =begin_of_the_end=, are not read as dates at all. Found while fixing gap 24 (2026-11-16).
+
+/Fixed/ (2026-11-17): once a date's key and its colon are read, the parser is committed to a date, and does not go back to read the pair as an ordinary one. All four of a TimeSpan's dates are read as dates: =begin_of_the_begin=, =end_of_the_begin=, =begin_of_the_end= and =end_of_the_end=. A value that is not a date, ="hello"= or a year of two digits, is the error "Invalid ISO 8601 Timestamp format for ...", and a value that is not a string, =1881=, is a parse error at it.
+
+Limits: the error's caret is at the end of the string, not its start. An =id= that is not a URI is still read as a string, by the same fallback, as a relative IRI reference can be any text.
 
 ** FIXED The Array constructor was named =list=
 :PROPERTIES:
@@ -3113,7 +3118,7 @@ An Array is built with ~(list 1 2)~, the name Lisps give their lists, though the
 The fix, in two steps so that no release breaks a program that the one before it compiled:
 
 - now: ~(array …)~ is the constructor, and ~(list …)~ still builds an Array, with a deprecation warning naming =array= (=DeprecatedSyntax=, defined and never yet raised);
-- in 0.7: ~(list …)~ is an error naming =array=, as =defn= became one naming =define/procedure=.
+- in 0.7: ~(list …)~ is an error naming =array=, as =defn= became one naming =define/procedure=. The fixtures, the tests and the README move to =array= then, all at once.
 
 /Fixed/ (2026-11-17), the first step: ~(array …)~ builds an Array, and ~(list …)~ still does, with =WRN0001= (=DeprecatedSyntax=, raised for the first time): "'list' is now called 'array'". A module that defines its own =list= calls it, and is not warned about. =std= builds its arrays with =array=, so importing it raises no warning; Canon's rewrite of =adjoin= writes =array= too.
 
