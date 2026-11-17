@@ -33,7 +33,7 @@ import           Text.Megaparsec     (sourceName)
 -- files are written instead, so a change of wording is reviewed as a change of the golden file.
 -- Never raised, so without a fixture: SYN0002, SYN0005 and the retired SYN0004, SCP0011 (only a host with several
 -- roots raises it), the internal errors, the retired BLD0001, BLD0003, BLD0004, and BLD0002, and
--- the warnings ElidedPropertyAssign and UnboundTypeReference.
+-- the warnings ElidedPropertyAssign and UnboundTypeReference, and the retired WRN0000 and WRN0005.
 messages :: IO Group
 messages = do
     fixtures <- sort . filter isFixture <$> listDirectory messagesDir

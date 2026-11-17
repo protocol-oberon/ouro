@@ -1266,9 +1266,10 @@ knownGaps = Group "Known gaps: current and fixed"
                                                                      "(graph g (:ex:a#b 1 :y 2))")
     , ("gap 39 (fixed): insert floors a fractional index", fixedGap $ compilesToJSON "(graph g (:r (insert (1 2) 1.5 \"x\")))"
                                                                    "{\"r\": [1, \"x\", 2]}")
-    , ("gap 41: WRN0000 says a value is erased",     warnsWith "will be completely erased"
+    , ("gap 41 (fixed): WRN0000 says a value is erased", fixedGap $ warnsWith "will be completely erased"
                                                                "(graph g (:r (#record-empty \"x\")))")
-    , ("gap 41: though it is kept",                  compilesToJSON "(graph g (:r (#record-empty \"x\")))"
+    , ("a string after #record-empty is kept, without a warning", compilesWithoutWarnings "(graph g (:r (#record-empty \"x\")))")
+    , ("and is the array's second value",            compilesToJSON "(graph g (:r (#record-empty \"x\")))"
                                                                    "{\"r\": [{}, \"x\"]}")
     , ("gap 42 (fixed): a removed form's name is reserved as a key", fixedGap $ failsWith "ShadowedVariableError"
                                                                    "(graph g (:a (:attr 1)))")

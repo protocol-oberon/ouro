@@ -440,13 +440,10 @@ data WarningContext
 
 --- LINTER WARNINGS ---
 data LinterWarning
-    -- LINT WARNING: UNANCHORED LITERAL EXPRESSION
-    -- Occurs when a primitive literal value sits directly inside a record or array block
-    -- container without an associated property key binder or macro anchor sequence.
-    -- The value will be evaluated but silently discarded during final serialization passes.
-    --
-    -- * Remediation: Issue warning. Compute format suggestions to wrap the value
-    --   in a proper property assignment framework (e.g., using a smart quote decorator).
+    -- LINT WARNING: UNANCHORED LITERAL (RETIRED, never raised)
+    -- Was raised for a string written after #record-empty or #array-empty, saying it would be
+    -- discarded. It never was: in an array the string is kept, and in a record it is an error.
+    -- Kept so that its code, WRN0000, is never given to another warning (gap 41).
     = UnanchoredLiteral
       { tagAttempted :: Text -- The sibling tag or layout position where the leak occurred
       , erasedValue  :: Text -- The literal value string layout bound for compile-time erasure

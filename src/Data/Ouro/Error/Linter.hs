@@ -7,8 +7,7 @@ import qualified Data.Map.Strict             as Map
 import           Data.Ouro.Error.Diagnostics (deprecatedSyntax, notKebabCase,
                                               parenthesisedResult,
                                               procedureOfNoParameters,
-                                              shadowedBuiltin,
-                                              unanchoredLiteral)
+                                              shadowedBuiltin)
 import           Data.Ouro.Error.Types       (OuroWarning (..))
 import           Data.Ouro.Lisp.Eval.Builtins (builtinRegistry)
 import           Data.Ouro.Lisp.Function     (specialForms)
@@ -20,18 +19,11 @@ import qualified Data.Text                   as T
 import           Lens.Micro                  ((^.))
 
 
--- Recursive Check tokens for dead layout patterns
+-- Checks the tokens, for what the parsed tree does not keep. (WRN0000, a string after
+-- #record-empty or #array-empty, was read here, and retired: gap 41.)
 lintExpression :: [Tkn.Token] -> [OuroWarning]
 lintExpression =
     \case
-     -- MATCH: UNANCHORED OBJECT LITERALS
-     (Tkn.Token pos Tkn.TagRecordEmpty : Tkn.Token _ (Tkn.String val) : rest)
-         -> OuroWarning pos (unanchoredLiteral "#record-empty" val) : lintExpression rest
-
-     -- MATCH: UNANCHORED ARRAY LITERALS
-     (Tkn.Token pos Tkn.TagArrayEmpty : Tkn.Token _ (Tkn.String val) : rest)
-         -> OuroWarning pos (unanchoredLiteral "#array-empty" val) : lintExpression rest
-
      -- A define/procedure of no parameters, (define/procedure c () value) or with a return
      -- type, (define/procedure c #string () value), is a constant: define/constant says so.
      -- The parsed tree does not keep which keyword was written, so it is found in the tokens.

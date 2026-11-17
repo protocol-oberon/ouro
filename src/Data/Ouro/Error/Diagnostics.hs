@@ -550,13 +550,6 @@ missingOtherwiseBlurb =
 
 
 --- Builder for Linter Warnings ---
--- Create a non-fatal unanchored primitive literal lint warning
-unanchoredLiteral :: Text -> Text -> WarningContext
-unanchoredLiteral tag val = Lint $ UnanchoredLiteral
-    { tagAttempted = tag
-    , erasedValue  = formatSmartLiteral val
-    }
-
 -- Create a lint warning for a form with a new name, the old one and the new
 deprecatedSyntax :: Text -> Text -> WarningContext
 deprecatedSyntax feature newName = Lint $ DeprecatedSyntax

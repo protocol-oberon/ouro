@@ -24,6 +24,11 @@ version is 0.x, a new minor version may break programs, and each change that doe
 - `(list a b)` still builds an Array, with a warning that names `array`, `'list' is now called
   'array'` (`WRN0001`). It will be an error in 0.7 (gap 55). <!-- zkvmtnrm -->
 
+### Removed
+- The warning `WRN0000`, that a string after `#record-empty` or `#array-empty` would be
+  discarded: it never was. In an array the string is an element, and in a record a loose value
+  is an error already. Its code is not reused (gap 41). <!-- kwpqlnot -->
+
 ### Fixed
 - Set operations (`union`, `intersect`, `setminus`, `subset`, `distinct`, `unions`,
   `intersections`, `image` and `adjoin`) take time near linear in their arrays' length, not

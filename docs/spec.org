@@ -2923,10 +2923,11 @@ One import cycle, =main= → =a= → =b= → =a=, was three =SCP0009= errors, on
 
 The loader now keeps a failed module with its errors, so each is reported once however many modules reach it. A cycle is named by its own modules, =a= → =b= → =a=, not from the module whose loading led to it. Found while writing the messages' golden files (2026-11-07).
 
-** OPEN [#B] =WRN0000= is never true
+** FIXED =WRN0000= was never true
 :PROPERTIES:
 :ID:       41
 :FOUND:    2026-11-07
+:FIXED_IN: 0.6.2.0
 :END:
 It says a string written after =#record-empty= or =#array-empty= is discarded:
 
@@ -2935,6 +2936,8 @@ will be completely erased from properties at compile time
 #+end_example
 
 But in an array the string is kept, ~(:r (#record-empty "x"))~ being ={"r": [{}, "x"]}=, and in a record it is an error, =TYP0000=, which the warning only precedes. The linter reads tokens, not forms, so it cannot tell the two apart. Found while fixing gap 10 (2026-11-07).
+
+/Fixed/ (2026-11-17): the warning is retired, as =WRN0005= was, and its code is not reused. What it meant to catch is caught already: a loose value in a record is an error, and in an array a value is an element.
 
 ** FIXED The names of removed forms were still reserved
 :PROPERTIES:
