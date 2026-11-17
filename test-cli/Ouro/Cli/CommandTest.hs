@@ -132,18 +132,30 @@ validates = Group "CLI: ouro validate"
                                                         exitCode run === ExitSuccess
                                                         written <- evalIO (readText (dir </> "in.json"))
                                                         written === formatted)
-    , ("gap 38: invalid JSON is reported on stdout", withTests 1 . property $ do
+    , ("gap 38 (fixed): invalid JSON is reported on stdout", fixedGap . withTests 1 . property $ do
                                                         dir <- evalIO (writeFolder "validate-invalid" [ ("bad.json", "{\"a\":") ])
                                                         run <- evalIO (ouro dir ["validate", "bad.json"])
                                                         exitCode run === ExitFailure 1
                                                         assert ("Compilation Error:" `T.isInfixOf` plain (out run))
                                                         err run === "")
-    , ("gap 38: merge is not implemented, on stdout", withTests 1 . property $ do
+    , ("gap 38 (fixed): merge is not implemented, on stdout", fixedGap . withTests 1 . property $ do
                                                         dir <- evalIO (writeFolder "validate-merge" [ json ])
                                                         run <- evalIO (ouro dir ["validate", "in.json", "merge", "in.json"])
                                                         exitCode run === ExitFailure 1
                                                         assert ("Error: 'validate merge' is not implemented yet." `T.isInfixOf` plain (out run))
                                                         err run === "")
+    , ("invalid JSON is reported on stderr, and stdout is empty", withTests 1 . property $ do
+                                                        dir <- evalIO (writeFolder "validate-invalid-err" [ ("bad.json", "{\"a\":") ])
+                                                        run <- evalIO (ouro dir ["validate", "bad.json"])
+                                                        exitCode run === ExitFailure 1
+                                                        assert ("Compilation Error:" `T.isInfixOf` plain (err run))
+                                                        out run === "")
+    , ("and so is merge, not implemented",          withTests 1 . property $ do
+                                                        dir <- evalIO (writeFolder "validate-merge-err" [ json ])
+                                                        run <- evalIO (ouro dir ["validate", "in.json", "merge", "in.json"])
+                                                        exitCode run === ExitFailure 1
+                                                        assert ("Error: 'validate merge' is not implemented yet." `T.isInfixOf` plain (err run))
+                                                        out run === "")
     ]
     where
     json      = ("in.json", "{\"a\":1,  \"b\":[1,2]}")

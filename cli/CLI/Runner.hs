@@ -22,9 +22,9 @@ import qualified Data.Text.Lazy.IO as TLIO
 import           System.Directory  (createDirectoryIfMissing)
 import           System.Exit       (exitFailure)
 import           System.FilePath   (takeDirectory)
-import           System.IO         (IOMode (..), hSetEncoding, hSetNewlineMode,
-                                    noNewlineTranslation, stderr, stdout, utf8,
-                                    withFile)
+import           System.IO         (IOMode (..), hPutStrLn, hSetEncoding,
+                                    hSetNewlineMode, noNewlineTranslation, stderr,
+                                    stdout, utf8, withFile)
 import           Text.Megaparsec   (SourcePos, sourceName)
 
 
@@ -70,17 +70,17 @@ runValidate (ValidateCommand fp op sp sc) =
 
         Just (Merge _)  -> do
                            -- TODO! Fail loudly until merge is implemented
-                           putStrLn "Error: 'validate merge' is not implemented yet."
+                           hPutStrLn stderr "Error: 'validate merge' is not implemented yet."
                            exitFailure
 
         Nothing         -> validated content defaultOptions
     where
     -- With -o the JSON is written to that file; without it, to stdout and nothing else, so it
-    -- can be piped or redirected. The input is never written over.
+    -- can be piped or redirected. The input is never written over. An error goes to stderr.
     validated content opts =
         case O.validate fp content opts of
             Left  err  -> do
-                          putStrLn $ "Compilation Error:\n" ++ err
+                          hPutStrLn stderr $ "Compilation Error:\n" ++ err
                           exitFailure
             Right json -> case op of
                               Just o  -> do

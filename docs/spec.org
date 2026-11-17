@@ -2893,12 +2893,15 @@ Diagnostics carry their ANSI colour codes when stderr is redirected to a file or
 
 /Fixed/ (2026-11-17): a diagnostic is coloured only when stderr is a terminal and =NO_COLOR= is unset or empty (https://no-color.org); otherwise it is written as the same text without colours, as the golden files hold it. Limit: a terminal that is a pipe underneath, such as mintty, the terminal of Git for Windows, is not seen as one, so it shows no colours.
 
-** OPEN [#B] =ouro validate= reports its errors on stdout
+** FIXED =ouro validate= reported its errors on stdout
 :PROPERTIES:
 :ID:       38
 :FOUND:    2026-10-29
+:FIXED_IN: 0.6.2.0
 :END:
 Invalid JSON ("Compilation Error:") and the unimplemented =merge= are written to stdout, with nothing on stderr, while =build= writes its diagnostics to stderr. Found while writing the CLI's tests (2026-10-29).
+
+/Fixed/ (2026-11-17): both are written to stderr, and stdout is empty, so ~ouro validate in.json > out.json~ never writes an error as the JSON.
 
 ** FIXED =insert= floored a fractional index
 :PROPERTIES:
