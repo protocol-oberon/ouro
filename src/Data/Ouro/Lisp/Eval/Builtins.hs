@@ -12,7 +12,7 @@ module Data.Ouro.Lisp.Eval.Builtins
 
 import           Control.Monad.Reader        (Reader)
 import           Data.Function               ((&))
-import           Data.List                   (find, nub)
+import           Data.List                   (find, sortOn)
 import qualified Data.Map                    as Map
 import           Data.Maybe                  (isNothing)
 import           Data.Ouro.Error.Diagnostics (binaryOpMismatchBlurb,
@@ -21,6 +21,7 @@ import           Data.Ouro.Error.Diagnostics (binaryOpMismatchBlurb,
 import           Data.Ouro.Error.Types       (ErrorContext (..), OuroError (..),
                                               SyntaxError (..))
 import qualified Data.Ouro.Internal.Expr     as I
+import qualified Data.Ouro.Internal.Kinds    as JLD
 import           Data.Ouro.Internal.Uri      (uriText)
 import           Data.Ouro.Lisp.Eval.Types   (Env, PeriodUnit (..),
                                               humanReadableType)
@@ -618,7 +619,7 @@ handleDistinct pos =
          -> case (find isError elements, find isFunction elements) of
                 (Just err, _) -> pure err
                 (_, Just f)   -> uncomparable pos "distinct" f
-                _noProblem    -> pure $ L.Array (nub elements)
+                _noProblem    -> pure $ L.Array (distinct elements)
 
      [other]
          -> Data.Ouro.Error.Diagnostics.typeMismatch "an Array" (humanReadableType other)
@@ -712,7 +713,7 @@ overSets pos name operation = \case
 
 -- Every value in any of the sets
 unionOf :: [[L.Expr]] -> L.Expr
-unionOf = L.Array . nub . concat
+unionOf = L.Array . distinct . concat
 
 -- The values of one Array as a set, for image: repeats are dropped as union drops them,
 -- and an error or a function among them is reported as union reports it
@@ -722,14 +723,82 @@ distinctValues pos name values = withSets pos name [L.Array values] unionOf
 -- The values of the first set that are in all the rest
 intersectionOf :: [[L.Expr]] -> L.Expr
 intersectionOf = L.Array . \case
-    first : rest -> filter (\x -> all (x `elem`) rest) (nub first)
+    first : rest -> let sets = map setOf rest
+                    in filter (\x -> all (member x) sets) (distinct first)
     []           -> []
 
 -- The values of the first set in none of the rest
 difference :: [[L.Expr]] -> [L.Expr]
 difference = \case
-    first : rest -> filter (\x -> not (any (x `elem`) rest)) (nub first)
+    first : rest -> let sets = map setOf rest
+                    in filter (\x -> not (any (member x) sets)) (distinct first)
     []           -> []
+
+
+-- Values as a set, compared as eq compares them.
+--
+-- Values have no order of their own, so each is given a key that equal values always share,
+-- and values are kept in groups by key: only the values of one group are compared with eq.
+-- A key may be shared by values that differ (a record's context is not part of it), which
+-- costs a comparison and never a wrong answer. So a set operation costs n log n, where
+-- comparing every value with every other cost the square (gap 56).
+newtype Set = Set (Map.Map SetKey [L.Expr])
+
+data SetKey
+    = KString  Text
+    | KNumber  Double
+    | KNaN                          -- Never equal to itself, but a key must be
+    | KBoolean Bool
+    | KUri     Text
+    | KDate    UTCTime
+    | KBlank   Text
+    | KRecord  [(Text, SetKey)]
+    | KArray   [SetKey]
+    | KOther
+    deriving (Eq, Ord)
+
+-- A value's key: a record's attribute pairs in key order, as eq compares them
+setKey :: L.Expr -> SetKey
+setKey = \case
+    L.Primitive p -> primitiveKey p
+    L.Record _ kvs -> KRecord [ (k, setKey v) | (k, v) <- sortOn fst kvs ]
+    L.Array xs    -> KArray (map setKey xs)
+    _other        -> KOther
+    where
+    primitiveKey :: I.Expr 'JLD.Primitive -> SetKey
+    primitiveKey = \case
+        I.String s     -> KString s
+        I.Number n
+            | isNaN n  -> KNaN
+            | otherwise -> KNumber n
+        I.Boolean b    -> KBoolean b
+        I.URI u        -> KUri (uriText u)
+        I.Date d       -> KDate d
+        I.BlankNode b  -> KBlank b
+        I.Record _ kvs -> KRecord [ (k, primitiveKey v) | (k, v) <- sortOn fst kvs ]
+        I.Array xs     -> KArray (map primitiveKey xs)
+        _other         -> KOther
+
+emptySet :: Set
+emptySet = Set Map.empty
+
+member :: L.Expr -> Set -> Bool
+member x (Set groups) = maybe False (elem x) (Map.lookup (setKey x) groups)
+
+insert :: L.Expr -> Set -> Set
+insert x (Set groups) = Set (Map.insertWith (<>) (setKey x) [x] groups)
+
+setOf :: [L.Expr] -> Set
+setOf = foldr insert emptySet
+
+-- The values without repeats, keeping the first of each in order
+distinct :: [L.Expr] -> [L.Expr]
+distinct = go emptySet
+    where
+    go _ [] = []
+    go seen (x : xs) = case member x seen of
+        True  -> go seen xs
+        False -> x : go (insert x seen) xs
 
 
 -- Runs a set operation on its Arrays. The first error among the arguments or their
@@ -835,7 +904,8 @@ handleAdjoin pos = pure . \case
         other      -> [other]
 
     -- The values not already there, each once, in the order written
-    newAmong existing = nub . filter (`notElem` existing)
+    newAmong existing = let there = setOf existing
+                        in distinct . filter (\x -> not (member x there))
 
     -- A key already there keeps its place; a new one goes after the others
     placed key value pairs

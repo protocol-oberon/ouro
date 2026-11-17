@@ -9,6 +9,12 @@ version is 0.x, a new minor version may break programs, and each change that doe
 
 ## [Unreleased]
 
+### Fixed
+- Set operations (`union`, `intersect`, `setminus`, `subset`, `distinct`, `unions`,
+  `intersections`, `image` and `adjoin`) take time near linear in their arrays' length, not
+  near its square: the union of 2000 records with themselves takes 0.52 s, where it took
+  4.4 s (gap 56). <!-- tmxpswqz -->
+
 ## [0.6.1.0] - 2026-11-17
 
 ### Added
