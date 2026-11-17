@@ -13,47 +13,46 @@ version is 0.x, a new minor version may break programs, and each change that doe
 
 ### Added
 - `(array a b)` builds an Array, as `(list a b)` did: the value is an Array everywhere else,
-  in `#array`, in messages and in JSON (gap 55). `std` builds its arrays with it. <!-- zkvmtnrm -->
+  in `#array`, in messages and in JSON (gap 55). `std` builds its arrays with it. ([74c4e09])
 
 ### Changed
 - A graph compiles in about a fifth less time, allocation and memory: a hoard of 2000 coins
   takes 0.59 s where it took 0.76 s, measured together, and its peak memory is 100 MB where
   it was 125 MB. The JSON writer no longer holds its whole output as work left to do, and
-  writes a string a run of characters at a time. <!-- tswvxqso --> <!-- kzlzuvxt -->
-  <!-- uruvosts -->
+  writes a string a run of characters at a time. ([e59379f], [e5502f9], [fb96aed])
 
 ### Deprecated
 - `(list a b)` still builds an Array, with a warning that names `array`, `'list' is now called
-  'array'` (`WRN0001`). It will be an error in 0.7 (gap 55). <!-- zkvmtnrm -->
+  'array'` (`WRN0001`). It will be an error in 0.7 (gap 55). ([74c4e09])
 
 ### Removed
 - The warning `WRN0000`, that a string after `#record-empty` or `#array-empty` would be
   discarded: it never was. In an array the string is an element, and in a record a loose value
-  is an error already. Its code is not reused (gap 41). <!-- kwpqlnot -->
+  is an error already. Its code is not reused (gap 41). ([c197912])
 
 ### Fixed
 - Set operations (`union`, `intersect`, `setminus`, `subset`, `distinct`, `unions`,
   `intersections`, `image` and `adjoin`) take time near linear in their arrays' length, not
   near its square: the union of 2000 records with themselves takes 0.52 s, where it took
-  4.4 s (gap 56). <!-- tmxpswqz -->
+  4.4 s (gap 56). ([8b2a239])
 - `ouro validate` checks a TimeSpan's dates: `begin_of_the_begin`, `end_of_the_begin`,
   `begin_of_the_end` and `end_of_the_end` must each be a date, where a value that was not one
   was written back as a string, and the middle two were never read as dates (gap 54).
-  <!-- sxvuovpn -->
+  ([fee0e02])
 - Diagnostics are coloured only when stderr is a terminal and `NO_COLOR` is not set, so a log,
-  a pipe or a CI report holds plain text, without escape codes (gap 37). <!-- qtwyqouk -->
+  a pipe or a CI report holds plain text, without escape codes (gap 37). ([1867050])
 - `ouro validate` reports invalid JSON on stderr, as `build` reports its diagnostics, so
-  `ouro validate in.json > out.json` never writes an error as the JSON (gap 38). <!-- lvrsnxsr -->
+  `ouro validate in.json > out.json` never writes an error as the JSON (gap 38). ([18551ae])
 - A string that is never closed is reported at its opening quote, `This string is never
   closed`, where the error was at the end of the file, far from its cause (gap 23).
-  <!-- mvnotqsy -->
+  ([5d05989])
 - `ouro validate` reads JSON's escapes in strings: `\u00e9` is `é`, a surrogate pair one
   character, and `\/` a slash. Haskell's escapes, such as `\x41`, a lone surrogate and a raw
-  control character are errors, as JSON has them (gap 21). <!-- mzplvlol -->
+  control character are errors, as JSON has them (gap 21). ([cb6ce34])
 - `ouro build` writes all or nothing: every graph is staged first, and moved into place only
   when all are, so a graph that cannot be written, such as one whose folder is a file, leaves
   none written and ends in `Build Failed`, where the graphs before it were written and the
-  build ended in a Haskell exception (gap 35). <!-- vporoolz -->
+  build ended in a Haskell exception (gap 35). ([784d109])
 
 ## [0.6.1.0] - 2026-11-17
 
@@ -221,6 +220,19 @@ version is 0.x, a new minor version may break programs, and each change that doe
 [0.6.0.0]: https://github.com/protocol-oberon/ouro/compare/v0.5.0.0...v0.6.0.0
 [0.5.0.0]: https://github.com/protocol-oberon/ouro/compare/v0.0.0.1...v0.5.0.0
 [0.0.0.1]: https://github.com/protocol-oberon/ouro/releases/tag/v0.0.0.1
+
+[74c4e09]: https://github.com/protocol-oberon/ouro/commit/74c4e09
+[e59379f]: https://github.com/protocol-oberon/ouro/commit/e59379f
+[e5502f9]: https://github.com/protocol-oberon/ouro/commit/e5502f9
+[fb96aed]: https://github.com/protocol-oberon/ouro/commit/fb96aed
+[c197912]: https://github.com/protocol-oberon/ouro/commit/c197912
+[8b2a239]: https://github.com/protocol-oberon/ouro/commit/8b2a239
+[fee0e02]: https://github.com/protocol-oberon/ouro/commit/fee0e02
+[1867050]: https://github.com/protocol-oberon/ouro/commit/1867050
+[18551ae]: https://github.com/protocol-oberon/ouro/commit/18551ae
+[5d05989]: https://github.com/protocol-oberon/ouro/commit/5d05989
+[cb6ce34]: https://github.com/protocol-oberon/ouro/commit/cb6ce34
+[784d109]: https://github.com/protocol-oberon/ouro/commit/784d109
 
 [60c1d69]: https://github.com/protocol-oberon/ouro/commit/60c1d69
 [34eb2df]: https://github.com/protocol-oberon/ouro/commit/34eb2df
