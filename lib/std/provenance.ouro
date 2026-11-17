@@ -20,24 +20,24 @@
 (define/procedure purchase #record (#record object #record seller #record buyer #record amount #record span)
   (doc "A purchase of an object from a seller by a buyer, for an amount, over a span: its Acquisition and its Payment.")
   (:type          "Activity"
-   :classified_as (list vocab/provenance-activity)
+   :classified_as (array vocab/provenance-activity)
    :timespan      span
-   :part          (list (acquisition object seller buyer)
-                        (payment amount buyer seller))))
+   :part          (array (acquisition object seller buyer)
+                         (payment amount buyer seller))))
 
 (define/procedure acquisition #record (#record object #record from #record to)
   (doc "An Acquisition: the title of an object passes from one owner to another.")
   (:type                   "Acquisition"
-   :transferred_title_of   (list object)
-   :transferred_title_from (list from)
-   :transferred_title_to   (list to)))
+   :transferred_title_of   (array object)
+   :transferred_title_from (array from)
+   :transferred_title_to   (array to)))
 
 (define/procedure payment #record (#record amount #record from #record to)
   (doc "A Payment of an amount from one party to another.")
   (:type        "Payment"
    :paid_amount amount
-   :paid_from   (list from)
-   :paid_to     (list to)))
+   :paid_from   (array from)
+   :paid_to     (array to)))
 
 (define/procedure money #record (#number value #record currency)
   (doc "A MonetaryAmount: (money 3000 euros).")

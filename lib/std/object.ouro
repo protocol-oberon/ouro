@@ -30,7 +30,7 @@
 
 (define/procedure dimension #record (#record kind #number value #record unit)
   (doc "A Dimension of a kind, with its value and unit: (dimension (base/aat \"300055642\" \"Unknown Physical Dimension\") 12 centimeters).")
-  (:type "Dimension" :classified_as (list kind) :value value :unit unit))
+  (:type "Dimension" :classified_as (array kind) :value value :unit unit))
 
 (define/procedure height #record (#number value #record unit)
   (doc "A height: (height 379.5 centimeters).")

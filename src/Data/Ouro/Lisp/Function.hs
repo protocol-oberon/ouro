@@ -402,7 +402,7 @@ duplicateFunction name pos =
 -- Forms the evaluator recognises by their head symbol, unless a binding around them has the
 -- name, which shadows the form, as in Scheme (see 'Analysis.Forms.shadowsForm')
 specialForms :: [Text]
-specialForms = [ "->", "adjoin", "all", "and", "any", "attr", "case", "context", "define/constant", "define/procedure", "define/property", "doc"
+specialForms = [ "->", "adjoin", "all", "and", "any", "array", "attr", "case", "context", "define/constant", "define/procedure", "define/property", "doc"
                , "exists", "filter", "fn", "fold", "forall", "get", "get-or", "graph", "has", "image", "inlay", "insert"
                , "let", "list", "map", "nth", "omits", "or", "replace-at", "satisfies", "thru", "when", "with" ]
 

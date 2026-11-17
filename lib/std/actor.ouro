@@ -35,7 +35,7 @@
 
 (define/procedure active #record (#record span)
   (doc "A professional life over a span, for carried_out: (active (time/year-range \"1625\" \"1669\")).")
-  (:type "Activity" :classified_as (list vocab/professional-activity) :timespan span))
+  (:type "Activity" :classified_as (array vocab/professional-activity) :timespan span))
 
 ;; Contact points: identifiers, for contact_point, shared by those who use them
 

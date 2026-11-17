@@ -453,12 +453,13 @@ data LinterWarning
       }
 
     -- LINT WARNING: DEPRECATED SYNTAX FEATURE
-    -- Occurs when the compilation pass matches a valid but legacy structural configuration
-    -- pattern earmarked for complete deprecation in upcoming compiler iterations.
+    -- Occurs when a program uses a form that still works but has a new name, and will be an
+    -- error in a later version: (list 1 2), which is now (array 1 2).
     --
-    -- * Remediation: Flag visual warnings. Surface modern alternative syntax layout recommendations.
+    -- * Remediation: Issue warning. Name the form that replaces it.
     | DeprecatedSyntax
-      { structuralFeature :: Text -- The name or token layout string of the legacy feature
+      { structuralFeature :: Text -- The old form, as written: list
+      , replacement       :: Text -- The form to write in its place: array
       }
 
     -- LINT WARNING: PARENTHESISED RESULT

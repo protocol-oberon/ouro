@@ -246,6 +246,23 @@ warnsWith message src = withTests 1 . property $
                annotate (describe failed)
                failure
 
+-- The program compiles, and none of its warnings mentions the given text
+warnsWithout :: Text -> Text -> Property
+warnsWithout message src = withTests 1 . property $
+    case compileG src of
+        CompilationSuccess warnings _
+            | any (T.isInfixOf message . warningText) warnings
+                -> do
+                   annotate ("a warning mentions: " <> T.unpack message)
+                   annotate (show warnings)
+                   failure
+            | otherwise
+                -> success
+        failed
+            -> do
+               annotate (describe failed)
+               failure
+
 -- The program compiles without any warnings
 compilesWithoutWarnings :: Text -> Property
 compilesWithoutWarnings src = withTests 1 . property $

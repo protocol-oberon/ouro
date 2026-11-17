@@ -9,6 +9,14 @@ version is 0.x, a new minor version may break programs, and each change that doe
 
 ## [Unreleased]
 
+### Added
+- `(array a b)` builds an Array, as `(list a b)` did: the value is an Array everywhere else,
+  in `#array`, in messages and in JSON (gap 55). `std` builds its arrays with it. <!-- zkvmtnrm -->
+
+### Deprecated
+- `(list a b)` still builds an Array, with a warning that names `array`, `'list' is now called
+  'array'` (`WRN0001`). It will be an error in 0.7 (gap 55). <!-- zkvmtnrm -->
+
 ### Fixed
 - Set operations (`union`, `intersect`, `setminus`, `subset`, `distinct`, `unions`,
   `intersections`, `image` and `adjoin`) take time near linear in their arrays' length, not

@@ -557,10 +557,11 @@ unanchoredLiteral tag val = Lint $ UnanchoredLiteral
     , erasedValue  = formatSmartLiteral val
     }
 
--- Create a legacy syntax usage lint warning
-deprecatedSyntax :: Text -> WarningContext
-deprecatedSyntax feature = Lint $ DeprecatedSyntax
+-- Create a lint warning for a form with a new name, the old one and the new
+deprecatedSyntax :: Text -> Text -> WarningContext
+deprecatedSyntax feature newName = Lint $ DeprecatedSyntax
     { structuralFeature = feature
+    , replacement       = newName
     }
 
 -- Create a lint warning for a function result that is one value in parentheses
@@ -627,9 +628,9 @@ warningBlurb = \case
         <> "and will be completely erased from properties at compile time.\n\n"
         <> "Perhaps assign it to a property attribute key (e.g., :label " <> formatSmartLiteral val <> "), if it is intended to be saved."
 
-    Lint (DeprecatedSyntax feature)
-        -> "The structural pattern '" <> feature <> "' has been designated as obsolete legacy syntax. "
-        <> "While still parsed for backwards-compatibility, it will be completely removed in future breaking spec bumps."
+    Lint (DeprecatedSyntax feature newName)
+        -> "'" <> feature <> "' still works, as '" <> newName <> "' does, and will be an error in a later version.\n\n"
+        <> "Perhaps write '" <> newName <> "' in its place."
 
     Lint (ParenthesisedResult _ val)
         -> "A function's result is one expression, and parentheses around values make an array: "
@@ -671,7 +672,7 @@ warningBlurb = \case
 warningSummary :: WarningContext -> Text
 warningSummary = \case
     Lint (UnanchoredLiteral _ val)      -> "Unanchored primitive literal " <> val <> " detected"
-    Lint (DeprecatedSyntax feature)     -> "Use of deprecated syntactic feature: " <> feature
+    Lint (DeprecatedSyntax feature new) -> "'" <> feature <> "' is now called '" <> new <> "'"
     Lint (ParenthesisedResult owner _)  -> "The result of '" <> owner <> "' is an array of one value"
     Lint (ShadowedBuiltin name)         -> "The function '" <> name <> "' replaces the built-in '" <> name <> "'"
     Lint (NotKebabCase kind name _)     -> "The " <> kind <> " '" <> name <> "' is not named in kebab-case"

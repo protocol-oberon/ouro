@@ -613,9 +613,9 @@ splitWarningContext ctx =
                , [ labeled "Discarded: " (highlightDiagnostic val) ]
                , Just blurb
                )
-        Lint (DeprecatedSyntax feature)
+        Lint (DeprecatedSyntax _ newName)
             -> ( title
-               , [ labeled "Legacy Structure: " (pretty feature) ]
+               , [ labeled "Instead: " (pretty newName) ]
                , Just blurb
                )
         Lint (ParenthesisedResult _ val)

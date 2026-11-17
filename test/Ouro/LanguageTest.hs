@@ -38,11 +38,12 @@ import qualified Data.Text.Lazy            as TL
 import           Hedgehog
 import qualified Hedgehog.Gen              as Gen
 import qualified Hedgehog.Range            as Range
-import           Utils                     (compilesToJSON, emitsExactly,
+import           Utils                     (compilesToJSON,
+                                            compilesWithoutWarnings, emitsExactly,
                                             failsWith, failsWithout, fixedGap,
                                             fixture, importsFailAt,
                                             readSourceFile, shouldCompileTo,
-                                            warnsWith)
+                                            warnsWith, warnsWithout)
 
 
 -- Only attribute pairs and elements reach the output. Functions, built-ins and other
@@ -523,6 +524,20 @@ classification = Group "Classification: records, arrays and calls"
                                                               "(graph g (:r (:a 1 2)))")
     , ("one attribute pair among values makes a record", failsWith "an unbound expression"
                                                               "(graph g (:r (1 :a 2)))")
+    , ("array builds an Array of computed values",  compilesToJSON "(graph g (:r (array (+ 1 1) \"a\")))"
+                                                                   "{\"r\": [2, \"a\"]}")
+    , ("and of no values, an empty one",            compilesToJSON "(graph g (:r (array)))"
+                                                                   "{\"r\": []}")
+    , ("and without a warning",                     compilesWithoutWarnings "(graph g (:r (array 1 2)))")
+    , ("list, its old name, still builds one",      compilesToJSON "(graph g (:r (list 1 2)))"
+                                                                   "{\"r\": [1, 2]}")
+    , ("with a warning naming array",               warnsWith "'list' is now called 'array'"
+                                                              "(graph g (:r (list 1 2)))")
+    , ("inside a procedure too",                    warnsWith "'list' is now called 'array'"
+                                                              "(define/procedure f #array (#number n) (list n)) (graph g (:r (f 1)))")
+    , ("but not when the module defines its own list", warnsWithout "is now called"
+                                                              "(define/procedure list #string (#string s) s) (graph g (:r (list \"a\")))")
+    , ("std builds its arrays with array",          compilesWithoutWarnings "(import std/base) (import std/actor) (import std/digital) (import std/exhibition) (import std/object) (import std/provenance) (graph g (:r 1))")
     ]
 
 
@@ -1297,8 +1312,6 @@ knownGaps = Group "Known gaps: current and fixed"
                                                     fmap (T.isInfixOf "\"begin_of_the_begin\": \"hello\"" . TL.toStrict)
                                                          (validate "t.json" "{\"timespan\": {\"begin_of_the_begin\": \"hello\"}}" defaultOptions)
                                                     === Right True)
-    , ("gap 55: the Array constructor is named list", compilesToJSON "(graph g (:r (list 1 2)))"
-                                                                     "{\"r\": [1, 2]}")
-    , ("gap 55: and array is unbound",              importsFailAt "SCP0000" ("inline-test", 1, 15) ["array"] []
+    , ("gap 55 (fixed): array is unbound",          fixedGap $ importsFailAt "SCP0000" ("inline-test", 1, 15) ["array"] []
                                                                    "(graph g (:r (array 1 2)))")
     ]

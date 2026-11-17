@@ -80,16 +80,16 @@
 
 (define/procedure name #record (#record kind #string content)
   (doc "A Name of a kind, as (name vocab/primary-name \"Spring\"). A Name with no kind is a literal, (:type \"Name\" :content \"Spring\").")
-  (:type "Name" :classified_as (list kind) :content content))
+  (:type "Name" :classified_as (array kind) :content content))
 
 (define/procedure identifier #record (#record kind #string content)
   (doc "An Identifier of a kind, as an accession number: (identifier (aat \"300312355\" \"Accession Number\") \"2014.62\").")
-  (:type "Identifier" :classified_as (list kind) :content content))
+  (:type "Identifier" :classified_as (array kind) :content content))
 
 (define/procedure statement #record (#record kind #string content)
   (doc "A statement: a LinguisticObject of a kind, which is classified as Brief Text whether or not it was built by statement-kind.")
   (:type          "LinguisticObject"
-   :classified_as (list (adjoin kind :classified_as vocab/brief-text))
+   :classified_as (array (adjoin kind :classified_as vocab/brief-text))
    :content       content))
 
 (define/procedure description #record (#string content)

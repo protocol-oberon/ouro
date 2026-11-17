@@ -828,7 +828,7 @@ sub-pattern  = hole | record-pattern | array-pattern | expression ;
 | URI      | =#uri "https://..."=                           | string  |
 | Date     | =#date "1881-01-01T00:00:00Z"=                 | string  |
 | Record   | =(:key value ...)=, =#record expr=             | object  |
-| Array    | =(a b c)=, =(list a b c)=, =#array expr=       | array   |
+| Array    | =(a b c)=, =(array a b c)=, =#array expr=      | array   |
 | Duration | =(years 2)=, =(days 19)=                       | none    |
 | Function | =(fn (x) ...)=, a procedure's name, =+=, =#function expr= | none    |
 
@@ -876,13 +876,14 @@ A form headed by a symbol is a call, so an array whose first element is a variab
 #+BEGIN_SRC clojure
 (1 2 3)            ; an array
 (("Manet") 1)      ; an array whose first element is an array
-(list artist 1)    ; an array whose first element is the value of 'artist'
+(array artist 1)   ; an array whose first element is the value of 'artist'
 (artist 1)         ; a call to 'artist' (an error if it is not a function)
 #+END_SRC
 
 - An array of one record is written with nested parentheses, ~((:type "Name" ...))~.
   - That is the usual Linked Art shape for =classified_as=, =identified_by= and similar properties.
-- An array of one bound value is written with =list=, ~(list manet)~, since ~(manet)~ is a call.
+- An array of one bound value is written with =array=, ~(array manet)~, since ~(manet)~ is a call.
+  - =list=, its old name, still builds one, with a warning that names =array= (=WRN0001=); in 0.7 it will be an error.
 - Arrays, like JSON arrays, can hold values of any type: ~(1 "a" (:k 1) (2 3))~.
 
 *** Inlays are layers
@@ -1329,7 +1330,7 @@ Their names are bound like any other, as in Scheme, which has no reserved words.
 
 - A binding around a form shadows it, and the form is then an ordinary call of the binding.
   - That is an attribute key, a =let= binding, a parameter, a hole, or a =define/procedure= of the module.
-  - ~(let ($list (fn (x) (+ x 1))) (list 1))~ is =2=.
+  - ~(let ($array (fn (x) (+ x 1))) (array 1))~ is =2=.
 
 - A key is a binding whose value is also written out, and a value written out cannot be a function. So a call of a form a key shadows is an error that says so: ~(:image "x" :r (image y part))~ calls the string ="x"=.
 
@@ -1383,7 +1384,7 @@ A question is written as membership is, the element or the domain first: ~(satis
 | =(all array)=                            | =true= when every element is; written in place, stops at a =false=     |
 | =(any array)=                            | =true= when one element is; written in place, stops at a =true=        |
 | =(fold array init f)=                    | =f= called on the running value and each element, from =init=          |
-| =(list e ...)=                           | an array, whatever its first element is                                |
+| =(array e ...)=                          | an array, whatever its first element is; =list= is its old name        |
 | =(thru duration)=                        | extend a duration to the end of its unit (see Built-ins)               |
 | =:context e=                             | the record's JSON-LD =@context=, a context value                       |
 
@@ -1521,7 +1522,7 @@ A refinement written on its own, with nothing after it, is meaningful only at th
 #+BEGIN_SRC clojure
 (adjoin (:k 1) :k 2)                  ; {"k": [1, 2]}: a single value becomes a set
 (adjoin (:k (1 2)) :k 2)              ; {"k": [1, 2]}: a value already there is not added
-(adjoin (:k (1)) :k (list 2 3))       ; {"k": [1, 2, 3]}: a list adds its elements
+(adjoin (:k (1)) :k (array 2 3))      ; {"k": [1, 2, 3]}: an array adds its elements
 (adjoin (:k (1 1)) :k (1 3))          ; {"k": [1, 1, 3]}: the values there are kept as they are
 (adjoin (1 2) 2 3)                    ; (1 2 3): an array adds the elements not there
 (-> (:type "Place") (with :_label "Amsterdam") (adjoin :classified_as (city)))
@@ -1689,7 +1690,7 @@ Each evaluates in order, and stops at the operand that decides the answer, so ~(
 
 - Each operand it reaches must have the refinement =#boolean=. Unlike other Lisps, Ouro has no truthiness, and the result is always =true= or =false=.
 
-- =all= and =any= stop only over an array written in place, a literal one or a =(list ...)=. That keeps the guard ~(all ((has r year) (> (get r year) 1600)))~ from reading a year =r= does not have. An array given any other way, a binding or a =map='s result, is evaluated whole, then read in order.
+- =all= and =any= stop only over an array written in place, a literal one or an =(array ...)=. That keeps the guard ~(all ((has r year) (> (get r year) 1600)))~ from reading a year =r= does not have. An array given any other way, a binding or a =map='s result, is evaluated whole, then read in order.
 
 - A chain of comparisons is =all= over its pairs, and stops the same way: ~(all ((< 2 1) (< 1 (get () 5))))~ is =false=.
 
@@ -1975,7 +1976,7 @@ Each pass is a module of its own under =Lisp/Canon/=, with the walks in =Travers
 | ~(-> x (f a) g)~                        | ~(g (f x a))~                                                       |
 | a function step ~(-> x (h b ?))~        | ~(%apply (%fn (%1) (h b %1)) x)~                                    |
 | ~(with base item ...)~                  | ~((%inlay base) item ...)~; ~(with base)~ is ~base~                 |
-| ~(adjoin base :k v (inlay x) e)~        | ~(%adjoin base (:k v) x (list e))~; ~(adjoin base)~ is ~base~       |
+| ~(adjoin base :k v (inlay x) e)~        | ~(%adjoin base (:k v) x (array e))~; ~(adjoin base)~ is ~base~      |
 | =:context e=, =:@context e=             | ~(%context e)~: the record's metadata, not an attribute pair        |
 | ~(all (a b c))~, ~(any (a b c))~        | the chain of cases ~(and a b)~ and ~(or a b)~ are                   |
 | ~(thru (days n))~                       | ~(days n) (hours 23) (minutes 59) (seconds 59)~                     |
@@ -3101,10 +3102,11 @@ Four times the coins cost 4.6 times as much, about n^1.1, and 2000 coins ten tim
 :END:
 The JSON parser reads =begin_of_the_begin= and =end_of_the_end= as dates, and has an error for one that is not: "Invalid ISO 8601 Timestamp format". It is never reached. The date's parser is tried first, and when it fails the pair is read again as an ordinary one, so ~{"begin_of_the_begin": "hello"}~ is validated and written back as a string, as is a year of two digits, ="81-01-01T00:00:00Z"=. The other two date keys of a TimeSpan, =end_of_the_begin= and =begin_of_the_end=, are not read as dates at all. Found while fixing gap 24 (2026-11-16).
 
-** OPEN [#B] The Array constructor is named =list=
+** FIXED The Array constructor was named =list=
 :PROPERTIES:
 :ID:       55
 :FOUND:    2026-11-16
+:FIXED_IN: 0.6.1.0
 :END:
 An Array is built with ~(list 1 2)~, the name Lisps give their lists, though the value is an Array everywhere else: in this spec, in =#array=, in messages, and in JSON. ~(array 1 2)~ is unbound, =SCP0000=. Found while designing the type syntax of 0.7 (2026-11-16), where =array= also names the refinement of every array.
 
@@ -3112,6 +3114,10 @@ The fix, in two steps so that no release breaks a program that the one before it
 
 - now: ~(array …)~ is the constructor, and ~(list …)~ still builds an Array, with a deprecation warning naming =array= (=DeprecatedSyntax=, defined and never yet raised);
 - in 0.7: ~(list …)~ is an error naming =array=, as =defn= became one naming =define/procedure=.
+
+/Fixed/ (2026-11-17), the first step: ~(array …)~ builds an Array, and ~(list …)~ still does, with =WRN0001= (=DeprecatedSyntax=, raised for the first time): "'list' is now called 'array'". A module that defines its own =list= calls it, and is not warned about. =std= builds its arrays with =array=, so importing it raises no warning; Canon's rewrite of =adjoin= writes =array= too.
+
+Limits: the warning reads the code as written, so a =list= bound by a =let= or a parameter, which is then a call of that binding, is still warned about. The fixtures, the tests and the README still write =list=, and compile with the warning.
 
 ** FIXED A set operation on arrays cost nearly the square of their length
 :PROPERTIES:
