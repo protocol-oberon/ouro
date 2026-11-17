@@ -2751,12 +2751,15 @@ It rejects the valid JSON escapes =\u00e9= and =\/=, and accepts the invalid =\x
 
 /Fixed/ (2026-11-16) with gap 17: a URI is written as it was written, every slash kept.
 
-** OPEN [#B] An unterminated string is reported where the input ends
+** FIXED An unterminated string was reported where the input ends
 :PROPERTIES:
 :ID:       23
 :FOUND:    2026-10-24
+:FIXED_IN: 0.6.2.0
 :END:
 ~(:r "open)~ is a lexical error at the end of the file, not at the opening quote, so in a long file the error points far from its cause. Found while testing errors inside imported modules (2026-10-24).
+
+/Fixed/ (2026-11-17): it is =SYN0000= at the opening quote, "This string is never closed: the file ends before its closing '\"'". The lexer looks at each character rather than trying the closing quote as an alternative, since Megaparsec keeps the error furthest into the input, which was the quote's, at the end.
 
 ** FIXED =#date= accepted a year of fewer than four digits
 :PROPERTIES:

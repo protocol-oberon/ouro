@@ -401,7 +401,7 @@ moduleErrors = Group "Modules: every error, with its code, place and hint"
 
       -- Errors inside a module are reported at their own line and column. An unterminated
       -- string is reported where the input ends, not at its opening quote: pinned as it is
-    , ("a lexical error inside a module",          importsFailAt "SYN0000" ("unterminated.ouro", 2, 30) ["Malformed or unrecognized lexical token sequence"] [("unterminated", "(export f)\n(define/procedure f () \"open)")]
+    , ("a lexical error inside a module",          importsFailAt "SYN0000" ("unterminated.ouro", 2, 24) ["This string is never closed"] [("unterminated", "(export f)\n(define/procedure f () \"open)")]
                                                                  "(import unterminated) (graph g (:r 1))")
     , ("a parse error inside a module",            importsFailAt "SYN0000" ("unparsed.ouro", 2, 20) ["Expected argument list"] [unparsed]
                                                                  "(import unparsed) (graph g (:r 1))")

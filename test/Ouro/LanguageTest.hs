@@ -656,6 +656,12 @@ endOfFile = Group "Unclosed delimiters: a file that ends early"
     , ("on its line, in a later form",       unclosedAt (3, 3)  "')'" "(graph a (:r 1))\n(graph b\n  (:r (list 1)")
     , ("in an imported module, in its file", importsFailAt "SYN0001" ("open.ouro", 2, 1) ["')' to close this", "the end of the file"] [("open", "(export f)\n(define/procedure f () 1")]
                                                            "(import open) (graph g (:r (open/f)))")
+    , ("a string left open, at its opening quote", importsFailAt "SYN0000" ("inline-test", 1, 14) ["This string is never closed"] []
+                                                           "(graph g (:r \"open))")
+    , ("on its own line",                    importsFailAt "SYN0000" ("inline-test", 2, 7) ["the file ends before its closing"] []
+                                                           "(graph g\n  (:r \"open\n more))")
+    , ("a closed string is not affected",    compilesToJSON "(graph g (:r \"x\" :s \"y\"))"
+                                                           "{\"r\": \"x\", \"s\": \"y\"}")
     ]
     where
     unclosedAt (line, column) closer = importsFailAt "SYN0001" ("inline-test", line, column) [closer <> " to close this", "the end of the file"] []
@@ -1247,7 +1253,7 @@ knownGaps = Group "Known gaps: current and fixed"
                                                                       "{\"u\": \"https://a.org/x/y\"}")
     , ("gap 22 (fixed): so is a leading one",      fixedGap $ compilesToJSON "(graph g (:u #uri \"https://a.org//x\"))"
                                                                    "{\"u\": \"https://a.org/x\"}")
-    , ("gap 23: an unterminated string is reported where the input ends", importsFailAt "SYN0000" ("inline-test", 1, 21) ["Malformed or unrecognized lexical token sequence"] []
+    , ("gap 23 (fixed): an unterminated string is reported where the input ends", fixedGap $ importsFailAt "SYN0000" ("inline-test", 1, 21) ["Malformed or unrecognized lexical token sequence"] []
                                                                                 "(graph g (:r \"open))")
     , ("gap 24 (fixed): #date accepts a year of fewer than four digits", fixedGap $ compilesToJSON "(graph g (:d #date \"81-01-01T00:00:00Z\"))"
                                                                                 "{\"d\": \"81-01-01T00:00:00Z\"}")

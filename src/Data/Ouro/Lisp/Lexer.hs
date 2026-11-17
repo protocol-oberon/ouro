@@ -12,7 +12,7 @@ import           Data.Void                  (Void)
 import qualified Text.Megaparsec            as M
 import           Text.Megaparsec            (MonadParsec (eof, lookAhead, notFollowedBy),
                                              ParseError (..), Parsec, choice,
-                                             getSourcePos, many, manyTill,
+                                             getSourcePos, many,
                                              oneOf, option, optional, runParser,
                                              some, try, (<|>))
 import           Text.Megaparsec.Char       (alphaNumChar, char, letterChar,
@@ -184,11 +184,25 @@ pLiterals = lexeme . withPos $ choice
             M.region (\err -> M.setErrorOffset startOffset err)
                      (fail "Ouro has no null: leave the attribute out, or state why the value is absent")
 
+   -- A string ends at its closing quote; one the input ends inside is reported where it
+   -- opens, which is where the missing quote's partner is (gap 23)
    pString :: Parser Tkn.TokenType
    pString = do
+             startOffset <- M.getOffset
              _   <- char '"'
-             txt <- manyTill L.charLiteral (char '"')
+             txt <- untilClosed startOffset
              pure (Tkn.String (T.pack txt))
+
+   -- The next character is looked at, rather than the closing quote tried as an alternative:
+   -- Megaparsec merges an alternative's error into the next one's, keeping the error furthest
+   -- into the input, which would be the quote's, at the end, not the string's, where it opens
+   untilClosed :: Int -> Parser String
+   untilClosed startOffset = M.atEnd >>= \case
+       True  -> M.region (\err -> M.setErrorOffset startOffset err)
+                         (fail "This string is never closed: the file ends before its closing '\"'")
+       False -> lookAhead M.anySingle >>= \case
+           '"' -> [] <$ M.anySingle
+           _   -> (:) <$> L.charLiteral <*> untilClosed startOffset
 
    pNumber :: Parser Tkn.TokenType
    pNumber = do

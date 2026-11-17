@@ -42,6 +42,9 @@ version is 0.x, a new minor version may break programs, and each change that doe
   a pipe or a CI report holds plain text, without escape codes (gap 37). <!-- qtwyqouk -->
 - `ouro validate` reports invalid JSON on stderr, as `build` reports its diagnostics, so
   `ouro validate in.json > out.json` never writes an error as the JSON (gap 38). <!-- lvrsnxsr -->
+- A string that is never closed is reported at its opening quote, `This string is never
+  closed`, where the error was at the end of the file, far from its cause (gap 23).
+  <!-- mvnotqsy -->
 
 ## [0.6.1.0] - 2026-11-17
 
