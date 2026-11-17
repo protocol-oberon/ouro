@@ -1199,7 +1199,7 @@ If you prefer a traditional Haskell environment, you can build Ouro directly fro
 The ouro compiler has the following commands (shown via running `ouro -h`):
 
 ``` bash
-Ouro v0.6.1.0
+Ouro v0.6.2.0
 
 Usage: ouro COMMAND [-v|--version]
 

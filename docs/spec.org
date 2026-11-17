@@ -3223,6 +3223,41 @@ What remains at 500 coins is mostly the evaluator's bindings: ~Map~, ~IntMap~, ~
 
 ~escapeString~ and ~escapeChar~ were 12% of the time and 16% of the allocation, since every string was escaped a character at a time. Now each run of characters needing no escape is written whole, which cut the allocation at 2000 coins from 815 MB to 655 MB.
 
+** 0.6.2.0
+:PROPERTIES:
+:MEASURED: 2026-11-17
+:CHANGE:   tmltszms, the release
+:GHC:      9.10.3, -O1, +RTS -A32m
+:MACHINE:  Intel Core i7-6600U, 2.60 GHz, 8 GB, Windows 10 Pro
+:END:
+
+| fixtures (212)              |    Time |
+|-----------------------------+---------|
+| fastest (=encoding=)        | 0.12 ms |
+| first quartile              | 6.10 ms |
+| median                      | 8.91 ms |
+| third quartile              | 11.4 ms |
+| slowest (=text-0=)          | 29.4 ms |
+| all 212, one after another  | 1.86 s  |
+
+The fixtures are as in 0.6.1.0, within the machine's noise: loading the =aat= modules they import is still most of their time.
+
+| hoard      |           Time |
+|------------+----------------|
+| 100 coins  |  34.4 ms ± 1.8 |
+| 500 coins  |   131 ms ± 5   |
+| 2000 coins |   605 ms ± 9   |
+
+Against 0.6.1.0's 672 ms at 2000 coins: the IR's lists, the strict printer and strings written a run at a time (see /Profiling/). What remains is the promise store's live heap.
+
+| arrays, 100 / 500 / 2000 coins | 100     | 500    | 2000    | ×4 ratio |
+|--------------------------------+---------+--------+---------+----------|
+| =forall=                       | 36.5 ms | 150 ms | 623 ms  |      4.1 |
+| =len in map=                   | 33.1 ms | 115 ms | 484 ms  |      4.2 |
+| =union=                        | 33.2 ms | 137 ms | 567 ms  |      4.1 |
+
+=union= is linear, where it was ×11.8 in 0.6.1.0: gap 56 fixed.
+
 ** 0.6.1.0
 :PROPERTIES:
 :MEASURED: 2026-11-17

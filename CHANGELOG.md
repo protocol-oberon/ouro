@@ -9,6 +9,8 @@ version is 0.x, a new minor version may break programs, and each change that doe
 
 ## [Unreleased]
 
+## [0.6.2.0] - 2026-11-17
+
 ### Added
 - `(array a b)` builds an Array, as `(list a b)` did: the value is an Array everywhere else,
   in `#array`, in messages and in JSON (gap 55). `std` builds its arrays with it. <!-- zkvmtnrm -->
@@ -213,7 +215,8 @@ version is 0.x, a new minor version may break programs, and each change that doe
   records and arrays, serialisation to JSON, and a command line. ([45edabc], [9e10f0e],
   [0fabbf6], [4ef6457], [4db16ac])
 
-[Unreleased]: https://github.com/protocol-oberon/ouro/compare/v0.6.1.0...HEAD
+[Unreleased]: https://github.com/protocol-oberon/ouro/compare/v0.6.2.0...HEAD
+[0.6.2.0]: https://github.com/protocol-oberon/ouro/compare/v0.6.1.0...v0.6.2.0
 [0.6.1.0]: https://github.com/protocol-oberon/ouro/compare/v0.6.0.0...v0.6.1.0
 [0.6.0.0]: https://github.com/protocol-oberon/ouro/compare/v0.5.0.0...v0.6.0.0
 [0.5.0.0]: https://github.com/protocol-oberon/ouro/compare/v0.0.0.1...v0.5.0.0
