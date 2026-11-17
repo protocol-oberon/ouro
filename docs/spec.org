@@ -3121,6 +3121,22 @@ The fix, in two steps so that no release breaks a program that the one before it
 - now: ~(array …)~ is the constructor, and ~(list …)~ still builds an Array, with a deprecation warning naming =array= (=DeprecatedSyntax=, defined and never yet raised);
 - in 0.7: ~(list …)~ is an error naming =array=, as =defn= became one naming =define/procedure=.
 
+** OPEN [#B] A set operation on arrays costs nearly the square of their length
+:PROPERTIES:
+:ID:       56
+:FOUND:    2026-11-17
+:PINNED:   the benchmark =arrays/union= (=cabal bench=), not a test: a timing cannot be asserted
+:END:
+=union=, =intersect=, =setminus=, =subset= and =distinct= compare every value with every other: they are written with Haskell's =nub= and =elem= over lists, since a value has equality but no order. The coins of the benchmark's hoard, joined with themselves, ~(len (∪ coins coins))~, take (2026-11-17):
+
+- 46.7 ms for 100 coins;
+- 353 ms for 500;
+- 4.36 s for 2000.
+
+Four times the coins cost 12.3 times as much, about n^1.8. For comparison, =forall= over the same coins, the shape of a homogeneous array's refinement, grows as building them does, and =len= asked for every coin is linear (=arrays/forall=, =arrays/len in map=). A curator joining two sets of records of a large collection meets it first.
+
+The fix: an order on values, structural, as =eq= compares them, so each operation sorts or keeps a set of the values seen, $O(n \log n)$, still keeping the first of each value in the order it was written. Functions have no equality, and are never in an Array a set operation reaches. A fix shows in the benchmark: 2000 coins near four times the cost of 500. Found while benchmarking arrays for the homogeneous refinements of 0.7 (2026-11-17).
+
 * Appendix C: Benchmarks
 :PROPERTIES:
 :COLUMNS:  %16ITEM %MEASURED %CHANGE %GHC %MACHINE
