@@ -3149,7 +3149,8 @@ Each benchmark compiles a program in memory and renders it as JSON: the whole pi
 The groups:
 
 - *fixtures:* every fixture of =test/fixtures/ouro/=, linked.art's 211 examples and Ouro's own;
-- *hoard:* a generated hoard of 100, 500 and 2000 coins, each built through =std='s constructors.
+- *hoard:* a generated hoard of 100, 500 and 2000 coins, each built through =std='s constructors;
+- *arrays:* an operation over all the hoard's coins at each size, so that its growth shows: =forall=, =len= asked for each coin (=len in map=), and =union=.
 
 0.6.0.0 was measured before the two kinds of fixture were joined, so its tables keep them apart, as =canonical= (Ouro's own) and =linked-art=.
 
@@ -3159,6 +3160,41 @@ To record a version:
 
 - =cabal bench --benchmark-options='--csv b.csv'= runs every benchmark and keeps the results as a baseline;
 - =cabal bench --benchmark-options='--baseline b.csv --fail-if-slower 20'= compares a later run with it.
+
+** 0.6.1.0
+:PROPERTIES:
+:MEASURED: 2026-11-17
+:CHANGE:   lnnpstuz, the release
+:GHC:      9.10.3, -O1, +RTS -A32m
+:MACHINE:  Intel Core i7-6600U, 2.60 GHz, 8 GB, Windows 10 Pro
+:END:
+
+| fixtures (212)              |    Time |
+|-----------------------------+---------|
+| fastest (=encoding=)        | 0.14 ms |
+| first quartile              | 6.01 ms |
+| median                      | 8.30 ms |
+| third quartile              | 11.0 ms |
+| slowest (=object-0=)        | 27.3 ms |
+| all 212, one after another  | 1.80 s  |
+
+The fixtures are linked.art's examples written as Ouro, as before, but most now import =aat='s modules for their terms. Loading those modules is most of their time: a fixture that imports nothing, such as =object-spring-1=, takes 0.38 ms, near 0.6.0.0's median, and one that imports six takes 6 to 11 ms. Each benchmark loads its imports afresh, as each =ouro build= does.
+
+| hoard      |          Time |
+|------------+---------------|
+| 100 coins  |  35.2 ms ± 2.7 |
+| 500 coins  |   145 ms ± 7  |
+| 2000 coins |   672 ms ± 43 |
+
+Four times the coins cost 4.6 times as much (gap 52 fixed).
+
+| arrays, 100 / 500 / 2000 coins | 100     | 500    | 2000    | ×4 ratio |
+|--------------------------------+---------+--------+---------+----------|
+| =forall=                       | 35.8 ms | 148 ms | 684 ms  |      4.6 |
+| =len in map=                   | 30.0 ms | 107 ms | 438 ms  |      4.1 |
+| =union=                        | 41.7 ms | 317 ms | 3.73 s  |     11.8 |
+
+=union= grows near the square of the coins: gap 56, open at this release.
 
 ** 0.6.0.0
 :PROPERTIES:
