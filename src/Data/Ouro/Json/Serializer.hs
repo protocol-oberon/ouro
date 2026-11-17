@@ -7,7 +7,7 @@ module Data.Ouro.Json.Serializer where
 import           Control.Monad.Identity    (Identity, runIdentity)
 import           Control.Monad.Reader      (MonadReader (..), ReaderT (..),
                                             asks)
-import           Control.Monad.State       (MonadState, StateT (..), modify)
+import           Control.Monad.State.Strict (MonadState, StateT (..), modify')
 import           Data.Char                 (ord)
 import           Data.Ouro.Internal.Expr   (Expr)
 import qualified Data.Ouro.Internal.Expr   as Expr
@@ -63,8 +63,9 @@ data PrinterState = PrinterState
 -- Printer a.
 --
 -- A newtype wrapper implementing a custom Reader-State architecture. We manually layer
--- ReaderT and StateT over the Identity monad—combined with strict record fields—to completely
--- bypass standard RWST space leaks.
+-- ReaderT and a strict StateT over the Identity monad, with strict record fields and modify',
+-- to bypass standard RWST space leaks: each step's state is evaluated as it is made. (The
+-- StateT was lazy until 2026-11-17, which kept every append as a thunk, despite the fields.)
 --
 -- ReaderT PrinterEnv handles the downward flow of contextual layout configurations, allowing
 -- functions to alter the indentation level locally without impacting parent structures.
@@ -159,9 +160,10 @@ outputBufferL f s = (\b -> s { outputBuffer = b }) <$> f (outputBuffer s)
 
 
 -- Layout
--- Append a chunk to the state buffer
+-- Append a chunk to the state buffer, now: a lazy append would keep every chunk as a thunk,
+-- forced at the end down a stack as deep as the output
 tell :: B.Builder -> Printer ()
-tell chunk = modify (outputBufferL %~ (<> chunk))
+tell chunk = modify' (outputBufferL %~ (<> chunk))
 
 
 -- nested.
@@ -195,7 +197,7 @@ renderFlatRecord metadata bodyPairs =
         -- Case A: Record has an atomic Context leaf
         Expr.Context schema@(Schema directives)
             -> do
-               modify (activeDirectivesL %~ (++ directives))
+               modify' (activeDirectivesL %~ (++ directives))
                tell "{\n"
                nested $ do
                        emitIndent

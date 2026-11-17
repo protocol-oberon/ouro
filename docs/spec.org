@@ -3153,6 +3153,41 @@ To record a version:
 - =cabal bench --benchmark-options='--csv b.csv'= runs every benchmark and keeps the results as a baseline;
 - =cabal bench --benchmark-options='--baseline b.csv --fail-if-slower 20'= compares a later run with it.
 
+=--benchmark-options='-p /hoard/ +RTS -T -RTS'= adds each benchmark's allocation, bytes copied by the collector and peak memory. Allocation that grows with the input while copying grows faster means a live heap that grows: every major collection copies all of it.
+
+** Profiling
+
+A profiling build lives in its own folder, =dist-prof/= (excluded from version control), so it never disturbs the ordinary one:
+
+#+BEGIN_SRC sh
+cabal build exe:ouro --enable-profiling --profiling-detail=toplevel-functions \
+      --builddir=dist-prof --ghc-options=-rtsopts
+#+END_SRC
+
+=-rtsopts= lets the profiled binary take heap options. Cabal does not relink when only that flag changes: delete the executable's =cache= folder and =Main.p_o= under =dist-prof/= to make it.
+
+Run from a project's folder:
+
+- =ouro build +RTS -p= writes =ouro.prof=, time and allocation by cost centre. On Windows its total time undercounts badly; trust its proportions.
+- =ouro build +RTS -hc -i0.002= and =-hy= write =ouro.hp=, the live heap over time by cost centre and by type. Profiling two sizes of the same program, such as the hoard at 500 and 2000 coins, shows what grows.
+- =+RTS -s= on the ordinary binary gives the collector's share of the time, without profiling's own costs.
+
+*** 2026-11-17: the hoard
+
+At 2000 coins, the peak live heap was 64 MB. Two-thirds of it was ~STACK~ (33 MB) and ~BLACKHOLE~ (9 MB): the serialiser's state was a lazy ~StateT~, so each append to the output was kept as a thunk, and the chain was forced at the end, down a stack as deep as the output. The printer's state is now strict (~Control.Monad.State.Strict~, ~modify'~).
+
+| hoard, same session        |  100 |  500 |  2000 | ×4 ratio | peak, 2000 |
+|----------------------------+------+------+-------+----------+------------|
+| before (0.6.0.0 + gap 52)  | 39.7 |  154 |   756 |      4.9 | 125 MB     |
+| the IR's lists (~tswvxqso~) | 38.1 |  148 |   706 |      4.8 |            |
+| a strict printer (~kzlzuvxt~) | 34.9 |  141 |   625 |      4.4 | 102 MB     |
+
+Times in ms. Allocation grows linearly (249 MB to 815 MB, ×3.3); bytes copied grow ×7.
+
+What remains at 500 coins is mostly the evaluator's bindings: ~Map~, ~IntMap~, ~Env~, ~Promise~ and ~FrameEntry~, about 63% of the live heap. The promise store keeps every binding of a graph until the graph is finished, so the live heap grows with the graph. Releasing what no frame can reach is the remaining lever, and it touches the memoisation that gap 12's fix relies on.
+
+In time, ~escapeString~ and ~escapeChar~ were 12% of the profile and 16% of allocation: every string escaped a character at a time.
+
 ** 0.6.1.0
 :PROPERTIES:
 :MEASURED: 2026-11-17
