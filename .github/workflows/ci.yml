@@ -1,0 +1,67 @@
+# Builds every component and runs both test suites, on each system Ouro is used on.
+# The benchmarks are built, so they keep compiling, but not run: a shared runner's
+# timings are too noisy to compare (see the spec's Appendix C for how they are recorded).
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up GHC and cabal
+        id: setup
+        uses: haskell-actions/setup@v2
+        with:
+          ghc-version: '9.10.3'
+          cabal-version: 'latest'
+          cabal-update: true
+
+      # The build plan, whose hash keys the cache of built dependencies
+      - name: Plan
+        run: cabal build all --enable-tests --enable-benchmarks --dry-run
+
+      - name: Restore dependencies
+        uses: actions/cache/restore@v4
+        id: cache
+        with:
+          path: ${{ steps.setup.outputs.cabal-store }}
+          key: ${{ runner.os }}-ghc-9.10.3-${{ hashFiles('dist-newstyle/cache/plan.json') }}
+          restore-keys: ${{ runner.os }}-ghc-9.10.3-
+
+      - name: Build dependencies
+        run: cabal build all --enable-tests --enable-benchmarks --only-dependencies
+
+      - name: Save dependencies
+        uses: actions/cache/save@v4
+        if: steps.cache.outputs.cache-hit != 'true'
+        with:
+          path: ${{ steps.setup.outputs.cabal-store }}
+          key: ${{ steps.cache.outputs.cache-primary-key }}
+
+      # Ouro's own code builds without a warning, and CI keeps it so
+      - name: Build
+        run: cabal build all --enable-tests --enable-benchmarks --ghc-options=-Werror
+
+      - name: The compiler's tests
+        run: cabal test ouro-test --enable-tests --enable-benchmarks --ghc-options=-Werror --test-show-details=direct
+
+      - name: The command line's tests
+        run: cabal test ouro-cli-test --enable-tests --enable-benchmarks --ghc-options=-Werror --test-show-details=direct
