@@ -1,6 +1,7 @@
 # Builds every component and runs both test suites, on each system Ouro is used on.
 # The benchmarks are built, so they keep compiling, but not run: a shared runner's
 # timings are too noisy to compare (see the spec's Appendix C for how they are recorded).
+# A second job checks that the generated files match the scripts and tables they come from.
 name: CI
 
 on:
@@ -15,6 +16,30 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # lib/aat/ is generated from scripts/aat/'s tables, and the fixtures' Getty labels are
+  # corrected by scripts/fixtures/relabel.pl: both are run again, and any change they make
+  # means a table or a script was edited without regenerating. Perl and git only, no network.
+  generated:
+    name: generated files
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Regenerate the aat modules
+        run: perl scripts/aat/generate.pl scripts/aat/recommended.tsv scripts/aat/examples.tsv lib/aat
+
+      - name: Relabel the fixtures
+        run: perl scripts/fixtures/relabel.pl scripts/fixtures/labels.tsv test/fixtures/json/*.json
+
+      - name: Nothing changed
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git status --short
+            git diff
+            echo "::error::Generated files are out of date: run scripts/aat/generate.pl and scripts/fixtures/relabel.pl, and commit what they change."
+            exit 1
+          fi
+
   build:
     name: ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
