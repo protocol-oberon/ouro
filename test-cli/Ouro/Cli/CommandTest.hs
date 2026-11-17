@@ -96,10 +96,16 @@ builds = Group "CLI: ouro build"
                                                         assert (not (any (`T.isInfixOf` plain (out run)) ["Build Success", "Build Failed"]))
                                                         written <- evalIO (doesFileExist (dir </> "out" </> "a" </> "g.json"))
                                                         written === True)
-    , ("gap 37: colours are written when the output is not a terminal", withTests 1 . property $ do
+    , ("gap 37 (fixed): colours are written when the output is not a terminal", fixedGap . withTests 1 . property $ do
                                                         dir <- evalIO (writeFolder "build-colours" [ ("main.ouro", "(graph g (:r (get () 5)))") ])
                                                         run <- evalIO (ouro dir ["build"])
                                                         assert ("\ESC[" `T.isInfixOf` err run))
+    , ("a diagnostic written to a file is plain text", withTests 1 . property $ do
+                                                        dir <- evalIO (writeFolder "build-plain" [ ("main.ouro", "(graph g (:r (get () 5)))") ])
+                                                        run <- evalIO (ouro dir ["build"])
+                                                        exitCode run === ExitFailure 1
+                                                        assert ("Error [" `T.isInfixOf` err run)
+                                                        assert (not ("\ESC" `T.isInfixOf` err run)))
     ]
 
 

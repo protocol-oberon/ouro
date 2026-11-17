@@ -33,6 +33,8 @@ version is 0.x, a new minor version may break programs, and each change that doe
   `begin_of_the_end` and `end_of_the_end` must each be a date, where a value that was not one
   was written back as a string, and the middle two were never read as dates (gap 54).
   <!-- sxvuovpn -->
+- Diagnostics are coloured only when stderr is a terminal and `NO_COLOR` is not set, so a log,
+  a pipe or a CI report holds plain text, without escape codes (gap 37). <!-- qtwyqouk -->
 
 ## [0.6.1.0] - 2026-11-17
 

@@ -2883,12 +2883,15 @@ Found while vetting =build.ouro= (2026-10-29).
 :END:
 The build file was looked for from =DIR= upwards. =DIR= is now the project, never looked above, and a folder that does not exist is a message.
 
-** OPEN [#B] Colours are written when the output is not a terminal
+** FIXED Colours were written when the output was not a terminal
 :PROPERTIES:
 :ID:       37
 :FOUND:    2026-10-29
+:FIXED_IN: 0.6.2.0
 :END:
 Diagnostics carry their ANSI colour codes when stderr is redirected to a file or a pipe, so a log or a CI report shows =ESC[0;91;1m= among the words. Neither a terminal check nor =NO_COLOR= is consulted. Found while writing the CLI's tests (2026-10-29).
+
+/Fixed/ (2026-11-17): a diagnostic is coloured only when stderr is a terminal and =NO_COLOR= is unset or empty (https://no-color.org); otherwise it is written as the same text without colours, as the golden files hold it. Limit: a terminal that is a pipe underneath, such as mintty, the terminal of Git for Windows, is not seen as one, so it shows no colours.
 
 ** OPEN [#B] =ouro validate= reports its errors on stdout
 :PROPERTIES:

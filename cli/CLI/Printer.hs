@@ -40,7 +40,8 @@ import           Prettyprinter                 (Doc, LayoutOptions (..),
 import           Prettyprinter.Render.Text     (renderStrict)
 import           Prettyprinter.Render.Terminal (AnsiStyle, Color (..), bold,
                                                 color, colorDull, renderIO)
-import           System.IO                     (stderr)
+import           System.Environment            (lookupEnv)
+import           System.IO                     (hIsTerminalDevice, stderr)
 import           Text.Megaparsec               (SourcePos)
 import           Text.Megaparsec.Pos           (sourceColumn, sourceLine, unPos)
 
@@ -66,9 +67,17 @@ styleToAnsi = \case
                NoteBody -> mempty
 
 
--- Prints a diagnostic to stderr, in colour
+-- Prints a diagnostic to stderr: in colour when stderr is a terminal and NO_COLOR is not set
+-- (https://no-color.org), and as plain text otherwise, so that a log or a pipe holds no
+-- escape codes (gap 37)
 pintDiagnostic :: (FilePath -> Maybe Text) -> Either OuroWarning OuroError -> IO ()
-pintDiagnostic sourceOf = renderIO stderr . reAnnotateS styleToAnsi . diagnosticLayout sourceOf
+pintDiagnostic sourceOf diagnostic = do
+    terminal <- hIsTerminalDevice stderr
+    noColour <- maybe False (not . null) <$> lookupEnv "NO_COLOR"
+    let layout = diagnosticLayout sourceOf diagnostic
+    case terminal && not noColour of
+        True  -> renderIO stderr (reAnnotateS styleToAnsi layout)
+        False -> renderIO stderr (unAnnotateS layout)
 
 
 -- A diagnostic as it is printed, without its colours: what the messages' golden files hold
