@@ -13,6 +13,13 @@ version is 0.x, a new minor version may break programs, and each change that doe
 - `(array a b)` builds an Array, as `(list a b)` did: the value is an Array everywhere else,
   in `#array`, in messages and in JSON (gap 55). `std` builds its arrays with it. <!-- zkvmtnrm -->
 
+### Changed
+- A graph compiles in about a fifth less time, allocation and memory: a hoard of 2000 coins
+  takes 0.59 s where it took 0.76 s, measured together, and its peak memory is 100 MB where
+  it was 125 MB. The JSON writer no longer holds its whole output as work left to do, and
+  writes a string a run of characters at a time. <!-- tswvxqso --> <!-- kzlzuvxt -->
+  <!-- uruvosts -->
+
 ### Deprecated
 - `(list a b)` still builds an Array, with a warning that names `array`, `'list' is now called
   'array'` (`WRN0001`). It will be an error in 0.7 (gap 55). <!-- zkvmtnrm -->
