@@ -2734,12 +2734,15 @@ This gave misleading arity or parenthesis errors. =$name= is now read on its own
 :END:
 Compiling into one that did not exist reported "Compilation Success" and then crashed with ~withFile: does not exist~. The directory is now made, as =ouro build= makes its folders.
 
-** OPEN [#B] =ouro validate= reads strings with Haskell's escapes, not JSON's
+** FIXED =ouro validate= read strings with Haskell's escapes, not JSON's
 :PROPERTIES:
 :ID:       21
 :FOUND:    2026-10-12
+:FIXED_IN: 0.6.2.0
 :END:
 It rejects the valid JSON escapes =\u00e9= and =\/=, and accepts the invalid =\x41= and =\65= (both read as =A=). The JSON parser reads string characters with Megaparsec's ~charLiteral~, which follows Haskell's rules.
+
+/Fixed/ (2026-11-17): the JSON parser reads a string's characters as RFC 8259 does, in its values, keys and contexts alike: =\" \\ \/ \b \f \n \r \t=, and =\u= with four hex digits, a surrogate pair being one character. Any other escape is an error that lists JSON's, and so is a lone surrogate or a raw control character. Ouro's own strings keep Haskell's escapes, as documented.
 
 ** FIXED A URI's empty path segments were dropped
 :PROPERTIES:

@@ -687,7 +687,25 @@ strings = Group "Strings: escaped in the output"
                                                   fmap (T.isInfixOf "\"k\": \"a\\\"b\"" . TL.toStrict)
                                                        (validate "t.json" "{\"k\": \"a\\\"b\"}" defaultOptions)
                                                   === Right True)
+      -- validate reads JSON's escapes (gap 21)
+    , ("validate reads a \\u escape",            validatesTo "{\"k\": \"caf\\u00e9\"}"       "\"k\": \"caf\233\"")
+    , ("and an escaped slash",                   validatesTo "{\"k\": \"a\\/b\"}"            "\"k\": \"a/b\"")
+    , ("and a surrogate pair, as one character", validatesTo "{\"k\": \"\\uD83D\\uDE00\"}"   "\"k\": \"\128512\"")
+    , ("and an escaped newline, written escaped", validatesTo "{\"k\": \"a\\nb\"}"           "\"k\": \"a\\nb\"")
+    , ("a Haskell escape is an error",           rejects "{\"k\": \"\\x41\"}"        "is not a JSON escape")
+    , ("so is a lone low surrogate",             rejects "{\"k\": \"\\uDE00\"}"      "alone it is not a character")
+    , ("and a high one without its low half",    rejects "{\"k\": \"\\uD83Dx\"}"     "followed by its low surrogate")
+    , ("and a raw control character",            rejects "{\"k\": \"a\tb\"}"         "is written escaped, as \\u0009")
     ]
+
+    where
+    validatesTo json expected = withTests 1 . property $
+                                fmap (T.isInfixOf expected . TL.toStrict) (validate "t.json" json defaultOptions)
+                                === Right True
+
+    rejects json message      = withTests 1 . property $
+                                either (T.isInfixOf message . T.pack) (const False) (validate "t.json" json defaultOptions)
+                                === True
 
 
 -- The string built-ins each take the string first, so -> threads through them. to-string
@@ -1239,13 +1257,13 @@ knownGaps = Group "Known gaps: current and fixed"
                                                                    "{\"u\": \"https://a.org\"}")
     , ("gap 18: an attribute pair among values has no hint", failsWithout "(1 (:a 2))"
                                                                  "(graph g (:r (1 :a 2)))")
-    , ("gap 21: validate rejects a \\u escape",    withTests 1 . property $
+    , ("gap 21 (fixed): validate rejects a \\u escape", fixedGap . withTests 1 . property $
                                                     assert (either (const True) (const False)
                                                                    (validate "t.json" "{\"k\": \"\\u00e9\"}" defaultOptions)))
-    , ("gap 21: and an escaped slash",            withTests 1 . property $
+    , ("gap 21 (fixed): and an escaped slash",    fixedGap . withTests 1 . property $
                                                     assert (either (const True) (const False)
                                                                    (validate "t.json" "{\"k\": \"\\/\"}" defaultOptions)))
-    , ("gap 21: but accepts a Haskell escape",    withTests 1 . property $
+    , ("gap 21 (fixed): but accepts a Haskell escape", fixedGap . withTests 1 . property $
                                                     fmap (T.isInfixOf "\"k\": \"A\"" . TL.toStrict)
                                                          (validate "t.json" "{\"k\": \"\\x41\"}" defaultOptions)
                                                     === Right True)

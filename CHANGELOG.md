@@ -45,6 +45,9 @@ version is 0.x, a new minor version may break programs, and each change that doe
 - A string that is never closed is reported at its opening quote, `This string is never
   closed`, where the error was at the end of the file, far from its cause (gap 23).
   <!-- mvnotqsy -->
+- `ouro validate` reads JSON's escapes in strings: `é` is `é`, a surrogate pair one
+  character, and `\/` a slash. Haskell's escapes, such as `\x41`, a lone surrogate and a raw
+  control character are errors, as JSON has them (gap 21). <!-- mzplvlol -->
 
 ## [0.6.1.0] - 2026-11-17
 

@@ -5,6 +5,7 @@
 module Data.Ouro.Json.Parser where
 
 import           Control.Applicative        (empty)
+import           Data.Char                  (chr, digitToInt, ord)
 import           Data.Maybe                 (listToMaybe)
 import           Data.Ouro.Internal.Expr    (Expr)
 import qualified Data.Ouro.Internal.Expr    as Expr
@@ -15,10 +16,11 @@ import           Data.Ouro.Internal.Uri     (Uri, uriParser)
 import           Data.Scientific            (toRealFloat)
 import           Data.Text                  (Text, pack)
 import           Data.Void                  (Void)
-import           Text.Megaparsec            (ParseErrorBundle, Parsec, between,
-                                             choice, manyTill, parse, sepBy,
-                                             try, (<|>))
-import           Text.Megaparsec.Char       (char, space1, string)
+import           Numeric                    (showHex)
+import           Text.Megaparsec            (ParseErrorBundle, Parsec, anySingle,
+                                             between, choice, count, manyTill,
+                                             parse, sepBy, try, (<|>))
+import           Text.Megaparsec.Char       (char, hexDigitChar, space1, string)
 import qualified Text.Megaparsec.Char.Lexer as L
 
 
@@ -120,7 +122,7 @@ pContextValue :: Parser Schema.ContextValue
 pContextValue = choice
     [ Schema.CObject <$> between (symbol "{") (symbol "}") (pContextPair `sepBy` symbol ",")
     , Schema.CArray  <$> between (symbol "[") (symbol "]") (pContextValue `sepBy` symbol ",")
-    , Schema.CString . pack <$> lexeme (char '"' *> manyTill L.charLiteral (char '"'))
+    , Schema.CString . pack <$> lexeme (char '"' *> manyTill jsonChar (char '"'))
     , Schema.CNumber . toRealFloat <$> lexeme L.scientific
     , Schema.CBool True  <$ symbol "true"
     , Schema.CBool False <$ symbol "false"
@@ -160,7 +162,7 @@ pURIAttr = do
            pBlankNodeCase = do
                             _   <- char '"'
                             _   <- string "_:"
-                            str <- manyTill L.charLiteral (char '"')
+                            str <- manyTill jsonChar (char '"')
                             pure . Expr.BlankNode . pack $ "_:" ++ str
 
            pURICase :: Parser (Expr 'JLD.Primitive)
@@ -173,7 +175,7 @@ pDateAttr :: Parser RecordField
 pDateAttr = do
             key <- try (choice [ dateKey k | k <- dateKeys ] <* symbol ":")
             _   <- char '"'
-            str <- lexeme $ manyTill L.charLiteral (char '"')
+            str <- lexeme $ manyTill jsonChar (char '"')
 
             -- Attempt to parse the timestamp value strictly
             case Expr.parseDate str of
@@ -193,7 +195,7 @@ pDateAttr = do
 
 
 pString :: Parser (Expr 'JLD.Primitive)
-pString = Expr.String . pack <$> (char '"' *> manyTill L.charLiteral (char '"'))
+pString = Expr.String . pack <$> (char '"' *> manyTill jsonChar (char '"'))
 
 
 pNumber :: Parser (Expr 'JLD.Primitive)
@@ -214,8 +216,46 @@ pNull = Expr.Null <$ symbol "null"
 pKey :: Parser Text
 pKey = lexeme $ do
                 _   <- char '"'
-                str <- manyTill L.charLiteral (char '"')
+                str <- manyTill jsonChar (char '"')
                 return $ pack str
+
+
+-- A character of a JSON string, as RFC 8259 reads one (gap 21): any character but a quote,
+-- a backslash or a control character as it is, or an escape: \" \\ \/ \b \f \n \r \t, or
+-- \u and four hex digits, a character outside the Basic Multilingual Plane being a pair of
+-- them, a surrogate pair. Any other escape, such as Haskell's \x41, is an error.
+jsonChar :: Parser Char
+jsonChar = anySingle >>= \case
+    '\\'          -> escape
+    c | c < ' '   -> fail ("A control character in a JSON string is written escaped, as \\u" <> hex4 c)
+      | otherwise -> pure c
+    where
+    escape = anySingle >>= \case
+        '"'   -> pure '"'
+        '\\'  -> pure '\\'
+        '/'   -> pure '/'
+        'b'   -> pure '\b'
+        'f'   -> pure '\f'
+        'n'   -> pure '\n'
+        'r'   -> pure '\r'
+        't'   -> pure '\t'
+        'u'   -> codeUnit >>= unicode
+        other -> fail ("'\\" <> [other] <> "' is not a JSON escape: JSON's are \\\" \\\\ \\/ \\b \\f \\n \\r \\t and \\u with four hex digits")
+
+    -- A \u escape: a character, or the high half of a surrogate pair, whose low half follows
+    unicode n
+        | n >= 0xD800, n <= 0xDBFF = do
+                                     _  <- try (string "\\u") <|> fail "A \\u escape of a high surrogate is followed by its low surrogate, \\uDC00 to \\uDFFF"
+                                     lo <- codeUnit
+                                     case lo >= 0xDC00 && lo <= 0xDFFF of
+                                         True  -> pure (chr (0x10000 + (n - 0xD800) * 0x400 + (lo - 0xDC00)))
+                                         False -> fail "A \\u escape of a high surrogate is followed by its low surrogate, \\uDC00 to \\uDFFF"
+        | n >= 0xDC00, n <= 0xDFFF = fail "A low surrogate, \\uDC00 to \\uDFFF, follows a high one: alone it is not a character"
+        | otherwise                = pure (chr n)
+
+    codeUnit = foldl (\acc d -> acc * 16 + digitToInt d) 0 <$> count 4 hexDigitChar
+
+    hex4 c = let h = showHex (ord c) "" in replicate (4 - length h) '0' <> h
 
 
 go :: String -> Text -> Either (ParseErrorBundle Text Void) (Expr 'JLD.Primitive)
