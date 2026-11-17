@@ -13,51 +13,51 @@ version is 0.x, a new minor version may break programs, and each change that doe
 
 ### Added
 - A `define/procedure` of no parameters warns (`WRN0006`) and suggests `define/constant`: a
-  function of no parameters is a constant, worked out once per graph. <!-- ulotxkko -->
+  function of no parameters is a constant, worked out once per graph. ([60c1d69])
 - `aat/language/iso` and `aat/currency/iso`: each language and currency with its ISO code as
   its notation, ISO 639 and ISO 4217, as Linked Art's examples mostly write them.
   `(import aat/language/iso)` gives `iso/english`, written `en`. Both are qualified `iso`, so
   a module using both imports one under another name: `(import aat/currency/iso as
-  currency-iso)`. <!-- twunpuuo --> <!-- tlqmxnst -->
+  currency-iso)`. ([34eb2df], [170007b])
 - Ten `aat` modules of the terms Linked Art's examples use: `activity-type`, `gender`,
   `part-type`, `price-type`, `provenance-type`, `right-type`, `role-type`, `style`,
-  `technique` and `visual-type`. <!-- vqmoozlo --> <!-- tlqmxnst --> <!-- wvsmqwtz -->
-  <!-- lznntqyo --> <!-- pnsztquq --> <!-- xrzovurp --> <!-- rourkqvx -->
+  `technique` and `visual-type`. ([e1637aa], [170007b], [8681536], [f8e9c5b], [ca4ae1d],
+  [80a3525], [28b1562])
 - The terms Linked Art's examples use beyond its recommended list, in the modules that already
   existed: object types such as `exhibition-catalog` and `page`, and terms of the dimension,
   group, identifier, name, place, set and statement types, units, currencies and materials.
   Each says so in its documentation: "From Linked Art's examples, not its recommended list."
-  <!-- vqmoozlo -->
+  ([e1637aa])
 - `base/core` is exported: the constructor of the `id`, `type` and `_label` that every node
-  with an id begins with. <!-- mwwtpykn -->
-- `std/object` has the units `day-unit`, `pixels` and `kilobytes`. <!-- vqmoozlo -->
+  with an id begins with. ([d737e5c])
+- `std/object` has the units `day-unit`, `pixels` and `kilobytes`. ([e1637aa])
 
 ### Fixed
 - `aat`'s material and unit labels match Linked Art's recommended list, which `aat` is
   generated from: they were capitalised, and are written as the list and Linked Art's examples
   write them, lower-case. `material/oil-paint` is labelled `"oil"`, where it was `"Oil"`, and
   `unit/centimeters` `"centimeters"`. A graph that uses them writes the corrected labels.
-  <!-- nlszpmqz -->
+  ([d70655d])
 - `ouro validate` without `-o` writes the JSON to stdout, and nothing else, so it can be piped;
-  it no longer writes over its input (gap 13). <!-- llsvvrmw -->
+  it no longer writes over its input (gap 13). ([6f09853])
 - A `[` or `]` is an error that says an array is written in parentheses, `(1 2 3)`. The bracket
-  syntax parsed, but meant nothing (gap 13). <!-- llsvvrmw -->
+  syntax parsed, but meant nothing (gap 13). ([6f09853])
 - A graph of many records compiles in time near linear in their number, not near its square:
-  a hoard of 2000 coins takes 0.76 s, where it took 7.7 s (gap 52). <!-- krokmvot -->
+  a hoard of 2000 coins takes 0.76 s, where it took 7.7 s (gap 52). ([194bf69])
 - `insert` and `replace-at` reject a fractional index, as `get` does, where they rounded it
-  down without a word: `(insert (1 2) 1.5 "x")` is an error (gap 39). <!-- mnqlkzvy -->
+  down without a word: `(insert (1 2) 1.5 "x")` is an error (gap 39). ([69ced62])
 - A form a file's top level cannot hold is named as it is written, `'defun' cannot begin a
   form at the top level of a file`, with what a top level may hold, where the message named
-  Ouro's own Haskell, `Invalid top-level keyword: Symbol "defun"` (gap 46). <!-- kromzqom -->
+  Ouro's own Haskell, `Invalid top-level keyword: Symbol "defun"` (gap 46). ([037edac])
 - A `#uri` is written as it was written: `"https://a.org/"` keeps its slash, and
   `"https://a.org/x//y"` its empty segment, in the output and in `ouro validate`'s
-  (gaps 17, 22). <!-- uyputzwn -->
+  (gaps 17, 22). ([0e55fc3])
 - A `#date`'s year has at least four digits, as ISO 8601 and `xsd:dateTime` require: a year
   before 1000 is written with its leading zeros, `0079-08-24T12:00:00Z`, and a shorter year,
-  `"81-01-01T00:00:00Z"`, is not a date (gaps 24, 53). <!-- uyputzwn -->
+  `"81-01-01T00:00:00Z"`, is not a date (gaps 24, 53). ([0e55fc3])
 - A graph built must have a name that is a file name on every system (`BLD0019`), and two graphs
   of a module cannot be named apart only by case (`BLD0020`), since either would be lost or
-  written over on Windows or macOS; `ex:g` was written to a hidden stream (gap 34). <!-- prsxlxsu -->
+  written over on Windows or macOS; `ex:g` was written to a hidden stream (gap 34). ([773a992])
 
 ## [0.6.0.0] - 2026-11-15
 
@@ -174,6 +174,24 @@ version is 0.x, a new minor version may break programs, and each change that doe
 [0.6.0.0]: https://github.com/protocol-oberon/ouro/compare/v0.5.0.0...v0.6.0.0
 [0.5.0.0]: https://github.com/protocol-oberon/ouro/compare/v0.0.0.1...v0.5.0.0
 [0.0.0.1]: https://github.com/protocol-oberon/ouro/releases/tag/v0.0.0.1
+
+[60c1d69]: https://github.com/protocol-oberon/ouro/commit/60c1d69
+[34eb2df]: https://github.com/protocol-oberon/ouro/commit/34eb2df
+[170007b]: https://github.com/protocol-oberon/ouro/commit/170007b
+[e1637aa]: https://github.com/protocol-oberon/ouro/commit/e1637aa
+[8681536]: https://github.com/protocol-oberon/ouro/commit/8681536
+[f8e9c5b]: https://github.com/protocol-oberon/ouro/commit/f8e9c5b
+[ca4ae1d]: https://github.com/protocol-oberon/ouro/commit/ca4ae1d
+[80a3525]: https://github.com/protocol-oberon/ouro/commit/80a3525
+[28b1562]: https://github.com/protocol-oberon/ouro/commit/28b1562
+[d737e5c]: https://github.com/protocol-oberon/ouro/commit/d737e5c
+[d70655d]: https://github.com/protocol-oberon/ouro/commit/d70655d
+[6f09853]: https://github.com/protocol-oberon/ouro/commit/6f09853
+[194bf69]: https://github.com/protocol-oberon/ouro/commit/194bf69
+[69ced62]: https://github.com/protocol-oberon/ouro/commit/69ced62
+[037edac]: https://github.com/protocol-oberon/ouro/commit/037edac
+[0e55fc3]: https://github.com/protocol-oberon/ouro/commit/0e55fc3
+[773a992]: https://github.com/protocol-oberon/ouro/commit/773a992
 
 [03d7e99]: https://github.com/protocol-oberon/ouro/commit/03d7e99
 [8cd535e]: https://github.com/protocol-oberon/ouro/commit/8cd535e
