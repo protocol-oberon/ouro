@@ -266,9 +266,18 @@ renderArrayElement e = do
 
 -- Text Utils
 -- Writes text as a JSON string: quotes, backslashes and control characters are escaped, and
--- every other character is written as it is (the output is UTF-8)
+-- every other character is written as it is (the output is UTF-8). Each run of characters
+-- that needs no escape is written whole, as a slice of the text, so a string with nothing to
+-- escape, which is most of them, costs one chunk rather than one per character.
 escapeString :: Text -> B.Builder
-escapeString txt = "\"" <> B.fromText (T.concatMap escapeChar txt) <> "\""
+escapeString txt = "\"" <> runs txt <> "\""
+    where
+    runs rest = case T.break needsEscape rest of
+        (plain, escaped) -> case T.uncons escaped of
+            Nothing        -> B.fromText plain
+            Just (c, more) -> B.fromText plain <> B.fromText (escapeChar c) <> runs more
+
+    needsEscape c = c == '"' || c == '\\' || c < ' '
 
 escapeChar :: Char -> Text
 escapeChar c = case c of
