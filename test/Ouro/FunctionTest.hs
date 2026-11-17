@@ -88,7 +88,7 @@ plainNames = Group "Functions: names are plain symbols, in one namespace"
     , ("calling a value that shadows a function",  failsWith "not a function"
                                                              "(define/procedure label () \"function\") (graph g (:label \"value\" :r (label)))")
 
-      -- A defn may take a built-in's name, and replaces it everywhere, with a warning
+      -- A define/procedure may take a built-in's name, and replaces it everywhere, with a warning
     , ("a defn named after a built-in warns",      warnsWith "The function 'eq' replaces the built-in 'eq'"
                                                              "(define/procedure eq (a b) true) (graph g (:r (eq 1 2)))")
     , ("so does one named with its symbol",        warnsWith "replaces the built-in 'eq'"
@@ -556,7 +556,7 @@ documentation = Group "Functions: a body can hold one (doc ...)"
     , ("so is a doc after the result",            documents "(define/procedure one! () 1 (doc \"One.\")) (graph g (:r (one!)))" "one!" (Just "One."))
     , ("a function without one has none",         documents "(define/procedure one! () 1) (graph g (:r (one!)))" "one!" Nothing)
 
-    -- One doc, a single string, directly in a defn's body
+    -- One doc, a single string, directly in a definition's body
     , ("two docs are an error",                   failsWith "is documented more than once"
                                                             "(define/procedure one! () (doc \"One.\") (doc \"Uno.\") 1) (graph g (:r (one!)))")
     , ("a doc that is not a string is an error",  failsWith "is not a single string"

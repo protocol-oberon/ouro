@@ -324,9 +324,9 @@ compileArray evaluator env pos elements = Array <$> compileElements env elements
                                                             & OuroError (S.exprPos iExpr)
                                                   in (EvalError err :) <$> compileElements env' xs
 
-            -- Case C: Process structured nested forms (Records or trailing list matrices)
+            -- Case C: a form among the elements, a record or an array of its own
             ((S.Form _ items) : xs)
-                -- 1. Intercept Nested Arrays: recursively compile as a matrix
+                -- 1. An array inside the array, compiled as one
                 | TargetList <- determineBlockTarget items
                 -> (:) <$> compileArray evaluator env' pos items <*> compileElements env' xs
 

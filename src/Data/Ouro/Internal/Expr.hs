@@ -19,29 +19,11 @@ import           Numeric                   (showFFloat)
 
 -- Expr t.
 --
--- A type-safe Abstract Syntax Tree for JSON Linked Data (JSON-LD).
--- Indexed by a promoted 'Type' kind to enforce structural validity at compile time.
+-- A JSON-LD document, as the compiler builds it and the serialiser writes it.
 --
--- The strict type indexing of this GADT serves as a mandatory compile-time
--- guardian for JSON-LD structural conformity. By anchoring the expression type to the
--- promoted 'JLD.Type' kind, the compiler statically prevents the generation of illegal
--- or corrupted JSON-LD documents before a single line of serialization code even runs.
---
--- We use explicit primitive indexing ('Expr 'JLD.Primitive') on leaves like String and
--- Number to enforce structural boundaries. This prevents atomic literal values from
--- masquerading as collections, stopping invalid compositions before code-gen can execute.
---
--- A rigid backbone constraint ('Expr 'JLD.List') to completely isolate internal
--- sequential networks. By forcing Cons, Attr, and Nil into an isolated type parameter,
--- we guarantee that collection mechanics never leak outward into atomic leaf operations.
---
--- Transparent identity loops ('Expr t -> Expr t') on Context and Reverse closures are used
--- to preserve types across metadata wrappers. This allows the printer to freely descend
--- deep structural scopes without altering or shifting the underlying node's type index.
---
--- We use Record and Array constructors as strict boundary gates to transition the AST.
--- They ingest an internal sequence list and lift it back into a terminal primitive type,
--- ensuring that only syntactically sound blocks are emitted to the final printer streamdata
+-- Indexed by the promoted 'JLD.Type' kind, so that an ill-formed document cannot be built:
+-- a value ('JLD.Primitive') is a leaf, a record or an array, and a context ('JLD.Meta') can
+-- only be a record's first slot, never written as a value.
 data Expr (t :: JLD.Type) where
     -- Leaves
     String    :: Text    -> Expr 'JLD.Primitive
@@ -54,8 +36,7 @@ data Expr (t :: JLD.Type) where
     EmptyArr  ::            Expr 'JLD.Primitive
     EmptyRec  ::            Expr 'JLD.Primitive
 
-    -- Structural Metadata Trees (Explicitly index as 'JLD.Meta)
-    -- This acts as a strict compile-time guardian preventing metadata leaks.
+    -- A record's context, or its absence
     Context   :: Schema -> Expr 'JLD.Meta
     EmptyMeta ::           Expr 'JLD.Meta
 

@@ -287,8 +287,7 @@ pSingleToken =  pDelims
             <|> pSymbol
 
 
--- Unified entry point for the lexical scanner pass.
--- Maps Megaparsec internal error data directly into our zero-allocation OuroError matrix.
+-- Reads a source file's tokens, or its first lexical error as an OuroError at its position
 tokenize :: String -> Text -> Either OuroError [Tkn.Token]
 tokenize filename input =
     case runParser (sc *> many pSingleToken <* eof) filename input of
@@ -314,8 +313,7 @@ tokenize filename input =
 
             -- Extract the exact un-lexable context or custom failure reason
             context = case firstErr of
-                          -- Matches explicit 'fail "..."' calls from your tokenizers (e.g., #poo)
-                          -- We map over the ErrorFancy Set cleanly using standard elements
+                          -- A 'fail' of the lexer's own, such as a never-closed string: its message
                           FancyError _ fancySet ->
                               case foldr (\x _ -> Just x) Nothing fancySet of
                                   Just (M.ErrorFail msg) -> Syntax LexicalError { rawLexeme = T.pack msg }

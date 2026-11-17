@@ -94,7 +94,7 @@ calls = Group "Static analysis: a call of a known function has its arity"
     ]
 
 
--- A function that reaches itself by its name, a defn or a fn bound by name, must go down into
+-- A function that reaches itself by its name, a define/procedure or a fn bound by name, must go down into
 -- a value each time round, so it finishes: some call on every way round passes a part of one
 -- of its parameters. One that might not is reported once for each circle of functions, at the
 -- name that closes it, whether or not anything calls it. A function reached through a value

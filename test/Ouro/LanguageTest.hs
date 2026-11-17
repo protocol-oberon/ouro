@@ -1206,7 +1206,7 @@ contextAlgebra = Group "Contexts: combining them is a monoid"
 
 
 -- A special form's name is bound like any other name, as in Scheme: a binding around a form,
--- whether an attribute key, a let binding, a parameter or a defn, shadows it, and the form is
+-- whether an attribute key, a let binding, a parameter or a define/procedure, shadows it, and the form is
 -- then an ordinary call of the binding. The forms Canon writes are not the source's, so no
 -- binding can capture them.
 specialFormsAreBindings :: Group

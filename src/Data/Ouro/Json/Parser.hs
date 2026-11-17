@@ -146,7 +146,7 @@ pAttr = do
     pure (key, val)
 
 
--- Directly parses the "id" key and a strict URI value into Attr spine constructor
+-- The "id" attribute pair, whose value is a blank node or a URI
 pURIAttr :: Parser RecordField
 pURIAttr = do
            _   <- symbol "\"id\""

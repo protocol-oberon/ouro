@@ -125,8 +125,7 @@ errorText (OuroError _ context) = contextText context
         other                        -> T.pack (show other)
 
 
--- Generates a complete, schema-less 'JLD.Primitive Record from a list of attribute pairs.
--- Maps perfectly to: ={ "k1" = v1, "k2" = v2 }=
+-- A record without a context, of the given attribute pairs: {"k1": v1, "k2": v2}
 mkObj :: [(String, I.Expr 'JLD.Primitive)] -> I.Expr 'JLD.Primitive
 mkObj pairs = I.Record I.EmptyMeta [ (T.pack k, val) | (k, val) <- pairs ]
 

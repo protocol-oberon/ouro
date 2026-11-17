@@ -3,14 +3,9 @@ module Data.Ouro.Internal.Kinds where
 
 -- Type.
 --
--- Structural kind indices used to enforce JSON-LD domain constraints at compile time.
--- Promoted via DataKinds to partition AST nodes into distinct, non-overlapping categories.
---
--- 'Primitive' represents atomic leaf literals (strings, numbers, booleans, dates)
--- and terminal record/array blocks that emit directly into the final serialization stream.
---
--- We use 'Context' to track active schema scopes and local directive wrappers, ensuring
--- that structural metadata modifications remain bounded during recursive tree descents.
+-- The kinds of node in a JSON-LD document (Internal.Expr), promoted with DataKinds to index
+-- it. 'Primitive' is a value: a leaf, a record or an array. 'Meta' is a record's context, or
+-- its absence. 'Context' indexes no node at present.
 data Type
     -- JLD
     = Primitive

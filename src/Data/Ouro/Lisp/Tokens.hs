@@ -45,8 +45,8 @@ data TokenType
     | TagRecord        -- '#record'       (enforces expression resolves to a Record)
     | TagArray         -- '#array'        (enforces expression resolves to an Array)
     | TagFunction      -- '#function'     (enforces expression resolves to a function)
-    | TagRecordEmpty   -- '#record-empty' (instantiates Record Nil Nil)
-    | TagArrayEmpty    -- '#array-empty'  (instantiates Array Nil)
+    | TagRecordEmpty   -- '#record-empty' (the empty record, {})
+    | TagArrayEmpty    -- '#array-empty'  (the empty array, [])
     | TagProperty !Text -- '#titled', '#people/titled': a property defined in Ouro, by its name
     -- Hole
     | Hole !Text

@@ -25,23 +25,11 @@ import           Text.Megaparsec             (SourcePos)
 
 -- Env.
 --
--- The runtime execution environment backbone tracking variable visibility and lexical boundaries.
--- Structurally engineered as an immutable, singly-linked stack frame ring to enforce strict lexical scoping.
---
--- The Env record facilitates nested, lexically isolated visibility bubbles across the interpreter. By combining
--- a strictly evaluated local symbol table with a structural link to an optional outer layer, it establishes
--- a scope chain that matches the physical layout of source blocks. Variable resolution uses an upside-down
--- traversal strategy: the engine searches the immediate 'localScope' layer first, and recursively steps up into
--- the 'parentEnv' pointer frame until it either hits a binding or touches the root layer fallback.
---
--- Crucially, this structural composition enables both knot-tied lazy evaluation and first-class closures.
--- When a record block is evaluated, its properties are bound into a fresh Env frame whose parent pointer closes over
--- the surrounding context. Because these frames are captured by value inside closures, sub-graphs can pass functions
--- and variables down-stream without leaking local data or accidentally mutating outer execution registers.
---
--- Default state boundaries are controlled explicitly:
---   * defaultEnv instantiates a clean, terminal root scope layer containing zero localized bindings and no
---     parent fallback link, anchoring the absolute bottom of the variable resolution ladder.
+-- The lexical environment: a chain of frames, one for each record, let, call or case branch,
+-- each with its names and a link to the frame around it. A name is looked up in the nearest
+-- frame first, then outwards to the module's root frame (defaultEnv), which has none of its
+-- own. Each name is bound to a promise in the store (see 'Store'), so a binding is evaluated
+-- once, in the frame it was written in, and a function closes over the frame it is defined in.
 data Env = Env
     { _localScope       :: Map.Map Text Binding
     , _parentEnv        :: Maybe Env
@@ -85,43 +73,23 @@ emptyEnv = Env
 
 -- Expr.
 --
--- A resilient evaluation superset utilized across all Ouro compiler passes.
--- Acts as the primary execution surface for the interpreter, holding valid data
--- nodes, structural scaffolding, and isolated error leaves simultaneously.
+-- A value as the evaluator has it: what a JSON-LD document holds, and also what only a
+-- program has (a function, a Duration) and the errors met on the way.
 --
--- Unlike traditional compilers that terminate on the first semantic mismatch,
--- Ouro's Expr superset allows for "partial evaluation." By wrapping every structural
--- branch and primitive leaf in a unified type space, the engine can continue
--- evaluating sibling nodes even when specific branches have collapsed into EvalError.
---
--- Architectural Role:
---   * Resilient Scaffolding: Record and Array represent the "open" structural
---     layout of the graph. These structures hold recursive 'Expr' branches,
---     maintaining the tree topology even if child nodes are invalid.
---   * Fault Isolation: The 'EvalError' constructor serves as a universal terminal
---     node that allows the harvester to sweep through a partially-failed tree and
---     aggregate all diagnostic issues in a single pass.
---   * Domain Modeling: Retains explicit handles for functional abstractions (Closure,
---     PrimitiveOp) and intermediate domain logic (Duration) that have
---     not yet been collapsed into the final, frozen JSON-LD GADT ('I.Expr').
---
--- Terminal Resolution:
---   The 'Primitive' constructor serves as the final transition anchor. Once
---   the evaluation loop completes and all errors are harvested, these nodes
---   verify that the evaluated 'Expr' tree satisfies the strict Internal GADT
---   constraints required for final serialization.
+-- An error is a value too (EvalError), so evaluation goes on past one: the records and
+-- arrays around it are built, and every error in a graph is collected and reported at once
+-- (errorsIn). A graph without errors or program-only values is then frozen into the
+-- document ('freeze').
 data Expr where
-    -- Pristine Frozen Targets (The pure GADTs)
+    -- A leaf of the document
     Primitive   :: I.Expr 'JLD.Primitive -> Expr
 
-    -- Resilient Compilation Scaffolding (The Superset Nodes)
-    -- These maintain the open tree structure during evaluation, allowing
-    -- errors to be embedded at any depth.
+    -- A record or an array, whose values may still hold errors or program-only values
     Record      :: I.Expr 'JLD.Meta -> [(Text, Expr)] -> Expr
     Attr        :: Text             -> Expr           -> Expr
     Array       :: [Expr]                             -> Expr
 
-    -- Dedicated Evaluation Leaves
+    -- Only in a program: a span of time, added to dates
     Duration    :: PeriodUnit -> Int -> Expr
 
     PrimitiveOp :: NativeFunction -> Expr
@@ -129,8 +97,7 @@ data Expr where
     -- A function, closed over the frame it is defined in
     FunctionClosure :: Env -> FunctionId -> [S.Param] -> [S.Expr] -> Expr
 
-    -- The Universal Error Leaf: Allows the engine to bypass crashes
-    -- and continue evaluating sibling nodes.
+    -- An error, where the value would have been
     EvalError   :: OuroError -> Expr
 
 -- Builtins only read the environment, so they never need the promise store
@@ -197,10 +164,9 @@ errorsIn = \case
 
 
 instance Eq Expr where
-    -- Frozen Targets
     Primitive a == Primitive b = a == b
 
-    -- Compilation Scaffolding
+    -- A record's attribute pairs in any order, as JSON-LD reads them
     Record a1 b1 == Record a2 b2 = a1 == a2 && sortOn fst b1 == sortOn fst b2
     Attr   k1 v1 == Attr   k2 v2 = k1 == k2 && v1 == v2
     Array  a     == Array  b     = a == b
