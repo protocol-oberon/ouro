@@ -62,25 +62,20 @@ pRecord = between (symbol "{") (symbol "}") $ do
     let mSchema   = listToMaybe [ s | ContextField s <- fields ]
     let dataLists = [ d | DataField d <- fields ]
 
-    -- Construct the sequential data body spine from the parsed object attributes
-    let bodySpine = foldr Expr.Cons Expr.Nil dataLists
-
     -- Resolve the metadata block as an atomic leaf asset
     let metadataBlock = case mSchema of
             Just schema -> Expr.Context schema
             Nothing     -> Expr.EmptyMeta
 
-    -- Construct the clean, flat object structure:
-    --    Left slot:  The metadata leaf block (Expr 'JLD.Meta)
-    --    Right slot: The core data payload backbone (Expr 'JLD.List)
-    return $ Expr.Record metadataBlock bodySpine
+    -- The record: its context, and its attribute pairs in the order they were written
+    return $ Expr.Record metadataBlock dataLists
 
 
 -- An intermediate type to separate the structural processing
--- directives (@context) from the underlying property data spine.
+-- directives (@context) from the record's attribute pairs.
 data RecordField
     = ContextField Schema
-    | DataField    (Expr 'JLD.List)
+    | DataField    (Text, Expr 'JLD.Primitive)
 
 pRecordField :: Parser RecordField
 pRecordField = choice
@@ -137,17 +132,16 @@ pContextValue = choice
 pArray :: Parser (Expr 'JLD.Primitive)
 pArray = between (symbol "[") (symbol "]") $ do
     elems <- pExpr `sepBy` symbol ","
-    -- Perfectly folds uniform expressions into an open-tailed Cons spine terminated by Nil
-    return $ Expr.Array (foldr Expr.Cons Expr.Nil elems)
+    return $ Expr.Array elems
 
 
--- Pairs cleanly reference top-level primitives
-pAttr :: Parser (Expr 'JLD.List)
+-- An attribute pair, its key and its value
+pAttr :: Parser (Text, Expr 'JLD.Primitive)
 pAttr = do
     key <- pKey
     _   <- symbol ":"
     val <- pExpr
-    pure $ Expr.Attr key val
+    pure (key, val)
 
 
 -- Directly parses the "id" key and a strict URI value into Attr spine constructor
@@ -159,7 +153,7 @@ pURIAttr = do
                   [ try pBlankNodeCase
                   , pURICase
                   ]
-           pure . DataField $ Expr.Attr "id" val
+           pure (DataField ("id", val))
 
            where
            pBlankNodeCase :: Parser (Expr 'JLD.Primitive)
@@ -187,7 +181,7 @@ pDateAttr = do
 
             -- Attempt to parse the timestamp value strictly
             case Expr.parseDate str of
-                Just utcTime -> pure . DataField $ Expr.Attr key (Expr.Date utcTime)
+                Just utcTime -> pure (DataField (key, Expr.Date utcTime))
                 -- Halts validation immediately and raises a localized parse error
                 Nothing      -> fail $ "Invalid ISO 8601 Timestamp format for "
                                     ++ show key

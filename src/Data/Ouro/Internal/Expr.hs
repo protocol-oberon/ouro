@@ -59,16 +59,11 @@ data Expr (t :: JLD.Type) where
     Context   :: Schema -> Expr 'JLD.Meta
     EmptyMeta ::           Expr 'JLD.Meta
 
-    -- The Pure Binary Backbones
-    Cons    :: Expr head -> Expr tail -> Expr 'JLD.List
-    Attr    :: Text      -> Expr any  -> Expr 'JLD.List
-    Nil     ::                           Expr 'JLD.List
-
-    -- Boundary Gates
-    -- The first slot is strictly bound to a metadata type index.
-    -- The second slot captures data sequence payload spine.
-    Record  :: Expr 'JLD.Meta -> Expr 'JLD.List -> Expr 'JLD.Primitive
-    Array   :: Expr 'JLD.List                   -> Expr 'JLD.Primitive
+    -- Collections: a record's context and its attribute pairs, in order, and an array's
+    -- values, in order. Every value in either is a primitive, a record or an array, so an
+    -- attribute pair cannot stand in an array, nor a bare value in a record.
+    Record  :: Expr 'JLD.Meta -> [(Text, Expr 'JLD.Primitive)] -> Expr 'JLD.Primitive
+    Array   :: [Expr 'JLD.Primitive]                         -> Expr 'JLD.Primitive
 
 
 instance Eq (Expr (t :: JLD.Type)) where
@@ -87,23 +82,12 @@ instance Eq (Expr (t :: JLD.Type)) where
     Context   a == Context   b = a == b
     EmptyMeta   == EmptyMeta   = True
 
-    -- Pure Binary Backbones (Wrap in SomeExpr to satisfy the type checker!)
-    Cons h1 t1 == Cons h2 t2 = SomeExpr h1 == SomeExpr h2 && SomeExpr t1 == SomeExpr t2
-    Attr k1 v1 == Attr k2 v2 = k1 == k2 && SomeExpr v1 == SomeExpr v2
-    Nil        == Nil        = True
-
-    -- Boundary Gates
-    Record m1 l1 == Record m2 l2 =
-        -- Metadata must match exactly.
-        -- Properties are flattened, sorted alphabetically by key, and compared.
-        m1 == m2 && sortOn fst (flattenProps l1) == sortOn fst (flattenProps l2)
-
-    Array l1 == Array l2 =
-        -- Arrays are flattened into lists to handle nested/irregular Cons shapes linearly.
-        flattenArray l1 == flattenArray l2
+    -- Collections: a record's attribute pairs in any order, as JSON-LD reads them, and an
+    -- array's values in theirs
+    Record m1 l1 == Record m2 l2 = m1 == m2 && sortOn fst l1 == sortOn fst l2
+    Array l1     == Array l2     = l1 == l2
 
     -- Catch-all for structural mismatches sharing the same type index
-    -- (e.g., comparing an Attr to a Nil, both being 'JLD.List)
     _ == _ = False
 
 
@@ -119,54 +103,10 @@ instance Semigroup (Expr 'JLD.Meta) where
 instance Monoid (Expr 'JLD.Meta) where
     mempty = EmptyMeta
 
--- An existential wrapper to securely erase GADT type indices solely for tree rendering.
+-- An existential wrapper to erase GADT type indices for tree rendering, where a record's
+-- context and its values are drawn side by side
 data SomeExpr where
     SomeExpr :: Expr t -> SomeExpr
-
-
--- This allows for comparison between heterogeneous GADT branches (like existentials in Cons/Attr)
--- by dropping their phantom types to runtime checks.
-instance Eq SomeExpr where
-    SomeExpr (String a)    == SomeExpr (String b)    = a == b
-    SomeExpr (Number a)    == SomeExpr (Number b)    = a == b
-    SomeExpr (Boolean a)   == SomeExpr (Boolean b)   = a == b
-    SomeExpr (URI a)       == SomeExpr (URI b)       = a == b
-    SomeExpr (Date a)      == SomeExpr (Date b)      = a == b
-    SomeExpr Null          == SomeExpr Null          = True
-    SomeExpr (BlankNode a) == SomeExpr (BlankNode b) = a == b
-    SomeExpr EmptyArr      == SomeExpr EmptyArr      = True
-    SomeExpr EmptyRec      == SomeExpr EmptyRec      = True
-
-    SomeExpr (Context a)   == SomeExpr (Context b)   = a == b
-    SomeExpr EmptyMeta     == SomeExpr EmptyMeta     = True
-
-    -- Existential unwrapping
-    SomeExpr (Cons h1 t1)  == SomeExpr (Cons h2 t2)  = SomeExpr h1 == SomeExpr h2 && SomeExpr t1 == SomeExpr t2
-    SomeExpr (Attr k1 v1)  == SomeExpr (Attr k2 v2)  = k1 == k2 && SomeExpr v1 == SomeExpr v2
-    SomeExpr Nil           == SomeExpr Nil           = True
-
-    -- Boundary delegation
-    SomeExpr (Record m1 l1)== SomeExpr (Record m2 l2)= SomeExpr m1 == SomeExpr m2 && sortOn fst (flattenProps l1) == sortOn fst (flattenProps l2)
-    SomeExpr (Array l1)    == SomeExpr (Array l2)    = flattenArray l1 == flattenArray l2
-
-    -- Shape/Type mismatches
-    _                      == _                      = False
-
--- Util
--- Recursively unrolls a binary Cons-chain backbone into a flat list of existentially wrapped expressions.
-flattenArray :: Expr t -> [SomeExpr]
-flattenArray = \case
-                Cons h t -> SomeExpr h : flattenArray t
-                Nil      -> []
-                other    -> [SomeExpr other]
-
-
--- Recursively traverses an internal list structure to collect and flatten all nested attribute pairs.
-flattenProps :: Expr t -> [(Text, SomeExpr)]
-flattenProps = \case
-                Cons h t -> flattenProps h ++ flattenProps t
-                Attr k v -> [(k, SomeExpr v)]
-                _        -> []
 
 
 instance Show (Expr t) where
@@ -176,7 +116,7 @@ instance Show (Expr t) where
         -- Concrete structural components ("│   ", "    ") and label-offsets
         -- are preserved sequentially in the list to prevent drifting.
         render :: [String] -> Bool -> Expr any -> String
-        render env isLast = \case
+        render env _isLast = \case
                              -- Primatives
                              String  txt  -> "String "  ++ show txt
                              Number  n    -> "Number "  ++ show n
@@ -196,32 +136,10 @@ instance Show (Expr t) where
 
                              EmptyMeta -> "Null"
 
-                             -- The Pure Binary Backbones
-                             Cons h t -> "Cons\n" ++ renderBackbone env isLast h t
-
-                             Attr k v -> let label = "Attr " ++ show k ++ " -> "
-                                             pad   = replicate (length label) ' '
-                                         in label ++ render (env ++ [pad]) isLast v
-
-                             Nil  -> "Nil"
-
-                             -- Boundary tags
-                             Record ctx  body -> "Record\n" ++ renderChildren env [("context -> ", SomeExpr ctx), ("body -> ", SomeExpr body)]
-                             Array  list      -> "Array\n"  ++ renderChildren env [("elements -> ", SomeExpr list)]
-
-
-        renderBackbone :: [String] -> Bool -> Expr head -> Expr tail -> String
-        renderBackbone env _isLast headExpr tailExpr =
-            let markerH, markerT, barH, barT :: String
-                markerH = "├── "
-                markerT = "└── "
-                barH    = "│   "
-                barT    = "    "
-                lineH   = concat env ++ markerH ++ render (env ++ [barH]) False headExpr
-                lineT   = case tailExpr of
-                              Cons nextH nextT -> concat env ++ markerT ++ "Cons\n" ++ renderBackbone (env ++ [barT]) True nextH nextT
-                              _                -> concat env ++ markerT ++ render env True tailExpr
-            in lineH ++ "\n" ++ lineT
+                             -- Collections: a child per attribute pair, or per value
+                             Record ctx  body -> "Record\n" ++ renderChildren env (("context -> ", SomeExpr ctx) : [ (show k ++ " -> ", SomeExpr v) | (k, v) <- body ])
+                             Array  []        -> "Array []"
+                             Array  values    -> "Array\n"  ++ renderChildren env [ ("- ", SomeExpr v) | v <- values ]
 
 
         renderChildren :: [String] -> [(String, SomeExpr)] -> String

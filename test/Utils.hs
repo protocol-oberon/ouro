@@ -128,20 +128,10 @@ errorText (OuroError _ context) = contextText context
 -- Generates a complete, schema-less 'JLD.Primitive Record from a list of attribute pairs.
 -- Maps perfectly to: ={ "k1" = v1, "k2" = v2 }=
 mkObj :: [(String, I.Expr 'JLD.Primitive)] -> I.Expr 'JLD.Primitive
-mkObj pairs = I.Record I.EmptyMeta (mkSpine pairs)
-
--- Helper to compile a list of raw pairs into binary 'JLD.List backbone.
-mkSpine :: [(String, I.Expr 'JLD.Primitive)] -> I.Expr 'JLD.List
-mkSpine []            = I.Nil
-mkSpine ((k, val):xs) = I.Cons (I.Attr (T.pack k) val) (mkSpine xs)
+mkObj pairs = I.Record I.EmptyMeta [ (T.pack k, val) | (k, val) <- pairs ]
 
 mkArr :: [I.Expr 'JLD.Primitive] -> I.Expr 'JLD.Primitive
-mkArr elements = I.Array (mkArrSpine elements)
-
--- Helper to compile a list of expressions into a binary 'JLD.List backbone.
-mkArrSpine :: [I.Expr 'JLD.Primitive] -> I.Expr 'JLD.List
-mkArrSpine []     = I.Nil
-mkArrSpine (x:xs) = I.Cons x (mkArrSpine xs)
+mkArr = I.Array
 
 mkDate :: String -> I.Expr JLD.Primitive
 mkDate s = I.Date (fromJust $ parseISO8601 s)

@@ -2258,12 +2258,12 @@ A tree that passes the gate contains only ~Primitive~, ~Record~ and ~Array~ node
 freeze :: Expr -> I.Expr 'JLD.Primitive
 freeze = \case
     Primitive p -> p
-    Record  m p -> I.Record m (foldRecordToGADT p)
-    Array     p -> I.Array (foldArrayToGADT p)
+    Record  m p -> I.Record m [ (k, freeze v) | (k, v) <- p ]
+    Array     p -> I.Array (map freeze p)
     other       -> error ("Invariant: Non-serializable node type: " ++ ...)
 #+END_SRC
 
-Building a statically indexed GADT from runtime lists requires an ~unsafeCoerce~ in the bridge to ~I.Expr any~. It is justified by the gate: ~validateAST~ is the lemma that every node is one of the three serialisable shapes. The ~error~ calls in ~freeze~ are internal invariants, not user errors; reaching one means a value bypassed the gate, which is a compiler bug.
+Every value of a record or an array is itself indexed ~'Primitive~, so ~freeze~ is an ordinary recursion, with no coercion: the types say what the gate checked. The ~error~ calls in ~freeze~ are internal invariants, not user errors; reaching one means a value bypassed the gate, which is a compiler bug.
 
 * The Internal Model (~I.Expr~)
 
@@ -2271,7 +2271,7 @@ JSON-LD is represented by a GADT indexed by a promoted kind, so that ill-formed 
 
 #+BEGIN_SRC haskell
 -- In src/Data/Ouro/Internal/Kinds.hs
-data Type = Primitive | Context | List | Meta
+data Type = Primitive | Context | Meta
 
 -- In src/Data/Ouro/Internal/Expr.hs
 data Expr (t :: JLD.Type) where
@@ -2290,14 +2290,9 @@ data Expr (t :: JLD.Type) where
     Context   :: Schema -> Expr 'JLD.Meta
     EmptyMeta ::           Expr 'JLD.Meta
 
-    -- The list backbone
-    Cons      :: Expr head -> Expr tail -> Expr 'JLD.List
-    Attr      :: Text      -> Expr any  -> Expr 'JLD.List
-    Nil       ::                           Expr 'JLD.List
-
-    -- Boundary gates
-    Record    :: Expr 'JLD.Meta -> Expr 'JLD.List -> Expr 'JLD.Primitive
-    Array     :: Expr 'JLD.List                   -> Expr 'JLD.Primitive
+    -- Collections: a context and attribute pairs, or values, each in order
+    Record    :: Expr 'JLD.Meta -> [(Text, Expr 'JLD.Primitive)] -> Expr 'JLD.Primitive
+    Array     :: [Expr 'JLD.Primitive]                         -> Expr 'JLD.Primitive
 #+END_SRC
 
 | JSON-LD                 | Ouro                | ~I.Expr~ constructor    | Haskell type   | Kind      |
@@ -2310,16 +2305,13 @@ data Expr (t :: JLD.Type) where
 | xsd:dateTime            | =#date "..."=       | ~Date~                  | ~UTCTime~      | Primitive |
 | blank node              | not yet written     | ~BlankNode~             | ~Text~         | Primitive |
 | ={}= / =[]=             | =#record-empty= / =()= | ~EmptyRec~ / ~EmptyArr~ | none           | Primitive |
-| node object             | =(:k v ...)=        | ~Record~                | meta + list    | Primitive |
-| array                   | =(a b ...)=         | ~Array~                 | list           | Primitive |
+| node object             | =(:k v ...)=        | ~Record~                | meta + a list of pairs | Primitive |
+| array                   | =(a b ...)=         | ~Array~                 | a list of values | Primitive |
 | =@context=              | =:context ...=      | ~Context~ / ~EmptyMeta~ | ~Schema~       | Meta      |
-| member / attribute pair | none                | ~Cons~, ~Attr~, ~Nil~   | none           | List      |
 
-The indices enforce three boundaries:
+The indices enforce two boundaries:
 
-- *Leaves are leaves:* primitives are indexed ~'Primitive~ and cannot appear where a list spine is expected.
-
-- *The spine is isolated:* ~Cons~, ~Attr~ and ~Nil~ are indexed ~'List~, so collection mechanics never leak into a leaf position.
+- *A collection holds values:* a record's attribute pairs and an array's elements are Haskell lists of ~'Primitive~ values, so an attribute pair cannot stand in an array, nor a bare value in a record. (Until 2026-11-17 they were a spine of ~Cons~, ~Attr~ and ~Nil~ nodes of their own, indexed ~'List~, which needed an ~unsafeCoerce~ to build from evaluated values.)
 
 - *Metadata has one slot:* the first argument of ~Record~ is the only place a ~'Meta~ value can go, so a context can never be written as an ordinary value.
 

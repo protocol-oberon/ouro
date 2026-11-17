@@ -11,13 +11,9 @@ module Data.Ouro.Internal.Kinds where
 --
 -- We use 'Context' to track active schema scopes and local directive wrappers, ensuring
 -- that structural metadata modifications remain bounded during recursive tree descents.
---
--- List is used to construct the pure binary backbone chains (Cons, Attr, Nil) that safely
--- encapsulate sequential networks of child nodes or attribute pairs.
 data Type
     -- JLD
     = Primitive
     | Context
-    | List
     | Meta
     deriving (Show, Eq)

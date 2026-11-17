@@ -131,7 +131,7 @@ buildJSON = \case
               -- Structural Closures
               Expr.Record metadata body -> renderFlatRecord metadata body
 
-              Expr.Array elems -> case Expr.flattenArray elems of
+              Expr.Array elems -> case elems of
                                       [] -> tell "[]"
                                       ls -> do
                                             tell "[\n"
@@ -139,27 +139,6 @@ buildJSON = \case
                                             tell "\n"
                                             emitIndent
                                             tell "]"
-
-
-              -- Fallback handling for raw backbone pieces
-              Expr.Cons h t -> do
-                               tell "[\n"
-                               nested $ buildArrayElements (Expr.Cons h t)
-                               tell "\n"
-                               emitIndent
-                               tell "]"
-
-              Expr.Attr k v -> do
-                               tell "{\n"
-                               nested $ do
-                                        emitIndent
-                                        tell (escapeString k <> ": ")
-                                        buildJSON v
-                               tell "\n"
-                               emitIndent
-                               tell "}"
-
-              Expr.Nil -> pure ()
 
 
 -- Manual Lenses for PrinterEnv
@@ -210,11 +189,8 @@ emitIndent = do
 
 -- Serializes a flat JSON-LD Record block by unifying its metadata leaf
 -- and data body fields into a single key-value brace block.
-renderFlatRecord :: Expr 'JLD.Meta -> Expr 'JLD.List -> Printer ()
-renderFlatRecord metadata body =
-    do
-    let bodyPairs = Expr.flattenProps body
-
+renderFlatRecord :: Expr 'JLD.Meta -> [(Text, Expr 'JLD.Primitive)] -> Printer ()
+renderFlatRecord metadata bodyPairs =
     case metadata of
         -- Case A: Record has an atomic Context leaf
         Expr.Context schema@(Schema directives)
@@ -249,8 +225,8 @@ renderFlatRecord metadata body =
 
 
 -- Formats an individual object key-value property pair with indentation alignment.
-renderProperty :: (Text, Expr.SomeExpr) -> Printer ()
-renderProperty (k, Expr.SomeExpr v) = do
+renderProperty :: (Text, Expr 'JLD.Primitive) -> Printer ()
+renderProperty (k, v) = do
                                       emitIndent
                                       tell (escapeString k <> ": ")
                                       buildJSON v
@@ -262,7 +238,7 @@ renderProperty (k, Expr.SomeExpr v) = do
 contextJSON :: Schema -> Expr 'JLD.Primitive
 contextJSON = \case
     Schema [entry] -> entryJSON entry
-    Schema entries -> Expr.Array (foldr (Expr.Cons . entryJSON) Expr.Nil entries)
+    Schema entries -> Expr.Array (map entryJSON entries)
     where
     entryJSON = \case
         Sch.RemoteContext uri -> Expr.URI uri
@@ -274,31 +250,15 @@ contextJSON = \case
         Sch.CNumber n   -> Expr.Number n
         Sch.CBool   b   -> Expr.Boolean b
         Sch.CNull       -> Expr.Null
-        Sch.CArray  vs  -> Expr.Array (foldr (Expr.Cons . value) Expr.Nil vs)
+        Sch.CArray  vs  -> Expr.Array (map value vs)
         Sch.CObject kvs -> object kvs
 
-    object kvs = Expr.Record Expr.EmptyMeta (foldr (\(k, v) rest -> Expr.Cons (Expr.Attr k (value v)) rest) Expr.Nil kvs)
+    object kvs = Expr.Record Expr.EmptyMeta [ (k, value v) | (k, v) <- kvs ]
 
 
--- Recursively unrolls sequential list elements onto individual indented lines separated by commas.
-buildArrayElements :: Expr t -> Printer ()
-buildArrayElements expr = case expr of
-                              Expr.Cons h Expr.Nil -> do
-                                                      emitIndent
-                                                      buildJSON h
-
-                              Expr.Cons h t -> do
-                                               emitIndent
-                                               buildJSON h
-                                               tell ",\n"
-                                               buildArrayElements t
-
-                              other -> buildJSON other
-
-
--- Unpacks an existential wrapper to render an individual item inside a JSON collection.
-renderArrayElement :: Expr.SomeExpr -> Printer ()
-renderArrayElement (Expr.SomeExpr e) = do
+-- Renders an individual value inside a JSON array, on a line of its own
+renderArrayElement :: Expr 'JLD.Primitive -> Printer ()
+renderArrayElement e = do
                                        emitIndent
                                        buildJSON e
 
@@ -319,14 +279,6 @@ escapeChar c = case c of
     '\f' -> "\\f"
     _ | c < ' '   -> "\\u" <> T.justifyRight 4 '0' (T.pack (showHex (ord c) ""))
       | otherwise -> T.singleton c
-
-
--- isNIl.
---
--- Collections in our JLD (Arrays and Records) are repesented as linked list, using Cons and Nil nodes.
--- Expr.Nil is the explict base case, a terminal sentinel value.
-isNil :: Expr t -> Bool
-isNil = \case { Expr.Nil -> True; _ -> False }
 
 
 -- intercalateM.

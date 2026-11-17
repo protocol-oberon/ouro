@@ -22,7 +22,6 @@ import qualified Data.Text                   as T
 import           Lens.Micro                  ((^.))
 import           Lens.Micro.TH               (makeLenses)
 import           Text.Megaparsec             (SourcePos)
-import           Unsafe.Coerce               (unsafeCoerce)
 
 -- Env.
 --
@@ -240,35 +239,15 @@ asArray = \case
     _notAnArray          -> Nothing
 
 
--- Type collapses L.Expr into internal I.Expr
+-- Type collapses L.Expr into internal I.Expr: a value the gate (validateAST) has let through
+-- is a primitive, a record or an array, all the way down
 freeze :: Expr -> I.Expr 'JLD.Primitive
 freeze = \case
           Primitive   p -> p
-          Record    m p -> (I.Record m (foldRecordToGADT p))
-          Array       p -> (I.Array (foldArrayToGADT p))
+          Record    m p -> I.Record m [ (k, freeze v) | (k, v) <- p ]
+          Array       p -> I.Array (map freeze p)
+          EvalError err -> error $ "Invariant: EvalError survived harvest: " ++ show err
           other         -> error $ "Invariant: Non-serializable node type: " ++ (T.unpack $ humanReadableType other)
-
-    where
-    -- Convert [(Text, Expr)] to I.Expr 'JLD.List
-    foldRecordToGADT :: [(Text, Expr)] -> I.Expr 'JLD.List
-    foldRecordToGADT = foldr (\(k, v) acc -> I.Cons (I.Attr k (foldExprToAny v)) acc) I.Nil
-
-    -- Convert [Expr] to I.Expr 'JLD.List
-    foldArrayToGADT :: [Expr] -> I.Expr 'JLD.List
-    foldArrayToGADT = foldr (\v acc -> I.Cons (foldExprToAny v) acc) I.Nil
-
-    -- Helper: Existential bridge to I.Expr any
-    -- This promotes the primitive value to the existential type required by Attr.
-    foldExprToAny :: Expr -> I.Expr any
-    foldExprToAny expr =
-        case expr of
-            Primitive p    -> unsafeCoerce p  -- We know this is safe post-harvest
-            Record m p     -> unsafeCoerce (I.Record m (foldRecordToGADT p))
-            Array els      -> unsafeCoerce (I.Array (foldArrayToGADT els))
-
-            -- Safety Guards
-            EvalError err  -> error $ "Invariant: EvalError survived harvest: " ++ show err
-            other          -> error $ "Invariant: Non-serializable node type: " ++ (T.unpack $ humanReadableType other)
 
 
 -- Calendar tracking metrics for time-shift date math engine
