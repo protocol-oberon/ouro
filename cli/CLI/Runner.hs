@@ -19,7 +19,9 @@ import qualified Data.Text         as T
 import qualified Data.Text.IO      as TIO
 import qualified Data.Text.Lazy    as TL
 import qualified Data.Text.Lazy.IO as TLIO
-import           System.Directory  (createDirectoryIfMissing)
+import           Control.Exception (IOException, displayException, try)
+import           System.Directory  (createDirectoryIfMissing, removeFile,
+                                    renameFile)
 import           System.Exit       (exitFailure)
 import           System.FilePath   (takeDirectory)
 import           System.IO         (IOMode (..), hPutStrLn, hSetEncoding,
@@ -35,7 +37,8 @@ runCommand = \case
 
 
 -- Builds the project in a folder: the graphs chosen, every one when none is, are written to
--- <outputs>/<module>/<graph>.json, or, if anything fails, nothing is
+-- <outputs>/<module>/<graph>.json, or, if anything fails, nothing is. That holds for writing
+-- too (gap 35): every graph is staged beside its file, and moved into place only when all are.
 runBuild :: FilePath -> [String] -> IO ()
 runBuild dir graphs = do
     putStrLn $ "Building:            " <> dir <> " ..."
@@ -45,12 +48,24 @@ runBuild dir graphs = do
             -> do
                sourceOf <- sourcesFor [] (map warnPos warnings)
                mapM_ (pintDiagnostic sourceOf . Left) warnings
-               mapM_ (\(file, code) -> do
-                          createDirectoryIfMissing True (takeDirectory file)
-                          writeJSON file (O.toJSON defaultOptions code)
-                          putStrLn $ "Wrote:               " <> file)
-                     outputs
-               putStrLn $ "Build Success:       " <> show (length outputs) <> " graphs"
+               staged <- stageAll [ (file, O.toJSON defaultOptions code) | (file, code) <- outputs ]
+               case staged of
+                   Left (file, problem)
+                       -> do
+                          hPutStrLn stderr $ "Could not write " <> file <> ": " <> displayException problem
+                          putStrLn "Build Failed: a graph could not be written, so none was."
+                          exitFailure
+                   Right files
+                       -> do
+                          placed <- placeAll files
+                          case placed of
+                              Left (file, problem, written)
+                                  -> do
+                                     hPutStrLn stderr $ "Could not move " <> file <> " into place: " <> displayException problem
+                                     putStrLn $ "Build Failed: " <> show written <> " of " <> show (length files) <> " graphs were written before it."
+                                     exitFailure
+                              Right ()
+                                  -> putStrLn $ "Build Success:       " <> show (length outputs) <> " graphs"
 
         BuildFailure warnings errors
             -> do
@@ -100,6 +115,39 @@ readSourceOrExit :: FilePath -> IO T.Text
 readSourceOrExit fp = readSource fp >>= \case
     Right content -> pure content
     Left  err     -> TIO.hPutStrLn stderr err >> exitFailure
+
+
+-- Writes each graph's JSON beside its file, as <file>.partial, making its folder if need be.
+-- If one cannot be written, those staged are removed, and the file and why are the result.
+stageAll :: [(FilePath, TL.Text)] -> IO (Either (FilePath, IOException) [(FilePath, FilePath)])
+stageAll = go []
+    where
+    go done [] = pure (Right (reverse done))
+    go done ((file, json) : rest) = do
+        let partial = file <> ".partial"
+        result <- try (createDirectoryIfMissing True (takeDirectory file) >> writeJSON partial json)
+        case result of
+            Right ()     -> go ((partial, file) : done) rest
+            Left problem -> do
+                            mapM_ (discard . fst) ((partial, file) : done)
+                            pure (Left (file, problem))
+
+    -- A staged file is removed if it is there; one that is not needs nothing
+    discard partial = () <$ (try (removeFile partial) :: IO (Either IOException ()))
+
+-- Moves each staged file into place, a rename within its folder, saying so for each. If one
+-- cannot be moved, the result is that file, why, and how many were moved before it.
+placeAll :: [(FilePath, FilePath)] -> IO (Either (FilePath, IOException, Int) ())
+placeAll = go 0
+    where
+    go _ [] = pure (Right ())
+    go written ((partial, file) : rest) = do
+        result <- try (renameFile partial file)
+        case result of
+            Right ()     -> do
+                            putStrLn $ "Wrote:               " <> file
+                            go (written + 1) rest
+            Left problem -> pure (Left (file, problem, written))
 
 
 -- Writes JSON as UTF-8 with LF line endings, regardless of platform defaults

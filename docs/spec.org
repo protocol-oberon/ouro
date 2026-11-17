@@ -588,7 +588,7 @@ An import spelt in another case than its file, =(import People)= for =people.our
 
 *** All or nothing
 
-If any graph of any module fails, nothing is written, and every error of every module is reported.
+If any graph of any module fails, nothing is written, and every error of every module is reported. Writing is all or nothing as well: each graph is staged beside its file and moved into place only once all are, so a graph that cannot be written leaves none written.
 A stray file under the source folder, such as a scratch file, is built too, and can fail the build.
 
 *** Retired codes
@@ -2873,14 +2873,19 @@ Found while vetting =build.ouro= (2026-10-29).
 
 /Fixed/ (2026-11-16): a build checks the name of every graph it would write. A name that is not a file name on every system is =BLD0019=, and a graph of a module named apart from another only by case is =BLD0020= (see [[*The graphs chosen][the graphs chosen]]). Like any error, either stops the build with nothing written, so a graph is never lost to a file name.
 
-** OPEN [#B] A build writes until a write fails
+** FIXED A build wrote until a write failed
 :PROPERTIES:
 :ID:       35
 :FOUND:    2026-10-29
+:FIXED_IN: 0.6.2.0
 :END:
 All or nothing covers compiling; the CLI then writes each graph in turn, so a write that fails (gap 34, a full disk, a file held open) leaves the graphs before it written. It ends the build with a Haskell exception and its backtrace, not a diagnostic, and neither "Build Success" nor "Build Failed".
 
 Found while vetting =build.ouro= (2026-10-29).
+
+/Fixed/ (2026-11-17): writing is all or nothing too. Every graph is first written beside its file, as =<file>.partial=, its folder made if need be; only when all are staged is each moved into place, a rename within its folder. A write that fails removes those staged, names the file and why on stderr, and ends in "Build Failed: a graph could not be written, so none was."
+
+Limits: a folder made for a graph before the failure stays, empty. A move into place that fails, which a rename within a folder rarely does, says how many graphs were written before it.
 
 ** FIXED =ouro build DIR= with a folder that does not exist built the project above it
 :PROPERTIES:

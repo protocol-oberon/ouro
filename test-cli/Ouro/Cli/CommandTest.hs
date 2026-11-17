@@ -88,7 +88,7 @@ builds = Group "CLI: ouro build"
                                                         exitCode run === ExitSuccess
                                                         both <- evalIO (traverse (doesFileExist . (\graph -> dir </> "out" </> "main" </> graph)) ["g.json", "h.json"])
                                                         both === [True, True])
-    , ("gap 35: a build writes until a write fails", withTests 1 . property $ do
+    , ("gap 35 (fixed): a build writes until a write fails", fixedGap . withTests 1 . property $ do
                                                         dir <- evalIO (writeFolder "build-partial" [ ("a.ouro", "(graph g (:r 1))"), ("b.ouro", "(graph g (:r 2))"), ("out/b", "a file where a folder goes") ])
                                                         run <- evalIO (ouro dir ["build"])
                                                         exitCode run === ExitFailure 1
@@ -96,6 +96,22 @@ builds = Group "CLI: ouro build"
                                                         assert (not (any (`T.isInfixOf` plain (out run)) ["Build Success", "Build Failed"]))
                                                         written <- evalIO (doesFileExist (dir </> "out" </> "a" </> "g.json"))
                                                         written === True)
+    , ("a write that fails leaves nothing written", withTests 1 . property $ do
+                                                        dir <- evalIO (writeFolder "build-all-or-nothing" [ ("a.ouro", "(graph g (:r 1))"), ("b.ouro", "(graph g (:r 2))"), ("out/b", "a file where a folder goes") ])
+                                                        run <- evalIO (ouro dir ["build"])
+                                                        exitCode run === ExitFailure 1
+                                                        assert ("Could not write" `T.isInfixOf` plain (err run))
+                                                        assert ("Build Failed: a graph could not be written, so none was." `T.isInfixOf` plain (out run))
+                                                        written <- evalIO (doesFileExist (dir </> "out" </> "a" </> "g.json"))
+                                                        staged  <- evalIO (doesFileExist (dir </> "out" </> "a" </> "g.json.partial"))
+                                                        (written, staged) === (False, False))
+    , ("and a build that succeeds leaves no staged file", withTests 1 . property $ do
+                                                        dir <- evalIO (writeFolder "build-no-partial" [ ("a.ouro", "(graph g (:r 1))") ])
+                                                        run <- evalIO (ouro dir ["build"])
+                                                        exitCode run === ExitSuccess
+                                                        written <- evalIO (doesFileExist (dir </> "out" </> "a" </> "g.json"))
+                                                        staged  <- evalIO (doesFileExist (dir </> "out" </> "a" </> "g.json.partial"))
+                                                        (written, staged) === (True, False))
     , ("gap 37 (fixed): colours are written when the output is not a terminal", fixedGap . withTests 1 . property $ do
                                                         dir <- evalIO (writeFolder "build-colours" [ ("main.ouro", "(graph g (:r (get () 5)))") ])
                                                         run <- evalIO (ouro dir ["build"])

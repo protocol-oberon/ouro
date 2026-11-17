@@ -48,6 +48,10 @@ version is 0.x, a new minor version may break programs, and each change that doe
 - `ouro validate` reads JSON's escapes in strings: `é` is `é`, a surrogate pair one
   character, and `\/` a slash. Haskell's escapes, such as `\x41`, a lone surrogate and a raw
   control character are errors, as JSON has them (gap 21). <!-- mzplvlol -->
+- `ouro build` writes all or nothing: every graph is staged first, and moved into place only
+  when all are, so a graph that cannot be written, such as one whose folder is a file, leaves
+  none written and ends in `Build Failed`, where the graphs before it were written and the
+  build ended in a Haskell exception (gap 35). <!-- vporoolz -->
 
 ## [0.6.1.0] - 2026-11-17
 
