@@ -17,10 +17,10 @@ import           Data.Text                         (Text)
 --
 --   ((when (has book ntp46)) e)   ((%when (has book ntp46)) e)
 --   ((lt 10 20) e)                ((%when (lt %target 10 20)) e)
---   ((satisfies #uri) e)          ((%when (satisfies %target #uri)) e)
+--   ((∈ uri) e)                   ((%when (%in %target #uri)) e)
 --
 -- A guard is about the case's target, which it takes first, as a '->' step takes the value
--- threaded into it: a comparison, or satisfies, whose subject comes first. The case binds
+-- threaded into it: a comparison, or ∈, whose subject comes first. The case binds
 -- its target once, to a name that cannot be written in Ouro, and the condition names it:
 --
 --   (case x ((lt 10) e) ...)   (let ((%bind "%target" x)) (case %target ((%when (lt %target 10)) e) ...))
@@ -52,17 +52,17 @@ guards = topDown $ \case
         S.Form bPos [whenForm@(S.Form gPos (S.Symbol wPos "when" : _)), body]
             -> S.Form bPos [S.Form gPos [S.Symbol wPos "%when", whenForm], body]
         S.Form bPos [S.Form gPos (opNode@(S.Symbol _ op) : operands), body]
-            | op `elem` guardHeads
+            | S.formName op `elem` guardHeads
             -> S.Form bPos [ S.Form gPos [S.Symbol gPos "%when", evaluated (S.Form gPos (opNode : S.Symbol gPos "%target" : operands))]
                            , body ]
         branch
             -> branch
 
     comparesTarget = \case
-        S.Form _ [S.Form _ (S.Symbol _ op : _), _] -> op `elem` guardHeads
+        S.Form _ [S.Form _ (S.Symbol _ op : _), _] -> S.formName op `elem` guardHeads
         _notAGuard                                 -> False
 
-    guardHeads = "satisfies" : guardOperators
+    guardHeads = "in" : "satisfies" : guardOperators
 
     -- The passes a condition would have had, had it not been in a branch head
     evaluated = connectives . placeholders

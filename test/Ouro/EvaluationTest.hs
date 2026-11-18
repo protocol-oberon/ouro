@@ -41,7 +41,7 @@ tests = Group "Evaluation Tests (Surface to Higher IR)"
     , ("routes to the correct branch in (case ...)",   prop_case_routing)
 
     , ("runs Canon's passes in order",                 prop_pass_order)
-    , ("runs infix, then all but three, on a pattern", prop_pattern_passes)
+    , ("runs infix, then all but four, on a pattern",  prop_pattern_passes)
     , ("runs a single pass on its own",                prop_single_pass)
 
     , ("returns L.EvalError for the removed attr form", prop_error_removed_attr)
@@ -152,14 +152,14 @@ prop_case_routing = withTests 1 . property $ do
 prop_pass_order :: Property
 prop_pass_order = withTests 1 . property $
     map Canon.passName Canon.passes
-        === [ "infix", "placeholders", "threading", "connectives", "bindings", "guards", "contexts"
-            , "adjoin", "with", "thru", "alternatives" ]
+        === [ "infix", "placeholders", "threading", "typing", "connectives", "bindings", "guards"
+            , "contexts", "adjoin", "with", "thru", "alternatives" ]
 
--- A parameter pattern has infix first, as an expression does, and skips placeholders,
--- threading and connectives
+-- A parameter pattern has infix first, as an expression does, and skips typing,
+-- placeholders, threading and connectives
 prop_pattern_passes :: Property
 prop_pattern_passes = withTests 1 . property $
-    map Canon.passName Canon.patternPasses === "infix" : drop 4 (map Canon.passName Canon.passes)
+    map Canon.passName Canon.patternPasses === "infix" : drop 5 (map Canon.passName Canon.passes)
 
 -- Running 'connectives' alone makes a written all a chain of cases, and leaves arithmetic
 -- alone: nothing unrolls (+ 1 2 3), which is an arity error

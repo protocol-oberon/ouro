@@ -131,13 +131,20 @@ isAttrForm = \case
 
 
 -- The heads Canon writes for the forms it builds: %case for and and or, %let for a case's
--- guards, %fn for placeholders and %inlay for with. No Ouro source can spell them, so no
--- binding can capture code the source did not write (hygiene, as a Scheme macro's if means the
--- core if wherever it is expanded). Each is read as the form it names; any other head is itself.
+-- guards, %fn for placeholders, %inlay for with and %in for ∈. No Ouro source can spell them,
+-- so no binding can capture code the source did not write (hygiene, as a Scheme macro's if
+-- means the core if wherever it is expanded). Each is read as the form it names; any other
+-- head is itself.
 formName :: Text -> Text
 formName = \case
     "%case"  -> "case"
     "%let"   -> "let"
     "%fn"    -> "fn"
     "%inlay" -> "inlay"
+    "%in"    -> "in"
     name     -> name
+
+-- A head that asks whether a value has a refinement: in, as Canon writes ∈, or satisfies, its
+-- old name, until that is an error
+asks :: Text -> Bool
+asks name = formName name `elem` ["in", "satisfies"]

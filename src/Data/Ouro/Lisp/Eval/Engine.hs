@@ -483,7 +483,7 @@ evalExpr expr = do
         -- the value first; #p x states it. Only the refinement's check failing is false: an
         -- error in x, or a refinement that is not one, stays an error. The refinement, written
         -- last, has nothing after it, so it is read as a refinement on its own.
-        S.Form _ [S.Symbol _ "satisfies", subject, S.Tagged tagPos tag (S.Hole _ "%subject")]
+        S.Form _ [S.Symbol _ (S.asks -> True), subject, S.Tagged tagPos tag (S.Hole _ "%subject")]
             | not (isSubjectHole subject)
             -> evalExpr subject >>= \case
                    err@(EvalError _) -> pure err
@@ -492,7 +492,23 @@ evalExpr expr = do
                                             err@(EvalError _)                                    -> pure err
                                             _hasIt                                               -> pure (Primitive (I.Boolean True))
 
-        S.Form pos (S.Symbol _ "satisfies" : _)
+        -- An assert or in that 'Canon.Typing' did not read: its refinement is not a name, or it
+        -- has the wrong number of operands
+        S.Form pos (S.Symbol _ "assert" : _)
+            -> lexicalError "⊢ is written (⊢ value refinement), or <value ⊢ refinement>, the refinement by its name."
+               & withBlurb "Perhaps write (⊢ x string), or <r ⊢ titled> for a refinement of the module."
+               & OuroError pos
+               & EvalError
+               & pure
+
+        S.Form pos (S.Symbol _ "in" : _)
+            -> lexicalError "∈ is written (∈ value refinement), or <value ∈ refinement>, the refinement by its name."
+               & withBlurb "Perhaps write (∈ x string), or ((∈ titled) result) as the head of a case branch."
+               & OuroError pos
+               & EvalError
+               & pure
+
+        S.Form pos (S.Symbol _ (S.formName -> "satisfies") : _)
             -> lexicalError "satisfies is written (satisfies value #refinement), or as the head of a case branch, ((satisfies #refinement) result)."
                & withBlurb "Perhaps write (satisfies x #string), or (case x ((satisfies #string) \"text\") (otherwise \"other\"))."
                & OuroError pos

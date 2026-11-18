@@ -92,6 +92,7 @@ library
         Data.Ouro.Lisp.Canon.Threading
         Data.Ouro.Lisp.Canon.Thru
         Data.Ouro.Lisp.Canon.Traverse
+        Data.Ouro.Lisp.Canon.Typing
         Data.Ouro.Lisp.Canon.With
         Data.Ouro.Lisp.Eval.Builtins
         Data.Ouro.Lisp.Eval.Engine

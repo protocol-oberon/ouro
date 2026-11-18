@@ -19,6 +19,7 @@ import           Data.Ouro.Lisp.Canon.Infix        (infixForms)
 import           Data.Ouro.Lisp.Canon.Placeholders (placeholders)
 import           Data.Ouro.Lisp.Canon.Threading    (threading)
 import           Data.Ouro.Lisp.Canon.Thru         (thru)
+import           Data.Ouro.Lisp.Canon.Typing       (typing)
 import           Data.Ouro.Lisp.Canon.With         (withForms)
 import           Data.Ouro.Lisp.Module.Types       (Module, mapModuleExpr,
                                                     mapParamPatterns)
@@ -40,6 +41,10 @@ import           Data.Text                         (Text)
 --                                hole is already a function (1), and a step is rewritten
 --                                before 'adjoin' (7) and 'with' (8) are, so (-> x (with :k v))
 --                                gives with x
+--   2b. typing        top-down   (⊢ x p) becomes #p x, and (∈ x p) (%in x #p), the
+--                                refinement p a name, never evaluated. After threading (2),
+--                                so a chain <x ⊢ p ⊢ q> threaded is read, and after
+--                                placeholders (1), so <? ∈ p> is a function whose body it reads
 --    3. connectives   top-down   (and a b) and (or a b), and (all (a b c)) and (any (a b c))
 --                                over an array written in place, become chains of cases on
 --                                #boolean a, so an operand is only evaluated when it can
@@ -68,19 +73,20 @@ passes =
     [ Pass "infix"        infixForms
     , Pass "placeholders" placeholders
     , Pass "threading"    threading
+    , Pass "typing"       typing
     , Pass "connectives"  connectives
     ] <> laterPasses
 
 
 -- The passes a function's parameter patterns go through: infix, since a binder <x ⊢ p> is
--- written in a parameter list, and none of the three after it, since a pattern's holes match
--- values, so they are neither placeholders nor threaded, and a pattern is matched, so it
--- holds no (and ...) or (or ...) to evaluate
+-- written in a parameter list, and none of the four after it. A pattern asserts and asks
+-- nothing, its binder being the parser's; its holes match values, so they are neither
+-- placeholders nor threaded; and it is matched, so it holds no (and ...) or (or ...)
 patternPasses :: [Pass]
 patternPasses = Pass "infix" infixForms : laterPasses
 
 
--- The passes after the first four, which expressions and patterns share
+-- The passes after the first five, which expressions and patterns share
 laterPasses :: [Pass]
 laterPasses =
     [ Pass "bindings"     bindings

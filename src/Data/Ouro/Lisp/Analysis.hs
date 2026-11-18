@@ -497,9 +497,11 @@ form scope pos items = case items of
     S.Symbol _ (S.formName -> "let") : _             -> mempty
 
     S.Symbol _ "when" : _                            -> mempty
-    [S.Symbol _ "satisfies", subject, S.Tagged tPos tag (S.Hole _ "%subject")]
+    [S.Symbol _ (S.asks -> True), subject, S.Tagged tPos tag (S.Hole _ "%subject")]
         | not (isSubjectHole subject)                -> refinementTag scope tPos tag (Just [size scope subject]) <> names scope subject
-    S.Symbol _ "satisfies" : _                       -> mempty
+    S.Symbol _ (S.formName -> "satisfies") : _       -> mempty
+    S.Symbol _ "assert" : _                          -> mempty
+    S.Symbol _ "in" : _                              -> mempty
     S.Symbol _ keyword : _
         | isFunctionKeyword keyword                  -> mempty
     [S.Symbol _ "%binder", S.Literal _ (S.Str _)]    -> mempty

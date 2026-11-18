@@ -1004,7 +1004,30 @@ The symbols of logic and sets are read the same way, as the names they stand for
 |        |       |        |             | =∈=      | =in=            |
 
 - ~(∀ xs (gt ? 0))~ is ~(forall xs (gt ? 0))~, and messages name the word.
-- =assert= and =in= are not yet bound: ~(⊢ x #number)~ is =SCP0000=, ='assert' is not bound here=, until the type syntax that gives them their meaning is built.
+- =⊢= asserts and =∈= asks; see [[*Asserting and asking: =⊢= and =∈=][asserting and asking]].
+
+*** Asserting and asking: =⊢= and =∈=
+
+~(⊢ x p)~, or ~<x ⊢ p>~, asserts that =x= has the refinement =p=; ~(∈ x p)~, or ~<x ∈ p>~, asks whether it has.
+
+- =p= is the refinement's name, in a type position, never evaluated:
+  - a built-in, =string=, =number=, =boolean=, =record=, =array=, =function=, =uri= or =date=;
+  - or one defined in Ouro, =titled=; an imported one, =people/titled=, is not yet read.
+  - A binding of the name changes nothing: ~(let ($string 1) <"a" ⊢ string>)~ is ="a"=.
+
+- =⊢= is the assertion =#p x= is, written another way: the value passes on, =#uri= and =#date= converting it, or it is a refinement mismatch (=TYP0001=) at the value. A chain asserts each, ~<r ⊢ record ⊢ titled>~.
+
+- =∈= is the question ~(satisfies x #p)~ is: =true= or =false=, an error inside it staying that error. As the head of a =case= branch it is about the case's target, ~((∈ string) "text")~.
+
+- With a hole each is a function: ~(filter xs <? ∈ string>)~.
+
+- The Canon pass =typing= rewrites =⊢= to the assertion and =∈= to =%in=, which no binding can capture: the question =satisfies= asks, by a name that cannot be written.
+
+- =assert= and =in= are read by their syntax, as =and= is: no function can take their names (=SYN0008=).
+
+- Any other shape, a refinement that is not a name, ~(⊢ 1 (array))~, or one operand outside a =case=, ~(∈ 1)~, is =SYN0000=, "⊢ is written (⊢ value refinement), or <value ⊢ refinement>, the refinement by its name."
+
+- Messages still name a refinement with its =#=, =#number=.
 - A longer name that begins with a symbol, such as =∧x=, is an ordinary symbol.
 
 *** Local functions
@@ -1974,6 +1997,7 @@ Before evaluation, ~Canon.canonicalModule~ rewrites every function body and grap
 | 0. infix         | top-down  | ~<a op b>~ into ~(op a b)~, and a chain into ~(-> a (op b) ...)~             |
 | 1. placeholders  | top-down  | a call with =?= holes into a function of them                                |
 | 2. threading     | top-down  | ~(-> x step ...)~ into nested calls                                          |
+| 2b. typing       | top-down  | ~(⊢ x p)~ into =#p x=, and ~(∈ x p)~ into ~(%in x #p)~                       |
 | 3. connectives   | top-down  | ~(and a b)~, =or=, and =all= and =any= written in place into a =%case= chain |
 | 4. bindings      | top-down  | =$name value= in a =let='s bindings into ~(%bind "name" value)~              |
 | 5. guards        | top-down  | a condition, =(when c)=, or a guard ~((lt 10) e)~ into a ~(%when c)~ head     |
@@ -2036,7 +2060,7 @@ Each pass is a module of its own under =Lisp/Canon/=, with the walks in =Travers
 9. =Thru.hs=
 10. =Alternatives.hs=
 
-=Lisp/Canon.hs= is the single entry point: it lists the passes, in order, and runs them, and ~Canon.runPasses~ runs any selection of them. A =define/procedure='s parameter patterns go through ~Canon.patternPasses~, every pass but placeholders, threading and connectives, since a pattern is matched, not evaluated; infix runs on them too, as a binder is written in a parameter list.
+=Lisp/Canon.hs= is the single entry point: it lists the passes, in order, and runs them, and ~Canon.runPasses~ runs any selection of them. A =define/procedure='s parameter patterns go through ~Canon.patternPasses~, every pass but placeholders, threading, typing and connectives, since a pattern is matched, not evaluated; infix runs on them too, as a binder is written in a parameter list.
 
 *** Sugar and core
 

@@ -502,13 +502,35 @@ operators = Group "Operators: operands and desugaring"
                                                               "(graph g (:r (neq 1 2 3)))")
     , ("so a neq guard takes one operand",          failsWith "IncorrectArity"
                                                               "(graph g (:r (case 5 ((neq 1 2) \"a\") (otherwise \"b\"))))")
-      -- ⊢ and its ASCII spelling |- are read as assert, and ∈ as in: names nothing binds yet
-    , ("⊢ is read as assert",                       failsWith "'assert' is not bound here"
-                                                              "(graph g (:r (⊢ 1 #number)))")
-    , ("and so is |-",                              failsWith "'assert' is not bound here"
-                                                              "(graph g (:r (|- 1 #number)))")
-    , ("∈ is read as in",                           failsWith "'in' is not bound here"
-                                                              "(graph g (:r (∈ 1 #number)))")
+      -- ⊢ asserts and ∈ asks, of a value and a refinement written by its name, never evaluated
+    , ("⊢ asserts: the value passes on",            compilesToJSON "(graph g (:r (⊢ 1 number) :s <\"https://a.org/x\" ⊢ uri>))"
+                                                                   "{\"r\": 1, \"s\": \"https://a.org/x\"}")
+    , ("its ASCII spelling is |-",                  compilesToJSON "(graph g (:r (|- 1 number)))"
+                                                                   "{\"r\": 1}")
+    , ("a value without it is a type error",        failsWith "expectedRefinement = \"#number\", actualRefinement = \"#string\""
+                                                              "(graph g (:r <\"a\" ⊢ number>))")
+    , ("∈ asks",                                    compilesToJSON "(graph g (:r (∈ 1 number) :s <\"a\" ∈ number>))"
+                                                                   "{\"r\": true, \"s\": false}")
+    , ("a refinement of the module",                compilesToJSON (titled <> "(graph g (:r <(:_label \"A\") ⊢ titled> :s <(:x 1) ∈ titled>))")
+                                                                   "{\"r\": {\"_label\": \"A\"}, \"s\": false}")
+    , ("which a value without it fails",            failsWith "expectedRefinement = \"#titled\""
+                                                              (titled <> "(graph g (:r <(:x 1) ⊢ titled>))"))
+    , ("∈ heads a case branch",                     compilesToJSON "(graph g (:r (case 1 ((∈ string) \"text\") (otherwise \"other\"))))"
+                                                                   "{\"r\": \"other\"}")
+    , ("a hole makes ∈ a function",                 compilesToJSON "(graph g (:r (filter (1 \"a\") <? ∈ string>)))"
+                                                                   "{\"r\": [\"a\"]}")
+    , ("⊢ chains, asserting each",                  compilesToJSON (titled <> "(graph g (:r <(:_label \"A\") ⊢ record ⊢ titled>))")
+                                                                   "{\"r\": {\"_label\": \"A\"}}")
+    , ("the refinement is a name, not a value",     compilesToJSON "(graph g (let ($string 1) (:r <\"a\" ⊢ string>)))"
+                                                                   "{\"r\": \"a\"}")
+    , ("a binding of satisfies does not capture ∈", compilesToJSON "(graph g (let ($satisfies (fn (a b) \"mine\")) (:r <1 ∈ number>)))"
+                                                                   "{\"r\": true}")
+    , ("one that is not a name is an error",        failsWith " value refinement), or <value"
+                                                              "(graph g (:r (⊢ 1 (array))))")
+    , ("as is ∈ of one operand outside a case",     failsWith "as the head of a case branch"
+                                                              "(graph g (:r (∈ 1)))")
+    , ("no function is named in",                   failsWith "'in' is read by its syntax"
+                                                              "(define/procedure in (a b) a) (graph g (:r 1))")
 
       -- Comparisons are words. '<' and '>' delimit an infix expression, its '<' written
       -- against the first operand, so each old name is an error that names its word
@@ -562,6 +584,8 @@ operators = Group "Operators: operands and desugaring"
     , ("a bare thru is not a value",                failsWith "thru"
                                                               "(graph g (:r #date (thru (days 1))))")
     ]
+    where
+    titled = "(define/refinement titled (#record r) (has r _label)) "
 
 
 -- How a form is read, from its direct elements only, never their types: a call if it

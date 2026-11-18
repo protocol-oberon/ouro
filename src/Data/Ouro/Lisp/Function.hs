@@ -398,10 +398,10 @@ checkFunctionName name pos
 
 -- The forms read by their syntax before any name is bound: the declarations, a module's
 -- definitions and graphs, a function's doc, and the forms Canon rewrites (and, or, ->, with,
--- adjoin, thru).
+-- adjoin, thru, and assert and in, whose refinement is a name in a type position).
 -- A binding of one of their names is never called by them.
 readBySyntax :: [Text]
-readBySyntax = ["define/procedure", "define/refinement", "define/constant", "graph", "doc", "->", "adjoin", "and", "or", "thru", "with"]
+readBySyntax = ["define/procedure", "define/refinement", "define/constant", "graph", "doc", "->", "adjoin", "and", "or", "thru", "with", "assert", "in"]
 
 
 -- A function can be defined once in each scope
@@ -415,8 +415,8 @@ duplicateFunction name pos =
 -- Forms the evaluator recognises by their head symbol, unless a binding around them has the
 -- name, which shadows the form, as in Scheme (see 'Analysis.Forms.shadowsForm')
 specialForms :: [Text]
-specialForms = [ "->", "adjoin", "all", "and", "any", "array", "attr", "case", "context", "define/constant", "define/procedure", "define/refinement", "doc"
-               , "exists", "filter", "fn", "fold", "forall", "get", "get-or", "graph", "has", "image", "inlay", "insert"
+specialForms = [ "->", "adjoin", "all", "and", "any", "array", "assert", "attr", "case", "context", "define/constant", "define/procedure", "define/refinement", "doc"
+               , "exists", "filter", "fn", "fold", "forall", "get", "get-or", "graph", "has", "image", "in", "inlay", "insert"
                , "let", "map", "nth", "omits", "or", "replace-at", "satisfies", "thru", "when", "with" ]
 
 
