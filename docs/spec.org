@@ -628,7 +628,7 @@ Ouro has no null.
 A symbol starts with one of:
 - a letter;
 - one of the operator characters ~_ + - * / < > = ! & | ~~;
-- one of the symbols of logic and sets ~¬ ∧ ∨ ⋀ ⋁ ∀ ∃ ∄ ∪ ∩ ∖ ⊆ ⋃ ⋂ ⊨~.
+- one of the symbols of logic and sets ~¬ ∧ ∨ ⋀ ⋁ ∀ ∃ ∄ ∪ ∩ ∖ ⊆ ⋃ ⋂ ⊨ ⊢ ∈~.
 
 It may also contain digits, ~?~ and ~'~, and =:= after its first character. On its own, each symbol of logic and sets, like =λ=, is read as the name it stands for. See [[*Functions: =define/procedure=, =fn= and calls][functions]].
 
@@ -968,16 +968,18 @@ Both kinds of function take an optional signature:
 
 The symbols of logic and sets are read the same way, as the names they stand for:
 
-| Symbol | Name  | Symbol | Name        | Symbol | Name            |
-|--------+-------+--------+-------------+--------+-----------------|
-| =¬=    | =not= | =∀=    | =forall=    | =⊆=    | =subset=        |
-| =∧=    | =and= | =∃=    | =exists=    | =⋃=    | =unions=        |
-| =∨=    | =or=  | =∄=    | =omits=     | =⋂=    | =intersections= |
-| =⋀=    | =all= | =∪=    | =union=     | =⊨=    | =satisfies=     |
-| =⋁=    | =any= | =∩=    | =intersect= | ~=~    | =eq=            |
-|        |       | =∖=    | =setminus=  | ~/=~   | =neq=           |
+| Symbol   | Name     | Symbol | Name        | Symbol | Name            |
+|----------+----------+--------+-------------+--------+-----------------|
+| =¬=      | =not=    | =∀=    | =forall=    | =⊆=    | =subset=        |
+| =∧=      | =and=    | =∃=    | =exists=    | =⋃=    | =unions=        |
+| =∨=      | =or=     | =∄=    | =omits=     | =⋂=    | =intersections= |
+| =⋀=      | =all=    | =∪=    | =union=     | =⊨=    | =satisfies=     |
+| =⋁=      | =any=    | =∩=    | =intersect= | ~=~    | =eq=            |
+| =⊢=      | =assert= | =∖=    | =setminus=  | ~/=~   | =neq=           |
+| ~\vert-~ | =assert= | =∈=    | =in=        | =≠=    | =neq=           |
 
 - ~(∀ xs (> ? 0))~ is ~(forall xs (> ? 0))~, and messages name the word.
+- =assert= and =in= are not yet bound: ~(⊢ x #number)~ is =SCP0000=, ='assert' is not bound here=, until the type syntax that gives them their meaning is built.
 - A longer name that begins with a symbol, such as =∧x=, is an ordinary symbol.
 
 *** Local functions

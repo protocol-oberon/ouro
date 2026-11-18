@@ -502,6 +502,13 @@ operators = Group "Operators: operands and desugaring"
                                                               "(graph g (:r (neq 1 2 3)))")
     , ("so a neq guard takes one operand",          failsWith "IncorrectArity"
                                                               "(graph g (:r (case 5 ((neq 1 2) \"a\") (otherwise \"b\"))))")
+      -- ⊢ and its ASCII spelling |- are read as assert, and ∈ as in: names nothing binds yet
+    , ("⊢ is read as assert",                       failsWith "'assert' is not bound here"
+                                                              "(graph g (:r (⊢ 1 #number)))")
+    , ("and so is |-",                              failsWith "'assert' is not bound here"
+                                                              "(graph g (:r (|- 1 #number)))")
+    , ("∈ is read as in",                           failsWith "'in' is not bound here"
+                                                              "(graph g (:r (∈ 1 #number)))")
     , ("a bare thru is not a value",                failsWith "thru"
                                                               "(graph g (:r #date (thru (days 1))))")
     ]
