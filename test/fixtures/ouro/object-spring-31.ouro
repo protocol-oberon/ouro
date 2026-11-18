@@ -14,4 +14,4 @@
       (with :classified_as ((:id         #uri "https://linked.art/vocab/terms/painting"
                              :type       "Type"
                              :_label     "Painting"
-                             :equivalent (list (base/aat "300033618" "Painting")))))))
+                             :equivalent (array (base/aat "300033618" "Painting")))))))

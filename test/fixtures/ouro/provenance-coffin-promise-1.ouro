@@ -7,7 +7,7 @@
   (+ "https://linked.art/example/" path))
 
 (define/procedure provenance #record (#string slug #string label)
-  (:id (example (+ "provenance/" slug)) :type "Activity" :_label label :classified_as (list vocab/provenance-activity)))
+  (:id (example (+ "provenance/" slug)) :type "Activity" :_label label :classified_as (array vocab/provenance-activity)))
 
 (define/procedure node #record (#string path #string type #string label)
   (:id (example path) :type type :_label label))
@@ -18,8 +18,8 @@
       (with :context "https://linked.art/ns/v1/linked-art.json")
       (with :part    ((:type                 "Activity"
                        :_label               "Promise of Gift"
-                       :classified_as        (list provenance-type/promise)
-                       :referred_to_by       (list (base/description "Promised gift of Thomas Jaffe, B.A. 1971"))
-                       :carried_out_by       (list (node "person/jaffe" "Person" "Thomas Jaffe"))
-                       :used_specific_object (list (node "object/coffin" "HumanMadeObject" "Coffin"))
-                       :participant          (list (node "group/yuag" "Group" "Yale University Art Gallery")))))))
+                       :classified_as        (array provenance-type/promise)
+                       :referred_to_by       (array (base/description "Promised gift of Thomas Jaffe, B.A. 1971"))
+                       :carried_out_by       (array (node "person/jaffe" "Person" "Thomas Jaffe"))
+                       :used_specific_object (array (node "object/coffin" "HumanMadeObject" "Coffin"))
+                       :participant          (array (node "group/yuag" "Group" "Yale University Art Gallery")))))))

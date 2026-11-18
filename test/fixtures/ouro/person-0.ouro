@@ -20,20 +20,20 @@
   (:type          type
    :_label        label
    :timespan      (time/span day (+ day (days 1)))
-   :took_place_at (list (place where))))
+   :took_place_at (array (place where))))
 
 ;; A person's life: gender and nationality, birth and death, working life, home and address
 (graph person-0
   (-> (person "0" "Rembrandt")
       (with :context        "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as  (list gender/male nationality/dutch))
+      (with :classified_as  (array gender/male nationality/dutch))
       (with :identified_by  ((:type "Name" :content "Rembrandt Harmenszoon van Rijn")))
-      (with :referred_to_by (list (base/statement statement-type/biography-statement "Rembrandt was a Dutch draughtsman, painter and printmaker.")))
+      (with :referred_to_by (array (base/statement statement-type/biography-statement "Rembrandt was a Dutch draughtsman, painter and printmaker.")))
       (with :born           (life-event "Birth" "Birth of Rembrandt" #date "1606-07-15T00:00:00Z" "Leiden"))
       (with :died           (life-event "Death" "Death of Rembrandt" #date "1669-10-04T00:00:00Z" "Amsterdam"))
-      (with :carried_out    (list (-> (actor/active (time/span #date "1631-01-01T00:00:00Z" #date "1669-10-05T00:00:00Z"))
+      (with :carried_out    (array (-> (actor/active (time/span #date "1631-01-01T00:00:00Z" #date "1669-10-05T00:00:00Z"))
                                       (with :_label        "Active Dates")
-                                      (with :took_place_at (list (place "Amsterdam"))))))
-      (with :residence      (list (place "Nieuwe Doelenstraat")))
-      (with :contact_point  (list (actor/street-address "Jodenbreestraat 4, 1011NK Amsterdam")))
-      (with :equivalent     (list (base/ulan "500011051" "Person" "Rembrandt")))))
+                                      (with :took_place_at (array (place "Amsterdam"))))))
+      (with :residence      (array (place "Nieuwe Doelenstraat")))
+      (with :contact_point  (array (actor/street-address "Jodenbreestraat 4, 1011NK Amsterdam")))
+      (with :equivalent     (array (base/ulan "500011051" "Person" "Rembrandt")))))

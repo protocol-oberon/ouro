@@ -11,6 +11,6 @@
 (graph object-spring-12
   (-> (object "spring/12" "Jeanne (Spring) by Manet")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as (list object-type/painting))
+      (with :classified_as (array object-type/painting))
       (with :identified_by ((:type "Name" :content "Jeanne (Spring)")))
       (with :member_of     ((:id (example "set/exhset") :type "Set")))))

@@ -13,11 +13,11 @@
   (:context       "https://linked.art/ns/v1/linked-art.json"
    :id            (example "provenance/2")
    :type          "Activity"
-   :classified_as (list vocab/provenance-activity)
-   :part          ((:type "Acquisition" :transferred_title_of (list painting) :transferred_title_to (list museum))
+   :classified_as (array vocab/provenance-activity)
+   :part          ((:type "Acquisition" :transferred_title_of (array painting) :transferred_title_to (array museum))
                    (:type        "RightAcquisition"
                     :establishes ((:type          "Right"
                                    :_label        "Right of Ownership for Painting"
-                                   :classified_as (list right-type/ownership-right)
-                                   :possessed_by  (list museum)
-                                   :applies_to    (list painting)))))))
+                                   :classified_as (array right-type/ownership-right)
+                                   :possessed_by  (array museum)
+                                   :applies_to    (array painting)))))))

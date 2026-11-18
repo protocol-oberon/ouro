@@ -12,5 +12,5 @@
 (graph set-archive-asc-1
   (-> (set "archive_asc/1" "Alfred Stiegliz Correspondence")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as (list set-type/archival-grouping))
-      (with :identified_by (list (base/name vocab/primary-name "Alfred Stiegliz Correspondence")))))
+      (with :classified_as (array set-type/archival-grouping))
+      (with :identified_by (array (base/name vocab/primary-name "Alfred Stiegliz Correspondence")))))

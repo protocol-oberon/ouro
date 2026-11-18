@@ -17,7 +17,7 @@
 (graph text-koot-nightwatch-ch1-2
   (-> (text "koot_nightwatch_ch1/2" "Chapter 1 of Koot")
       (with :context        "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as  (list object-type/chapter))
-      (with :identified_by  (list (base/name vocab/primary-name "Introduction")))
-      (with :referred_to_by (list (base/statement statement-type/pagination-statement "5 - 15")))
-      (with :dimension      (list (with (object/dimension dimension-type/count-of 10 unit/pages) :_label "10 pages")))))
+      (with :classified_as  (array object-type/chapter))
+      (with :identified_by  (array (base/name vocab/primary-name "Introduction")))
+      (with :referred_to_by (array (base/statement statement-type/pagination-statement "5 - 15")))
+      (with :dimension      (array (with (object/dimension dimension-type/count-of 10 unit/pages) :_label "10 pages")))))

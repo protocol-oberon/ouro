@@ -12,5 +12,5 @@
 (graph set-rijks-objects-1
   (-> (set "rijks_objects/1" "Collection of the Rijksmuseum")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as (list set-type/collection))
-      (with :identified_by (list (base/name vocab/primary-name "Collection of the Rijksmuseum")))))
+      (with :classified_as (array set-type/collection))
+      (with :identified_by (array (base/name vocab/primary-name "Collection of the Rijksmuseum")))))

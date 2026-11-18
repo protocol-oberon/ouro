@@ -9,7 +9,7 @@
   (+ "https://linked.art/example/" path))
 
 (define/procedure provenance #record (#string slug #string label)
-  (:id (example (+ "provenance/" slug)) :type "Activity" :_label label :classified_as (list vocab/provenance-activity)))
+  (:id (example (+ "provenance/" slug)) :type "Activity" :_label label :classified_as (array vocab/provenance-activity)))
 
 ;; A museum's own records, at its own URIs
 (define/procedure museum #record (#string path #string type #string label)
@@ -26,10 +26,10 @@
       (with :identified_by        ((:type "Name" :content "Purchase of Lot 0055a, Durer's St George and the Dragon")
                                    (:type "Identifier" :content "0055a")))
       (with :timespan             (with (time/day "1820-03-09") :_label "1820 Mar 09"))
-      (with :took_place_at        (list (base/tgn "7011781" "London")))
-      (with :carried_out_by       (list (base/ulan "500451765" "Group" "Edward Foster & Son")))
+      (with :took_place_at        (array (base/tgn "7011781" "London")))
+      (with :carried_out_by       (array (base/ulan "500451765" "Group" "Edward Foster & Son")))
       (with :used_specific_object ((:id #uri "http://example.org/set/Br1908/0055" :type "Set" :_label "Set of Objects for Lot 0055")))
       (with :caused_by            ((:id #uri "http://example.org/auction/Br1908/0055" :type "Activity" :_label "Auction of Lot 0055")))
-      (with :part                 (list (provenance/acquisition st-george simpson adams)
-                                        (provenance/payment (with (provenance/money 8.8 iso/british-pounds) :_label "8.8 pounds")
+      (with :part                 (array (provenance/acquisition st-george simpson adams)
+                                         (provenance/payment (with (provenance/money 8.8 iso/british-pounds) :_label "8.8 pounds")
                                                             adams simpson)))))

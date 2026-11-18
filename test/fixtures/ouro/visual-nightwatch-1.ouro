@@ -12,4 +12,4 @@
 (graph visual-nightwatch-1
   (-> (visual "nightwatch/1" "Visual Content of Night Watch")
       (with :context        "https://linked.art/ns/v1/linked-art.json")
-      (with :referred_to_by (list (base/statement statement-type/rights-statement "Public Domain")))))
+      (with :referred_to_by (array (base/statement statement-type/rights-statement "Public Domain")))))

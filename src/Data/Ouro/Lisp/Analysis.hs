@@ -474,7 +474,6 @@ form scope pos items = case items of
     S.Symbol _ "image" : _                           -> mempty
 
     S.Symbol _ "array" : elements                    -> foldMap (names scope) elements
-    S.Symbol _ "list" : elements                     -> foldMap (names scope) elements
     [S.Symbol _ "map", xs, f]                        -> names scope xs <> applied scope [elementSize scope xs] f
     S.Symbol _ "map" : _                             -> mempty
     [S.Symbol _ quantifier, xs, f]

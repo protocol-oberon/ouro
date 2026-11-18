@@ -12,4 +12,4 @@
 (graph person-rembrandt-42
   (-> (person "rembrandt/42" "Rembrandt")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :identified_by (list (base/identifier vocab/sort-value "r0000011")))))
+      (with :identified_by (array (base/identifier vocab/sort-value "r0000011")))))

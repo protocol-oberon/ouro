@@ -10,4 +10,4 @@
 (graph visual-spring-4
   (-> (visual "spring/4" "Visual Content of Spring")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as (list visual-type/portrait))))
+      (with :classified_as (array visual-type/portrait))))

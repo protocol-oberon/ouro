@@ -16,14 +16,14 @@
 (graph event-christies-24477-1
   (-> (activity "christies_24477/1" "Impressionist Sale")
       (with :context        "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as  (list activity-type/auction-event))
-      (with :identified_by  (list (base/name vocab/primary-name "Impressionist & Modern Evening Sale")))
+      (with :classified_as  (array activity-type/auction-event))
+      (with :identified_by  (array (base/name vocab/primary-name "Impressionist & Modern Evening Sale")))
       (with :timespan       (with (time/span #date "2014-11-05T17:00:00Z" #date "2014-11-05T23:59:59Z") :_label "Nov 5, 2014"))
       (with :took_place_at  ((:id            (example "place/christies_nyc")
                               :type          "Place"
                               :_label        "Christie's, New York"
-                              :classified_as (list place-type/auction-house))))
+                              :classified_as (array place-type/auction-house))))
       (with :carried_out_by ((:id            (example "group/christies")
                               :type          "Group"
                               :_label        "Christie's"
-                              :classified_as (list group-type/auction-house))))))
+                              :classified_as (array group-type/auction-house))))))

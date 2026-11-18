@@ -9,5 +9,5 @@
 (graph concept-exhidea-2
   (-> (exhibition/concept (example "concept/exhidea/2") "Idea for Manet and Modern Beauty")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :identified_by (list (base/name vocab/primary-name "Manet and Modern Beauty")))
-      (with :created_by    (:type "Creation" :influenced_by (list (base/ulan "500010363" "Person" "Manet"))))))
+      (with :identified_by (array (base/name vocab/primary-name "Manet and Modern Beauty")))
+      (with :created_by    (:type "Creation" :influenced_by (array (base/ulan "500010363" "Person" "Manet"))))))

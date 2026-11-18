@@ -23,14 +23,14 @@
 (graph group-0
   (-> (group "0" "Camden Town Group")
       (with :context        "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as  (list group-type/society nationality/british))
-      (with :identified_by  ((:type "Name" :content "Camden Town Group" :language (list language/english))))
-      (with :referred_to_by (list (base/statement statement-type/biography-statement "A group of British painters formed in 1911; although it only lasted two years, its name is used in a broader sense to characterize a particular strain of British painting from about 1905 to 1920.")))
-      (with :carried_out    (list (with (actor/active (time/year-range "1911" "1913")) :_label "Active Dates")))
+      (with :classified_as  (array group-type/society nationality/british))
+      (with :identified_by  ((:type "Name" :content "Camden Town Group" :language (array language/english))))
+      (with :referred_to_by (array (base/statement statement-type/biography-statement "A group of British painters formed in 1911; although it only lasted two years, its name is used in a broader sense to characterize a particular strain of British painting from about 1905 to 1920.")))
+      (with :carried_out    (array (with (actor/active (time/year-range "1911" "1913")) :_label "Active Dates")))
       (with :formed_by      (event "Formation" "Formation of the Group" "1911"))
       (with :dissolved_by   (event "Dissolution" "Dissolution of the Group" "1913"))
       (with :residence      ((:type "Place" :_label "London")))
-      (with :equivalent     (list (base/ulan "500117318" "Group" "Camden Town Group")))
+      (with :equivalent     (array (base/ulan "500117318" "Group" "Camden Town Group")))
       (with :attributed_by  ((:type     "AttributeAssignment"
                               :_label   "Related Group"
-                              :assigned (list (base/ulan "500117319" "Group" "London Group")))))))
+                              :assigned (array (base/ulan "500117319" "Group" "London Group")))))))

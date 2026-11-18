@@ -14,11 +14,11 @@
 (graph object-nightwatch-26
   (-> (object "nightwatch/26" "The Night Watch")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as (list object-type/painting))
+      (with :classified_as (array object-type/painting))
       (with :modified_by   ((:type           "Modification"
                              :_label         "Conservation of Night Watch"
-                             :referred_to_by (list (base/description "Minor conservation work in response to earlier survey"))
-                             :technique      (list technique/cleaning)
+                             :referred_to_by (array (base/description "Minor conservation work in response to earlier survey"))
+                             :technique      (array technique/cleaning)
                              :timespan       (time/year-range "2020" "2021")
                              :carried_out_by ((:id (example "group/rijksmuseum") :type "Group" :_label "Rijksmuseum"))
                              :part_of        ((:id (example "event/operation_nightwatch") :type "Activity" :_label "Operation Night Watch")))))))

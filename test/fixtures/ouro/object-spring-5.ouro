@@ -11,5 +11,5 @@
 (graph object-spring-5
   (-> (object "spring/5" "Jeanne (Spring) by Manet")
       (with :context        "https://linked.art/ns/v1/linked-art.json")
-      (with :referred_to_by (list (base/description "A chic young woman in a day dress with floral accents holds a parasol against a background of exuberant foliage.")))
+      (with :referred_to_by (array (base/description "A chic young woman in a day dress with floral accents holds a parasol against a background of exuberant foliage.")))
       (with :shows          ((:id (example "visual/spring") :type "VisualItem" :_label "Visual Content of Spring")))))

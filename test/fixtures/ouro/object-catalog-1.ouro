@@ -15,7 +15,7 @@
 (graph object-catalog-1
   (-> (object "catalog/1" "Copy of Exhibition Catalog")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as (list object-type/exhibition-catalog))
-      (with :shows         (list (visual "spring" "Visual Content of Spring")
-                                 (visual "houses" "Visual Content of Houses in Provence")))
+      (with :classified_as (array object-type/exhibition-catalog))
+      (with :shows         (array (visual "spring" "Visual Content of Spring")
+                                  (visual "houses" "Visual Content of Houses in Provence")))
       (with :carries       ((:id (example "text/catalogtext") :type "LinguisticObject" :_label "Exhibition Catalog Text")))))

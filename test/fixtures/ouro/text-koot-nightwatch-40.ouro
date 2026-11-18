@@ -12,5 +12,5 @@
       (with :context  "https://linked.art/ns/v1/linked-art.json")
       (with :used_for ((:type           "Activity"
                         :_label         "MI's Publishing"
-                        :classified_as  (list vocab/publication-activity)
+                        :classified_as  (array vocab/publication-activity)
                         :carried_out_by ((:id (example "group/meulenhoff") :type "Group" :_label "Meulenhoff International")))))))

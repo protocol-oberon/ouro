@@ -11,4 +11,4 @@
 (graph person-rembrandt-6
   (-> (person "rembrandt/6" "Rembrandt")
       (with :context    "https://linked.art/ns/v1/linked-art.json")
-      (with :equivalent (list (base/ulan "500011051" "Person" "Rembrandt")))))
+      (with :equivalent (array (base/ulan "500011051" "Person" "Rembrandt")))))

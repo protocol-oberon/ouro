@@ -10,4 +10,4 @@
 (graph place-paris-1
   (-> (place "paris/1" "Paris")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as (list place-type/city))))
+      (with :classified_as (array place-type/city))))

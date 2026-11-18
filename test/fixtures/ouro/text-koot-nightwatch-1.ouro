@@ -12,5 +12,5 @@
 (graph text-koot-nightwatch-1
   (-> (text "koot_nightwatch/1" "Content of Koot's Night Watch")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :identified_by (list (base/name vocab/primary-name "Rembrant's Night Watch. A Fascinating Story")))
+      (with :identified_by (array (base/name vocab/primary-name "Rembrant's Night Watch. A Fascinating Story")))
       (with :part_of       ((:id (example "concept/koot_idea") :type "PropositionalObject" :_label "Koot's Conceptualization")))))

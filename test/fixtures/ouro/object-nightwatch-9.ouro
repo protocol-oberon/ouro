@@ -12,8 +12,8 @@
 (graph object-nightwatch-9
   (-> (object "nightwatch/9" "Night Watch by Rembrandt")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as (list object-type/painting))
-      (with :dimension     (list (with (object/height 379.5 object/centimeters)
+      (with :classified_as (array object-type/painting))
+      (with :dimension     (array (with (object/height 379.5 object/centimeters)
                                   :assigned_by ((:type           "AttributeAssignment"
                                                  :_label         "Measurement of the Night Watch"
                                                  :carried_out_by ((:id (example "group/nightwatchteam") :type "Group" :_label "Operation Night Watch Team"))

@@ -15,4 +15,4 @@
       (with :context     "https://linked.art/ns/v1/linked-art.json")
       (with :produced_by (:type     "Production"
                           :timespan (with (time/year-range "1642" "1842")
-                                     :identified_by ((:id (example "Name/1642") :type "Name" :classified_as (list vocab/display-name))))))))
+                                     :identified_by ((:id (example "Name/1642") :type "Name" :classified_as (array vocab/display-name))))))))

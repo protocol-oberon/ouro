@@ -8,7 +8,7 @@
   (+ "https://linked.art/example/" path))
 
 (define/procedure provenance #record (#string slug #string label)
-  (:id (example (+ "provenance/" slug)) :type "Activity" :_label label :classified_as (list vocab/provenance-activity)))
+  (:id (example (+ "provenance/" slug)) :type "Activity" :_label label :classified_as (array vocab/provenance-activity)))
 
 (define/procedure node #record (#string path #string type #string label)
   (:id (example path) :type type :_label label))
@@ -21,9 +21,9 @@
       (with :context "https://linked.art/ns/v1/linked-art.json")
       (with :part    ((:type                     "TransferOfCustody"
                        :_label                   "Sale of Painting"
-                       :classified_as            (list provenance-type/sale-of-stolen-goods)
-                       :transferred_custody_of   (list (node "object/cheyenne" "HumanMadeObject" "Cheyenne Oklahoma"))
-                       :transferred_custody_from (list thief))
+                       :classified_as            (array provenance-type/sale-of-stolen-goods)
+                       :transferred_custody_of   (array (node "object/cheyenne" "HumanMadeObject" "Cheyenne Oklahoma"))
+                       :transferred_custody_from (array thief))
                       (:type        "Payment"
                        :paid_amount (with (provenance/money 52650 iso/us-dollars) :_label "Payment to Thief")
-                       :paid_to     (list thief))))))
+                       :paid_to     (array thief))))))

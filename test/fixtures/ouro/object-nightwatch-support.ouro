@@ -12,6 +12,6 @@
 (graph object-nightwatch-support
   (-> (object "nightwatch/support" "Support of Night Watch")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as (list part-type/support))
-      (with :made_of       (list material/canvas))
-      (with :part_of       (list (object "nightwatch" "Night Watch by Rembrandt")))))
+      (with :classified_as (array part-type/support))
+      (with :made_of       (array material/canvas))
+      (with :part_of       (array (object "nightwatch" "Night Watch by Rembrandt")))))

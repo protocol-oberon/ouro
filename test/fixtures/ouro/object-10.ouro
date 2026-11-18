@@ -15,9 +15,9 @@
   (:context       "https://linked.art/ns/v1/linked-art.json"
    :id            (example "object/10")
    :type          "HumanMadeObject"
-   :identified_by (list (-> (base/name vocab/primary-name "Hacha (Ceremonial Axe)")
-                            (with :identified_by  (list (base/name vocab/display-name "Assigned Title")))
-                            (with :referred_to_by (list (base/statement statement-type/note "Title was originally given as 'hacha'")))
-                            (with :language       (list iso/spanish iso/english))
-                            (with :part           (list (with (base/name name-type/subtitle "Ceremonial Axe")
-                                                         :language (list language/english))))))))
+   :identified_by (array (-> (base/name vocab/primary-name "Hacha (Ceremonial Axe)")
+                            (with :identified_by  (array (base/name vocab/display-name "Assigned Title")))
+                            (with :referred_to_by (array (base/statement statement-type/note "Title was originally given as 'hacha'")))
+                            (with :language       (array iso/spanish iso/english))
+                            (with :part           (array (with (base/name name-type/subtitle "Ceremonial Axe")
+                                                         :language (array language/english))))))))

@@ -14,6 +14,6 @@
 (graph set-24477-16-objects-1
   (-> (set "24477_16_objects/1" "Set of Objects for Lot 16")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as (list set-type/auction-lot))
-      (with :identified_by (list (base/name vocab/primary-name "Lot 16: Le Printemps")
-                                 (base/identifier identifier-type/lot-number "16")))))
+      (with :classified_as (array set-type/auction-lot))
+      (with :identified_by (array (base/name vocab/primary-name "Lot 16: Le Printemps")
+                                  (base/identifier identifier-type/lot-number "16")))))

@@ -11,5 +11,5 @@
 (graph event-vesuvius-2
   (-> (event "vesuvius/2" "Eruption of Vesuvius")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :identified_by (list (base/name vocab/primary-name "Eruption of Vesuvius")))
+      (with :identified_by (array (base/name vocab/primary-name "Eruption of Vesuvius")))
       (with :during        ((:id (example "event/early_roman") :type "Period" :_label "Early Roman Empire")))))

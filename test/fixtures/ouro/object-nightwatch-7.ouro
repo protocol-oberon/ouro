@@ -12,5 +12,5 @@
 (graph object-nightwatch-7
   (-> (object "nightwatch/7" "Night Watch by Rembrandt")
       (with :context        "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as  (list object-type/painting))
-      (with :referred_to_by (list (object/dimension-statement "height 379.5 cm × width 453.5 cm × weight 337 kg")))))
+      (with :classified_as  (array object-type/painting))
+      (with :referred_to_by (array (object/dimension-statement "height 379.5 cm × width 453.5 cm × weight 337 kg")))))

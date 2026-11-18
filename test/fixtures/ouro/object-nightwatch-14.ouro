@@ -12,6 +12,6 @@
 (graph object-nightwatch-14
   (-> (object "nightwatch/14" "Painting")
       (with :context           "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as     (list object-type/painting (base/aat "300133025" "Artwork")))
+      (with :classified_as     (array object-type/painting (base/aat "300133025" "Artwork")))
       (with :current_owner     ((:id (example "group/amsterdam_govt") :type "Group" :_label "City of Amsterdam Governing Body")))
-      (with :current_custodian (list (base/ulan "500246547" "Group" "Rijksmuseum")))))
+      (with :current_custodian (array (base/ulan "500246547" "Group" "Rijksmuseum")))))

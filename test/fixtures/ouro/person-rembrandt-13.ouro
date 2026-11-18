@@ -15,4 +15,4 @@
       (with :born    (:type "Birth" :timespan (time/day "1606-07-15")))
       (with :died    (:type          "Death"
                       :timespan      (time/day "1669-10-04")
-                      :took_place_at (list (base/tgn "7006952" "Amsterdam"))))))
+                      :took_place_at (array (base/tgn "7006952" "Amsterdam"))))))

@@ -11,10 +11,10 @@
 
 ;; A primary name in each of two languages
 (define/procedure named #record (#string content #record language)
-  (with (base/name vocab/primary-name content) :language (list language)))
+  (with (base/name vocab/primary-name content) :language (array language)))
 
 (graph object-nightwatch-1
   (-> (object "nightwatch/1" "Night Watch by Rembrandt")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :identified_by (list (named "The Night Watch" iso/english)
-                                 (named "De Nachtwacht" iso/dutch)))))
+      (with :identified_by (array (named "The Night Watch" iso/english)
+                                  (named "De Nachtwacht" iso/dutch)))))

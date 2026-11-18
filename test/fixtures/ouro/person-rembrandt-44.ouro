@@ -11,4 +11,4 @@
 (graph person-rembrandt-44
   (-> (person "rembrandt/44" "Rembrandt")
       (with :context     "https://linked.art/ns/v1/linked-art.json")
-      (with :carried_out ((:type "Activity" :classified_as (list vocab/professional-activity))))))
+      (with :carried_out ((:type "Activity" :classified_as (array vocab/professional-activity))))))

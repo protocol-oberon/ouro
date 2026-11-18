@@ -12,4 +12,4 @@
 (graph object-spring-3
   (-> (object "spring/3" "Jeanne (Spring) by Manet")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as (list object-type/painting (base/aat "300133025" "Artwork")))))
+      (with :classified_as (array object-type/painting (base/aat "300133025" "Artwork")))))

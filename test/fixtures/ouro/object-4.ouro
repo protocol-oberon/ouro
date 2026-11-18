@@ -15,11 +15,11 @@
 (graph object-4
   (-> (object "4" "Mona Lisa")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as (list object-type/painting))
+      (with :classified_as (array object-type/painting))
       (with :produced_by   (:type           "Production"
-                            :technique      (list technique/painting-technique)
+                            :technique      (array technique/painting-technique)
                             :timespan       (with (time/year-range "1503" "1506")
-                                             :identified_by (list (base/name vocab/display-name "1503-1506")))
-                            :took_place_at  (list (base/tgn "7000457" "Florence, Italy"))
-                            :carried_out_by (list (base/ulan "500010879" "Person" "Leonardo da Vinci"))
-                            :influenced_by  (list (base/ulan "500341678" "Person" "Lisa del Giocondo"))))))
+                                             :identified_by (array (base/name vocab/display-name "1503-1506")))
+                            :took_place_at  (array (base/tgn "7000457" "Florence, Italy"))
+                            :carried_out_by (array (base/ulan "500010879" "Person" "Leonardo da Vinci"))
+                            :influenced_by  (array (base/ulan "500341678" "Person" "Lisa del Giocondo"))))))

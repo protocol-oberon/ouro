@@ -14,5 +14,5 @@
 (graph person-rembrandt-7
   (-> (person "rembrandt/7" "Rembrandt")
       (with :context     "https://linked.art/ns/v1/linked-art.json")
-      (with :carried_out (list (adjoin (actor/active (time/day-range "1631-01-01" "1669-10-04"))
+      (with :carried_out (array (adjoin (actor/active (time/day-range "1631-01-01" "1669-10-04"))
                                 :classified_as (base/aat "300025136" "Painter"))))))

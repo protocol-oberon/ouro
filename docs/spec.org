@@ -869,7 +869,7 @@ A record is a form containing =:key value= attribute pairs, or a context.
 *** Arrays
 
 A form of values is an array.
-A form headed by a symbol is a call, so an array whose first element is a variable is written with =list=:
+A form headed by a symbol is a call, so an array whose first element is a variable is written with =array=:
 
 #+BEGIN_SRC clojure
 (1 2 3)            ; an array
@@ -881,7 +881,7 @@ A form headed by a symbol is a call, so an array whose first element is a variab
 - An array of one record is written with nested parentheses, ~((:type "Name" ...))~.
   - That is the usual Linked Art shape for =classified_as=, =identified_by= and similar properties.
 - An array of one bound value is written with =array=, ~(array manet)~, since ~(manet)~ is a call.
-  - =list=, its old name, still builds one, with a warning that names =array= (=WRN0001=); in 0.7 it will be an error.
+  - =list=, its old name, is an error that names =array= (=SCP0000=, "'list' is now 'array'"), unless the module defines its own =list=.
 - Arrays, like JSON arrays, can hold values of any type: ~(1 "a" (:k 1) (2 3))~.
 
 *** Inlays are layers
@@ -1307,7 +1307,7 @@ A call with =?= holes among its arguments is not called.
 - *Any call takes holes*:
   - a =define/procedure=, a =fn=, a built-in, and an operator (~(< ? 10)~);
   - the special forms that evaluate their arguments;
-    - =get=, =image=, =insert=, =replace-at=, =list=, =map=, =fold=, =->=.
+    - =get=, =image=, =insert=, =replace-at=, =array=, =map=, =fold=, =->=.
   - The forms with their own structure do not: =let=, =fn=, =case=, =context=, =inlay=, =thru=.
 - *A placeholder is a value*: it is a =fn=, closed over the scope it is written in.
   - So it can be bound, passed and returned like one.
@@ -1426,7 +1426,7 @@ A question is written as membership is, the element or the domain first: ~(satis
 | =(all array)=                            | =true= when every element is; written in place, stops at a =false=     |
 | =(any array)=                            | =true= when one element is; written in place, stops at a =true=        |
 | =(fold array init f)=                    | =f= called on the running value and each element, from =init=          |
-| =(array e ...)=                          | an array, whatever its first element is; =list= is its old name        |
+| =(array e ...)=                          | an array, whatever its first element is; =list=, its old name, is an error |
 | =(thru duration)=                        | extend a duration to the end of its unit (see Built-ins)               |
 | =:context e=                             | the record's JSON-LD =@context=, a context value                       |
 
@@ -2075,7 +2075,7 @@ determineBlockTarget items =
 
 Only the direct elements of a form matter, never their types: ~(1 "a" (:k 1))~ is an array, because its record has its own parentheses, while ~(1 :a 2)~ is a record with a loose value, which is an error. A record made only of inlays has no written attribute pair, so it is read as an array (see [[*Appendix B: Known gaps][known gaps]]).
 
-Special forms are matched by =evalExpr= before classification, so =let=, =case= and the others never reach it. These rules are why an array beginning with a variable needs =list=.
+Special forms are matched by =evalExpr= before classification, so =let=, =case= and the others never reach it. These rules are why an array beginning with a variable needs =array=.
 
 ** Example projection
 
@@ -3202,6 +3202,8 @@ The fix, in two steps so that no release breaks a program that the one before it
 /Fixed/ (2026-11-17), the first step: ~(array …)~ builds an Array, and ~(list …)~ still does, with =WRN0001= (=DeprecatedSyntax=, raised for the first time): "'list' is now called 'array'". A module that defines its own =list= calls it, and is not warned about. =std= builds its arrays with =array=, so importing it raises no warning; Canon's rewrite of =adjoin= writes =array= too.
 
 Limits: the warning reads the code as written, so a =list= bound by a =let= or a parameter, which is then a call of that binding, is still warned about. The fixtures, the tests and the README still write =list=, and compile with the warning.
+
+/The second step/ (2026-11-18, for 0.7): ~(list …)~ is unbound, so an error, =SCP0000=, whose blurb names =array=: "'list' is now 'array': (array 1 2 3)." It is no longer a special form, so a module may define its own =list= and call it, warned about no more than any other name; the limit above is gone with the warning. The fixtures, the tests and the README write =array=. =WRN0001= is raised by nothing until another form is deprecated.
 
 ** FIXED A set operation on arrays cost nearly the square of their length
 :PROPERTIES:

@@ -9,5 +9,5 @@
   (-> (concept "historyFrance/1" "History of France")
       (with :context    "https://linked.art/ns/v1/linked-art.json")
       (with :created_by (:type          "Creation"
-                         :influenced_by (list (concept "history" "History")
-                                              (:id (example "place/france") :type "Place" :_label "France"))))))
+                         :influenced_by (array (concept "history" "History")
+                                               (:id (example "place/france") :type "Place" :_label "France"))))))

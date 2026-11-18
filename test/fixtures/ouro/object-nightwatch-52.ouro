@@ -14,4 +14,4 @@
       (with :classified_as ((:id         (example "concept/painting")
                              :type       "Type"
                              :_label     "Local Copy of Painting"
-                             :equivalent (list (base/aat "300033618" "Painting")))))))
+                             :equivalent (array (base/aat "300033618" "Painting")))))))

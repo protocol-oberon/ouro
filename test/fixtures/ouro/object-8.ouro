@@ -13,10 +13,10 @@
   (:context  "https://linked.art/ns/v1/linked-art.json"
    :id       (example "object/8")
    :type     "HumanMadeObject"
-   :dimension (list (-> (object/height 24 object/inches)
+   :dimension (array (-> (object/height 24 object/inches)
                         (with :upper_value_limit 26)
                         (with :lower_value_limit 22)
-                        (with :identified_by     (list (base/name vocab/display-name "24 inches high (+/- 2 inches)")))
+                        (with :identified_by     (array (base/name vocab/display-name "24 inches high (+/- 2 inches)")))
                         (with :assigned_by       ((:type           "AttributeAssignment"
-                                                   :classified_as  (list activity-type/measuring)
+                                                   :classified_as  (array activity-type/measuring)
                                                    :carried_out_by ((:type "Person" :_label "Curator")))))))))

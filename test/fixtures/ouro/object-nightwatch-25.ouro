@@ -13,13 +13,13 @@
 (graph object-nightwatch-25
   (-> (object "nightwatch/25" "The Night Watch")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as (list object-type/painting))
+      (with :classified_as (array object-type/painting))
       (with :attributed_by ((:type              "AttributeAssignment"
                              :_label            "Condition Assessment of Night Watch"
                              :identified_by     ((:type "Name" :content "Thorough Condition Assessment"))
-                             :referred_to_by    (list (base/description "Very fine cracks throughout the painted surface"))
+                             :referred_to_by    (array (base/description "Very fine cracks throughout the painted surface"))
                              :timespan          (time/day-range "2019-05-01" "2019-09-30")
                              :carried_out_by    ((:id (example "group/rijksmuseum") :type "Group" :_label "Rijksmuseum"))
                              :part_of           ((:id (example "event/operation_nightwatch") :type "Activity" :_label "Operation Night Watch"))
                              :assigned_property "classified_as"
-                             :assigned          (list (base/aat "300387447" "Microcracks")))))))
+                             :assigned          (array (base/aat "300387447" "Microcracks")))))))

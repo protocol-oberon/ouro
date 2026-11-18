@@ -6,7 +6,7 @@
   (+ "https://linked.art/example/" path))
 
 (define/procedure provenance #record (#string slug #string label)
-  (:id (example (+ "provenance/" slug)) :type "Activity" :_label label :classified_as (list vocab/provenance-activity)))
+  (:id (example (+ "provenance/" slug)) :type "Activity" :_label label :classified_as (array vocab/provenance-activity)))
 
 (define/procedure node #record (#string path #string type #string label)
   (:id (example path) :type type :_label label))
@@ -18,10 +18,10 @@
 (graph provenance-payneheirs-getty-2
   (-> (provenance "payneheirs_getty/2" "Purchase of Spring")
       (with :context "https://linked.art/ns/v1/linked-art.json")
-      (with :part    (list (with (provenance/acquisition spring heirs (node "group/getty" "Group" "J. Paul Getty Museum"))
+      (with :part    (array (with (provenance/acquisition spring heirs (node "group/getty" "Group" "J. Paul Getty Museum"))
                             :_label "Acquisition of Painting")
                            (:type                     "TransferOfCustody"
                             :_label                   "Custody by Department"
-                            :transferred_custody_of   (list spring)
-                            :transferred_custody_from (list heirs)
-                            :transferred_custody_to   (list (node "group/getty_ptgs" "Group" "Paintings Department")))))))
+                            :transferred_custody_of   (array spring)
+                            :transferred_custody_from (array heirs)
+                            :transferred_custody_to   (array (node "group/getty_ptgs" "Group" "Paintings Department")))))))

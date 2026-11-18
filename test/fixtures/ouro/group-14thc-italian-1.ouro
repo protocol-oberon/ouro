@@ -15,7 +15,7 @@
 (graph group-14thc-italian-1
   (-> (group "14thc_italian/1" "14th c italians")
       (with :context                "https://linked.art/ns/v1/linked-art.json")
-      (with :identified_by          (list (base/name vocab/primary-name "Unidentified 14th Century Italian")))
+      (with :identified_by          (array (base/name vocab/primary-name "Unidentified 14th Century Italian")))
       (with :members_exemplified_by ((:type "Person"
                                       :born (:type          "Birth"
                                              :timespan      (time/span #date "1300-01-01T00:00:00Z" #date "1399-12-31T00:00:00Z")

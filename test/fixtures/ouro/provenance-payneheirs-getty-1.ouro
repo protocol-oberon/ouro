@@ -6,7 +6,7 @@
   (+ "https://linked.art/example/" path))
 
 (define/procedure provenance #record (#string slug #string label)
-  (:id (example (+ "provenance/" slug)) :type "Activity" :_label label :classified_as (list vocab/provenance-activity)))
+  (:id (example (+ "provenance/" slug)) :type "Activity" :_label label :classified_as (array vocab/provenance-activity)))
 
 (define/procedure node #record (#string path #string type #string label)
   (:id (example path) :type type :_label label))
@@ -15,8 +15,8 @@
 (graph provenance-payneheirs-getty-1
   (-> (provenance "payneheirs_getty/1" "Purchase of Spring for Getty")
       (with :context "https://linked.art/ns/v1/linked-art.json")
-      (with :part    (list (-> (provenance/acquisition (node "object/spring" "HumanMadeObject" "Spring")
+      (with :part    (array (-> (provenance/acquisition (node "object/spring" "HumanMadeObject" "Spring")
                                                        (node "group/payne_heirs" "Group" "Family of Oliver Payne")
                                                        (node "group/getty" "Group" "J. Paul Getty Museum"))
                                (with :_label         "Acquisition of Spring")
-                               (with :carried_out_by (list (node "person/naumann" "Person" "Otto Naumann"))))))))
+                               (with :carried_out_by (array (node "person/naumann" "Person" "Otto Naumann"))))))))

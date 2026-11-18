@@ -16,7 +16,7 @@
 (graph object-letter-2
   (-> (object "letter/2" "Obermeyer 1920")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :identified_by (list (base/name vocab/primary-name "Obermeyer, Bertha (1920)")
-                                 (with (base/identifier vocab/sort-value "000001")
-                                   :assigned_by ((:type "AttributeAssignment" :influenced_by (list letters))))))
-      (with :member_of     (list letters))))
+      (with :identified_by (array (base/name vocab/primary-name "Obermeyer, Bertha (1920)")
+                                  (with (base/identifier vocab/sort-value "000001")
+                                   :assigned_by ((:type "AttributeAssignment" :influenced_by (array letters))))))
+      (with :member_of     (array letters))))

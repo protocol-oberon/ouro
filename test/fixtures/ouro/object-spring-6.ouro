@@ -10,4 +10,4 @@
 (graph object-spring-6
   (-> (object "spring/6" "Jeanne (Spring) by Manet")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :current_owner (list (base/ulan "500115988" "Group" "Getty Museum")))))
+      (with :current_owner (array (base/ulan "500115988" "Group" "Getty Museum")))))

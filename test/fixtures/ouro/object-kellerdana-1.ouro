@@ -11,7 +11,7 @@
 (graph object-kellerdana-1
   (-> (object "kellerdana/1" "Copy of Huntington Portrait")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as (list object-type/painting))
+      (with :classified_as (array object-type/painting))
       (with :produced_by   (:type           "Production"
                             :carried_out_by ((:id (example "person/keller") :type "Person" :_label "Deane Keller"))
-                            :influenced_by  (list (object "huntingtondana" "Huntington Portrait of Dana"))))))
+                            :influenced_by  (array (object "huntingtondana" "Huntington Portrait of Dana"))))))

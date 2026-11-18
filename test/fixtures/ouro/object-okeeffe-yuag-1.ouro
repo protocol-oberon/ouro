@@ -14,9 +14,9 @@
 (graph object-okeeffe-yuag-1
   (-> (object "okeeffe-yuag/1" "GOK 1918, YUAG")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as (list object-type/photograph))
-      (with :identified_by (list (base/identifier identifier-type/accession-number "2016.101.242")))
+      (with :classified_as (array object-type/photograph))
+      (with :identified_by (array (base/identifier identifier-type/accession-number "2016.101.242")))
       (with :shows         ((:id (example "visual/okeeffe") :type "VisualItem" :_label "Visual Content of GOK 1918")))
       (with :produced_by   (:type                 "Production"
                             :_label               "Printing of Photograph"
-                            :used_specific_object (list (object "okeeffe-negative" "Negative of GOK 1918"))))))
+                            :used_specific_object (array (object "okeeffe-negative" "Negative of GOK 1918"))))))

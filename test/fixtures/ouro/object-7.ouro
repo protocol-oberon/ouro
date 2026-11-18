@@ -13,10 +13,10 @@
   (:context       "https://linked.art/ns/v1/linked-art.json"
    :id            (example "object/7")
    :type          "HumanMadeObject"
-   :identified_by (list (base/name vocab/primary-name "Object"))
+   :identified_by (array (base/name vocab/primary-name "Object"))
    :subject_of    ((:type                 "LinguisticObject"
-                    :language             (list iso/english)
+                    :language             (array iso/english)
                     :digitally_carried_by ((:type          "DigitalObject"
-                                            :classified_as (list digital-type/web-page)
-                                            :identified_by (list (base/name vocab/primary-name "Home page for Object"))
+                                            :classified_as (array digital-type/web-page)
+                                            :identified_by (array (base/name vocab/primary-name "Home page for Object"))
                                             :access_point  ((:id #uri "https://example.org/objects/1" :type "DigitalObject"))))))))

@@ -11,7 +11,7 @@
 (graph object-11
   (-> (object "11" "Example Painting")
       (with :context          "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as    (list object-type/painting))
+      (with :classified_as    (array object-type/painting))
       (with :referred_to_by   ((:type "LinguisticObject" :_label "Article about Painting")))
       (with :member_of        ((:type "Set" :_label "Museum Collection")))
       (with :shows            ((:type "VisualItem" :_label "Visual Work of Example Painting")))

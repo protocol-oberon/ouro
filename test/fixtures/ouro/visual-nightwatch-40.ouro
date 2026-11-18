@@ -10,4 +10,4 @@
 (graph visual-nightwatch-40
   (-> (visual "nightwatch/40" "Appearance of Night Watch")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as (list style/baroque))))
+      (with :classified_as (array style/baroque))))

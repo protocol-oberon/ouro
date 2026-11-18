@@ -13,6 +13,6 @@
 (graph object-spring-back
   (-> (object "spring/back" "Back of Spring by Manet")
       (with :context        "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as  (list part-type/back-part))
-      (with :referred_to_by (list (base/statement statement-type/inscription-statement "11505F")))
-      (with :part_of        (list (object "spring" "Jeanne (Spring) by Manet")))))
+      (with :classified_as  (array part-type/back-part))
+      (with :referred_to_by (array (base/statement statement-type/inscription-statement "11505F")))
+      (with :part_of        (array (object "spring" "Jeanne (Spring) by Manet")))))

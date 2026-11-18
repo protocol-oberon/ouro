@@ -10,5 +10,5 @@
 (graph visual-harpers-1
   (-> (visual "harpers/1" "Visual Content of Harpers")
       (with :context        "https://linked.art/ns/v1/linked-art.json")
-      (with :referred_to_by (list (base/description "The text and image are primarily red and black")))
-      (with :represents     (list (base/aat "300025943" "Woman")))))
+      (with :referred_to_by (array (base/description "The text and image are primarily red and black")))
+      (with :represents     (array (base/aat "300025943" "Woman")))))

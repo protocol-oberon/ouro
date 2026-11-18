@@ -10,5 +10,5 @@
 (graph text-koot-nightwatch-3
   (-> (text "koot_nightwatch/3" "Content of Koot's Night Watch")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as (list object-type/monograph))
+      (with :classified_as (array object-type/monograph))
       (with :about         ((:id (example "object/nightwatch") :type "HumanMadeObject" :_label "The Night Watch")))))

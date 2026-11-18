@@ -9,7 +9,7 @@
   (+ "https://linked.art/example/" path))
 
 (define/procedure provenance #record (#string slug #string label)
-  (:id (example (+ "provenance/" slug)) :type "Activity" :_label label :classified_as (list vocab/provenance-activity)))
+  (:id (example (+ "provenance/" slug)) :type "Activity" :_label label :classified_as (array vocab/provenance-activity)))
 
 (define/procedure node #record (#string path #string type #string label)
   (:id (example path) :type type :_label label))
@@ -22,8 +22,8 @@
 (graph provenance-manet-proust-1
   (-> (provenance "manet_proust/1" "Purchase of Spring by Proust")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :identified_by (list (base/name vocab/primary-name "Purchase of Spring by Proust from Manet")))
+      (with :identified_by (array (base/name vocab/primary-name "Purchase of Spring by Proust from Manet")))
       (with :timespan      (time/year-range "1881" "1883"))
-      (with :part          (list (with (provenance/acquisition spring manet proust) :_label "Ownership of Spring to Proust")
-                                 (with (provenance/payment (provenance/money 3000 currency/french-francs) proust manet)
+      (with :part          (array (with (provenance/acquisition spring manet proust) :_label "Ownership of Spring to Proust")
+                                  (with (provenance/payment (provenance/money 3000 currency/french-francs) proust manet)
                                   :_label "3000 Francs to Manet")))))

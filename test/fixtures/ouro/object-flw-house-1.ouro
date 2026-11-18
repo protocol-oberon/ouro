@@ -12,6 +12,6 @@
 (graph object-flw-house-1
   (-> (object "flw_house/1" "Frank Lloyd Wright House")
       (with :context          "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as    (list (base/aat "300004792" "Building")))
+      (with :classified_as    (array (base/aat "300004792" "Building")))
       (with :identified_by    ((:type "Name" :content "Frank Lloyd Wright House")))
       (with :current_location (:id (example "place/crystal_bridges") :type "Place" :_label "Crystal Bridges"))))

@@ -12,6 +12,6 @@
 (graph group-harwoodstudio-1
   (-> (group "harwoodstudio/1" "Studio of Francis Harwood")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as (list group-type/studio))
+      (with :classified_as (array group-type/studio))
       (with :formed_by     (:type          "Formation"
-                            :influenced_by (list (base/ulan "500015886" "Person" "Francis Harwood"))))))
+                            :influenced_by (array (base/ulan "500015886" "Person" "Francis Harwood"))))))

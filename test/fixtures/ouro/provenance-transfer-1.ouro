@@ -5,7 +5,7 @@
   (+ "https://linked.art/example/" path))
 
 (define/procedure provenance #record (#string slug #string label)
-  (:id (example (+ "provenance/" slug)) :type "Activity" :_label label :classified_as (list vocab/provenance-activity)))
+  (:id (example (+ "provenance/" slug)) :type "Activity" :_label label :classified_as (array vocab/provenance-activity)))
 
 (define/procedure node #record (#string path #string type #string label)
   (:id (example path) :type type :_label label))
@@ -15,6 +15,6 @@
   (-> (provenance "transfer/1" "Transfer of Painting")
       (with :context "https://linked.art/ns/v1/linked-art.json")
       (with :part    ((:type             "Transfer"
-                       :transferred      (list (node "object/example" "HumanMadeObject" "Example Painting"))
-                       :transferred_from (list (node "person/person1" "Person" "Person 1"))
-                       :transferred_to   (list (node "person/person2" "Person" "Person 2")))))))
+                       :transferred      (array (node "object/example" "HumanMadeObject" "Example Painting"))
+                       :transferred_from (array (node "person/person1" "Person" "Person 1"))
+                       :transferred_to   (array (node "person/person2" "Person" "Person 2")))))))

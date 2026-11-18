@@ -12,6 +12,6 @@
 (graph concept-painting-3
   (-> (concept "painting/3" "Local Copy of Painting")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as (list vocab/type-of-work))
-      (with :equivalent    (list (base/aat "300033618" "Painting")))
-      (with :broader       (list (base/aat "300191086" "visual works")))))
+      (with :classified_as (array vocab/type-of-work))
+      (with :equivalent    (array (base/aat "300033618" "Painting")))
+      (with :broader       (array (base/aat "300191086" "visual works")))))

@@ -13,6 +13,6 @@
   (-> (person "rembrandt/14" "Rembrandt")
       (with :context         "https://linked.art/ns/v1/linked-art.json")
       (with :participated_in ((:type          "Activity"
-                               :classified_as (list activity-type/burial)
+                               :classified_as (array activity-type/burial)
                                :timespan      (time/day-range "1669-10-04" "1669-11-01")
                                :took_place_at ((:id (example "place/westerkerk") :type "Place" :_label "Place of Westerkerk")))))))

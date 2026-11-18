@@ -11,6 +11,6 @@
 (graph set-exhset-1
   (-> (exhibition/set (example "set/exhset/1") "Exhibition objects")
       (with :context        "https://linked.art/ns/v1/linked-art.json")
-      (with :identified_by  (list (base/name vocab/primary-name "Objects in Manet and Modern Beauty")))
-      (with :referred_to_by (list (base/description "Objects in the exhibition Manet and Modern Beauty at the Art Institute of Chicago and the Getty Museum")))
+      (with :identified_by  (array (base/name vocab/primary-name "Objects in Manet and Modern Beauty")))
+      (with :referred_to_by (array (base/description "Objects in the exhibition Manet and Modern Beauty at the Art Institute of Chicago and the Getty Museum")))
       (with :created_by     (:type "Creation" :timespan (time/day "2019-05-01")))))

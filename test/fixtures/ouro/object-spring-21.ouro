@@ -13,7 +13,7 @@
 (graph object-spring-21
   (-> (object "spring/21" "Spring")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as (list object-type/painting))
+      (with :classified_as (array object-type/painting))
       (with :attributed_by ((:type              "AttributeAssignment"
                              :timespan          (time/year "2015")
                              :assigned_property "made_of"

@@ -10,4 +10,4 @@
 (graph person-rembrandt-12
   (-> (person "rembrandt/12" "Rembrandt")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :contact_point (list (actor/street-address "Jodenbreestraat 4, 1011 NK Amsterdam")))))
+      (with :contact_point (array (actor/street-address "Jodenbreestraat 4, 1011 NK Amsterdam")))))

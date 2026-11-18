@@ -13,6 +13,6 @@
 (graph object-letter-1
   (-> (object "letter/1" "Obermeyer 1920")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as (list (base/aat "300026879" "Letter")))
-      (with :identified_by (list (base/name vocab/primary-name "Obermeyer, Bertha (1920)")))
+      (with :classified_as (array (base/aat "300026879" "Letter")))
+      (with :identified_by (array (base/name vocab/primary-name "Obermeyer, Bertha (1920)")))
       (with :member_of     ((:id (example "set/archive_sfl") :type "Set" :_label "Stieglitz Family Letters")))))

@@ -13,12 +13,12 @@
 (graph text-koot-nightwatch-2
   (-> (text "koot_nightwatch/2" "Content of Koot's Night Watch")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as (list object-type/monograph))
+      (with :classified_as (array object-type/monograph))
       (with :created_by    (:type           "Creation"
                             :_label         "Koot's writing of the work"
                             :carried_out_by ((:id (example "person/koot") :type "Person" :_label "Ton Koot"))))
       (with :used_for      ((:type           "Activity"
                              :_label         "MI's Publishing"
-                             :classified_as  (list vocab/publication-activity)
+                             :classified_as  (array vocab/publication-activity)
                              :timespan       (time/year "1969")
                              :carried_out_by ((:id (example "group/meulenhoff") :type "Group" :_label "Meulenhoff International")))))))

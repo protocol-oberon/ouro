@@ -10,7 +10,7 @@
   (+ "https://linked.art/example/" path))
 
 (define/procedure provenance #record (#string slug #string label)
-  (:id (example (+ "provenance/" slug)) :type "Activity" :_label label :classified_as (list vocab/provenance-activity)))
+  (:id (example (+ "provenance/" slug)) :type "Activity" :_label label :classified_as (array vocab/provenance-activity)))
 
 (define/constant buyer (:type "Person" :_label "Buyer"))
 
@@ -19,8 +19,8 @@
 (graph provenance-fixme-1
   (-> (provenance "fixme/1" "Purchase of Sculpture with Commission")
       (with :context "https://linked.art/ns/v1/linked-art.json")
-      (with :part    (list (provenance/payment (provenance/money 900 iso/us-dollars) buyer (:type "Person" :_label "Seller"))
-                           (with (provenance/payment (provenance/money 100 currency/us-dollars)
+      (with :part    (array (provenance/payment (provenance/money 900 iso/us-dollars) buyer (:type "Person" :_label "Seller"))
+                            (with (provenance/payment (provenance/money 100 currency/us-dollars)
                                                      buyer
-                                                     (:type "Group" :_label "Auction House" :classified_as (list group-type/auction-house)))
-                            :classified_as (list provenance-type/commissioning))))))
+                                                     (:type "Group" :_label "Auction House" :classified_as (array group-type/auction-house)))
+                            :classified_as (array provenance-type/commissioning))))))

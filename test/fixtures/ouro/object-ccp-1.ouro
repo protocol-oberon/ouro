@@ -11,7 +11,7 @@
 (graph object-ccp-1
   (-> (object "ccp/1" "Chaucer's Canterbury Pilgrims")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as (list object-type/print))
+      (with :classified_as (array object-type/print))
       (with :produced_by   (:type                 "Production"
                             :_label               "Printing from Plate"
-                            :used_specific_object (list (object "ccp-plate" "Plate for CCP"))))))
+                            :used_specific_object (array (object "ccp-plate" "Plate for CCP"))))))

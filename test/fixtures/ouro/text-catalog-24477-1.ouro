@@ -13,6 +13,6 @@
 (graph text-catalog-24477-1
   (-> (text "catalog_24477/1" "Auction Catalog")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as (list object-type/auction-catalog))
-      (with :identified_by (list (base/name vocab/primary-name "Impressionist & Modern Evening Sale Catalog")))
+      (with :classified_as (array object-type/auction-catalog))
+      (with :identified_by (array (base/name vocab/primary-name "Impressionist & Modern Evening Sale Catalog")))
       (with :about         ((:id (example "event/christies_24477") :type "Activity" :_label "Impressionist Sale")))))

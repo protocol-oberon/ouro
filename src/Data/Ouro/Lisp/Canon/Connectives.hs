@@ -81,14 +81,12 @@ chain pos isAll = \case
     asBool operand = S.Tagged (S.exprPos operand) S.BooleanTag operand
 
 
--- The elements of an array written in place: (), #array-empty, an (array ...) or (list ...),
--- or a form that is neither a call, with a name at its head, nor a record, with an attribute
--- pair in it
+-- The elements of an array written in place: (), #array-empty, an (array ...), or a form
+-- that is neither a call, with a name at its head, nor a record, with an attribute pair in it
 writtenArray :: S.Expr -> Maybe [S.Expr]
 writtenArray = \case
     S.Literal _ S.EmptyArr               -> Just []
     S.Form _ (S.Symbol _ "array" : elems) -> Just elems
-    S.Form _ (S.Symbol _ "list" : elems)  -> Just elems
     S.Form _ elems@(first : _)
         | not (isName first)
         , not (any S.isAttrForm elems)  -> Just elems

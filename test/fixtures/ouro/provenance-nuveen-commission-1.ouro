@@ -7,7 +7,7 @@
   (+ "https://linked.art/example/" path))
 
 (define/procedure provenance #record (#string slug #string label)
-  (:id (example (+ "provenance/" slug)) :type "Activity" :_label label :classified_as (list vocab/provenance-activity)))
+  (:id (example (+ "provenance/" slug)) :type "Activity" :_label label :classified_as (array vocab/provenance-activity)))
 
 (define/procedure node #record (#string path #string type #string label)
   (:id (example path) :type type :_label label))
@@ -19,10 +19,10 @@
 (define/procedure promise #record (#string label #record description #record by #record to)
   (:type           "Activity"
    :_label         label
-   :classified_as  (list provenance-type/promise)
-   :referred_to_by (list description)
-   :carried_out_by (list by)
-   :participant    (list to)))
+   :classified_as  (array provenance-type/promise)
+   :referred_to_by (array description)
+   :carried_out_by (array by)
+   :participant    (array to)))
 
 ;; A commission: two promises, the patron's to pay and the artist's to paint. linked.art's
 ;; second description is not classified Brief Text, so it is written out.
@@ -30,11 +30,11 @@
   (-> (provenance "nuveen_commission/1" "Commission of Painting")
       (with :context "https://linked.art/ns/v1/linked-art.json")
       (adjoin :classified_as provenance-type/commissioning)
-      (with :part    (list (promise "Obligation to Pay Artist"
+      (with :part    (array (promise "Obligation to Pay Artist"
                                     (base/description "Promise to pay for a painting to be created by the artist")
                                     franke dine)
                            (promise "Obligation to Produce Painting"
                                     (:type          "LinguisticObject"
-                                     :classified_as (list (base/aat "300435416" "Description"))
+                                     :classified_as (array (base/aat "300435416" "Description"))
                                      :content       "Promise to produce a painting for the commissioning party")
                                     dine franke)))))

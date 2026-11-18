@@ -11,5 +11,5 @@
 (graph object-gradualpage-1
   (-> (object "gradualpage/1" "Page from a Gradual")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as (list object-type/page))
+      (with :classified_as (array object-type/page))
       (with :removed_by    ((:type "PartRemoval" :diminished (object "gradual" "Gradual"))))))

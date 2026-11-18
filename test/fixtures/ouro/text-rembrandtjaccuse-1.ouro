@@ -13,7 +13,7 @@
 
 ;; A part of a creation, by the role of who carried it out
 (define/procedure role #record (#record kind #record who)
-  (:type "Creation" :classified_as (list kind) :carried_out_by (list who)))
+  (:type "Creation" :classified_as (array kind) :carried_out_by (array who)))
 
 ;; A film's creation, in its parts: directed by one person, produced by another
 (graph text-rembrandtjaccuse-1
@@ -21,5 +21,5 @@
       (with :context    "https://linked.art/ns/v1/linked-art.json")
       (with :created_by (:type     "Creation"
                          :timespan (with (time/year "2008") :_label "2008")
-                         :part     (list (role role-type/director (person "greenaway" "Peter Greenaway"))
-                                         (role role-type/producer (person "wolting" "Femke Wolting")))))))
+                         :part     (array (role role-type/director (person "greenaway" "Peter Greenaway"))
+                                          (role role-type/producer (person "wolting" "Femke Wolting")))))))

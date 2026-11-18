@@ -14,7 +14,7 @@
       (with :representation ((:type               "VisualItem"
                               :digitally_shown_by ((:type          "DigitalObject"
                                                     :_label        "Image of Rembrandt"
-                                                    :classified_as (list digital-type/digital-image)
+                                                    :classified_as (array digital-type/digital-image)
                                                     :format        "image/jpeg"
                                                     :access_point  ((:id   #uri "https://upload.wikimedia.org/wikipedia/commons/b/bd/Rembrandt_van_Rijn_-_Self-Portrait_-_Google_Art_Project.jpg"
                                                                      :type "DigitalObject")))))))))

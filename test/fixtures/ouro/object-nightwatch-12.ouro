@@ -12,5 +12,5 @@
 (graph object-nightwatch-12
   (-> (object "nightwatch/12" "Night Watch by Rembrandt")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as (list object-type/painting))
-      (with :made_of       (list material/oil-paint material/canvas))))
+      (with :classified_as (array object-type/painting))
+      (with :made_of       (array material/oil-paint material/canvas))))

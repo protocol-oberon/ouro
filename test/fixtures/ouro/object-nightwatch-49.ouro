@@ -11,4 +11,4 @@
 (graph object-nightwatch-49
   (-> (object "nightwatch/49" "Night Watch by Rembrandt")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as (list vocab/collection-item))))
+      (with :classified_as (array vocab/collection-item))))

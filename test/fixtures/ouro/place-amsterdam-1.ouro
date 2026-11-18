@@ -13,8 +13,8 @@
 (graph place-amsterdam-1
   (-> (place "amsterdam/1" "Amsterdam")
       (with :context        "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as  (list place-type/city))
+      (with :classified_as  (array place-type/city))
       (with :identified_by  ((:type "Name" :content "Amsterdam")))
-      (with :referred_to_by (list (base/description "Amsterdam is a city in the Netherlands")))
-      (with :part_of        (list (-> (place "netherlands" "Netherlands")
-                                      (with :classified_as (list place-type/country)))))))
+      (with :referred_to_by (array (base/description "Amsterdam is a city in the Netherlands")))
+      (with :part_of        (array (-> (place "netherlands" "Netherlands")
+                                      (with :classified_as (array place-type/country)))))))

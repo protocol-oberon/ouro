@@ -16,8 +16,8 @@
 (graph set-2
   (-> (set "2" "Set of Objects for Lot 812")
       (with :context   "https://linked.art/ns/v1/linked-art.json")
-      (with :dimension (list (-> (provenance/money 500 iso/us-dollars)
+      (with :dimension (array (-> (provenance/money 500 iso/us-dollars)
                                  (with :_label         "$500")
-                                 (with :classified_as  (list price-type/starting-price))
-                                 (with :identified_by  (list (base/name vocab/display-name "500 US Dollars")))
-                                 (with :referred_to_by (list (base/statement statement-type/note "From personal correspondence"))))))))
+                                 (with :classified_as  (array price-type/starting-price))
+                                 (with :identified_by  (array (base/name vocab/display-name "500 US Dollars")))
+                                 (with :referred_to_by (array (base/statement statement-type/note "From personal correspondence"))))))))

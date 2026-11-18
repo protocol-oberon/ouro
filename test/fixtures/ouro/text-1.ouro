@@ -15,4 +15,4 @@
       (with :subject_to ((:type          "Right"
                           :_label        "Public Domain status of Example Text"
                           :classified_as ((:id #uri "https://creativecommons.org/publicdomain/zero/1.0/" :type "Type" :_label "cc0"))
-                          :identified_by (list (base/name vocab/display-name "Public Domain")))))))
+                          :identified_by (array (base/name vocab/display-name "Public Domain")))))))

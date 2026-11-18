@@ -6,7 +6,7 @@
   (+ "https://linked.art/example/" path))
 
 (define/procedure provenance #record (#string slug #string label)
-  (:id (example (+ "provenance/" slug)) :type "Activity" :_label label :classified_as (list vocab/provenance-activity)))
+  (:id (example (+ "provenance/" slug)) :type "Activity" :_label label :classified_as (array vocab/provenance-activity)))
 
 (define/procedure node #record (#string path #string type #string label)
   (:id (example path) :type type :_label label))
@@ -17,7 +17,7 @@
       (with :context "https://linked.art/ns/v1/linked-art.json")
       (with :part    ((:type                     "TransferOfCustody"
                        :_label                   "Return"
-                       :classified_as            (list provenance-type/return-of-loan)
-                       :transferred_custody_of   (list (node "object/spring" "HumanMadeObject" "Spring"))
-                       :transferred_custody_from (list (node "group/aic" "Group" "Art Institute of Chicago"))
-                       :transferred_custody_to   (list (node "group/getty" "Group" "Getty Museum")))))))
+                       :classified_as            (array provenance-type/return-of-loan)
+                       :transferred_custody_of   (array (node "object/spring" "HumanMadeObject" "Spring"))
+                       :transferred_custody_from (array (node "group/aic" "Group" "Art Institute of Chicago"))
+                       :transferred_custody_to   (array (node "group/getty" "Group" "Getty Museum")))))))

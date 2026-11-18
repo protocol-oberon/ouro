@@ -12,7 +12,7 @@
 (graph object-nuveen-1
   (-> (object "nuveen/1" "Nuveen Painting")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :identified_by (list (base/name vocab/primary-name "The Nuveen Painting")))
+      (with :identified_by (array (base/name vocab/primary-name "The Nuveen Painting")))
       (with :produced_by   (:type           "Production"
                             :carried_out_by ((:id (example "person/dine") :type "Person" :_label "Jim Dine"))
                             :caused_by      ((:id (example "event/nuveen_commission") :type "Activity" :_label "Commission"))))))

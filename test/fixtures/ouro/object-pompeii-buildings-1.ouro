@@ -13,5 +13,5 @@
 (graph object-pompeii-buildings-1
   (-> (object "pompeii-buildings/1" "Buildings making up the city of Pompeii")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :identified_by (list (base/name vocab/primary-name "City of Pompeii")))
+      (with :identified_by (array (base/name vocab/primary-name "City of Pompeii")))
       (with :destroyed_by  (:type "Destruction" :caused_by ((:id (example "event/vesuvius") :type "Event"))))))

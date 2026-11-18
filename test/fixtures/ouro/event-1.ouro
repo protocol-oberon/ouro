@@ -16,5 +16,5 @@
                                  (time/span #date "1749-01-01T00:00:00Z" #date "1780-01-01T00:00:00Z"))
               :_label         "1 day, c. 1750"
               :identified_by  ((:type "Name" :content "1 day, during circa 1750"))
-              :referred_to_by (list (base/description "About 1750, as estimated by C. U. Rata"))
+              :referred_to_by (array (base/description "About 1750, as estimated by C. U. Rata"))
               :duration       (:type "Dimension" :value 1 :unit object/day-unit))))

@@ -13,4 +13,4 @@
 (graph object-nightwatch-47
   (-> (object "nightwatch/47" "Night Watch by Rembrandt")
       (with :context   "https://linked.art/ns/v1/linked-art.json")
-      (with :dimension (list (with (object/dimension vocab/color 11754015.0 unit/rgb) :_label "brown")))))
+      (with :dimension (array (with (object/dimension vocab/color 11754015.0 unit/rgb) :_label "brown")))))

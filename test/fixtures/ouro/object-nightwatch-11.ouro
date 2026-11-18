@@ -11,4 +11,4 @@
 (graph object-nightwatch-11
   (-> (object "nightwatch/11" "Night Watch by Rembrandt")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as (list object-type/painting shape/oblong))))
+      (with :classified_as (array object-type/painting shape/oblong))))

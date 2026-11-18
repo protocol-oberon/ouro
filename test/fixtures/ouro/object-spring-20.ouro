@@ -13,6 +13,6 @@
 (graph object-spring-20
   (-> (object "spring/20" "Spring")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as (list object-type/painting))
-      (with :identified_by (list (base/name vocab/primary-name "Jeanne (Spring)")))
+      (with :classified_as (array object-type/painting))
+      (with :identified_by (array (base/name vocab/primary-name "Jeanne (Spring)")))
       (with :member_of     ((:id (example "set/24477_16_objects") :type "Set" :_label "Lot 16: Le Printemps")))))

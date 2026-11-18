@@ -13,7 +13,7 @@
 (graph set-1
   (-> (set "1" "Collection of the Met")
       (with :context        "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as  (list set-type/collection))
+      (with :classified_as  (array set-type/collection))
       (with :identified_by  ((:type "Name" :content "Art Collection of the Metropolitan Museum of Art")))
-      (with :referred_to_by (list (base/description "Over 2 million works, divided into 17 curatorial departments")))
+      (with :referred_to_by (array (base/description "Over 2 million works, divided into 17 curatorial departments")))
       (with :created_by     (:type "Creation" :timespan (with (time/day "1870-04-13") :_label "April 13th, 1870")))))

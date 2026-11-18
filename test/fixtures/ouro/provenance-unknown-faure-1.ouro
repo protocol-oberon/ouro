@@ -5,11 +5,11 @@
   (+ "https://linked.art/example/" path))
 
 (define/procedure provenance #record (#string slug #string label)
-  (:id (example (+ "provenance/" slug)) :type "Activity" :_label label :classified_as (list vocab/provenance-activity)))
+  (:id (example (+ "provenance/" slug)) :type "Activity" :_label label :classified_as (array vocab/provenance-activity)))
 
 ;; An acquisition whose date is unknown, placed between the events before and after it
 (graph provenance-unknown-faure-1
   (-> (provenance "unknown_faure/1" "Unknown Acquisition of Spring by Faure")
       (with :context "https://linked.art/ns/v1/linked-art.json")
-      (with :after   ((:id (example "provenance/manet_proust") :type "Activity" :classified_as (list vocab/provenance-activity))))
-      (with :before  ((:type "Activity" :_label "foure_durand" :classified_as (list vocab/provenance-activity))))))
+      (with :after   ((:id (example "provenance/manet_proust") :type "Activity" :classified_as (array vocab/provenance-activity))))
+      (with :before  ((:type "Activity" :_label "foure_durand" :classified_as (array vocab/provenance-activity))))))

@@ -5,7 +5,7 @@
   (+ "https://linked.art/example/" path))
 
 (define/procedure provenance #record (#string slug #string label)
-  (:id (example (+ "provenance/" slug)) :type "Activity" :_label label :classified_as (list vocab/provenance-activity)))
+  (:id (example (+ "provenance/" slug)) :type "Activity" :_label label :classified_as (array vocab/provenance-activity)))
 
 (define/procedure node #record (#string path #string type #string label)
   (:id (example path) :type type :_label label))
@@ -19,8 +19,8 @@
       (with :context "https://linked.art/ns/v1/linked-art.json")
       (with :part    ((:type                   "Acquisition"
                        :_label                 "Acquisition of Personnages"
-                       :transferred_title_of   (list (node "object/masson_personnages" "HumanMadeObject" "Personnages dans un parc")
-                                                     (node "object/beckmann_nude" "HumanMadeObject" "Nude Woman by Beckmann"))
-                       :transferred_title_from (list feigen yuag)
-                       :transferred_title_to   (list yuag feigen))
+                       :transferred_title_of   (array (node "object/masson_personnages" "HumanMadeObject" "Personnages dans un parc")
+                                                      (node "object/beckmann_nude" "HumanMadeObject" "Nude Woman by Beckmann"))
+                       :transferred_title_from (array feigen yuag)
+                       :transferred_title_to   (array yuag feigen))
                       (:type "Acquisition" :_label "Acquisition of Nude")))))

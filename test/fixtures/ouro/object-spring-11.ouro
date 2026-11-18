@@ -12,11 +12,11 @@
 (graph object-spring-11
   (-> (object "spring/11" "Jeanne (Spring) by Manet")
       (with :context        "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as  (list object-type/painting))
+      (with :classified_as  (array object-type/painting))
       (with :identified_by  ((:type "Name" :content "Jeanne (Spring)")))
       (with :representation ((:type               "VisualItem"
                               :digitally_shown_by ((:type                    "DigitalObject"
-                                                    :classified_as           (list digital-type/digital-image)
+                                                    :classified_as           (array digital-type/digital-image)
                                                     :access_point            ((:id #uri "https://media.getty.edu/iiif/image/8094f61e-e458-42bd-90cf-a0ed0dcc90b9/full/full/0/default.jpg" :type "DigitalObject"))
                                                     :digitally_available_via ((:type         "DigitalService"
                                                                                :access_point ((:id #uri "https://media.getty.edu/iiif/image/8094f61e-e458-42bd-90cf-a0ed0dcc90b9" :type "DigitalObject"))

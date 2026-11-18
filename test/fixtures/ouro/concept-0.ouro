@@ -11,7 +11,7 @@
 (graph concept-0
   (-> (exhibition/concept (example "concept/0") "Gainsborough Exh.")
       (with :context        "https://linked.art/ns/v1/linked-art.json")
-      (with :identified_by  (list (base/name vocab/primary-name "Gainsborough Exhibition")))
-      (with :referred_to_by (list (base/statement statement-type/abstract"A thorough analysis of the artist's life and work")))
-      (with :about          (list (base/ulan "500115200" "Person" "Gainsborough, Thomas")))
-      (with :created_by     (:type "Creation" :carried_out_by (list (base/ulan "500144588" "Person" "Hayes, Brett"))))))
+      (with :identified_by  (array (base/name vocab/primary-name "Gainsborough Exhibition")))
+      (with :referred_to_by (array (base/statement statement-type/abstract"A thorough analysis of the artist's life and work")))
+      (with :about          (array (base/ulan "500115200" "Person" "Gainsborough, Thomas")))
+      (with :created_by     (:type "Creation" :carried_out_by (array (base/ulan "500144588" "Person" "Hayes, Brett"))))))

@@ -102,7 +102,7 @@ letAndFn = Group "Bindings: let, fn and defn"
                                                                   "{\"r\": true, \"s\": 2}")
     , ("a $ binding can hold a record",            compilesToJSON "(graph g (let ($node (:type \"Type\" :_label \"Painting\")) (:r node)))"
                                                                   "{\"r\": {\"type\": \"Type\", \"_label\": \"Painting\"}}")
-    , ("list puts a bound record in an array",    compilesToJSON "(graph g (let ($m (:id \"manet\")) (:r (list m))))"
+    , ("array puts a bound record in an array",    compilesToJSON "(graph g (let ($m (:id \"manet\")) (:r (array m))))"
                                                                   "{\"r\": [{\"id\": \"manet\"}]}")
     , ("a key in a let is an error",               failsWith "marks a key in the output"
                                                              "(graph g (:r (let (:a 1) a)))")

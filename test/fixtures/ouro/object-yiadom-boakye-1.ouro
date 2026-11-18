@@ -16,12 +16,12 @@
                    :carried_out_by ((:id            (example (+ "group/" museum))
                                      :type          "Group"
                                      :_label        label
-                                     :classified_as (list group-type/museum)))))))
+                                     :classified_as (array group-type/museum)))))))
 
 ;; A painting owned jointly by two museums, each giving it an accession number of its own
 (graph object-yiadom-boakye-1
   (-> (object "yiadom-boakye/1" "Portrait of Lynette Yiadom-Boakye")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as (list object-type/painting))
-      (with :identified_by (list (accession "2021.25.1" "yuag" "Yale University Art Gallery")
-                                 (accession "B2021.5" "ycba" "Yale Center for British Art")))))
+      (with :classified_as (array object-type/painting))
+      (with :identified_by (array (accession "2021.25.1" "yuag" "Yale University Art Gallery")
+                                  (accession "B2021.5" "ycba" "Yale Center for British Art")))))

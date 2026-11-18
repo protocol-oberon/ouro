@@ -17,20 +17,20 @@
 (graph digital-0
   (-> (digital "0" "Digital Image of Self-Portrait of Van Gogh")
       (with :context                 "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as           (list digital-type/digital-image))
+      (with :classified_as           (array digital-type/digital-image))
       (with :identified_by           ((:type "Name" :content "Self-Portrait Dedicated to Paul Gauguin")
                                       (base/identifier identifier-type/local-number "47174896")))
-      (with :dimension               (list (object/height 2550 object/pixels)
-                                           (object/width 2087 object/pixels)))
-      (with :part_of                 (list (with (at #uri "https://iiif.harvardartmuseums.org/manifests/object/299843")
+      (with :dimension               (array (object/height 2550 object/pixels)
+                                            (object/width 2087 object/pixels)))
+      (with :part_of                 (array (with (at #uri "https://iiif.harvardartmuseums.org/manifests/object/299843")
                                                  :_label "IIIF Manifest")))
       (with :member_of               ((:id (example "set/0") :type "Set" :_label "Images of Self-Portraits of Van Gogh")))
-      (with :access_point            (list (at #uri "https://ids.lib.harvard.edu/ids/iiif/47174896/full/full/0/default.jpg")))
+      (with :access_point            (array (at #uri "https://ids.lib.harvard.edu/ids/iiif/47174896/full/full/0/default.jpg")))
       (with :digitally_shows         ((:type "VisualItem" :_label "Visual Content of Self-Portrait of Van Gogh")))
       (with :format                  "image/jpeg")
       (with :digitally_available_via ((:type         "DigitalService"
                                        :_label       "IIIF Service"
-                                       :access_point (list (at #uri "https://ids.lib.harvard.edu/ids/iiif/47174896"))
+                                       :access_point (array (at #uri "https://ids.lib.harvard.edu/ids/iiif/47174896"))
                                        :conforms_to  ((:id #uri "https://iiif.io/api/image/2/context.json" :type "InformationObject")))))
       (with :created_by              (:type                 "Creation"
                                       :carried_out_by       ((:id (example "group/harvardartmuseums.org") :type "Group" :_label "Harvard Art Museums"))

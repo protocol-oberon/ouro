@@ -6,7 +6,7 @@
   (+ "https://linked.art/example/" path))
 
 (define/procedure provenance #record (#string slug #string label)
-  (:id (example (+ "provenance/" slug)) :type "Activity" :_label label :classified_as (list vocab/provenance-activity)))
+  (:id (example (+ "provenance/" slug)) :type "Activity" :_label label :classified_as (array vocab/provenance-activity)))
 
 (define/procedure node #record (#string path #string type #string label)
   (:id (example path) :type type :_label label))
@@ -16,7 +16,7 @@
   (-> (provenance "mona_lisa_theft/1" "Theft of Mona Lisa")
       (with :context "https://linked.art/ns/v1/linked-art.json")
       (with :part    ((:type                     "TransferOfCustody"
-                       :classified_as            (list provenance-type/theft)
-                       :transferred_custody_of   (list (node "object/monalisa" "HumanMadeObject" "Mona Lisa"))
-                       :transferred_custody_from (list (node "group/louvre" "Group" "Louvre"))
-                       :transferred_custody_to   (list (node "person/peruggia" "Person" "Vincenzo Peruggia")))))))
+                       :classified_as            (array provenance-type/theft)
+                       :transferred_custody_of   (array (node "object/monalisa" "HumanMadeObject" "Mona Lisa"))
+                       :transferred_custody_from (array (node "group/louvre" "Group" "Louvre"))
+                       :transferred_custody_to   (array (node "person/peruggia" "Person" "Vincenzo Peruggia")))))))

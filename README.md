@@ -64,7 +64,7 @@ Two further `#` forms are values rather than properties, written in place of an 
 
 Ouro contains special forms designed for increased ergonomics for creating JSON-LD graphs. These forms interact with the JSON-LD graph in different ways.
 
-Their names are not reserved. As in Scheme, a binding of the same name, whether an attribute key, a `let` binding, a parameter or a `define/procedure`, shadows the form where it is in scope, and the form is then a call of the binding: `(let ($list (fn (x) (+ x 1))) (list 1))` is `2`. The forms rewritten before any name is bound, `and`, `or`, `->`, `with`, `adjoin` and `thru`, are the exception, for now: a binding of their names is ignored where they are called.
+Their names are not reserved. As in Scheme, a binding of the same name, whether an attribute key, a `let` binding, a parameter or a `define/procedure`, shadows the form where it is in scope, and the form is then a call of the binding: `(let ($array (fn (x) (+ x 1))) (array 1))` is `2`. The forms rewritten before any name is bound, `and`, `or`, `->`, `with`, `adjoin` and `thru`, are the exception, for now: a binding of their names is ignored where they are called.
 
 ### Let
 
@@ -133,7 +133,7 @@ A project that extends Linked Art adds its own terms after it, as an array:
 ```
 
 - A key starting with `@` is a JSON-LD keyword: `(:@vocab "https://example.org/" :@language "en")` is a local context. Any other key defines a term, which maps to an IRI or to an expanded definition record (`:@id`, `:@type`, `:@container`, ...).
-- A context is a value like any other, so a function can build one: `(define/constant linked-art "https://linked.art/ns/v1/linked-art.json")`, then `:context (list linked-art (:ex "https://example.org/ns/"))`.
+- A context is a value like any other, so a function can build one: `(define/constant linked-art "https://linked.art/ns/v1/linked-art.json")`, then `:context (array linked-art (:ex "https://example.org/ns/"))`.
 - A malformed context is reported where it is written: a remote context that is not an absolute URL, an unknown `@` keyword, or a term mapped to a Number, for example.
 - `:@context` means the same as `:context`. Ouro has no `null`, so a context cannot clear another, and no keyword or term is set to `null`; a record without `:context` has no `@context`.
 
@@ -313,21 +313,21 @@ Record patterns match by key, in any order, and attribute pairs the pattern does
 }
 ```
 
-### List
+### Array
 
-The compiler decides what an expression is from its shape alone, so there are cases where the developer intent must be made clear to the compiler. An example of this is the following expression `(id name type)`. Because its first element is a symbol, the compiler reads this as an expression where a function, `id` takes two arguments `name` and `type`.  However if the developer intends for this to be a list of values where the variables `id`, `name` and `type` are looked up, then they will have to use the `(list)` special form. The same goes for an Array of one bound value: `(manet)` would call `manet`, while `(list manet)` is an Array holding its value.
+The compiler decides what an expression is from its shape alone, so there are cases where the developer intent must be made clear to the compiler. An example of this is the following expression `(id name type)`. Because its first element is a symbol, the compiler reads this as an expression where a function, `id` takes two arguments `name` and `type`.  However if the developer intends for this to be a list of values where the variables `id`, `name` and `type` are looked up, then they will have to use the `(array)` special form. The same goes for an Array of one bound value: `(manet)` would call `manet`, while `(array manet)` is an Array holding its value.
 
 ```clojure
-(list id name type)
+(array id name type)
 ```
 
-This form simply tells the compiler to evaluation every expression after a `list` and store them in-place. So the following Ouro code:
+This form simply tells the compiler to evaluation every expression after an `array` and store them in-place. So the following Ouro code:
 
 ``` clojure
 (let ($name "Manet"
       $id   "https://linked.art/example/person/manet"
       $type "Person")
-  (:_list (list name id type)))
+  (:_list (array name id type)))
 ```
 
 ...complies to the following JSON-LD:
@@ -472,7 +472,7 @@ An inlaid record's `@context` is layered in too. The record ends up with the inl
 (graph amsterdam
   (-> (:id #uri "https://linked.art/example/place/amsterdam/1" :type "Place" :_label "Amsterdam")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as (list (base/aat "300008389" "City")))
+      (with :classified_as (array (base/aat "300008389" "City")))
       (with :identified_by ((:type "Name" :content "Amsterdam")))))
 ```
 
@@ -503,7 +503,7 @@ An inlaid record's `@context` is layered in too. The record ends up with the inl
 - A step's value goes in as its first argument, or where a hole marks it: `(-> 1 (- 10))` is `-9`, and `(-> 1 (- 10 ?))` is `9`. A bare name is called with the value, and so is a `fn`.
 - `(-> ? step ...)` is a function of the value, so a pipeline can be mapped: `(map records (-> ? (with :seen true)))`.
 - `with` extends an Array too: `(with (1 2) 3 4)` is `(1 2 3 4)`.
-- `with` writes a value as it is given, so a property that holds a set is written as an array, `(list (base/aat ...))`, as Linked Art writes it.
+- `with` writes a value as it is given, so a property that holds a set is written as an array, `(array (base/aat ...))`, as Linked Art writes it.
 
 ### Adjoin
 
@@ -514,7 +514,7 @@ An inlaid record's `@context` is layered in too. The record ends up with the inl
 (import std/vocab)
 
 (graph spring
-  (-> (:type "HumanMadeObject" :classified_as (list vocab/artwork))
+  (-> (:type "HumanMadeObject" :classified_as (array vocab/artwork))
       (adjoin :classified_as (base/work-type "300033618" "Painting"))
       (adjoin :classified_as vocab/artwork)))
 ```
@@ -547,7 +547,7 @@ An inlaid record's `@context` is layered in too. The record ends up with the inl
 ```
 
 - A value already there is not added again, compared as `eq` compares, by value; the values already there are kept as they are. A key that is added to always holds an Array.
-- A list adds its elements: `(adjoin r :k (list a b))`. An Array base adds the elements not there: `(adjoin (1 2) 2 3)` is `(1 2 3)`.
+- An array adds its elements: `(adjoin r :k (array a b))`. An Array base adds the elements not there: `(adjoin (1 2) 2 3)` is `(1 2 3)`.
 - `with` after `adjoin` sets the key; `adjoin` after `with` adds to it.
 
 ### Insert
@@ -600,7 +600,7 @@ A record can't end up with a key twice, so inserting an attribute pair whose key
 ```
 
 - Each operand that is reached must be a Boolean: `(and true 1)` is an error, `Expected data to have the property #boolean, got #number instead.` Ouro has no truthiness.
-- `all` and `any` stop early over an Array written in place, a literal or a `(list ...)`; an Array given another way, a binding or a `map`'s result, is evaluated whole and then read. `(all ())` is `true`, and `(any ())` is `false`.
+- `all` and `any` stop early over an Array written in place, a literal or an `(array ...)`; an Array given another way, a binding or a `map`'s result, is evaluated whole and then read. `(all ())` is `true`, and `(any ())` is `false`.
 - `(and a)` or `(and a b c)` is an error that suggests `all`.
 - They take holes like a call, `(map (true false) (or ? false))`, and are threading steps, `(-> true (and false))`.
 
@@ -730,7 +730,7 @@ A Number is written as JavaScript writes one, in the output and by `to-string`: 
 When the pieces are already an Array, thread it into a `fold` from `""`, or into `join` with a separator:
 
 ``` clojure
-(-> (list "https://example.org/" kind "/" slug) (fold "" +))
+(-> (array "https://example.org/" kind "/" slug) (fold "" +))
 (-> labels (map trim) (join ", "))                  ; "Manet, Proust"
 ```
 
@@ -895,7 +895,7 @@ A call with `?` holes among its arguments is not called: it is a function of its
   (let ($aat-type (node "http://vocab.getty.edu/aat/" "Type" ? ?)
         $inc      (+ ? 1)
         $square   (* ?n ?n))
-    (:classified_as (list (aat-type "300033618" "Painting"))
+    (:classified_as (array (aat-type "300033618" "Painting"))
      :count         (inc 41)
      :area          (square 7))))
 ```
@@ -920,7 +920,7 @@ A call with `?` holes among its arguments is not called: it is a function of its
 - A named hole is one parameter, however often it is written: `(* ?n ?n)` takes one.
 - A typed hole is a typed parameter: `(node #uri ? "Type")` checks and converts its argument, as a signature would.
 - A hole belongs to the call it is an argument of, so `(f (g ?))` passes `f` a function.
-- Any call takes holes: a `define/procedure`, a `fn`, a builtin, an imported function, and the special forms that evaluate their arguments (`get`, `image`, `insert`, `replace-at`, `list`, `map`). In `get` and `image` a hole stands for the target, never a key or an index.
+- Any call takes holes: a `define/procedure`, a `fn`, a builtin, an imported function, and the special forms that evaluate their arguments (`get`, `image`, `insert`, `replace-at`, `array`, `map`). In `get` and `image` a hole stands for the target, never a key or an index.
 - A placeholder is an ordinary `fn` value. It is called with exactly as many arguments as it has holes, and functions themselves stay uncurried.
 - A hole anywhere else (in an Array, in a Record, as a `let` value) is an error, and `?..rest` can only be written in a pattern. The holes in a `case` pattern or a [pattern parameter](#destructuring-parameters) match values; a placeholder can be written in a branch's body.
 
@@ -1078,9 +1078,9 @@ Module paths are written with `/` on every platform, Windows included.
 (graph idea-for-manet-and-modern-beauty
   (-> (exhibition/concept (example "concept/exhidea/1") "Idea for Manet and Modern Beauty")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :identified_by (list (base/name vocab/primary-name "Manet and Modern Beauty")))
-      (with :about         (list (base/aat "300055821" "Beauty")
-                                 (base/ulan "500010363" "Person" "Manet")))
+      (with :identified_by (array (base/name vocab/primary-name "Manet and Modern Beauty")))
+      (with :about         (array (base/aat "300055821" "Beauty")
+                                  (base/ulan "500010363" "Person" "Manet")))
       ;; A pattern parameter takes each pair apart
       (with :created_by    (:type           "Creation"
                             :carried_out_by (map (("allan" "Scott Allan")

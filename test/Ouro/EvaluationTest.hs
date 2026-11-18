@@ -30,7 +30,7 @@ tests = Group "Evaluation Tests (Surface to Higher IR)"
     , ("lowers Boolean syntax to Primitive I.Boolean", prop_lower_boolean)
     , ("lowers Empty collections correctly",           prop_lower_empty)
 
-    , ("evaluates (list ...) forms",                   prop_list_form)
+    , ("evaluates (array ...) forms",                   prop_list_form)
     , ("evaluates (%attr \"key\" val) forms",          prop_attr_form)
 
     , ("evaluates (+ 2 2) via env mapping",            prop_add_primitive)
@@ -83,7 +83,7 @@ prop_lower_empty = withTests 1 . property $ do
 prop_list_form :: Property
 prop_list_form = withTests 1 . property $ do
     let expr = S.Form dummyPos
-                [ S.Symbol dummyPos "list"
+                [ S.Symbol dummyPos "array"
                 , S.Literal dummyPos (S.Num 1)
                 , S.Literal dummyPos (S.Num 2)
                 ]

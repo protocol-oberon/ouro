@@ -15,7 +15,7 @@
   (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
 
 (define/procedure named #record (#string content #record language)
-  (with (base/name vocab/primary-name content) :language (list language)))
+  (with (base/name vocab/primary-name content) :language (array language)))
 
 ;; Linked Art's fullest object: names in three languages, an accession number, a description,
 ;; dimensions and materials, the sets it is in, what it shows, who owns it, where it is, and
@@ -23,15 +23,15 @@
 (graph object-0
   (-> (object "0" "Mona Lisa")
       (with :context          "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as    (list object-type/painting (base/aat "300133025" "Artwork")))
-      (with :identified_by    (list (named "Mona Lisa" iso/english)
-                                    (named "La Joconde" iso/french)
-                                    (named "La Gioconda" iso/italian)
-                                    (base/identifier identifier-type/accession-number "INV. 779")))
-      (with :referred_to_by   (list (base/description "This portrait was doubtless started in Florence around 1503. It is thought to be of Lisa Gherardini, wife of a Florentine cloth merchant ...")))
-      (with :dimension        (list (object/height 0.77 object/meters)
-                                    (object/width 0.53 object/meters)))
-      (with :made_of          (list material/poplar material/oil-paint))
+      (with :classified_as    (array object-type/painting (base/aat "300133025" "Artwork")))
+      (with :identified_by    (array (named "Mona Lisa" iso/english)
+                                     (named "La Joconde" iso/french)
+                                     (named "La Gioconda" iso/italian)
+                                     (base/identifier identifier-type/accession-number "INV. 779")))
+      (with :referred_to_by   (array (base/description "This portrait was doubtless started in Florence around 1503. It is thought to be of Lisa Gherardini, wife of a Florentine cloth merchant ...")))
+      (with :dimension        (array (object/height 0.77 object/meters)
+                                     (object/width 0.53 object/meters)))
+      (with :made_of          (array material/poplar material/oil-paint))
       (with :member_of        ((:type "Set" :_label "Most expensive paintings in the world")
                                (:id #uri "http://data.louvre.example/all_holdings" :type "Set" :_label "Holdings of the Louvre")))
       (with :shows            ((:id #uri "http://data.louvre.example/visual/mona_lisa" :type "VisualItem" :_label "Visual Work of the Mona Lisa")))
@@ -40,6 +40,6 @@
       (with :current_location (:id #uri "http://galleries.example/louvre/711" :type "Place" :_label "Room 711, Denon Wing, The Louvre, Paris"))
       (with :produced_by      (:type           "Production"
                                :timespan       (with (time/year-range "1503" "1506")
-                                                :identified_by (list (base/name vocab/display-name "1503-1506")))
-                               :took_place_at  (list (base/tgn "7000457" "Florence, Italy"))
-                               :carried_out_by (list (base/ulan "500010879" "Person" "Leonardo da Vinci"))))))
+                                                :identified_by (array (base/name vocab/display-name "1503-1506")))
+                               :took_place_at  (array (base/tgn "7000457" "Florence, Italy"))
+                               :carried_out_by (array (base/ulan "500010879" "Person" "Leonardo da Vinci"))))))

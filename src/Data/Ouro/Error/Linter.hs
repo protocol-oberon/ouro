@@ -4,8 +4,7 @@ module Data.Ouro.Error.Linter where
 
 import           Data.Char                   (isDigit, isLower, isUpper, toLower)
 import qualified Data.Map.Strict             as Map
-import           Data.Ouro.Error.Diagnostics (deprecatedSyntax, notKebabCase,
-                                              parenthesisedResult,
+import           Data.Ouro.Error.Diagnostics (notKebabCase, parenthesisedResult,
                                               procedureOfNoParameters,
                                               shadowedBuiltin,
                                               undocumentedRefinement)
@@ -81,20 +80,6 @@ lintModule ouroModule =
        , Just kebab <- [kebabCase name] ]
     <> [ OuroWarning pos (undocumentedRefinement name)
        | M.SomeFunction (M.Function M.RefinementKind pos name Nothing _ _ _) <- Map.elems (ouroModule ^. M.functionRegistry) ]
-    <> case Map.member "list" (ouroModule ^. M.functionRegistry) of
-           True  -> []
-           False -> concat [ oldNames body | M.SomeFunction (M.Function _ _ _ _ _ _ body) <- Map.elems (ouroModule ^. M.functionRegistry) ]
-                 <> concat [ oldNames expr | M.Graph _ _ expr <- Map.elems (ouroModule ^. M.graphRegistry) ]
-
-
--- Every (list ...), the Array constructor's old name, which is now array (gap 55). A module
--- that defines its own list calls it, so it is not warned about.
-oldNames :: S.Expr -> [OuroWarning]
-oldNames = \case
-    S.Form _ (S.Symbol pos "list" : rest) -> OuroWarning pos (deprecatedSyntax "list" "array") : concatMap oldNames rest
-    S.Form    _ exprs                     -> concatMap oldNames exprs
-    S.Tagged  _ _ expr                    -> oldNames expr
-    _leaf                                 -> []
 
 
 -- The kebab-case spelling of a name with capitals or underscores, or Nothing when it has

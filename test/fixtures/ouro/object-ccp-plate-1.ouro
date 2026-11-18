@@ -11,4 +11,4 @@
 (graph object-ccp-plate-1
   (-> (object "ccp-plate/1" "Plate for CCP")
       (with :context "https://linked.art/ns/v1/linked-art.json")
-      (with :made_of (list material/copper))))
+      (with :made_of (array material/copper))))

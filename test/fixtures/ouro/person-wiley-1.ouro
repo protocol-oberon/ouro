@@ -11,5 +11,5 @@
 (graph person-wiley-1
   (-> (person "wiley/1" "Kehinde Wiley")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as (list (adjoin (:id #uri "http://www.wikidata.org/entity/Q3007177" :type "Type" :_label "African-American")
+      (with :classified_as (array (adjoin (:id #uri "http://www.wikidata.org/entity/Q3007177" :type "Type" :_label "African-American")
                                   :classified_as (base/aat "300250435" "Ethnicity"))))))

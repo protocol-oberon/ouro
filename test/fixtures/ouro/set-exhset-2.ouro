@@ -13,6 +13,6 @@
   (-> (set "exhset/2" "Exhibition objects")
       (with :context                "https://linked.art/ns/v1/linked-art.json")
       (with :members_exemplified_by ((:type          "HumanMadeObject"
-                                      :classified_as (list object-type/painting)
+                                      :classified_as (array object-type/painting)
                                       :produced_by   (:type           "Production"
-                                                      :carried_out_by (list (base/ulan "500010363" "Person" "Manet"))))))))
+                                                      :carried_out_by (array (base/ulan "500010363" "Person" "Manet"))))))))

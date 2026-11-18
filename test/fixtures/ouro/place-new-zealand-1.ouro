@@ -10,5 +10,5 @@
 (graph place-new-zealand-1
   (-> (place "new_zealand/1" "New Zealand")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as (list place-type/country))
+      (with :classified_as (array place-type/country))
       (with :defined_by    "POLYGON((165.74 -33.55, -179.96 -33.55, -179.96 -47.8, 165.74 -47.8, 165.74 -33.55))")))

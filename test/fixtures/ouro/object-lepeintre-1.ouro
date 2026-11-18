@@ -12,7 +12,7 @@
 (graph object-lepeintre-1
   (-> (object "lepeintre/1" "Le Peintre by Picasso")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as (list object-type/painting))
+      (with :classified_as (array object-type/painting))
       (with :destroyed_by  (:type     "Destruction"
                             :_label   "Destruction of Le Peintre"
                             :timespan (let ($struck #date "1998-09-02T22:20:00Z")

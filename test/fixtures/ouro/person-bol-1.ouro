@@ -12,7 +12,7 @@
 (graph person-bol-1
   (-> (person "bol/1" "Ferdinand Bol")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :identified_by (list (base/name vocab/primary-name "Ferdinand Bol")))
+      (with :identified_by (array (base/name vocab/primary-name "Ferdinand Bol")))
       (with :attributed_by ((:type          "AttributeAssignment"
-                             :identified_by (list (base/name vocab/display-name "Student Of"))
-                             :assigned      (list (person "rembrandt" "Rembrandt")))))))
+                             :identified_by (array (base/name vocab/display-name "Student Of"))
+                             :assigned      (array (person "rembrandt" "Rembrandt")))))))

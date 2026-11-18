@@ -8,7 +8,7 @@
   (+ "https://linked.art/example/" path))
 
 (define/procedure provenance #record (#string slug #string label)
-  (:id (example (+ "provenance/" slug)) :type "Activity" :_label label :classified_as (list vocab/provenance-activity)))
+  (:id (example (+ "provenance/" slug)) :type "Activity" :_label label :classified_as (array vocab/provenance-activity)))
 
 (define/procedure node #record (#string path #string type #string label)
   (:id (example path) :type type :_label label))
@@ -19,7 +19,7 @@
       (with :context  "https://linked.art/ns/v1/linked-art.json")
       (adjoin :classified_as provenance-type/gift)
       (with :timespan (time/year "1999"))
-      (with :part     (list (with (provenance/acquisition (node "object/ziwei_landscape" "HumanMadeObject" "Landscape")
+      (with :part     (array (with (provenance/acquisition (node "object/ziwei_landscape" "HumanMadeObject" "Landscape")
                                                           (node "person/ziwei" "Person" "Xu Ziwei")
                                                           (node "group/yuag" "Group" "Yale University Art Gallery"))
                              :_label "Acquisition of Painting 1")))))

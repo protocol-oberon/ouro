@@ -13,6 +13,6 @@
 (graph set-archive-sfl-1
   (-> (set "archive_sfl/1" "Stieglitz Family Letters")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as (list set-type/archival-sub-grouping))
-      (with :identified_by (list (base/name vocab/primary-name "Stieglitz Family Letters")))
-      (with :member_of     (list (set "archive_asc" "Alfred Stiegliz Correspondence")))))
+      (with :classified_as (array set-type/archival-sub-grouping))
+      (with :identified_by (array (base/name vocab/primary-name "Stieglitz Family Letters")))
+      (with :member_of     (array (set "archive_asc" "Alfred Stiegliz Correspondence")))))

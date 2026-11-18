@@ -16,8 +16,8 @@
 (graph object-yul-10801219-1
   (-> (object "yul_10801219/1" "Yale's copy of Koot's Night Watch")
       (with :context        "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as  (list object-type/book))
-      (with :identified_by  (list (base/name vocab/primary-name "Rembrandt's Night Watch. A Fascinating Story")
-                                  (base/identifier identifier-type/system-number "mfhd:10801219")))
-      (with :referred_to_by (list (base/statement statement-type/physical-statement "92 p. with illus.")))
+      (with :classified_as  (array object-type/book))
+      (with :identified_by  (array (base/name vocab/primary-name "Rembrandt's Night Watch. A Fascinating Story")
+                                   (base/identifier identifier-type/system-number "mfhd:10801219")))
+      (with :referred_to_by (array (base/statement statement-type/physical-statement "92 p. with illus.")))
       (with :carries        ((:id (example "text/koot_nightwatch") :type "LinguisticObject" :_label "Content of Koot's Night Watch")))))

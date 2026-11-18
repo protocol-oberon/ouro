@@ -14,9 +14,9 @@
 (graph object-2
   (-> (object "2" "Example Painting")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as (list object-type/painting (base/aat "300133025" "Artwork")))
-      (with :made_of       (list material/watercolor))
+      (with :classified_as (array object-type/painting (base/aat "300133025" "Artwork")))
+      (with :made_of       (array material/watercolor))
       (with :part          ((:type          "HumanMadeObject"
                              :_label        "Canvas Support"
-                             :classified_as (list part-type/support)
-                             :made_of       (list material/canvas))))))
+                             :classified_as (array part-type/support)
+                             :made_of       (array material/canvas))))))

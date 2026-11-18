@@ -13,7 +13,7 @@
 (graph object-nightwatch-70
   (-> (object "nightwatch/70" "Night Watch")
       (with :context        "https://linked.art/ns/v1/linked-art.json")
-      (with :referred_to_by (list (-> (base/description "Rembrandt's The Night Watch is a dynamic 17th-century group portrait of an Amsterdam militia company ...")
+      (with :referred_to_by (array (-> (base/description "Rembrandt's The Night Watch is a dynamic 17th-century group portrait of an Amsterdam militia company ...")
                                       (adjoin :classified_as (:id #uri "http://vocab.getty.edu/aat/300456841" :type "Type"))
                                       (with :created_by (:type      "Creation"
                                                          :technique ((:id #uri "http://vocab.getty.edu/aat/300456842" :type "Type"))

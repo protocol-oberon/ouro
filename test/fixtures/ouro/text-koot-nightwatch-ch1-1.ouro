@@ -13,6 +13,6 @@
 (graph text-koot-nightwatch-ch1-1
   (-> (text "koot_nightwatch_ch1/1" "Chapter 1 of Koot")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as (list object-type/chapter))
-      (with :identified_by (list (base/name vocab/primary-name "Introduction")))
-      (with :part_of       (list (text "koot_nightwatch" "Koot's Night Watch")))))
+      (with :classified_as (array object-type/chapter))
+      (with :identified_by (array (base/name vocab/primary-name "Introduction")))
+      (with :part_of       (array (text "koot_nightwatch" "Koot's Night Watch")))))

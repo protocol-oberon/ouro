@@ -12,6 +12,6 @@
 (graph object-letter-3
   (-> (object "letter/3" "Obermeyer 1920")
       (with :context              "https://linked.art/ns/v1/linked-art.json")
-      (with :identified_by        (list (base/name vocab/primary-name "Obermeyer, Bertha (1920)")))
+      (with :identified_by        (array (base/name vocab/primary-name "Obermeyer, Bertha (1920)")))
       (with :member_of            ((:id (example "set/archive_sfl") :type "Set" :_label "Stieglitz Family Letters")))
-      (with :held_or_supported_by (list (object "box55" "Archival Box 55")))))
+      (with :held_or_supported_by (array (object "box55" "Archival Box 55")))))

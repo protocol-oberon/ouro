@@ -15,5 +15,5 @@
 (graph object-chess-1
   (-> (object "chess/1" "Miniature Chess")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :identified_by (list (base/name vocab/primary-name "Vessel with miniature chess set")))
-      (with :dimension     (list (object/dimension dimension-type/count-of 36 (object/unit "300241583" "Components"))))))
+      (with :identified_by (array (base/name vocab/primary-name "Vessel with miniature chess set")))
+      (with :dimension     (array (object/dimension dimension-type/count-of 36 (object/unit "300241583" "Components"))))))

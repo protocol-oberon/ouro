@@ -11,6 +11,6 @@
 (graph group-rembrandthuis-1
   (-> (group "rembrandthuis/1" "Rembrandt House Museum")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :contact_point (list (actor/street-address "Jodenbreestraat 4, 1011 NK Amsterdam")
-                                 (actor/telephone "+31-20-520-0400")
-                                 (actor/email "museum@rembrandthuis.nl")))))
+      (with :contact_point (array (actor/street-address "Jodenbreestraat 4, 1011 NK Amsterdam")
+                                  (actor/telephone "+31-20-520-0400")
+                                  (actor/email "museum@rembrandthuis.nl")))))

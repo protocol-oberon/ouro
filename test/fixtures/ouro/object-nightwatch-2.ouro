@@ -12,5 +12,5 @@
 (graph object-nightwatch-2
   (-> (object "nightwatch/2" "Night Watch by Rembrandt")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :identified_by (list (base/identifier identifier-type/accession-number "SK-C-5")
-                                 (base/name vocab/primary-name "The Night Watch")))))
+      (with :identified_by (array (base/identifier identifier-type/accession-number "SK-C-5")
+                                  (base/name vocab/primary-name "The Night Watch")))))

@@ -72,18 +72,18 @@ base = Group "std/base: Linked Art's base patterns"
 
       -- A record, as a literal or threaded
     , ("a record written as a literal",            stdToJSON (  "(graph g (:id #uri \"https://linked.art/example/person/manet\" :type \"Person\" :_label \"Manet\""
-                                                             <> " :identified_by (list (base/name vocab/primary-name \"Manet\"))"
-                                                             <> " :classified_as (list (base/nationality \"300111188\" \"French\") (base/occupation \"300025136\" \"Painter\"))))" )
+                                                             <> " :identified_by (array (base/name vocab/primary-name \"Manet\"))"
+                                                             <> " :classified_as (array (base/nationality \"300111188\" \"French\") (base/occupation \"300025136\" \"Painter\"))))" )
                                                              (  "{\"id\": \"https://linked.art/example/person/manet\", \"type\": \"Person\", \"_label\": \"Manet\","
                                                              <> " \"identified_by\": [{\"type\": \"Name\", \"classified_as\": [{\"id\": \"http://vocab.getty.edu/aat/300404670\", \"type\": \"Type\", \"_label\": \"Primary Name\"}], \"content\": \"Manet\"}],"
                                                              <> " \"classified_as\": [{\"id\": \"http://vocab.getty.edu/aat/300111188\", \"type\": \"Type\", \"_label\": \"French\", \"classified_as\": [{\"id\": \"http://vocab.getty.edu/aat/300379842\", \"type\": \"Type\", \"_label\": \"Nationality\"}]},"
                                                              <> " {\"id\": \"http://vocab.getty.edu/aat/300025136\", \"type\": \"Type\", \"_label\": \"Painter\", \"classified_as\": [{\"id\": \"http://vocab.getty.edu/aat/300263369\", \"type\": \"Type\", \"_label\": \"Occupation\"}]}]}" ))
     , ("is the record threaded, with then adjoin", stdToJSON (  "(graph g (:r (eq (:id #uri \"https://linked.art/example/person/manet\" :type \"Person\" :_label \"Manet\""
-                                                             <> " :identified_by (list (base/name vocab/primary-name \"Manet\"))"
-                                                             <> " :classified_as (list (base/nationality \"300111188\" \"French\") (base/occupation \"300025136\" \"Painter\")))"
+                                                             <> " :identified_by (array (base/name vocab/primary-name \"Manet\"))"
+                                                             <> " :classified_as (array (base/nationality \"300111188\" \"French\") (base/occupation \"300025136\" \"Painter\")))"
                                                              <> " (-> (:id #uri \"https://linked.art/example/person/manet\" :type \"Person\" :_label \"Manet\")"
-                                                             <> " (with :identified_by (list (base/name vocab/primary-name \"Manet\")))"
-                                                             <> " (with :classified_as (list (base/nationality \"300111188\" \"French\")))"
+                                                             <> " (with :identified_by (array (base/name vocab/primary-name \"Manet\")))"
+                                                             <> " (with :classified_as (array (base/nationality \"300111188\" \"French\")))"
                                                              <> " (adjoin :classified_as (base/occupation \"300025136\" \"Painter\"))))))" )
                                                              "{\"r\": true}")
 
@@ -150,7 +150,7 @@ time = Group "std/time: Linked Art's time spans"
 -- std/vocab: the 18 terms Linked Art requires, each a Getty AAT Type
 vocab :: Group
 vocab = Group "std/vocab: the terms Linked Art requires"
-    [ ("every required term, by its AAT number",   stdToJSON (  "(graph g (:ids (image (list vocab/primary-name vocab/display-name vocab/sort-name vocab/sort-value"
+    [ ("every required term, by its AAT number",   stdToJSON (  "(graph g (:ids (image (array vocab/primary-name vocab/display-name vocab/sort-name vocab/sort-value"
                                                              <> " vocab/brief-text vocab/type-of-work vocab/style vocab/shape vocab/nationality vocab/occupation vocab/color"
                                                              <> " vocab/exhibition-activity vocab/provenance-activity vocab/professional-activity vocab/publication-activity"
                                                              <> " vocab/promise-activity vocab/collection-item vocab/artwork) id)))" )
@@ -173,10 +173,10 @@ object :: Group
 object = Group "std/object: physical characteristics"
     [ ("height is a Dimension classified Height",  stdToJSON "(graph g (object/height 379.5 object/centimeters))"
                                                              "{\"type\": \"Dimension\", \"classified_as\": [{\"id\": \"http://vocab.getty.edu/aat/300055644\", \"type\": \"Type\", \"_label\": \"Height\"}], \"value\": 379.5, \"unit\": {\"id\": \"http://vocab.getty.edu/aat/300379098\", \"type\": \"MeasurementUnit\", \"_label\": \"centimeters\"}}")
-    , ("each kind has its AAT number",             stdToJSON (  "(graph g (:ids (image (list (object/height 1 object/meters) (object/width 1 object/meters)"
+    , ("each kind has its AAT number",             stdToJSON (  "(graph g (:ids (image (array (object/height 1 object/meters) (object/width 1 object/meters)"
                                                              <> " (object/depth 1 object/meters) (object/weight 1 object/grams)) classified_as id)))" )
                                                              "{\"ids\": [\"http://vocab.getty.edu/aat/300055644\", \"http://vocab.getty.edu/aat/300055647\", \"http://vocab.getty.edu/aat/300072633\", \"http://vocab.getty.edu/aat/300056240\"]}")
-    , ("each unit is Linked Art's",                stdToJSON (  "(graph g (:ids (image (list object/centimeters object/millimeters object/meters object/inches object/feet"
+    , ("each unit is Linked Art's",                stdToJSON (  "(graph g (:ids (image (array object/centimeters object/millimeters object/meters object/inches object/feet"
                                                              <> " object/grams object/kilograms object/pounds) id)))" )
                                                              (  "{\"ids\": [\"http://vocab.getty.edu/aat/300379098\", \"http://vocab.getty.edu/aat/300379097\", \"http://vocab.getty.edu/aat/300379099\", \"http://vocab.getty.edu/aat/300379100\","
                                                              <> " \"http://vocab.getty.edu/aat/300379101\", \"http://vocab.getty.edu/aat/300379225\", \"http://vocab.getty.edu/aat/300379226\", \"http://vocab.getty.edu/aat/300379254\"]}" ))
@@ -186,10 +186,10 @@ object = Group "std/object: physical characteristics"
                                                                 "(graph g (object/height \"379.5\" object/centimeters))")
     , ("material is typed Material",               stdToJSON "(graph g (object/material \"300014078\" \"canvas\"))"
                                                              "{\"id\": \"http://vocab.getty.edu/aat/300014078\", \"type\": \"Material\", \"_label\": \"canvas\"}")
-    , ("the statements are Brief Text",            stdToJSON (  "(graph g (:kinds (image (list (object/dimension-statement \"379.5 cm\") (object/material-statement \"Oil on canvas\")) classified_as id)"
+    , ("the statements are Brief Text",            stdToJSON (  "(graph g (:kinds (image (array (object/dimension-statement \"379.5 cm\") (object/material-statement \"Oil on canvas\")) classified_as id)"
                                                              <> " :meta (image (object/material-statement \"Oil on canvas\") classified_as classified_as _label)))" )
                                                              "{\"kinds\": [\"http://vocab.getty.edu/aat/300435430\", \"http://vocab.getty.edu/aat/300435429\"], \"meta\": [\"Brief Text\"]}")
-    , ("the statements are labelled as Linked Art", stdToJSON "(graph g (image (list (object/dimension-statement \"379.5 cm\") (object/material-statement \"Oil on canvas\")) classified_as _label))"
+    , ("the statements are labelled as Linked Art", stdToJSON "(graph g (image (array (object/dimension-statement \"379.5 cm\") (object/material-statement \"Oil on canvas\")) classified_as _label))"
                                                              "[\"Dimensions Statement\", \"Materials Statement\"]")
     , ("part-type is classified Part Type",        stdToJSON "(graph g (object/part-type \"300014844\" \"Support\"))"
                                                              "{\"id\": \"http://vocab.getty.edu/aat/300014844\", \"type\": \"Type\", \"_label\": \"Support\", \"classified_as\": [{\"id\": \"http://vocab.getty.edu/aat/300241583\", \"type\": \"Type\", \"_label\": \"Part Type\"}]}")
@@ -201,7 +201,7 @@ object = Group "std/object: physical characteristics"
 -- std/actor: name parts, gender, a professional life, and contact points
 actor :: Group
 actor = Group "std/actor: people and groups"
-    [ ("a Name with its parts",                    stdToJSON "(graph g (with (base/name vocab/primary-name \"Rembrandt van Rijn\") :part (list (actor/given-name \"Rembrandt\") (actor/family-name \"van Rijn\"))))"
+    [ ("a Name with its parts",                    stdToJSON "(graph g (with (base/name vocab/primary-name \"Rembrandt van Rijn\") :part (array (actor/given-name \"Rembrandt\") (actor/family-name \"van Rijn\"))))"
                                                              (  "{\"type\": \"Name\", \"classified_as\": [{\"id\": \"http://vocab.getty.edu/aat/300404670\", \"type\": \"Type\", \"_label\": \"Primary Name\"}], \"content\": \"Rembrandt van Rijn\","
                                                              <> " \"part\": [{\"type\": \"Name\", \"classified_as\": [{\"id\": \"http://vocab.getty.edu/aat/300404651\", \"type\": \"Type\", \"_label\": \"Given Name\"}], \"content\": \"Rembrandt\"},"
                                                              <> " {\"type\": \"Name\", \"classified_as\": [{\"id\": \"http://vocab.getty.edu/aat/300404652\", \"type\": \"Type\", \"_label\": \"Family Name\"}], \"content\": \"van Rijn\"}]}" ))
@@ -211,7 +211,7 @@ actor = Group "std/actor: people and groups"
                                                              "{\"id\": \"http://vocab.getty.edu/aat/300189559\", \"type\": \"Type\", \"_label\": \"Male\", \"classified_as\": [{\"id\": \"http://vocab.getty.edu/aat/300055147\", \"type\": \"Type\", \"_label\": \"Gender\"}]}")
     , ("active is a professional Activity",        stdToJSON "(graph g (actor/active (time/year-range \"1625\" \"1669\")))"
                                                              "{\"type\": \"Activity\", \"classified_as\": [{\"id\": \"http://vocab.getty.edu/aat/300393177\", \"type\": \"Type\", \"_label\": \"Professional Activity\"}], \"timespan\": {\"type\": \"TimeSpan\", \"begin_of_the_begin\": \"1625-01-01T00:00:00Z\", \"end_of_the_end\": \"1669-12-31T23:59:59Z\"}}")
-    , ("contact points are Identifiers",           stdToJSON "(graph g (:k (image (list (actor/street-address \"a\") (actor/telephone \"b\") (actor/email \"c\")) classified_as id) :t (image (actor/email \"c\") type)))"
+    , ("contact points are Identifiers",           stdToJSON "(graph g (:k (image (array (actor/street-address \"a\") (actor/telephone \"b\") (actor/email \"c\")) classified_as id) :t (image (actor/email \"c\") type)))"
                                                              "{\"k\": [\"http://vocab.getty.edu/aat/300386983\", \"http://vocab.getty.edu/aat/300435688\", \"http://vocab.getty.edu/aat/300435686\"], \"t\": [\"Identifier\"]}")
     , ("std/actor exports these only",             stdFailsWith "exports: active, email, family-name, gender, given-name, middle-name, street-address, telephone."
                                                                 "(graph g actor/nope)")
@@ -236,7 +236,7 @@ provenance = Group "std/provenance: changes of ownership"
                                                              <> " \"part\": [{\"type\": \"Acquisition\", \"transferred_title_of\": [{\"type\": \"HumanMadeObject\"}], \"transferred_title_from\": [{\"type\": \"Person\"}], \"transferred_title_to\": [{\"type\": \"Group\"}]},"
                                                              <> " {\"type\": \"Payment\", \"paid_amount\": {\"type\": \"MonetaryAmount\", \"value\": 1, \"currency\": {\"id\": \"http://vocab.getty.edu/aat/300411996\", \"type\": \"Currency\", \"_label\": \"Euros\"}},"
                                                              <> " \"paid_from\": [{\"type\": \"Group\"}], \"paid_to\": [{\"type\": \"Person\"}]}]}" ))
-    , ("each currency is Linked Art's",            stdToJSON (  "(graph g (:ids (image (list provenance/british-pounds provenance/canadian-dollars provenance/euros provenance/japanese-yen"
+    , ("each currency is Linked Art's",            stdToJSON (  "(graph g (:ids (image (array provenance/british-pounds provenance/canadian-dollars provenance/euros provenance/japanese-yen"
                                                              <> " provenance/swiss-francs provenance/us-dollars) id)))" )
                                                              (  "{\"ids\": [\"http://vocab.getty.edu/aat/300411998\", \"http://vocab.getty.edu/aat/300412000\", \"http://vocab.getty.edu/aat/300411996\","
                                                              <> " \"http://vocab.getty.edu/aat/300411997\", \"http://vocab.getty.edu/aat/300412001\", \"http://vocab.getty.edu/aat/300411994\"]}" ))

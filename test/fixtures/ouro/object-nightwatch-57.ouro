@@ -13,8 +13,8 @@
 (graph object-nightwatch-57
   (-> (object "nightwatch/57" "The Night Watch")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as (list object-type/painting))
-      (with :identified_by (list (base/name vocab/primary-name "The Night Watch")))
+      (with :classified_as (array object-type/painting))
+      (with :identified_by (array (base/name vocab/primary-name "The Night Watch")))
       (with :attributed_by ((:type          "AttributeAssignment"
-                             :identified_by (list (base/name vocab/display-name "Related Object"))
-                             :assigned      (list (object "rppob-28-106" "Nachtwacht")))))))
+                             :identified_by (array (base/name vocab/display-name "Related Object"))
+                             :assigned      (array (object "rppob-28-106" "Nachtwacht")))))))

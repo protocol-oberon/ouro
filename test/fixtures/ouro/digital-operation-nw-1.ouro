@@ -14,9 +14,9 @@
 (graph digital-operation-nw-1
   (-> (digital "operation_nw/1" "Operation Night Watch Publication")
       (with :context           "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as     (list digital-type/web-page))
+      (with :classified_as     (array digital-type/web-page))
       (with :identified_by     ((:type "Name" :content "Operation Night Watch")))
-      (with :dimension         (list (with (object/dimension dimension-type/file-size 220 object/kilobytes) :_label "220 kb")))
+      (with :dimension         (array (with (object/dimension dimension-type/file-size 220 object/kilobytes) :_label "220 kb")))
       (with :access_point      ((:id #uri "https://www.rijksmuseum.nl/en/stories/operation-night-watch" :type "DigitalObject")))
       (with :format            "text/html")
       (with :conforms_to       ((:id #uri "http://w3.org/TR/html" :type "InformationObject")))

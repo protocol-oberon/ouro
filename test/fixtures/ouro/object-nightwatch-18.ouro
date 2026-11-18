@@ -10,4 +10,4 @@
   (:context        "https://linked.art/ns/v1/linked-art.json"
    :id             (example "object/nightwatch/18")
    :type           "HumanMadeObject"
-   :referred_to_by (list (base/statement statement-type/signature-statement "signature and date: ‘Rembrandt f 1642’"))))
+   :referred_to_by (array (base/statement statement-type/signature-statement "signature and date: ‘Rembrandt f 1642’"))))

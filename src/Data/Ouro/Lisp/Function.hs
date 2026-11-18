@@ -417,7 +417,7 @@ duplicateFunction name pos =
 specialForms :: [Text]
 specialForms = [ "->", "adjoin", "all", "and", "any", "array", "attr", "case", "context", "define/constant", "define/procedure", "define/refinement", "doc"
                , "exists", "filter", "fn", "fold", "forall", "get", "get-or", "graph", "has", "image", "inlay", "insert"
-               , "let", "list", "map", "nth", "omits", "or", "replace-at", "satisfies", "thru", "when", "with" ]
+               , "let", "map", "nth", "omits", "or", "replace-at", "satisfies", "thru", "when", "with" ]
 
 
 isHeadedBy :: Text -> S.Expr -> Bool

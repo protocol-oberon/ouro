@@ -11,4 +11,4 @@
 (graph object-nightwatch-15
   (-> (object "nightwatch/15" "Night Watch by Rembrandt")
       (with :context        "https://linked.art/ns/v1/linked-art.json")
-      (with :referred_to_by (list (base/statement statement-type/credit-line "On loan from the City of Amsterdam")))))
+      (with :referred_to_by (array (base/statement statement-type/credit-line "On loan from the City of Amsterdam")))))

@@ -11,5 +11,5 @@
 (graph object-harpers-1
   (-> (object "harpers/1" "Poster Item")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as (list object-type/print))
+      (with :classified_as (array object-type/print))
       (with :shows         ((:id (example "visual/harpers") :type "VisualItem" :_label "Visual Content of Harpers")))))

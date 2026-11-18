@@ -43,7 +43,7 @@ import           Utils                     (compilesToJSON,
                                             failsWith, failsWithout, fixedGap,
                                             fixture, importsFailAt,
                                             readSourceFile, shouldCompileTo,
-                                            warnsWith, warnsWithout)
+                                            warnsWith)
 
 
 -- Only attribute pairs and elements reach the output. Functions, built-ins and other
@@ -68,7 +68,7 @@ serialisation = Group "Serialisation: only values reach the output"
     , ("a named function as a value is an error",   failsWith "an unexecuted function"
                                                               "(define/procedure inc (x) (+ x 1)) (graph g (:r inc))")
     , ("a fn inside an array is an error",          failsWith "a JSON value"
-                                                              "(graph g (:r (list (fn (x) x))))")
+                                                              "(graph g (:r (array (fn (x) x))))")
     , ("a fn as the graph is an error",             failsWith "a JSON value"
                                                               "(graph g (fn (x) x))")
     , ("a built-in as a value is an error",         failsWith "a Built-in function"
@@ -81,17 +81,17 @@ serialisation = Group "Serialisation: only values reach the output"
       -- A function where a value belongs says how it is called, with its parameters' names.
       -- This fixed the function hint of gap 10, which suggested (name! args).
     , ("in an array, how to call it",               failsWith "Perhaps call it: (inc x)."
-                                                              "(define/procedure inc (x) (+ x 1)) (graph g (:r (list inc)))")
+                                                              "(define/procedure inc (x) (+ x 1)) (graph g (:r (array inc)))")
     , ("as an attribute value",                     failsWith "A function is not a value: perhaps call it, (inc x)."
                                                               "(define/procedure inc (x) (+ x 1)) (graph g (:r inc))")
     , ("as an argument with a property",            failsWith "This value is a function: perhaps call it, (mk x)."
                                                               "(define/procedure f #record (#record r) r) (define/procedure mk (x) (:a x)) (graph g (:r (f mk)))")
     , ("a pattern parameter is shown as (...)",     failsWith "Perhaps call it: (f (...) c)."
-                                                              "(define/procedure f ((?a ?b) c) a) (graph g (:r (list f)))")
+                                                              "(define/procedure f ((?a ?b) c) a) (graph g (:r (array f)))")
     , ("a built-in has no names to show",           failsWith "Perhaps call it with its arguments."
-                                                              "(graph g (:r (list len)))")
+                                                              "(graph g (:r (array len)))")
     , ("nor has an anonymous fn",                   failsWith "Perhaps call it with its arguments."
-                                                              "(graph g (:r (list (fn (x) x))))")
+                                                              "(graph g (:r (array (fn (x) x))))")
     , ("which has no call to show",                 failsWithout "(fn"
                                                                  "(graph g (:r (fn (x) x)))")
     , ("the call is shown on a wrong arity",        failsWith "It is called (aat id label)."
@@ -121,9 +121,9 @@ serialisation = Group "Serialisation: only values reach the output"
       -- Pinned limits: the call is shown by the function's own name, not as it was qualified,
       -- and a function inside an array is reported at the graph, where its position is lost
     , ("the name is unqualified",                   failsWith "Perhaps call it: (aat id label)."
-                                                              "(import std/base) (graph g (:r (list base/aat)))")
+                                                              "(import std/base) (graph g (:r (array base/aat)))")
     , ("an array's function is placed at the graph", importsFailAt "TYP0000" ("inline-test", 1, 19) ["The value at 'r[0]' is a function"] []
-                                                                   "(import std/base) (graph g (:r (list base/aat)))")
+                                                                   "(import std/base) (graph g (:r (array base/aat)))")
     ]
 
 
@@ -144,7 +144,7 @@ formsAndBuiltins = Group "Special forms and built-ins"
                                                                    "{\"r\": {\"x\": 1, \"y\": {\"b\": 2, \"c\": 3}}}")
     , ("empty records and arrays",                  compilesToJSON "(graph g (:r #record-empty :s #array-empty :t ()))"
                                                                    "{\"r\": {}, \"s\": [], \"t\": []}")
-    , ("list makes an array headed by a variable",  compilesToJSON "(graph g (let ($x 1) (:r (list x x))))"
+    , ("array makes an array headed by a variable",  compilesToJSON "(graph g (let ($x 1) (:r (array x x))))"
                                                                    "{\"r\": [1, 1]}")
     , ("a form headed by a variable is a call",     failsWith "not a function"
                                                               "(graph g (let ($x 1) (:r (x x))))")
@@ -201,7 +201,7 @@ formsAndBuiltins = Group "Special forms and built-ins"
     , ("a fn too, with no name to recurse by",      failsWith "a recursive function call"
                                                               "(graph g (let ($w (fn (x) (x x))) (:r (w w))))")
     , ("and through map",                           failsWith "a recursive function call"
-                                                              "(graph g (let ($w (fn (x) (map (list x) (fn (y) (y y))))) (:r (w w))))")
+                                                              "(graph g (let ($w (fn (x) (map (array x) (fn (y) (y y))))) (:r (w w))))")
     , ("Ouro has no brackets",                      failsWith "Ouro has no brackets: an array is written in parentheses"
                                                               "(graph g (:a [1 2]))")
     , ("nor a closing one",                         failsWith "Ouro has no brackets: an array is written in parentheses"
@@ -239,7 +239,7 @@ formsAndBuiltins = Group "Special forms and built-ins"
                                                                        "{\"r\": false}")
     , ("any written in place stops at the first true", compilesToJSON "(graph g (:r (any (true (get () 5)))))"
                                                                       "{\"r\": true}")
-    , ("a list is written in place",                compilesToJSON "(graph g (let ($a false) (:r (all (list a (get () 5))))))"
+    , ("a list is written in place",                compilesToJSON "(graph g (let ($a false) (:r (all (array a (get () 5))))))"
                                                                    "{\"r\": false}")
     , ("an Array given another way is read whole",  compilesToJSON "(graph g (let ($conds (true false)) (:a (all conds) :b (any conds) :c (any (map (1 2) (> ? 1))))))"
                                                                    "{\"a\": false, \"b\": true, \"c\": true}")
@@ -529,14 +529,12 @@ classification = Group "Classification: records, arrays and calls"
     , ("and of no values, an empty one",            compilesToJSON "(graph g (:r (array)))"
                                                                    "{\"r\": []}")
     , ("and without a warning",                     compilesWithoutWarnings "(graph g (:r (array 1 2)))")
-    , ("list, its old name, still builds one",      compilesToJSON "(graph g (:r (list 1 2)))"
-                                                                   "{\"r\": [1, 2]}")
-    , ("with a warning naming array",               warnsWith "'list' is now called 'array'"
+    , ("list, its old name, is an error naming it", failsWith "'list' is now 'array': (array 1 2 3)."
                                                               "(graph g (:r (list 1 2)))")
-    , ("inside a procedure too",                    warnsWith "'list' is now called 'array'"
+    , ("inside a procedure too",                    failsWith "'list' is now 'array'"
                                                               "(define/procedure f #array (#number n) (list n)) (graph g (:r (f 1)))")
-    , ("but not when the module defines its own list", warnsWithout "is now called"
-                                                              "(define/procedure list #string (#string s) s) (graph g (:r (list \"a\")))")
+    , ("but a module may define its own list",      compilesToJSON "(define/procedure list #string (#string s) s) (graph g (:r (list \"a\")))"
+                                                                   "{\"r\": \"a\"}")
     , ("std builds its arrays with array",          compilesWithoutWarnings "(import std/base) (import std/actor) (import std/digital) (import std/exhibition) (import std/object) (import std/provenance) (graph g (:r 1))")
     ]
 
@@ -647,13 +645,13 @@ encoding = Group "Encoding: source files are UTF-8"
 endOfFile :: Group
 endOfFile = Group "Unclosed delimiters: a file that ends early"
     [ ("a graph left open",                  unclosedAt (1, 1)  "')'" "(graph g (:r 1)")
-    , ("the innermost delimiter still open", unclosedAt (1, 10) "')'" "(graph g (:r (list 1 2)")
+    , ("the innermost delimiter still open", unclosedAt (1, 10) "')'" "(graph g (:r (array 1 2)")
     , ("a key with no value",                unclosedAt (1, 10) "')'" "(graph g (:r")
     , ("a property with no subject",         unclosedAt (1, 10) "')'" "(graph g (:r #string")
     , ("a definition with no name",          unclosedAt (1, 1)  "')'" "(define/procedure")
     , ("a parameter list left open",         unclosedAt (1, 21) "')'" "(define/procedure f (x y")
     , ("an import left open",                unclosedAt (1, 1)  "')'" "(import std/base")
-    , ("on its line, in a later form",       unclosedAt (3, 3)  "')'" "(graph a (:r 1))\n(graph b\n  (:r (list 1)")
+    , ("on its line, in a later form",       unclosedAt (3, 3)  "')'" "(graph a (:r 1))\n(graph b\n  (:r (array 1)")
     , ("in an imported module, in its file", importsFailAt "SYN0001" ("open.ouro", 2, 1) ["')' to close this", "the end of the file"] [("open", "(export f)\n(define/procedure f () 1")]
                                                            "(import open) (graph g (:r (open/f)))")
     , ("a string left open, at its opening quote", importsFailAt "SYN0000" ("inline-test", 1, 14) ["This string is never closed"] []
@@ -773,7 +771,7 @@ stringBuiltins = Group "Strings: built-ins, each taking the string first"
                                                                    "{\"r\": \"https://example.org/place/amsterdam\"}")
     , ("a hole puts the value second",              compilesToJSON "(graph g (:r (-> 7 (to-string) (pad-start 4 \"0\") (+ \"C-\" ?))))"
                                                                    "{\"r\": \"C-0007\"}")
-    , ("an Array of pieces is folded from \"\"",    compilesToJSON "(graph g (let ($kind \"place\") (:r (-> (list \"https://example.org/\" kind) (fold \"\" +)))))"
+    , ("an Array of pieces is folded from \"\"",    compilesToJSON "(graph g (let ($kind \"place\") (:r (-> (array \"https://example.org/\" kind) (fold \"\" +)))))"
                                                                    "{\"r\": \"https://example.org/place\"}")
     , ("or joined with a separator",                compilesToJSON "(graph g (:r (-> (\" Manet\" \"Proust \") (map trim) (join \", \"))))"
                                                                    "{\"r\": \"Manet, Proust\"}")
@@ -883,7 +881,7 @@ logicAndCollections = Group "Built-ins: logic, arrays and records"
     , ("contains looks in a String",             compilesToJSON "(graph g (:a (contains \"Amsterdam\" \"dam\") :b (contains \"Amsterdam\" \"x\")))"
                                                                 "{\"a\": true, \"b\": false}")
     , ("contains cannot compare functions",      failsWith "functions cannot be compared"
-                                                           "(graph g (:r (contains (list (fn (x) x)) 1)))")
+                                                           "(graph g (:r (contains (array (fn (x) x)) 1)))")
     , ("contains needs an Array or a String",    failsWith "an Array or a String to search"
                                                            "(graph g (:r (contains 5 1)))")
     , ("distinct keeps the first of each",       compilesToJSON "(graph g (:r (distinct (1 2 1 3 2))))"
@@ -979,7 +977,7 @@ logicAndCollections = Group "Built-ins: logic, arrays and records"
     , ("a set must be an Array",                 failsWith "an Array, as a set"
                                                            "(graph g (:r (union (1) 2)))")
     , ("a set cannot hold a function",           failsWith "functions cannot be compared"
-                                                           "(graph g (:r (union (list (fn (x) x)) ())))")
+                                                           "(graph g (:r (union (array (fn (x) x)) ())))")
     , ("a set operation needs an Array",         failsWith "nameOfFunc = \"intersect\""
                                                            "(graph g (:r (intersect)))")
     , ("subset is true when all are in the other", compilesToJSON "(graph g (:a (subset (1 2) (2 3 1)) :b (subset (1 4) (1 2)) :c (subset () (1)) :d (subset (1 1) (1))))"
@@ -1033,7 +1031,7 @@ conditions = Group "Case: conditions"
                                                                 "{\"a\": true, \"b\": false, \"c\": true, \"d\": false}")
     , ("satisfies keeps errors",                 failsWith "Index"
                                                            "(graph g (:r (satisfies (get () 5) #string)))")
-    , ("satisfies heads a branch",               compilesToJSON "(graph g (:r (map (list #uri \"https://a.org/1\" 3 \"x\") (fn (v) (case v ((satisfies #uri) \"an identifier\") ((satisfies #number) \"a number\") (otherwise \"other\"))))))"
+    , ("satisfies heads a branch",               compilesToJSON "(graph g (:r (map (array #uri \"https://a.org/1\" 3 \"x\") (fn (v) (case v ((satisfies #uri) \"an identifier\") ((satisfies #number) \"a number\") (otherwise \"other\"))))))"
                                                                 "{\"r\": [\"an identifier\", \"a number\", \"other\"]}")
     , ("\8872 is satisfies",                     compilesToJSON "(graph g (:r (case 3 ((\8872 #number) \"n\") (otherwise \"o\"))))"
                                                                 "{\"r\": \"n\"}")
@@ -1042,9 +1040,9 @@ conditions = Group "Case: conditions"
     , ("satisfies takes a hole for the value",   compilesToJSON "(graph g (:r (filter (1 \"x\" 2) (satisfies ? #number))))"
                                                                 "{\"r\": [1, 2]}")
     , ("a subject-less satisfies needs a case",  failsWith "satisfies is written"
-                                                           "(graph g (:r (map (list 1) (satisfies #string))))")
+                                                           "(graph g (:r (map (array 1) (satisfies #string))))")
     , ("a refinement on its own is misplaced",   failsWith "A refinement on its own"
-                                                           "(graph g (:r (list #string)))")
+                                                           "(graph g (:r (array #string)))")
     , ("satisfies can name a function",          compilesToJSON "(define/procedure satisfies (x) x) (graph g (:r (satisfies 1)))"
                                                            "{\"r\": 1}")
     ]
@@ -1211,21 +1209,21 @@ contextAlgebra = Group "Contexts: combining them is a monoid"
 -- binding can capture them.
 specialFormsAreBindings :: Group
 specialFormsAreBindings = Group "Special forms are bindings, as in Scheme"
-    [ ("a let binding shadows a special form",      compilesToJSON "(graph g (let ($list (fn (x) (+ x 1))) (:r (list 1))))"
+    [ ("a let binding shadows a special form",      compilesToJSON "(graph g (let ($array (fn (x) (+ x 1))) (:r (array 1))))"
                                                                    "{\"r\": 2}")
     , ("as does a bound map, which is called",      compilesToJSON "(graph g (let ($map (fn (x) x)) (:r (map 1))))"
                                                                    "{\"r\": 1}")
     , ("a parameter, even one named fn",            compilesToJSON "(define/procedure call (fn) (fn)) (graph g (:r (call (fn () 1))))"
                                                                    "{\"r\": 1}")
-    , ("a defn, throughout its module",             compilesToJSON "(define/procedure list (x) (+ x 1)) (graph g (:r (list 1)))"
+    , ("a defn, throughout its module",             compilesToJSON "(define/procedure array (x) (+ x 1)) (graph g (:r (array 1)))"
                                                                    "{\"r\": 2}")
     , ("with a warning, as for a built-in",         warnsWith "or a special form replaces it throughout the file"
-                                                              "(define/procedure list (x) (+ x 1)) (graph g (:r (list 1)))")
+                                                              "(define/procedure array (x) (+ x 1)) (graph g (:r (array 1)))")
     , ("and its calls have its arity",              failsWith "IncorrectArity"
-                                                              "(define/procedure list (x) x) (define/procedure h () (list 1 2)) (graph g (:r 1))")
+                                                              "(define/procedure array (x) x) (define/procedure h () (array 1 2)) (graph g (:r 1))")
     , ("a key, whose value is no function",         failsWith "'image' is also a special form, which a binding of the same name shadows"
                                                               "(graph g (:image \"x\" :r (image \"a\" 1)))")
-    , ("only where the binding is",                 compilesToJSON "(graph g (:a (let ($list 1) list) :b (list 1 2)))"
+    , ("only where the binding is",                 compilesToJSON "(graph g (:a (let ($array 1) array) :b (array 1 2)))"
                                                                    "{\"a\": 1, \"b\": [1, 2]}")
     , ("an inlay is shadowed too",                  compilesToJSON "(graph g (let ($inlay (fn (x) x)) (:r ((inlay 1) 2))))"
                                                                    "{\"r\": [1, 2]}")

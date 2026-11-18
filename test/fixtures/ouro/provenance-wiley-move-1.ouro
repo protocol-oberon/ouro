@@ -5,7 +5,7 @@
   (+ "https://linked.art/example/" path))
 
 (define/procedure provenance #record (#string slug #string label)
-  (:id (example (+ "provenance/" slug)) :type "Activity" :_label label :classified_as (list vocab/provenance-activity)))
+  (:id (example (+ "provenance/" slug)) :type "Activity" :_label label :classified_as (array vocab/provenance-activity)))
 
 (define/procedure node #record (#string path #string type #string label)
   (:id (example path) :type type :_label label))
@@ -15,6 +15,6 @@
   (-> (provenance "wiley_move/1" "Movement of Wiley Painting")
       (with :context "https://linked.art/ns/v1/linked-art.json")
       (with :part    ((:type       "Move"
-                       :moved      (list (node "object/yiadom-boakye" "HumanMadeObject" "Portrait of Lynette Yiadom-Boakye"))
+                       :moved      (array (node "object/yiadom-boakye" "HumanMadeObject" "Portrait of Lynette Yiadom-Boakye"))
                        :moved_from (node "place/ycba_gallery" "Place" "YCBA Gallery")
                        :moved_to   (node "place/yuag_gallery" "Place" "YUAG Gallery"))))))

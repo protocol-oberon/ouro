@@ -9,4 +9,4 @@
   (:context       "https://linked.art/ns/v1/linked-art.json"
    :id            (example "object/13")
    :type          "HumanMadeObject"
-   :classified_as (list object-type/painting)))
+   :classified_as (array object-type/painting)))

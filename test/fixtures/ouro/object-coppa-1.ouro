@@ -12,6 +12,6 @@
 (graph object-coppa-1
   (-> (object "coppa/1" "Coppa Amatoria")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :identified_by (list (base/name vocab/primary-name "Coppa Amatoria")))
+      (with :identified_by (array (base/name vocab/primary-name "Coppa Amatoria")))
       (with :produced_by   (:type           "Production"
                             :carried_out_by ((:id (example "group/unknown_italian") :type "Group" :_label "Unidentified Italian"))))))

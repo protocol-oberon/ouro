@@ -13,10 +13,10 @@
 (graph activity-exhb-1
   (-> (exhibition/exhibiting (example "activity/exhb/1") "Manet and Modern Beauty (AIC)")
       (with :context              "https://linked.art/ns/v1/linked-art.json")
-      (with :identified_by        (list (base/name vocab/primary-name "Manet and Modern Beauty")))
+      (with :identified_by        (array (base/name vocab/primary-name "Manet and Modern Beauty")))
       (with :timespan             (time/day-range "2019-05-26" "2019-09-08"))
-      (with :took_place_at        (list (adjoin (base/tgn "7013596" "Chicago") :classified_as place-type/city)))
-      (with :carried_out_by       (list (adjoin (base/ulan "500304669" "Group" "Art Institute") :classified_as group-type/museum)))
+      (with :took_place_at        (array (adjoin (base/tgn "7013596" "Chicago") :classified_as place-type/city)))
+      (with :carried_out_by       (array (adjoin (base/ulan "500304669" "Group" "Art Institute") :classified_as group-type/museum)))
       (with :used_specific_object ((:id (example "set/exhset") :type "Set" :_label "Exhibition objects")))
       (with :part_of              ((:id (example "event/exhab") :type "Activity" :_label "Manet and Modern Beauty")))
       (with :influenced_by        ((:id (example "concept/exhidea") :type "PropositionalObject" :_label "Idea for Manet and Modern Beauty")))))

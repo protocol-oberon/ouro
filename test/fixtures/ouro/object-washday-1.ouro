@@ -13,7 +13,7 @@
 (graph object-washday-1
   (-> (object "washday/1" "Wash Day")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as (list object-type/painting))
-      (with :identified_by (list (base/name vocab/primary-name "Wash Day")))
+      (with :classified_as (array object-type/painting))
+      (with :identified_by (array (base/name vocab/primary-name "Wash Day")))
       (with :produced_by   (:type          "Production"
                             :influenced_by ((:id (example "person/whomer") :type "Person" :_label "Winslow Homer"))))))

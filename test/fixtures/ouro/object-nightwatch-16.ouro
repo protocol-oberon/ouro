@@ -13,6 +13,6 @@
 (graph object-nightwatch-16
   (-> (object "nightwatch/16" "Night Watch by Rembrandt")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as (list object-type/painting))
-      (with :identified_by (list (base/name vocab/primary-name "The Night Watch")))
+      (with :classified_as (array object-type/painting))
+      (with :identified_by (array (base/name vocab/primary-name "The Night Watch")))
       (with :member_of     ((:id (example "set/rijks_paintings") :type "Set" :_label "Paintings of the Rijksmuseum")))))

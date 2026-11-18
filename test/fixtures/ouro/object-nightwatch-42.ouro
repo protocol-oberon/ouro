@@ -13,5 +13,5 @@
 (graph object-nightwatch-42
   (-> (object "nightwatch/42" "Night Watch by Rembrandt")
       (with :context        "https://linked.art/ns/v1/linked-art.json")
-      (with :referred_to_by (list (with (object/material-statement "Oil on Canvas")
-                                   :identified_by (list (base/name vocab/display-name "Materials")))))))
+      (with :referred_to_by (array (with (object/material-statement "Oil on Canvas")
+                                   :identified_by (array (base/name vocab/display-name "Materials")))))))

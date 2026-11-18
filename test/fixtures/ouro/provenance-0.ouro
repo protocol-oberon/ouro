@@ -6,7 +6,7 @@
 
 ;; An event of provenance: an Activity classified as one, whatever its parts
 (define/procedure provenance #record (#string slug #string label)
-  (:id (example (+ "provenance/" slug)) :type "Activity" :_label label :classified_as (list vocab/provenance-activity)))
+  (:id (example (+ "provenance/" slug)) :type "Activity" :_label label :classified_as (array vocab/provenance-activity)))
 
 (graph provenance-0
   (with (provenance "0" "Provenance Activity")

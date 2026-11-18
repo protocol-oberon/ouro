@@ -120,11 +120,11 @@ signatures = Group "Functions: signatures are properties in the header"
                                                                  "{\"r\": {\"id\": \"https://a.org/x\", \"type\": \"Type\"}}")
     , ("a typed fn",                              compilesToJSON "(graph g (let ($double (fn #number (#number n) (* n 2))) (:r (double 21))))"
                                                                  "{\"r\": 42}")
-    , ("an untyped parameter beside a typed one", compilesToJSON "(define/procedure pair (#number a b) (list a b)) (graph g (:r (pair 1 \"two\")))"
+    , ("an untyped parameter beside a typed one", compilesToJSON "(define/procedure pair (#number a b) (array a b)) (graph g (:r (pair 1 \"two\")))"
                                                                  "{\"r\": [1, \"two\"]}")
     , ("a typed parameter converts to a date",    compilesToJSON "(define/procedure year-end #date (#date d) (+ d (thru (years 1)))) (graph g (:r (year-end \"2020-01-01T00:00:00Z\")))"
                                                                  "{\"r\": \"2021-12-31T23:59:59Z\"}")
-    , ("#record and #array in a signature",       compilesToJSON "(define/procedure wrap #array (#record r) (list r)) (graph g (:r (wrap (:a 1))))"
+    , ("#record and #array in a signature",       compilesToJSON "(define/procedure wrap #array (#record r) (array r)) (graph g (:r (wrap (:a 1))))"
                                                                  "{\"r\": [{\"a\": 1}]}")
     , ("#function in a signature",                compilesToJSON "(define/procedure apply #number (#function f x) (f x)) (graph g (:r (apply (fn (n) (+ n 1)) 1)))"
                                                                  "{\"r\": 2}")
@@ -167,13 +167,13 @@ placeholders = Group "Functions: a call with holes is a function of them"
                                                                  "{\"r\": 7}")
     , ("a named hole is one parameter",           compilesToJSON "(graph g (let ($sq (* ?n ?n)) (:r (sq 7))))"
                                                                  "{\"r\": 49}")
-    , ("parameters follow first appearance",      compilesToJSON "(graph g (let ($f (list ?a ?b ?a)) (:r (f 1 10))))"
+    , ("parameters follow first appearance",      compilesToJSON "(graph g (let ($f (array ?a ?b ?a)) (:r (f 1 10))))"
                                                                  "{\"r\": [1, 10, 1]}")
     , ("an operator takes a hole for either operand", compilesToJSON "(graph g (let ($f (+ ? 1) $g (- 10 ?)) (:r (f 10) :s (g 3))))"
                                                                  "{\"r\": 11, \"s\": 7}")
     , ("special forms take holes",                compilesToJSON "(graph g (let ($second (get ? 1) $a (get ? a)) (:r (second (10 20)) :s (a (:a 5)))))"
                                                                  "{\"r\": 20, \"s\": 5}")
-    , ("insert, replace-at and list take holes",  compilesToJSON "(graph g (let ($ins (insert (1 2) 0 ?) $rep (replace-at (1 2) 0 ?) $pair (list ? ?)) (:r (ins 0) :s (rep 9) :t (pair 1 2))))"
+    , ("insert, replace-at and array take holes",  compilesToJSON "(graph g (let ($ins (insert (1 2) 0 ?) $rep (replace-at (1 2) 0 ?) $pair (array ? ?)) (:r (ins 0) :s (rep 9) :t (pair 1 2))))"
                                                                  "{\"r\": [0, 1, 2], \"s\": [9, 2], \"t\": [1, 2]}")
     , ("a placeholder is a value",                compilesToJSON "(define/procedure apply (f x) (f x)) (graph g (:r (apply (+ ? 1) 1)))"
                                                                  "{\"r\": 2}")
@@ -257,7 +257,7 @@ mapping = Group "Functions: map calls a function on each element"
 -- is matched when the function is called, and its holes are bound around the body.
 destructuring :: Group
 destructuring = Group "Functions: a parameter can be a pattern"
-    [ ("an array pattern parameter",              compilesToJSON "(graph g (let ($swap (fn ((?a ?b)) (list b a))) (:r (swap (1 2)))))"
+    [ ("an array pattern parameter",              compilesToJSON "(graph g (let ($swap (fn ((?a ?b)) (array b a))) (:r (swap (1 2)))))"
                                                                  "{\"r\": [2, 1]}")
     , ("a record pattern parameter",              compilesToJSON "(define/procedure label-of ((:_label ?l)) l) (graph g (:r (label-of (:type \"Type\" :_label \"Beauty\"))))"
                                                                  "{\"r\": \"Beauty\"}")
@@ -267,7 +267,7 @@ destructuring = Group "Functions: a parameter can be a pattern"
       -- null result needs at least one source; the whole is rebuilt with ∪, as a set
     , ("so a parameter can take at least one element", failsWith "the shape of the parameter's pattern"
                                                             "(define/procedure sources (#string s (?first ?..rest)) s) (graph g (:r (sources \"a\" ())))")
-    , ("and is rebuilt with ∪",                   compilesToJSON "(define/procedure sources ((?first ?..rest)) (∪ (list first) rest)) (graph g (:a (sources (1)) :b (sources (1 2 3)) :c (sources (1 2 1))))"
+    , ("and is rebuilt with ∪",                   compilesToJSON "(define/procedure sources ((?first ?..rest)) (∪ (array first) rest)) (graph g (:a (sources (1)) :b (sources (1 2 3)) :c (sources (1 2 1))))"
                                                                  "{\"a\": [1], \"b\": [1, 2, 3], \"c\": [1, 2]}")
     , ("a literal in a pattern is compared",      compilesToJSON "(graph g (let ($f (fn ((\"Person\" ?l)) l)) (:r (f (\"Person\" \"Manet\")))))"
                                                                  "{\"r\": \"Manet\"}")
@@ -339,7 +339,7 @@ threading = Group "Functions: with and -> build a value step by step"
     -- Each step receives the value as its first argument, or where a hole marks it
     , ("-> threads with",                         compilesToJSON (base <> "(graph g (:r (-> (base) (with :type \"Mine\") (with :_label \"L\"))))")
                                                                  "{\"r\": {\"id\": \"1\", \"type\": \"Mine\", \"_label\": \"L\"}}")
-    , ("a bare name is called with the value",    compilesToJSON "(define/procedure wrap (r) (list r)) (graph g (:r (-> 1 wrap)))"
+    , ("a bare name is called with the value",    compilesToJSON "(define/procedure wrap (r) (array r)) (graph g (:r (-> 1 wrap)))"
                                                                  "{\"r\": [1]}")
     , ("the value goes first, or at the hole",    compilesToJSON "(graph g (:r (-> 1 (- 10 ?)) :s (-> 1 (- 10))))"
                                                                  "{\"r\": 9, \"s\": -9}")
@@ -357,8 +357,8 @@ threading = Group "Functions: with and -> build a value step by step"
                                                                  "{\"r\": 1}")
     , ("a pipeline builds a Linked Art record",   compilesToJSON ( "(define/procedure core (id type label) (:id #uri id :type type :_label label)) "
                                                                 <> "(define/procedure aat (id label) (core (+ \"http://vocab.getty.edu/aat/\" id) \"Type\" label)) "
-                                                                <> "(define/procedure classified (r t) (with r :classified_as (list t))) "
-                                                                <> "(define/procedure named (r n) (with r :identified_by (list (:type \"Name\" :content n)))) "
+                                                                <> "(define/procedure classified (r t) (with r :classified_as (array t))) "
+                                                                <> "(define/procedure named (r n) (with r :identified_by (array (:type \"Name\" :content n)))) "
                                                                 <> "(graph g (-> (core \"https://linked.art/example/place/amsterdam/1\" \"Place\" \"Amsterdam\") "
                                                                 <> "(with :context \"https://linked.art/ns/v1/linked-art.json\") "
                                                                 <> "(classified (aat \"300008389\" \"City\")) (named \"Amsterdam\")))" )
@@ -394,7 +394,7 @@ adjoining = Group "Functions: adjoin adds to a property's set of values"
                                                                  "{\"r\": {\"t\": \"X\", \"k\": [1]}}")
     , ("a single value becomes a set",            compilesToJSON "(graph g (:r (adjoin (:k 1) :k 2)))"
                                                                  "{\"r\": {\"k\": [1, 2]}}")
-    , ("a list adds its elements",                compilesToJSON "(graph g (:r (adjoin (:k (1)) :k (list 2 3))))"
+    , ("a list adds its elements",                compilesToJSON "(graph g (:r (adjoin (:k (1)) :k (array 2 3))))"
                                                                  "{\"r\": {\"k\": [1, 2, 3]}}")
     , ("a value already there is not added",      compilesToJSON "(graph g (:r (adjoin (:k (1 2)) :k 2)))"
                                                                  "{\"r\": {\"k\": [1, 2]}}")
@@ -427,7 +427,7 @@ adjoining = Group "Functions: adjoin adds to a property's set of values"
     , ("a pipeline builds a Linked Art record",   compilesToJSON ( "(define/procedure aat (id label) (:id #uri (+ \"http://vocab.getty.edu/aat/\" id) :type \"Type\" :_label label)) "
                                                                 <> "(graph g (-> (:id #uri \"https://linked.art/example/place/amsterdam/1\" :type \"Place\" :_label \"Amsterdam\") "
                                                                 <> "(adjoin :classified_as (aat \"300008389\" \"City\")) "
-                                                                <> "(adjoin :classified_as (list (aat \"300008389\" \"City\") (aat \"300008375\" \"Town\"))) "
+                                                                <> "(adjoin :classified_as (array (aat \"300008389\" \"City\") (aat \"300008375\" \"Town\"))) "
                                                                 <> "(adjoin :identified_by (:type \"Name\" :content \"Amsterdam\"))))" )
                                                                  ( "{\"id\": \"https://linked.art/example/place/amsterdam/1\", \"type\": \"Place\", \"_label\": \"Amsterdam\", "
                                                                 <> "\"classified_as\": [{\"id\": \"http://vocab.getty.edu/aat/300008389\", \"type\": \"Type\", \"_label\": \"City\"}, "
@@ -442,7 +442,7 @@ adjoining = Group "Functions: adjoin adds to a property's set of values"
     , ("the base is a record or an array",        failsWith "a Record or an Array to adjoin to"
                                                             "(graph g (:r (adjoin 5 :k 1)))")
     , ("a function cannot be compared",           failsWith "values adjoin can compare"
-                                                            "(graph g (:r (len (adjoin (list (fn (x) x)) 1))))")
+                                                            "(graph g (:r (len (adjoin (array (fn (x) x)) 1))))")
     , ("an error in a value is reported",         failsWith "a Number + a String"
                                                             "(graph g (:r (adjoin (:k 1) :k (+ 1 \"a\"))))")
     , ("a key is written once, as in with",       failsWith "The key 'k' is written twice"
@@ -463,7 +463,7 @@ constants = Group "Functions: a function of no parameters, named, is its value"
                                                                  "{\"r\": 1}")
     , ("and (c) still calls it",                  compilesToJSON "(define/procedure c () 1) (graph g (:a c :b (c)))"
                                                                  "{\"a\": 1, \"b\": 1}")
-    , ("in an array",                             compilesToJSON "(define/procedure c () 1) (graph g (:r (list c 2)))"
+    , ("in an array",                             compilesToJSON "(define/procedure c () 1) (graph g (:r (array c 2)))"
                                                                  "{\"r\": [1, 2]}")
     , ("as an argument",                          compilesToJSON "(define/procedure c () (:a 1)) (define/procedure f #record (#record r) (with r :b 2)) (graph g (:r (f c)))"
                                                                  "{\"r\": {\"a\": 1, \"b\": 2}}")

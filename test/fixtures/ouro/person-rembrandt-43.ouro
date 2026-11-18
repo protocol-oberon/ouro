@@ -10,4 +10,4 @@
 (graph person-rembrandt-43
   (-> (person "rembrandt/43" "Rembrandt")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as (list occupation/artist))))
+      (with :classified_as (array occupation/artist))))

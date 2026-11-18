@@ -8,7 +8,7 @@
   (+ "https://linked.art/example/" path))
 
 (define/procedure provenance #record (#string slug #string label)
-  (:id (example (+ "provenance/" slug)) :type "Activity" :_label label :classified_as (list vocab/provenance-activity)))
+  (:id (example (+ "provenance/" slug)) :type "Activity" :_label label :classified_as (array vocab/provenance-activity)))
 
 (define/procedure node #record (#string path #string type #string label)
   (:id (example path) :type type :_label label))
@@ -17,9 +17,9 @@
 (graph provenance-durand-payne-1
   (-> (provenance "durand_payne/1" "Purchase of Spring by Payne")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :identified_by (list (base/name vocab/primary-name "Purchase of Spring by Payne from Durand-Ruel")))
+      (with :identified_by (array (base/name vocab/primary-name "Purchase of Spring by Payne from Durand-Ruel")))
       (with :timespan      (time/year "1909"))
-      (with :part          (list (with (provenance/acquisition (node "object/spring" "HumanMadeObject" "Spring")
+      (with :part          (array (with (provenance/acquisition (node "object/spring" "HumanMadeObject" "Spring")
                                                                (node "person/durand" "Person" "Durand-Ruel Gallery")
                                                                (node "person/payne" "Person" "Oliver Payne"))
                                   :_label "Ownership of Spring to Payne")))))

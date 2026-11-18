@@ -12,6 +12,6 @@
 (graph object-spring-support
   (-> (object "spring/support" "Support of Spring")
       (with :context        "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as  (list part-type/support))
-      (with :referred_to_by (list (object/material-statement "Canvas")))
-      (with :part_of        (list (object "spring" "Jeanne (Spring) by Manet")))))
+      (with :classified_as  (array part-type/support))
+      (with :referred_to_by (array (object/material-statement "Canvas")))
+      (with :part_of        (array (object "spring" "Jeanne (Spring) by Manet")))))

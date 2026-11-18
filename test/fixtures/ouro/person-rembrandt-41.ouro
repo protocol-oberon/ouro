@@ -12,5 +12,5 @@
 (graph person-rembrandt-41
   (-> (person "rembrandt/41" "Rembrandt")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :identified_by (list (base/name vocab/primary-name "Rembrandt van Rijn")
-                                 (base/name vocab/sort-name "van Rijn, Rembrandt Harmenszoon")))))
+      (with :identified_by (array (base/name vocab/primary-name "Rembrandt van Rijn")
+                                  (base/name vocab/sort-name "van Rijn, Rembrandt Harmenszoon")))))

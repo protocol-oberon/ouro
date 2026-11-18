@@ -18,6 +18,6 @@
 (graph object-spring-29
   (-> (object "spring/29" "Spring")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as (list object-type/painting))
-      (with :dimension     (list (unframed (object/height 74 object/centimeters))
-                                 (unframed (object/width 51.5 object/centimeters))))))
+      (with :classified_as (array object-type/painting))
+      (with :dimension     (array (unframed (object/height 74 object/centimeters))
+                                  (unframed (object/width 51.5 object/centimeters))))))

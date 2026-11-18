@@ -233,9 +233,8 @@ evalExpr expr = do
                & EvalError
                & pure
 
-        -- (array a b): an Array of its values, each evaluated; list is its old name (gap 55)
+        -- (array a b): an Array of its values, each evaluated
         S.Form _ (S.Symbol _ "array" : items)            -> Array <$> mapM evalExpr items
-        S.Form _ (S.Symbol _ "list" : items)             -> Array <$> mapM evalExpr items
 
         -- (map array f): calls f on each element. The Array comes first, as every form takes
         -- what it works on, so '->' threads through it. Each call is an ordinary call, written

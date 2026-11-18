@@ -14,11 +14,11 @@
 (graph object-forum-1
   (-> (object "forum/1" "Forum Romanum")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as (list object-type/painting))
-      (with :identified_by (list (base/name vocab/primary-name "Forum Romanum")))
+      (with :classified_as (array object-type/painting))
+      (with :identified_by (array (base/name vocab/primary-name "Forum Romanum")))
       (with :produced_by   (:type          "Production"
                             :attributed_by ((:type              "AttributeAssignment"
-                                             :classified_as     (list (base/aat "300404272" "Possibly By"))
+                                             :classified_as     (array (base/aat "300404272" "Possibly By"))
                                              :assigned          ((:type           "Production"
                                                                   :carried_out_by ((:id (example "person/corrodi") :type "Person" :_label "Salomon Corrodi"))))
                                              :assigned_property "part"))))))

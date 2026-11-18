@@ -12,6 +12,6 @@
 (graph object-pompeii-statue-1
   (-> (object "pompeii_statue/1" "Statue in Pompeii")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :identified_by (list (base/name vocab/primary-name "Pompeii Statue")))
+      (with :identified_by (array (base/name vocab/primary-name "Pompeii Statue")))
       (with :produced_by   (:type   "Production"
                             :before ((:id (example "event/vesuvius") :type "Event" :_label "Eruption of Vesuvius"))))))

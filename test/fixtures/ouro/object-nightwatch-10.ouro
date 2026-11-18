@@ -15,8 +15,8 @@
 (graph object-nightwatch-10
   (-> (object "nightwatch/10" "Night Watch by Rembrandt")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as (list object-type/painting))
-      (with :dimension     (list (-> (object/dimension vocab/color 11754015.0 unit/rgb)
+      (with :classified_as (array object-type/painting))
+      (with :dimension     (array (-> (object/dimension vocab/color 11754015.0 unit/rgb)
                                      (with :_label        "brown")
                                      (adjoin :classified_as (base/aat "300127490" "Brown"))
                                      (with :identified_by ((:type "Identifier" :content "#B35A1F"))))))))

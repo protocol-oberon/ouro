@@ -11,4 +11,4 @@
 (graph person-rembrandt-8
   (-> (person "rembrandt/8" "Rembrandt")
       (with :context        "https://linked.art/ns/v1/linked-art.json")
-      (with :referred_to_by (list (base/statement statement-type/biography-statement "Rembrandt's work is characterized by the Baroque interest in dramatic scenes and strong contrasts of light on a dark stage")))))
+      (with :referred_to_by (array (base/statement statement-type/biography-statement "Rembrandt's work is characterized by the Baroque interest in dramatic scenes and strong contrasts of light on a dark stage")))))
