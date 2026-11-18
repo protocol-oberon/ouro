@@ -26,7 +26,7 @@ data TokenType
     | Export           -- Module exports, can only be functions
     | DefineProcedure  -- (define/procedure name (args) body): a named function of the procedure kind
     | DefineConstant   -- (define/constant name value): a procedure of no parameters
-    | DefineProperty   -- (define/property ...): read, but not yet a form
+    | DefineRefinement -- (define/refinement name (#contract x) body): a named function of the refinement kind
     | Graph            -- JSON-LD graph to compile
     -- Identifiers
     | Attr   !Text     -- ':id', ':type' (stores the string without the leading ':')
@@ -47,7 +47,7 @@ data TokenType
     | TagFunction      -- '#function'     (enforces expression resolves to a function)
     | TagRecordEmpty   -- '#record-empty' (the empty record, {})
     | TagArrayEmpty    -- '#array-empty'  (the empty array, [])
-    | TagProperty !Text -- '#titled', '#people/titled': a property defined in Ouro, by its name
+    | TagRefinement !Text -- '#titled', '#people/titled': a refinement defined in Ouro, by its name
     -- Hole
     | Hole !Text
     deriving (Show, Eq, Generic)
@@ -56,32 +56,32 @@ data TokenType
 -- A token as it is written in a source, for messages: Symbol "foo" is foo, Attr "id" is :id
 written :: TokenType -> Text
 written = \case
-    OpenParen       -> "("
-    CloseParen      -> ")"
-    DotDot          -> ".."
-    Let             -> "let"
-    Import          -> "import"
-    Export          -> "export"
-    DefineProcedure -> "define/procedure"
-    DefineConstant  -> "define/constant"
-    DefineProperty  -> "define/property"
-    Graph           -> "graph"
-    Attr k          -> ":" <> k
-    Binding b       -> "$" <> b
-    Symbol s        -> s
-    String t        -> "\"" <> t <> "\""
-    Number n        -> renderNumber n
-    Boolean True    -> "true"
-    Boolean False   -> "false"
-    TagUri          -> "#uri"
-    TagDate         -> "#date"
-    TagString       -> "#string"
-    TagNumber       -> "#number"
-    TagBoolean      -> "#boolean"
-    TagRecord       -> "#record"
-    TagArray        -> "#array"
-    TagFunction     -> "#function"
-    TagRecordEmpty  -> "#record-empty"
-    TagArrayEmpty   -> "#array-empty"
-    TagProperty p   -> "#" <> p
-    Hole h          -> h
+    OpenParen        -> "("
+    CloseParen       -> ")"
+    DotDot           -> ".."
+    Let              -> "let"
+    Import           -> "import"
+    Export           -> "export"
+    DefineProcedure  -> "define/procedure"
+    DefineConstant   -> "define/constant"
+    DefineRefinement -> "define/refinement"
+    Graph            -> "graph"
+    Attr k           -> ":" <> k
+    Binding b        -> "$" <> b
+    Symbol s         -> s
+    String t         -> "\"" <> t <> "\""
+    Number n         -> renderNumber n
+    Boolean True     -> "true"
+    Boolean False    -> "false"
+    TagUri           -> "#uri"
+    TagDate          -> "#date"
+    TagString        -> "#string"
+    TagNumber        -> "#number"
+    TagBoolean       -> "#boolean"
+    TagRecord        -> "#record"
+    TagArray         -> "#array"
+    TagFunction      -> "#function"
+    TagRecordEmpty   -> "#record-empty"
+    TagArrayEmpty    -> "#array-empty"
+    TagRefinement p  -> "#" <> p
+    Hole h           -> h

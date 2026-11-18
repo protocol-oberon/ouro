@@ -16,7 +16,7 @@ import           Data.List                   (find, sortOn)
 import qualified Data.Map                    as Map
 import           Data.Maybe                  (isNothing)
 import           Data.Ouro.Error.Diagnostics (binaryOpMismatchBlurb,
-                                              incorrectArity, propertyMismatch,
+                                              incorrectArity, refinementMismatch,
                                               typeMismatch, withBlurb)
 import           Data.Ouro.Error.Types       (ErrorContext (..), OuroError (..),
                                               SyntaxError (..))
@@ -456,7 +456,7 @@ handleNot pos =
          -> pure $ L.Primitive (I.Boolean (not b))
 
      [other]
-         -> Data.Ouro.Error.Diagnostics.propertyMismatch "#boolean" (L.propertyOf other)
+         -> Data.Ouro.Error.Diagnostics.refinementMismatch "#boolean" (L.refinementOf other)
             & OuroError pos
             & L.EvalError
             & pure

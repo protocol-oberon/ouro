@@ -101,11 +101,11 @@ typeMismatch expected actual = Typing $ TypeMismatch
     , actualType   = actual
     }
 
--- A value without the built-in property it is typed with
-propertyMismatch :: Text -> Text -> ErrorContext
-propertyMismatch expected actual = Typing $ PropertyMismatch
-    { expectedProperty = expected
-    , actualProperty   = actual
+-- A value without the built-in refinement it is typed with
+refinementMismatch :: Text -> Text -> ErrorContext
+refinementMismatch expected actual = Typing $ RefinementMismatch
+    { expectedRefinement = expected
+    , actualRefinement   = actual
     }
 
 
@@ -136,17 +136,17 @@ unboundName name inScope =
                      _noneNear                           -> ""
 
 
--- A property's tag that names no property: with the nearest of the module's properties and
--- the built-in names, if one is near. An imported property, #people/titled, is not yet read.
-unknownProperty :: Text -> [Text] -> ErrorContext
-unknownProperty name properties =
-    withBlurb ( "No property of this module, and no built-in property, is named #" <> name <> ". "
-             <> "A property is defined with (define/property " <> name <> " (#record r) ...); an imported one, #people/titled, is not yet checked."
+-- A refinement's tag that names no refinement: with the nearest of the module's refinements and
+-- the built-in names, if one is near. An imported refinement, #people/titled, is not yet read.
+unknownRefinement :: Text -> [Text] -> ErrorContext
+unknownRefinement name refinements =
+    withBlurb ( "No refinement of this module, and no built-in refinement, is named #" <> name <> ". "
+             <> "A refinement is defined with (define/refinement " <> name <> " (#record r) ...); an imported one, #people/titled, is not yet checked."
              <> suggestion
               )
-              (lexicalError ("Unknown property: #" <> name))
+              (lexicalError ("Unknown refinement: #" <> name))
     where
-    suggestion = case rankBySimilarity name (properties <> builtinNames) of
+    suggestion = case rankBySimilarity name (refinements <> builtinNames) of
                      (bestMatch, score) : _ | score <= 3 -> "\n\nPerhaps you meant: '#" <> bestMatch <> "'?"
                      _noneNear                           -> ""
 
@@ -154,11 +154,11 @@ unknownProperty name properties =
     builtinNames = ["string", "number", "boolean", "record", "array", "function", "record-empty", "array-empty", "uri", "date"]
 
 
--- A property's tag that names a function of the procedure kind: only a property is asserted
-notAProperty :: Text -> ErrorContext
-notAProperty name =
-    withBlurb ("Perhaps call it, (" <> name <> " x), or define it with define/property.")
-              (lexicalError ("'" <> name <> "' is a function, not a property, so #" <> name <> " cannot assert it."))
+-- A refinement's tag that names a function of the procedure kind: only a refinement is asserted
+notARefinement :: Text -> ErrorContext
+notARefinement name =
+    withBlurb ("Perhaps call it, (" <> name <> " x), or define it with define/refinement.")
+              (lexicalError ("'" <> name <> "' is a function, not a refinement, so #" <> name <> " cannot assert it."))
 
 
 cyclicDependency :: Text -> ErrorContext
@@ -532,11 +532,11 @@ instance GConstructorCount (C1 c a) where
 -- Type Error
 typeMismatchBlurb :: L.Expr -> Text
 typeMismatchBlurb value =
-    "Ouro's built-in properties are #string, #number, #boolean, #uri, #date, #record, #array and #function."
-    <> case L.propertyOf value of
-           property
-               | "#" `T.isPrefixOf` property -> ""
-               | otherwise                   -> " This value is " <> property <> ", which has no built-in property."
+    "Ouro's built-in refinements are #string, #number, #boolean, #uri, #date, #record, #array and #function."
+    <> case L.refinementOf value of
+           refinement
+               | "#" `T.isPrefixOf` refinement -> ""
+               | otherwise                     -> " This value is " <> refinement <> ", which has no built-in refinement."
     <> maybe "" (\call -> " This value is a function: perhaps call it, " <> call <> ".") (L.callOf value)
 
 
@@ -605,9 +605,9 @@ notKebabCase kind name kebab = Lint $ NotKebabCase
 procedureOfNoParameters :: Text -> WarningContext
 procedureOfNoParameters name = Lint $ ProcedureOfNoParameters { constantName = name }
 
--- Create a warning for a property without a doc, the rule its failures show
-undocumentedProperty :: Text -> WarningContext
-undocumentedProperty name = Lint $ UndocumentedProperty { undocumentedName = name }
+-- Create a warning for a refinement without a doc, the rule its failures show
+undocumentedRefinement :: Text -> WarningContext
+undocumentedRefinement name = Lint $ UndocumentedRefinement { undocumentedName = name }
 
 -- Create a compile-time elided property assignment semantic warning
 elidedPropertyAssign :: Text -> Text -> WarningContext
@@ -679,10 +679,10 @@ warningBlurb = \case
         <> "whichever keyword defines it.\n\n"
         <> "Perhaps define it as one: (define/constant " <> name <> " value)."
 
-    Lint (UndocumentedProperty name)
-        -> "A property's doc is the rule it asserts: a value that fails it is reported with the doc as the rule it broke, "
-        <> "as in '#" <> name <> ": Has a label.'. Without one, a failure can only name the property.\n\n"
-        <> "Perhaps write one: (define/property " <> name <> " (#record r) (doc \"...\") ...)."
+    Lint (UndocumentedRefinement name)
+        -> "A refinement's doc is the rule it asserts: a value that fails it is reported with the doc as the rule it broke, "
+        <> "as in '#" <> name <> ": Has a label.'. Without one, a failure can only name the refinement.\n\n"
+        <> "Perhaps write one: (define/refinement " <> name <> " (#record r) (doc \"...\") ...)."
 
     Semantic (ElidedPropertyAssign key construct)
         -> "The expression assigned to the property attribute '" <> key <> "' evaluates exclusively to a compile-time '"
@@ -705,7 +705,7 @@ warningSummary = \case
     Lint (NotKebabCase kind name _)     -> "The " <> kind <> " '" <> name <> "' is not named in kebab-case"
     Lint (ShadowedBundledModule name _) -> "The project's module '" <> name <> "' replaces the bundled '" <> name <> "'"
     Lint (ProcedureOfNoParameters name) -> "The procedure '" <> name <> "' takes no parameters, so it is a constant"
-    Lint (UndocumentedProperty name)    -> "The property '" <> name <> "' has no doc"
+    Lint (UndocumentedRefinement name)  -> "The refinement '" <> name <> "' has no doc"
     Semantic (ElidedPropertyAssign k _) -> "Property assignment '" <> k <> "' binds to an elided value"
     Vocab (UnboundTypeReference t _)    -> "Unbound schema type reference '" <> t <> "'"
 

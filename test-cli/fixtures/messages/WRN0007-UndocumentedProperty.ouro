@@ -1,2 +1,0 @@
-(define/property titled (#record r) (has r _label))
-(graph g (:r (titled (:_label "A"))))

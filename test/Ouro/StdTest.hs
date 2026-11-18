@@ -41,7 +41,7 @@ base = Group "std/base: Linked Art's base patterns"
                                                              "{\"p\": {\"id\": \"http://vocab.getty.edu/ulan/500010363\", \"type\": \"Person\", \"_label\": \"Manet\"}, \"g\": {\"id\": \"http://vocab.getty.edu/ulan/500115988\", \"type\": \"Group\", \"_label\": \"Getty Museum\"}}")
     , ("language builds a Language",               stdToJSON "(graph g (base/language \"300388277\" \"English\"))"
                                                              "{\"id\": \"http://vocab.getty.edu/aat/300388277\", \"type\": \"Language\", \"_label\": \"English\"}")
-    , ("a Getty number is a string",               stdFailsWith "expectedProperty = \"#string\""
+    , ("a Getty number is a string",               stdFailsWith "expectedRefinement = \"#string\""
                                                                 "(graph g (base/aat 300033618 \"Painting\"))")
 
       -- Types classified by their meta-type
@@ -59,7 +59,7 @@ base = Group "std/base: Linked Art's base patterns"
       -- Embedded nodes
     , ("name takes its kind first",                stdToJSON "(graph g (base/name vocab/primary-name \"Spring\"))"
                                                              "{\"type\": \"Name\", \"classified_as\": [{\"id\": \"http://vocab.getty.edu/aat/300404670\", \"type\": \"Type\", \"_label\": \"Primary Name\"}], \"content\": \"Spring\"}")
-    , ("a name's kind is a record",                stdFailsWith "expectedProperty = \"#record\""
+    , ("a name's kind is a record",                stdFailsWith "expectedRefinement = \"#record\""
                                                                 "(graph g (base/name \"Primary\" \"Spring\"))")
     , ("identifier builds an Identifier",          stdToJSON "(graph g (base/identifier (base/aat \"300312355\" \"Accession Number\") \"2014.62\"))"
                                                              "{\"type\": \"Identifier\", \"classified_as\": [{\"id\": \"http://vocab.getty.edu/aat/300312355\", \"type\": \"Type\", \"_label\": \"Accession Number\"}], \"content\": \"2014.62\"}")
@@ -107,11 +107,11 @@ time :: Group
 time = Group "std/time: Linked Art's time spans"
     [ ("span builds a TimeSpan",                   timeToJSON "(time/span \"1881-01-01T00:00:00Z\" \"1881-06-30T23:59:59Z\")"
                                                               "1881-01-01T00:00:00Z" "1881-06-30T23:59:59Z")
-    , ("a span's ends are dates",                  timeFailsWith "expectedProperty = \"#date\""
+    , ("a span's ends are dates",                  timeFailsWith "expectedRefinement = \"#date\""
                                                                  "(time/span \"soon\" \"later\")")
     , ("between is begun in one span, ended in another", timeToJSON4 "(time/between (time/day \"1848-08-01\") (time/span \"1848-09-09T00:00:00Z\" \"1848-09-30T23:59:59Z\"))"
                                                                   "1848-08-01T00:00:00Z" "1848-08-01T23:59:59Z" "1848-09-09T00:00:00Z" "1848-09-30T23:59:59Z")
-    , ("its spans are records",                    timeFailsWith "expectedProperty = \"#record\""
+    , ("its spans are records",                    timeFailsWith "expectedRefinement = \"#record\""
                                                                  "(time/between \"1848-08-01\" (time/year \"1848\"))")
     , ("day is a day, to its last second",         timeToJSON "(time/day \"1832-01-23\")"
                                                               "1832-01-23T00:00:00Z" "1832-01-23T23:59:59Z")
@@ -130,12 +130,12 @@ time = Group "std/time: Linked Art's time spans"
     , ("std/time compiles without warnings",       compilesWithoutWarnings "(import std/time) (graph g (time/year \"1881\"))")
     , ("std/time exports its spans only",          timeFailsWith "exports: between, day, day-range, month, span, year, year-range."
                                                                  "(time/nope)")
-    , ("a date is written as a string",            timeFailsWith "expectedProperty = \"#string\""
+    , ("a date is written as a string",            timeFailsWith "expectedRefinement = \"#string\""
                                                                  "(time/year 1881)")
 
       -- Pinned limit: a string that is not a date is reported inside std/time, where it
       -- becomes one, not at the call
-    , ("a bad date is reported in std/time",       importsFailIn "lib/std/time.ouro" ["expectedProperty = \"#date\""] []
+    , ("a bad date is reported in std/time",       importsFailIn "lib/std/time.ouro" ["expectedRefinement = \"#date\""] []
                                                                  "(import std/time) (graph g (:r (time/day \"1832-13-40\")))")
     ]
     where
@@ -182,7 +182,7 @@ object = Group "std/object: physical characteristics"
                                                              <> " \"http://vocab.getty.edu/aat/300379101\", \"http://vocab.getty.edu/aat/300379225\", \"http://vocab.getty.edu/aat/300379226\", \"http://vocab.getty.edu/aat/300379254\"]}" ))
     , ("dimension takes any kind",                 stdToJSON "(graph g (:k (image (object/dimension (base/aat \"300055642\" \"Unknown Physical Dimension\") 12 object/centimeters) classified_as _label)))"
                                                              "{\"k\": [\"Unknown Physical Dimension\"]}")
-    , ("a value is a number",                      stdFailsWith "expectedProperty = \"#number\""
+    , ("a value is a number",                      stdFailsWith "expectedRefinement = \"#number\""
                                                                 "(graph g (object/height \"379.5\" object/centimeters))")
     , ("material is typed Material",               stdToJSON "(graph g (object/material \"300014078\" \"canvas\"))"
                                                              "{\"id\": \"http://vocab.getty.edu/aat/300014078\", \"type\": \"Material\", \"_label\": \"canvas\"}")
@@ -240,7 +240,7 @@ provenance = Group "std/provenance: changes of ownership"
                                                              <> " provenance/swiss-francs provenance/us-dollars) id)))" )
                                                              (  "{\"ids\": [\"http://vocab.getty.edu/aat/300411998\", \"http://vocab.getty.edu/aat/300412000\", \"http://vocab.getty.edu/aat/300411996\","
                                                              <> " \"http://vocab.getty.edu/aat/300411997\", \"http://vocab.getty.edu/aat/300412001\", \"http://vocab.getty.edu/aat/300411994\"]}" ))
-    , ("an amount is a number",                    stdFailsWith "expectedProperty = \"#number\""
+    , ("an amount is a number",                    stdFailsWith "expectedRefinement = \"#number\""
                                                                 "(graph g (provenance/money \"3000\" provenance/euros))")
     , ("std/provenance exports these only",        stdFailsWith "exports: acquisition, british-pounds, canadian-dollars, currency, euros, japanese-yen, money, payment, purchase, swiss-francs, us-dollars."
                                                                 "(graph g provenance/nope)")
@@ -256,7 +256,7 @@ exhibition = Group "std/exhibition: exhibitions"
                                                              "{\"id\": \"https://a.org/idea/1\", \"type\": \"PropositionalObject\", \"_label\": \"Idea\", \"classified_as\": [{\"id\": \"http://vocab.getty.edu/aat/300417531\", \"type\": \"Type\", \"_label\": \"Exhibition\"}]}")
     , ("set is an Exhibition Collection",          stdToJSON "(graph g (exhibition/set #uri \"https://a.org/set/1\" \"Objects\"))"
                                                              "{\"id\": \"https://a.org/set/1\", \"type\": \"Set\", \"_label\": \"Objects\", \"classified_as\": [{\"id\": \"http://vocab.getty.edu/aat/300378926\", \"type\": \"Type\", \"_label\": \"Exhibition Collection\"}]}")
-    , ("an id is a URI",                           stdFailsWith "expectedProperty = \"#uri\""
+    , ("an id is a URI",                           stdFailsWith "expectedRefinement = \"#uri\""
                                                                 "(graph g (exhibition/set \"not a uri\" \"Objects\"))")
     , ("std/exhibition exports these only",        stdFailsWith "exports: concept, exhibiting, set."
                                                                 "(graph g exhibition/nope)")
@@ -272,7 +272,7 @@ digital = Group "std/digital: digital content"
     , ("web-page is carried by a Web Page",        stdToJSON "(graph g (digital/web-page \"https://a.org/s\"))"
                                                              (  "{\"type\": \"LinguisticObject\", \"digitally_carried_by\": [{\"type\": \"DigitalObject\", \"classified_as\": [{\"id\": \"http://vocab.getty.edu/aat/300264578\", \"type\": \"Type\", \"_label\": \"Web Page\"}],"
                                                              <> " \"format\": \"text/html\", \"access_point\": [{\"id\": \"https://a.org/s\", \"type\": \"DigitalObject\"}]}]}" ))
-    , ("a URL is a URI",                           stdFailsWith "expectedProperty = \"#uri\""
+    , ("a URL is a URI",                           stdFailsWith "expectedRefinement = \"#uri\""
                                                                 "(graph g (digital/web-page \"a.org\"))")
     , ("std/digital exports these only",           stdFailsWith "exports: picture, web-page."
                                                                 "(graph g digital/nope)")

@@ -190,7 +190,7 @@ formsAndBuiltins = Group "Special forms and built-ins"
                                                               "(graph g (:r (max (1 \"2\"))))")
     , ("they are function values",                  compilesToJSON "(graph g (:r (map ((1 2) (5 3)) max)))"
                                                                    "{\"r\": [2, 5]}")
-    , ("#string asserts a string",                  failsWith "expectedProperty = \"#string\", actualProperty = \"#number\""
+    , ("#string asserts a string",                  failsWith "expectedRefinement = \"#string\", actualRefinement = \"#number\""
                                                               "(graph g (:a #string 1))")
     , ("recursion is an error",                     failsWith "a recursive function call"
                                                               "(define/procedure f (n) (f n)) (graph g (:r (f 1)))")
@@ -243,9 +243,9 @@ formsAndBuiltins = Group "Special forms and built-ins"
                                                                    "{\"r\": false}")
     , ("an Array given another way is read whole",  compilesToJSON "(graph g (let ($conds (true false)) (:a (all conds) :b (any conds) :c (any (map (1 2) (> ? 1))))))"
                                                                    "{\"a\": false, \"b\": true, \"c\": true}")
-    , ("its elements must be Booleans",             failsWith "expectedProperty = \"#boolean\", actualProperty = \"#number\""
+    , ("its elements must be Booleans",             failsWith "expectedRefinement = \"#boolean\", actualRefinement = \"#number\""
                                                               "(graph g (let ($conds (true 1)) (:r (all conds))))")
-    , ("and so must a written element",             failsWith "expectedProperty = \"#boolean\", actualProperty = \"#number\""
+    , ("and so must a written element",             failsWith "expectedRefinement = \"#boolean\", actualRefinement = \"#number\""
                                                               "(graph g (:r (all (1))))")
     , ("all takes one Array",                       failsWith "all is written (all array): one Array of Booleans."
                                                               "(graph g (:r (all true false)))")
@@ -255,9 +255,9 @@ formsAndBuiltins = Group "Special forms and built-ins"
                                                                    "{\"r\": false, \"s\": false}")
     , ("or stops at the first true",                compilesToJSON "(graph g (:r (or true (get () 5))))"
                                                                    "{\"r\": true}")
-    , ("an operand must be a #boolean",             failsWith "expectedProperty = \"#boolean\", actualProperty = \"#number\""
+    , ("an operand must be a #boolean",             failsWith "expectedRefinement = \"#boolean\", actualRefinement = \"#number\""
                                                               "(graph g (:r (and true 1)))")
-    , ("or checks its operands too",                failsWith "expectedProperty = \"#boolean\", actualProperty = \"#number\""
+    , ("or checks its operands too",                failsWith "expectedRefinement = \"#boolean\", actualRefinement = \"#number\""
                                                               "(graph g (:r (or 1 true)))")
     , ("and and or combine comparisons",            compilesToJSON "(graph g (:r (and (> 2 1) (or (eq \"a\" \"b\") (eq \"a\" \"a\")))))"
                                                                    "{\"r\": true}")
@@ -375,12 +375,12 @@ types = Group "Types: the rules as they are"
     [ -- The built-in properties, by their full names
       ("every built-in property, by its full name", compilesToJSON "(define/procedure twice #number (#function f #number n) (f (f n))) (graph g (:s #string \"a\" :n (twice (fn (#number x) (* x 2)) 1) :b #boolean true :r #record (:a 1) :a #array (1) :e #array-empty :o #record-empty))"
                                                                    "{\"s\": \"a\", \"n\": 4, \"b\": true, \"r\": {\"a\": 1}, \"a\": [1], \"e\": [], \"o\": {}}")
-    , ("#str is not a property: #string is",        failsWith "Unknown property: #str"       "(graph g (:r #str \"a\"))")
-    , ("#num is not a property: #number is",        failsWith "Unknown property: #num"       "(graph g (:r #num 1))")
-    , ("#bool is not a property: #boolean is",      failsWith "Unknown property: #bool"      "(graph g (:r #bool true))")
-    , ("#rec is not a property: #record is",        failsWith "Unknown property: #rec"       "(graph g (:r #rec (:a 1)))")
-    , ("#arr is not a property: #array is",         failsWith "Unknown property: #arr"       "(graph g (:r #arr (1)))")
-    , ("#fn is not a property: #function is",       failsWith "Unknown property: #fn"        "(graph g (:r #fn 1))")
+    , ("#str is not a refinement: #string is",      failsWith "Unknown refinement: #str"       "(graph g (:r #str \"a\"))")
+    , ("#num is not a refinement: #number is",      failsWith "Unknown refinement: #num"       "(graph g (:r #num 1))")
+    , ("#bool is not a refinement: #boolean is",    failsWith "Unknown refinement: #bool"      "(graph g (:r #bool true))")
+    , ("#rec is not a refinement: #record is",      failsWith "Unknown refinement: #rec"       "(graph g (:r #rec (:a 1)))")
+    , ("#arr is not a refinement: #array is",       failsWith "Unknown refinement: #arr"       "(graph g (:r #arr (1)))")
+    , ("#fn is not a refinement: #function is",     failsWith "Unknown refinement: #fn"        "(graph g (:r #fn 1))")
       -- Ouro has no null: absence is a key left out, or a statement of why
     , ("Ouro has no null",                          failsWith "Ouro has no null: leave the attribute out, or state why the value is absent"
                                                               "(graph g (:r null))")
@@ -390,14 +390,14 @@ types = Group "Types: the rules as they are"
                                                               "(graph g (:r (1 null)))")
     , ("and null is no name",                       failsWith "Ouro has no null"
                                                               "(define/procedure null (x) x) (graph g (:r 1))")
-    , ("#rec-empty is not a value: #record-empty is", failsWith "Unknown property: #rec-empty" "(graph g (:r #rec-empty))")
-    , ("#arr-empty is not a value: #array-empty is", failsWith "Unknown property: #arr-empty" "(graph g (:r #arr-empty))")
+    , ("#rec-empty is not a value: #record-empty is", failsWith "Unknown refinement: #rec-empty" "(graph g (:r #rec-empty))")
+    , ("#arr-empty is not a value: #array-empty is", failsWith "Unknown refinement: #arr-empty" "(graph g (:r #arr-empty))")
       -- A property defined in Ouro is read by its whole name, qualified or not; one the module does not define is unknown, at its tag
-    , ("a property the module does not define is unknown", importsFailAt "SYN0000" ("inline-test", 1, 14) ["Unknown property: #titled"] []
+    , ("a refinement the module does not define is unknown", importsFailAt "SYN0000" ("inline-test", 1, 14) ["Unknown refinement: #titled"] []
                                                                      "(graph g (:r #titled (:_label \"A\")))")
-    , ("as is an imported one, not yet read", importsFailAt "SYN0000" ("inline-test", 1, 14) ["Unknown property: #people/titled"] []
+    , ("as is an imported one, not yet read", importsFailAt "SYN0000" ("inline-test", 1, 14) ["Unknown refinement: #people/titled"] []
                                                                      "(graph g (:r #people/titled (:_label \"A\")))")
-    , ("a name that does not begin with a letter is no property", failsWith "Unknown property: #1st" "(graph g (:r #1st 1))")
+    , ("a name that does not begin with a letter is no refinement", failsWith "Unknown refinement: #1st" "(graph g (:r #1st 1))")
       -- Arrays
     , ("an array may mix types",                    compilesToJSON "(graph g (:r (1 \"a\" true)))"
                                                                    "{\"r\": [1, \"a\", true]}")
@@ -441,15 +441,15 @@ types = Group "Types: the rules as they are"
                                                               "(graph g (:r (+ (days 1) (days 2))))")
 
       -- Assertions check, and only #uri and #date convert a String
-    , ("#number does not convert a string",         failsWith "expectedProperty = \"#number\", actualProperty = \"#string\""
+    , ("#number does not convert a string",         failsWith "expectedRefinement = \"#number\", actualRefinement = \"#string\""
                                                               "(graph g (:r #number \"5\"))")
-    , ("#uri does not accept a date",               failsWith "expectedProperty = \"#uri\", actualProperty = \"#date\""
+    , ("#uri does not accept a date",               failsWith "expectedRefinement = \"#uri\", actualRefinement = \"#date\""
                                                               ("(graph g (:r #uri " <> date <> "))"))
 
       -- A failed property names both properties, and says why when the value's own is not enough
-    , ("a URI needs a scheme",                      failsWith "actualProperty = \"a #string without a URI scheme\""
+    , ("a URI needs a scheme",                      failsWith "actualRefinement = \"a #string without a URI scheme\""
                                                               "(graph g (:r #uri \"nope\"))")
-    , ("a date needs ISO-8601 form",                failsWith "actualProperty = \"a #string that is not a date\""
+    , ("a date needs ISO-8601 form",                failsWith "actualRefinement = \"a #string that is not a date\""
                                                               "(graph g (:r #date \"1642\"))")
 
       -- A URI is written as it was written: every slash of its path is kept
@@ -826,7 +826,7 @@ logicAndCollections :: Group
 logicAndCollections = Group "Built-ins: logic, arrays and records"
     [ ("not negates",                            compilesToJSON "(graph g (:a (not true) :b (not false)))"
                                                                 "{\"a\": false, \"b\": true}")
-    , ("not needs a Boolean",                    failsWith "expectedProperty = \"#boolean\""
+    , ("not needs a Boolean",                    failsWith "expectedRefinement = \"#boolean\""
                                                            "(graph g (:r (not 1)))")
     , ("not takes one operand",                  failsWith "nameOfFunc = \"not\""
                                                            "(graph g (:r (not true false)))")
@@ -864,7 +864,7 @@ logicAndCollections = Group "Built-ins: logic, arrays and records"
                                                                 "{\"r\": [{\"name\": \"a\"}]}")
     , ("a hole for the array",                   compilesToJSON "(graph g (let ($big (exists ? (> ? 2))) (:r (big (1 5)))))"
                                                                 "{\"r\": true}")
-    , ("the answer must be a Boolean",           failsWith "expectedProperty = \"#boolean\""
+    , ("the answer must be a Boolean",           failsWith "expectedRefinement = \"#boolean\""
                                                            "(graph g (:r (exists (1 2) (+ ? 1))))")
     , ("exists needs a function",                failsWith "a function for exists to call"
                                                            "(graph g (:r (exists (1 2) 1)))")
@@ -1015,7 +1015,7 @@ conditions = Group "Case: conditions"
                                                                 "{\"r\": \"in\"}")
     , ("when sits beside patterns and literals", compilesToJSON "(graph g (:r (case (:k 1) (2 \"two\") ((when false) \"no\") ((:k ?v) v) (otherwise \"other\"))))"
                                                                 "{\"r\": 1}")
-    , ("a condition must be a Boolean",          failsWith "expectedProperty = \"#boolean\""
+    , ("a condition must be a Boolean",          failsWith "expectedRefinement = \"#boolean\""
                                                            "(graph g (:r (case 5 ((when 1) \"a\") (otherwise \"b\"))))")
     , ("when outside a case is an error",        failsWith "when is written as the head of a case branch"
                                                            "(graph g (:r (when true)))")
@@ -1043,7 +1043,7 @@ conditions = Group "Case: conditions"
                                                                 "{\"r\": [1, 2]}")
     , ("a subject-less satisfies needs a case",  failsWith "satisfies is written"
                                                            "(graph g (:r (map (list 1) (satisfies #string))))")
-    , ("a property on its own is misplaced",     failsWith "A property on its own"
+    , ("a refinement on its own is misplaced",   failsWith "A refinement on its own"
                                                            "(graph g (:r (list #string)))")
     , ("satisfies can name a function",          compilesToJSON "(define/procedure satisfies (x) x) (graph g (:r (satisfies 1)))"
                                                            "{\"r\": 1}")
@@ -1286,7 +1286,7 @@ knownGaps = Group "Known gaps: current and fixed"
                                                                      "(graph g (:ex:a.b 1 :y 2))")
     , ("gap 31: a '/' ends a key",                   importsFailAt "SCP0000" ("inline-test", 1, 16) ["variableName = \"/b\""] []
                                                                      "(graph g (:ex:a/b 1 :y 2))")
-    , ("gap 31: a '#' ends a key",                   importsFailAt "SYN0000" ("inline-test", 1, 16) ["Unknown property: #b"] []
+    , ("gap 31: a '#' ends a key",                   importsFailAt "SYN0000" ("inline-test", 1, 16) ["Unknown refinement: #b"] []
                                                                      "(graph g (:ex:a#b 1 :y 2))")
     , ("gap 39 (fixed): insert floors a fractional index", fixedGap $ compilesToJSON "(graph g (:r (insert (1 2) 1.5 \"x\")))"
                                                                    "{\"r\": [1, \"x\", 2]}")
@@ -1343,9 +1343,9 @@ knownGaps = Group "Known gaps: current and fixed"
                                                                    "(graph g (:r (define/constant q 1)))")
     , ("gap 49 (fixed): a define/constant in an expression is a local definition", failsWith "A definition can only appear at the top level of a file."
                                                                    "(graph g (:r (define/constant q 1)))")
-    , ("gap 49 (fixed): and so is a define/property", failsWith "A definition can only appear at the top level of a file."
-                                                                   "(graph g (:r (define/property p (#record r) true)))")
-    , ("gap 50: satisfies is false when an assertion inside the property fails", compilesToJSON "(define/property labelled (#record r) (eq #string (get r label) \"x\")) (graph g (:r (satisfies (:label 1) #labelled)))"
+    , ("gap 49 (fixed): and so is a define/refinement", failsWith "A definition can only appear at the top level of a file."
+                                                                   "(graph g (:r (define/refinement p (#record r) true)))")
+    , ("gap 50: satisfies is false when an assertion inside the refinement fails", compilesToJSON "(define/refinement labelled (#record r) (eq #string (get r label) \"x\")) (graph g (:r (satisfies (:label 1) #labelled)))"
                                                                    "{\"r\": false}")
     , ("gap 51: decimal arithmetic is binary floating point", compilesToJSON "(graph g (:a (+ 0.1 0.2) :b (* 3 1.1) :c (fold (3.72 3.36 3.40) 0 +)))"
                                                                    "{\"a\": 0.30000000000000004, \"b\": 3.3000000000000003, \"c\": 10.48}")

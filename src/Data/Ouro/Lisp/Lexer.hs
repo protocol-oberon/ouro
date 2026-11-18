@@ -70,9 +70,9 @@ pCoreKeywords :: Parser Tkn.Token
 pCoreKeywords = lexeme . withPos . try $ choice
     [ Tkn.Import   <$ string "import"   <* endOfWord
     , Tkn.Export   <$ string "export"   <* endOfWord
-    , try (Tkn.DefineProcedure <$ string "define/procedure" <* endOfWord)
-    , try (Tkn.DefineProperty  <$ string "define/property"  <* endOfWord)
-    , try (Tkn.DefineConstant  <$ string "define/constant"  <* endOfWord)
+    , try (Tkn.DefineProcedure  <$ string "define/procedure"  <* endOfWord)
+    , try (Tkn.DefineRefinement <$ string "define/refinement" <* endOfWord)
+    , try (Tkn.DefineConstant   <$ string "define/constant"   <* endOfWord)
     , Tkn.Graph    <$ string "graph"    <* endOfWord
     ]
 
@@ -80,7 +80,7 @@ pCoreKeywords = lexeme . withPos . try $ choice
     endOfWord = choice [space1, () <$ lookAhead (oneOf ("()" :: String)), eof]
 
 
--- A definition says what it defines: define/procedure, define/property or define/constant.
+-- A definition says what it defines: define/procedure, define/refinement or define/constant.
 -- define on its own, or with another kind, is an error where it is written, as are defn,
 -- defn/const and defn/property, which the define forms replace. Any other name that begins
 -- with either ('defined', 'defnode', 'defn/constant') is a name.
@@ -103,8 +103,8 @@ pDefinitionWords = lexeme . withPos $ do
     retired = \case
         "defn"          -> "defn is now define/procedure: (define/procedure name (args) body)"
         "defn/const"    -> "defn/const is now define/constant: (define/constant name value)"
-        "defn/property" -> "defn/property is now define/property: (define/property name (#contract x) body)"
-        written         -> "'" <> written <> "' is not a definition: say what is defined, with define/procedure, define/property or define/constant"
+        "defn/property" -> "defn/property is now define/refinement: (define/refinement name (#contract x) body)"
+        written         -> "'" <> written <> "' is not a definition: say what is defined, with define/procedure, define/refinement or define/constant"
 
 
 -- Attribute keys, ':key'. A key may start with '@', so JSON-LD's keywords can be written as
@@ -121,8 +121,8 @@ pAttributes = lexeme . withPos $ do
     keyChar = alphaNumChar <|> oneOf ("-_" :: String)
 
 
--- Reader Macros starting with '#'. A name that is not a built-in property, but begins with a
--- letter, is a property defined in Ouro, #titled, or imported, #people/titled: it is read as
+-- Reader Macros starting with '#'. A name that is not a built-in refinement, but begins with a
+-- letter, is a refinement defined in Ouro, #titled, or imported, #people/titled: it is read as
 -- any name is.
 pReaderTags :: Parser Tkn.Token
 pReaderTags = lexeme . withPos $ do
@@ -144,9 +144,9 @@ pReaderTags = lexeme . withPos $ do
                                      "array-empty"  -> pure Tkn.TagArrayEmpty
                                      name@(first : _)
                                          | isLetter first
-                                                    -> pure (Tkn.TagProperty (T.pack name))
+                                                    -> pure (Tkn.TagRefinement (T.pack name))
                                      other          -> M.region (\err -> M.setErrorOffset startOffset err)
-                                                             (fail ("Unknown property: #" ++ other))
+                                                             (fail ("Unknown refinement: #" ++ other))
 
 -- Structural Holes for Pattern Matching (? or ?name)
 pHole :: Parser Tkn.Token

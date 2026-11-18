@@ -4,9 +4,9 @@
 -- The static analysis: every module checked as written, all of it, before anything is
 -- evaluated, so a mistake in a function no graph calls, or in a branch not taken, is reported
 -- too (see the org note, "Static analysis"). It checks names, that every name resolves where
--- it is written, and every property's tag names a property; calls, that a call of a known
+-- it is written, and every refinement's tag names a refinement; calls, that a call of a known
 -- function has its arity; and recursion, that a function reaching itself by its name, or a
--- property by its tag, goes down into a value each time round, so it finishes.
+-- refinement by its tag, goes down into a value each time round, so it finishes.
 -- The scope rules are the evaluator's, and what a form is and what it binds come from
 -- 'Analysis.Forms', which the evaluator uses too.
 module Data.Ouro.Lisp.Analysis
@@ -20,9 +20,9 @@ import           Data.Graph                    (SCC (..), stronglyConnComp)
 import           Data.List                     (sortOn)
 import qualified Data.Map.Strict               as Map
 import           Data.Maybe                    (fromMaybe, mapMaybe)
-import           Data.Ouro.Error.Diagnostics   (incorrectArity, notAProperty,
+import           Data.Ouro.Error.Diagnostics   (incorrectArity, notARefinement,
                                                 notExported, recursiveCall,
-                                                unboundName, unknownProperty,
+                                                unboundName, unknownRefinement,
                                                 unknownQualifier, withBlurb)
 import           Data.Ouro.Error.Types         (OuroError (..))
 import           Data.Ouro.Lisp.Analysis.Forms (BlockTarget (..), FrameEntry (..),
@@ -161,7 +161,7 @@ analyseModule imported ouroModule =
     root = Scope Map.empty (ouroModule ^. functionRegistry) imported Nothing Map.empty
 
     -- A body the parser rejected is reported by the parser. The return type is read as a
-    -- tag on the body, which is how it is checked: a call of its property on the result
+    -- tag on the body, which is how it is checked: a call of its refinement on the result
     function :: SomeFunction -> Found
     function (SomeFunction (Function _ pos name _ params resultType body)) =
         case body of
@@ -253,7 +253,7 @@ route next start goal = fromMaybe [start, goal] (search Set.empty start)
 -- A function's parameters, and the holes of their patterns, are bound around its body, with
 -- each parameter's size, as the function is called. The values in a pattern are read in the
 -- scope the function is written in, which cannot see its parameters. A malformed pattern
--- stops the call before the body, so the body is not looked into. A parameter's property
+-- stops the call before the body, so the body is not looked into. A parameter's refinement
 -- is asserted on an argument of a size unknown here.
 parameters :: Scope -> [Size] -> [S.Param] -> S.Expr -> Found
 parameters closure sizes params body =
@@ -261,7 +261,7 @@ parameters closure sizes params body =
         Nothing                    -> mempty
         Just (patternFound, holes) -> contracts <> patternFound <> names (sized given (within (Set.fromList (map S.paramName params) <> holes) closure)) body
     where
-    contracts = mconcat [ propertyTag closure tPos tag Nothing | S.Param _ (Just (tPos, tag)) _ <- params ]
+    contracts = mconcat [ refinementTag closure tPos tag Nothing | S.Param _ (Just (tPos, tag)) _ <- params ]
 
     given = Map.unions [ Map.insert (S.paramName p) argument (foldMap (`holeSizes` argument) (S.paramPattern p))
                        | (p, argument) <- zip params (sizes <> repeat Map.empty) ]
@@ -360,28 +360,28 @@ elementSize scope = partOf . size scope
 names :: Scope -> S.Expr -> Found
 names scope = \case
     S.Symbol pos name      -> resolve scope pos name
-    S.Tagged pos tag inner -> propertyTag scope pos tag (Just [size scope inner]) <> names scope inner
+    S.Tagged pos tag inner -> refinementTag scope pos tag (Just [size scope inner]) <> names scope inner
     S.Form pos items       -> form scope pos items
     _leaf                  -> mempty
 
 
--- A property's tag names a property of the module, #titled: never a binding around it, since
--- nothing bound is a property. Unknown, it is SYN0000, with the nearest property or built-in
--- name; a function of the procedure kind is not one. A tag is a call of its property on the
+-- A refinement's tag names a refinement of the module, #titled: never a binding around it, since
+-- nothing bound is a refinement. Unknown, it is SYN0000, with the nearest refinement or built-in
+-- name; a function of the procedure kind is not one. A tag is a call of its refinement on the
 -- value it is written before, of the size given (unknown for a contract or a fn's return
--- type), so a property asserting itself must go down into a value too. An imported property,
--- #people/titled, is not yet read, and a built-in property names nothing.
-propertyTag :: Scope -> SourcePos -> S.ReaderTag -> Maybe [Size] -> Found
-propertyTag scope pos tag args = case tag of
-    S.PropertyTag name
+-- type), so a refinement asserting itself must go down into a value too. An imported refinement,
+-- #people/titled, is not yet read, and a built-in refinement names nothing.
+refinementTag :: Scope -> SourcePos -> S.ReaderTag -> Maybe [Size] -> Found
+refinementTag scope pos tag args = case tag of
+    S.RefinementTag name
         -> case Map.lookup name (scopeFunctions scope) of
-               Just (SomeFunction (Function PropertyKind _ _ _ _ _ _))  -> naming scope (Defn name) pos args
-               Just (SomeFunction (Function ProcedureKind _ _ _ _ _ _)) -> problem (OuroError pos (notAProperty name))
-               Nothing                                                 -> problem (OuroError pos (unknownProperty name properties))
+               Just (SomeFunction (Function RefinementKind _ _ _ _ _ _)) -> naming scope (Defn name) pos args
+               Just (SomeFunction (Function ProcedureKind _ _ _ _ _ _))  -> problem (OuroError pos (notARefinement name))
+               Nothing                                                   -> problem (OuroError pos (unknownRefinement name refinements))
     _builtIn
         -> mempty
     where
-    properties = [ name | SomeFunction (Function PropertyKind _ name _ _ _ _) <- Map.elems (scopeFunctions scope) ]
+    refinements = [ name | SomeFunction (Function RefinementKind _ name _ _ _ _) <- Map.elems (scopeFunctions scope) ]
 
 
 -- A name: one bound around it, a function of the module, or a built-in; or, qualified, a
@@ -442,7 +442,7 @@ lambda scope sizes items = case items of
     [S.Symbol fnPos (S.formName -> "fn"), S.Form _ params, body]
         | Just typed <- traverse param (zip [1 ..] params)        -> Just (checked fnPos typed body)
     [S.Symbol fnPos (S.formName -> "fn"), S.Tagged tPos tag (S.Form _ params), body]
-        | Just typed <- traverse param (zip [1 ..] params)        -> Just (propertyTag scope tPos tag Nothing <> checked fnPos typed body)
+        | Just typed <- traverse param (zip [1 ..] params)        -> Just (refinementTag scope tPos tag Nothing <> checked fnPos typed body)
     S.Symbol _ (S.formName -> "fn") : _                           -> Just mempty
     _notAFn                                                       -> Nothing
     where
@@ -499,7 +499,7 @@ form scope pos items = case items of
 
     S.Symbol _ "when" : _                            -> mempty
     [S.Symbol _ "satisfies", subject, S.Tagged tPos tag (S.Hole _ "%subject")]
-        | not (isSubjectHole subject)                -> propertyTag scope tPos tag (Just [size scope subject]) <> names scope subject
+        | not (isSubjectHole subject)                -> refinementTag scope tPos tag (Just [size scope subject]) <> names scope subject
     S.Symbol _ "satisfies" : _                       -> mempty
     S.Symbol _ keyword : _
         | isFunctionKeyword keyword                  -> mempty

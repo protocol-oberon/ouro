@@ -301,10 +301,10 @@ describePrimitive =
      I.Array     _    -> "Array"
 
 
--- The built-in property a value has, written as in Ouro, for messages: "#string", "#record". A
--- value with no built-in property, such as null or a Duration, is described instead.
-propertyOf :: Expr -> Text
-propertyOf =
+-- The built-in refinement a value has, written as in Ouro, for messages: "#string", "#record". A
+-- value with no built-in refinement, such as null or a Duration, is described instead.
+refinementOf :: Expr -> Text
+refinementOf =
     \case
      Primitive p
          -> case p of

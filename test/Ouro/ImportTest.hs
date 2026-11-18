@@ -79,7 +79,7 @@ imports = Group "Modules: import, export and the bundled std"
                                                              "(import std/base as a/b) (graph g (:r 1))")
     , ("no import is qualified defn",              failsWith "would be qualified 'defn', which begins the keywords defn/const and defn/property"
                                                              "(import lib/defn) (graph g (:r 1))")
-    , ("nor is one qualified define",              failsWith "would be qualified 'define', which begins the keywords define/procedure, define/property and define/constant"
+    , ("nor is one qualified define",              failsWith "would be qualified 'define', which begins the keywords define/procedure, define/refinement and define/constant"
                                                              "(import lib/define) (graph g (:r 1))")
     , ("as defn is a retired keyword",             failsWith "defn is now define/procedure"
                                                              "(import std/base as defn) (graph g (:r 1))")
@@ -184,7 +184,7 @@ importedModules = Group "Modules: imported modules, in memory"
                                                                  "{\"r\": \"big\"}")
     , ("a wrong number of arguments",              failsWith "nameOfFunc = \"aat\""
                                                              "(import std/base) (graph g (base/aat 1 2 3))")
-    , ("a bad argument is blamed at the call",     importsFailIn "inline-test" ["expectedProperty = \"#string\""] []
+    , ("a bad argument is blamed at the call",     importsFailIn "inline-test" ["expectedRefinement = \"#string\""] []
                                                                    "(import std/base) (graph g (base/aat 5 \"A\"))")
     , ("an error in its body is in its module",    importsFailIn "broken-body.ouro" ["Index"] [("broken-body", "(export bad)\n(define/procedure bad () (get () 5))")]
                                                                    "(import broken-body) (graph g (:r (broken-body/bad)))")
@@ -237,7 +237,7 @@ importedModules = Group "Modules: imported modules, in memory"
 
     where
     helpers     = ("helpers", "(export greet)\n(define/procedure salutation () \"Hello, \")\n(define/procedure greet (n) (+ (salutation) n))")
-    people      = ("people", "(export titled)\n(define/property titled (#record r) (has r _label))")
+    people      = ("people", "(export titled)\n(define/refinement titled (#record r) (has r _label))")
     lower       = ("lower", "(export shout)\n(define/procedure shout (s) (+ s \"!\"))")
     middle      = ("middle", "(import lower)\n(export call)\n(define/procedure call (s) (lower/shout s))")
     unaware     = ("unaware", "(export call)\n(define/procedure call (s) (lower/shout s))")

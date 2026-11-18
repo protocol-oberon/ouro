@@ -8,7 +8,7 @@ import           Data.Ouro.Error.Diagnostics (deprecatedSyntax, notKebabCase,
                                               parenthesisedResult,
                                               procedureOfNoParameters,
                                               shadowedBuiltin,
-                                              undocumentedProperty)
+                                              undocumentedRefinement)
 import           Data.Ouro.Error.Types       (OuroWarning (..))
 import           Data.Ouro.Lisp.Eval.Builtins (builtinRegistry)
 import           Data.Ouro.Lisp.Function     (specialForms)
@@ -37,7 +37,7 @@ lintExpression =
      []         -> []
 
     where
-    -- The tokens after a definition's return type, which is one property tag, if it has one
+    -- The tokens after a definition's return type, which is one refinement tag, if it has one
     afterReturnType = \case
         Tkn.Token _ tag : rest
             | isReturnType tag -> rest
@@ -52,7 +52,7 @@ lintExpression =
         Tkn.TagRecord       -> True
         Tkn.TagArray        -> True
         Tkn.TagFunction     -> True
-        Tkn.TagProperty _   -> True
+        Tkn.TagRefinement _ -> True
         _notAType           -> False
 
 
@@ -63,7 +63,7 @@ lintExpression =
 -- ["hello"], which is rarely what was meant, unless a return type says what is meant. A
 -- function named after a built-in or a special form
 -- replaces it, which is allowed, as in Scheme, but worth saying. Functions and graphs are named in
--- kebab-case. A property has a doc, the rule a value that fails it is reported with.
+-- kebab-case. A refinement has a doc, the rule a value that fails it is reported with.
 lintModule :: M.Module -> [OuroWarning]
 lintModule ouroModule =
        concat [ maybe (lintResult name body) (const []) resultType <> lintFns body
@@ -79,8 +79,8 @@ lintModule ouroModule =
     <> [ OuroWarning pos (notKebabCase "graph" name kebab)
        | M.Graph pos name _ <- Map.elems (ouroModule ^. M.graphRegistry)
        , Just kebab <- [kebabCase name] ]
-    <> [ OuroWarning pos (undocumentedProperty name)
-       | M.SomeFunction (M.Function M.PropertyKind pos name Nothing _ _ _) <- Map.elems (ouroModule ^. M.functionRegistry) ]
+    <> [ OuroWarning pos (undocumentedRefinement name)
+       | M.SomeFunction (M.Function M.RefinementKind pos name Nothing _ _ _) <- Map.elems (ouroModule ^. M.functionRegistry) ]
     <> case Map.member "list" (ouroModule ^. M.functionRegistry) of
            True  -> []
            False -> concat [ oldNames body | M.SomeFunction (M.Function _ _ _ _ _ _ body) <- Map.elems (ouroModule ^. M.functionRegistry) ]
@@ -142,8 +142,8 @@ lintResult owner = \case
         | otherwise                  = T.pack (show n)
 
 
--- What a function is called in a warning: a property, or a function
+-- What a function is called in a warning: a refinement, or a function
 kindName :: M.SomeFunction -> Text
 kindName = \case
-    M.SomeFunction (M.Function M.PropertyKind _ _ _ _ _ _)  -> "property"
-    M.SomeFunction (M.Function M.ProcedureKind _ _ _ _ _ _) -> "function"
+    M.SomeFunction (M.Function M.RefinementKind _ _ _ _ _ _) -> "refinement"
+    M.SomeFunction (M.Function M.ProcedureKind _ _ _ _ _ _)  -> "function"

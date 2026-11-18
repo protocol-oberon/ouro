@@ -74,7 +74,7 @@ data ReaderTag
     | RecordTag   -- For record assertion   (#record variable)
     | ArrayTag    -- For array assertion    (#array variable)
     | FunctionTag -- For function assertion (#function variable)
-    | PropertyTag Text -- For property assertion (#titled variable): a property defined in Ouro, by its name as written
+    | RefinementTag Text -- For refinement assertion (#titled variable): a refinement defined in Ouro, by its name as written
     | RecEmpty
     | ArrEmpty
     deriving (Show, Eq)

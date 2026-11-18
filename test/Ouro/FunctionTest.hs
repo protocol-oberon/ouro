@@ -132,19 +132,19 @@ signatures = Group "Functions: signatures are properties in the header"
                                                                  "{\"r\": {\"a\": 1}, \"s\": [1, 2]}")
 
     -- Mismatches, checked by message and by where they are reported
-    , ("an argument of the wrong type",           failsWith "expectedProperty = \"#number\", actualProperty = \"#string\""
+    , ("an argument of the wrong type",           failsWith "expectedRefinement = \"#number\", actualRefinement = \"#string\""
                                                             "(define/procedure double (#number n) (* n 2)) (graph g (:r (double \"x\")))")
     , ("it is reported at the argument",          failsWith "line 1, col 68"
                                                             "(define/procedure double (#number n) (* n 2)) (graph g (:r (double \"x\")))")
-    , ("an unused argument is still checked",     failsWith "expectedProperty = \"#number\""
+    , ("an unused argument is still checked",     failsWith "expectedRefinement = \"#number\""
                                                             "(define/procedure second (#number a b) b) (graph g (:r (second \"x\" 2)))")
-    , ("a result of the wrong type",              failsWith "expectedProperty = \"#number\", actualProperty = \"#string\""
+    , ("a result of the wrong type",              failsWith "expectedRefinement = \"#number\", actualRefinement = \"#string\""
                                                             "(define/procedure label #number (who) (+ who \"!\")) (graph g (:r (label \"a\")))")
     , ("it is reported at the body",              failsWith "line 1, col 39"
                                                             "(define/procedure label #number (who) (+ who \"!\")) (graph g (:r (label \"a\")))")
-    , ("a fn result of the wrong type",           failsWith "expectedProperty = \"#string\""
+    , ("a fn result of the wrong type",           failsWith "expectedRefinement = \"#string\""
                                                             "(graph g (let ($f (fn #string (n) n)) (:r (f 1))))")
-    , ("a value that is not a function",          failsWith "expectedProperty = \"#function\""
+    , ("a value that is not a function",          failsWith "expectedRefinement = \"#function\""
                                                             "(define/procedure apply (#function f x) (f x)) (graph g (:r (apply 1 2)))")
     , ("a type needs a parameter after it",       failsWith "written before its name"
                                                             "(define/procedure f (#number) 1) (graph g (:r (f)))")
@@ -228,11 +228,11 @@ mapping = Group "Functions: map calls a function on each element"
                                                                  "{\"map\": 5, \"r\": 5}")
 
     -- Each element is checked by the function's signature, and reported at the Array
-    , ("a typed parameter checks each element",   failsWith "expectedProperty = \"#number\", actualProperty = \"#string\""
+    , ("a typed parameter checks each element",   failsWith "expectedRefinement = \"#number\", actualRefinement = \"#string\""
                                                             "(define/procedure double (#number n) (* n 2)) (graph g (:r (map (1 \"x\" 3) double)))")
     , ("it is reported at the array",             failsWith "line 1, col 65"
                                                             "(define/procedure double (#number n) (* n 2)) (graph g (:r (map (1 \"x\" 3) double)))")
-    , ("a result is checked by the return type",  failsWith "expectedProperty = \"#number\""
+    , ("a result is checked by the return type",  failsWith "expectedRefinement = \"#number\""
                                                             "(graph g (:r (map (\"a\") (fn #number (n) (+ n \"!\")))))")
 
     -- Errors
@@ -301,7 +301,7 @@ destructuring = Group "Functions: a parameter can be a pattern"
                                                             "(graph g (let ($f (fn ((?a ?b)) 1)) (:r (f 5))))")
     , ("in map it is reported at the array",      failsWith "line 1, col 19"
                                                             "(graph g (:r (map ((1 2) (3)) (fn ((?a ?b)) a))))")
-    , ("the property is checked before the pattern", failsWith "expectedProperty = \"#record\""
+    , ("the refinement is checked before the pattern", failsWith "expectedRefinement = \"#record\""
                                                             "(graph g (let ($f (fn (#record (?a ?b)) a)) (:r (f (1 2)))))")
 
     -- Errors, reported where the function is defined
@@ -481,7 +481,7 @@ constants = Group "Functions: a function of no parameters, named, is its value"
                                                                  "{\"a\": {\"n\": 1}, \"b\": {\"n\": 1}}")
     , ("with a return type and a doc",            compilesToJSON "(define/constant c #string (doc \"A name.\") \"a\") (graph g (:r c))"
                                                                  "{\"r\": \"a\"}")
-    , ("whose return type is checked",            failsWith "expectedProperty = \"#string\""
+    , ("whose return type is checked",            failsWith "expectedRefinement = \"#string\""
                                                             "(define/constant c #string 1) (graph g (:r c))")
     , ("a define/procedure of no parameters warns", warnsWith "The procedure 'c' takes no parameters, so it is a constant"
                                                             "(define/procedure c () 1) (graph g (:r c))")
@@ -494,20 +494,22 @@ constants = Group "Functions: a function of no parameters, named, is its value"
     , ("a name that begins with defn/const is a name", failsWith "'defn/constant' cannot begin a form at the top level"
                                                             "(defn/constant c 1) (graph g (:r 1))")
 
-      -- define/procedure, define/property and define/constant replace defn, defn/property and
+      -- define/procedure, define/refinement and define/constant replace defn, defn/property and
       -- defn/const; each old form is an error that names its new one
     , ("defn is now define/procedure",            failsWith "defn is now define/procedure: (define/procedure name (args) body)"
                                                             "(defn f (x) x) (graph g (:r 1))")
     , ("defn/const is now define/constant",       failsWith "defn/const is now define/constant: (define/constant name value)"
                                                             "(defn/const c 1) (graph g (:r 1))")
-    , ("defn/property is now define/property",    failsWith "defn/property is now define/property: (define/property name (#contract x) body)"
+    , ("defn/property is now define/refinement",  failsWith "defn/property is now define/refinement: (define/refinement name (#contract x) body)"
                                                             "(defn/property p (#record r) true) (graph g (:r 1))")
     , ("at the old word",                         failsWith "line 1, col 2"
                                                             "(defn f (x) x) (graph g (:r 1))")
-    , ("define on its own is not a definition",   failsWith "'define' is not a definition: say what is defined, with define/procedure, define/property or define/constant"
+    , ("define on its own is not a definition",   failsWith "'define' is not a definition: say what is defined, with define/procedure, define/refinement or define/constant"
                                                             "(define f (x) x) (graph g (:r 1))")
     , ("nor is define of another kind",           failsWith "'define/graph' is not a definition"
                                                             "(define/graph g (:r 1))")
+    , ("define/property is of another kind",      failsWith "'define/property' is not a definition: say what is defined, with define/procedure, define/refinement or define/constant"
+                                                            "(define/property p (#record r) true) (graph g (:r 1))")
     , ("a name that begins with define is a name", compilesToJSON "(define/procedure defined-thing () 3) (graph g (:r defined-thing))"
                                                                  "{\"r\": 3}")
     , ("one constant from another",               compilesToJSON "(define/procedure a () 1) (define/procedure b () (+ a 1)) (graph g (:r b))"
@@ -518,7 +520,7 @@ constants = Group "Functions: a function of no parameters, named, is its value"
                                                                      "(graph g (:r (case 1 (otherwise (fn () 3)))))")
 
       -- It is called as (c) is
-    , ("its return type is checked",              failsWith "expectedProperty = \"#string\""
+    , ("its return type is checked",              failsWith "expectedRefinement = \"#string\""
                                                             "(define/procedure c #string () 1) (graph g (:r c))")
     , ("an error in its body is reported there",  importsFailAt "TYP0000" ("inline-test", 1, 24) ["a Number + a String"] []
                                                                  "(define/procedure c () (+ 1 \"a\")) (graph g (:r c))")
@@ -583,62 +585,62 @@ documentation = Group "Functions: a body can hold one (doc ...)"
                       Nothing                                            -> Nothing
 
 
--- (define/property name (#contract x) body) is a property: a function of the property kind,
+-- (define/refinement name (#contract x) body) is a property: a function of the property kind,
 -- about one value given with a contract, never a function, whose result is #boolean
 properties :: Group
-properties = Group "Properties: define/property"
-    [ ("a property is defined and called",        compilesToJSON "(define/property titled (#record r) (has r _label)) (graph g (:a (titled (:_label \"A\")) :b (titled (:x 1))))"
+properties = Group "Properties: define/refinement"
+    [ ("a property is defined and called",        compilesToJSON "(define/refinement titled (#record r) (has r _label)) (graph g (:a (titled (:_label \"A\")) :b (titled (:x 1))))"
                                                                  "{\"a\": true, \"b\": false}")
     , ("it is a function of the property kind",   withTests 1 . property $
-                                                      fmap kindOf (tokenize "t.ouro" "(define/property titled (#record r) (has r _label)) (define/procedure f (x) x)" >>= parseModule)
+                                                      fmap kindOf (tokenize "t.ouro" "(define/refinement titled (#record r) (has r _label)) (define/procedure f (x) x)" >>= parseModule)
                                                       === Right (Just "property", Just "procedure"))
 
       -- Its result is #boolean, never written
-    , ("its body must be Boolean",                failsWith "expectedProperty = \"#boolean\", actualProperty = \"#number\""
-                                                            "(define/property p (#number n) n) (graph g (:r (p 1)))")
-    , ("it is reported at the body",              failsWith "line 1, col 32"
-                                                            "(define/property p (#number n) n) (graph g (:r (p 1)))")
-    , ("it has no return type",                   failsWith "A property always answers true or false, so it has no return type."
-                                                            "(define/property p #boolean (#number n) true) (graph g (:r 1))")
-    , ("which is reported at the type",           failsWith "line 1, col 20"
-                                                            "(define/property p #boolean (#number n) true) (graph g (:r 1))")
+    , ("its body must be Boolean",                failsWith "expectedRefinement = \"#boolean\", actualRefinement = \"#number\""
+                                                            "(define/refinement p (#number n) n) (graph g (:r (p 1)))")
+    , ("it is reported at the body",              failsWith "line 1, col 34"
+                                                            "(define/refinement p (#number n) n) (graph g (:r (p 1)))")
+    , ("it has no return type",                   failsWith "A refinement always answers true or false, so it has no return type."
+                                                            "(define/refinement p #boolean (#number n) true) (graph g (:r 1))")
+    , ("which is reported at the type",           failsWith "line 1, col 22"
+                                                            "(define/refinement p #boolean (#number n) true) (graph g (:r 1))")
 
       -- One parameter, with a contract that is not #function
-    , ("a parameter has a contract",              failsWith "The parameter 'n' of the property 'p' has no contract."
-                                                            "(define/property p (n) true) (graph g (:r 1))")
-    , ("a pattern parameter too",                 failsWith "The pattern parameter of the property 'p' has no contract."
-                                                            "(define/property p ((?a ?b)) true) (graph g (:r 1))")
-    , ("which can be written before it",          compilesToJSON "(define/property same (#array (?a ?b)) (eq a b)) (graph g (:a (same (1 1)) :b (same (1 2))))"
+    , ("a parameter has a contract",              failsWith "The parameter 'n' of the refinement 'p' has no contract."
+                                                            "(define/refinement p (n) true) (graph g (:r 1))")
+    , ("a pattern parameter too",                 failsWith "The pattern parameter of the refinement 'p' has no contract."
+                                                            "(define/refinement p ((?a ?b)) true) (graph g (:r 1))")
+    , ("which can be written before it",          compilesToJSON "(define/refinement same (#array (?a ?b)) (eq a b)) (graph g (:a (same (1 1)) :b (same (1 2))))"
                                                                  "{\"a\": true, \"b\": false}")
-    , ("the contract is never #function",         failsWith "A property is about data, so its parameter cannot be #function."
-                                                            "(define/property p (#function f) true) (graph g (:r 1))")
-    , ("which is reported at the contract",       failsWith "line 1, col 21"
-                                                            "(define/property p (#function f) true) (graph g (:r 1))")
-    , ("a property takes one parameter",          failsWith "The property 'p' takes one parameter, the value it is about."
-                                                            "(define/property p (#number a #number b) true) (graph g (:r 1))")
-    , ("not none",                                failsWith "The property 'p' takes one parameter, the value it is about."
-                                                            "(define/property p () true) (graph g (:r 1))")
+    , ("the contract is never #function",         failsWith "A refinement is about data, so its parameter cannot be #function."
+                                                            "(define/refinement p (#function f) true) (graph g (:r 1))")
+    , ("which is reported at the contract",       failsWith "line 1, col 23"
+                                                            "(define/refinement p (#function f) true) (graph g (:r 1))")
+    , ("a refinement takes one parameter",        failsWith "The refinement 'p' takes one parameter, the value it is about."
+                                                            "(define/refinement p (#number a #number b) true) (graph g (:r 1))")
+    , ("not none",                                failsWith "The refinement 'p' takes one parameter, the value it is about."
+                                                            "(define/refinement p () true) (graph g (:r 1))")
 
       -- Otherwise it is a function as any other
-    , ("it can call itself, going down",          compilesToJSON "(define/property labelled (#record r) (and (has r _label) (forall (get-or r () part) labelled))) (graph g (:a (labelled (:_label \"A\" :part ((:_label \"B\")))) :b (labelled (:_label \"A\" :part ((:x 1))))))"
+    , ("it can call itself, going down",          compilesToJSON "(define/refinement labelled (#record r) (and (has r _label) (forall (get-or r () part) labelled))) (graph g (:a (labelled (:_label \"A\" :part ((:_label \"B\")))) :b (labelled (:_label \"A\" :part ((:x 1))))))"
                                                                  "{\"a\": true, \"b\": false}")
     , ("it shares the defn's namespace",          failsWith "defined more than once"
-                                                            "(define/procedure titled (x) 1) (define/property titled (#record r) true) (graph g (:r 1))")
-    , ("it keeps a doc",                          documented "(define/property titled (#record r) (doc \"Has a label.\") (has r _label))" "titled" (Just "Has a label."))
-    , ("a warning names it a property",           warnsWith "The property 'Titled' is not named in kebab-case"
-                                                            "(define/property Titled (#record r) true) (graph g (:r (Titled (:a 1))))")
-    , ("as when it replaces a built-in",          warnsWith "The property 'len' replaces the built-in 'len'"
-                                                            "(define/property len (#array xs) true) (graph g (:r 1))")
-    , ("one without a doc is a warning",          warnsWith "The property 'titled' has no doc"
-                                                            "(define/property titled (#record r) (has r _label)) (graph g (:r 1))")
-    , ("one with a doc is not",                   compilesWithoutWarnings "(define/property titled (#record r) (doc \"Has a label.\") (has r _label)) (graph g (:r 1))")
+                                                            "(define/procedure titled (x) 1) (define/refinement titled (#record r) true) (graph g (:r 1))")
+    , ("it keeps a doc",                          documented "(define/refinement titled (#record r) (doc \"Has a label.\") (has r _label))" "titled" (Just "Has a label."))
+    , ("a warning names it a refinement",         warnsWith "The refinement 'Titled' is not named in kebab-case"
+                                                            "(define/refinement Titled (#record r) true) (graph g (:r (Titled (:a 1))))")
+    , ("as when it replaces a built-in",          warnsWith "The refinement 'len' replaces the built-in 'len'"
+                                                            "(define/refinement len (#array xs) true) (graph g (:r 1))")
+    , ("one without a doc is a warning",          warnsWith "The refinement 'titled' has no doc"
+                                                            "(define/refinement titled (#record r) (has r _label)) (graph g (:r 1))")
+    , ("one with a doc is not",                   compilesWithoutWarnings "(define/refinement titled (#record r) (doc \"Has a label.\") (has r _label)) (graph g (:r 1))")
     ]
     where
     kindOf m = ( kind <$> Map.lookup "titled" (M._functionRegistry m)
                , kind <$> Map.lookup "f" (M._functionRegistry m) )
     kind :: M.SomeFunction -> T.Text
     kind = \case
-        M.SomeFunction (M.Function M.PropertyKind _ _ _ _ _ _)  -> "property"
+        M.SomeFunction (M.Function M.RefinementKind _ _ _ _ _ _)  -> "property"
         M.SomeFunction (M.Function M.ProcedureKind _ _ _ _ _ _) -> "procedure"
     documented src name expected = withTests 1 . property $
         either (const Nothing) docOf (tokenize "t.ouro" src >>= parseModule) === Just expected
@@ -654,17 +656,17 @@ assertions :: Group
 assertions = Group "Properties: assertions, #titled x"
     [ ("a value with it passes on",               compilesToJSON (titled <> "(graph g (:r #titled (:_label \"A\")))")
                                                                  "{\"r\": {\"_label\": \"A\"}}")
-    , ("a value without it fails",                failsWith "expectedProperty = \"#titled\", actualProperty = \"a #record that is not #titled\""
+    , ("a value without it fails",                failsWith "expectedRefinement = \"#titled\", actualRefinement = \"a #record that is not #titled\""
                                                             (titled <> "(graph g (:r #titled (:x 1)))"))
-    , ("at the value",                            failsWith "line 1, col 74"
+    , ("at the value",                            failsWith "line 1, col 76"
                                                             (titled <> "(graph g (:r #titled (:x 1)))"))
     , ("with its doc as the rule it broke",       failsWith "#titled: Has a label."
-                                                            "(define/property titled (#record r) (doc \"Has a label.\") (has r _label)) (graph g (:r #titled (:x 1)))")
+                                                            "(define/refinement titled (#record r) (doc \"Has a label.\") (has r _label)) (graph g (:r #titled (:x 1)))")
     , ("or saying it has none",                   failsWith "#titled has no doc, so the rule it asserts cannot be shown."
                                                             (titled <> "(graph g (:r #titled (:x 1)))"))
-    , ("an error inside it stays that error",     failsWith "expectedProperty = \"#record\", actualProperty = \"#string\""
+    , ("an error inside it stays that error",     failsWith "expectedRefinement = \"#record\", actualRefinement = \"#string\""
                                                             (titled <> "(graph g (:r #titled \"a\"))"))
-    , ("at the tag, where it is called",          failsWith "line 1, col 66"
+    , ("at the tag, where it is called",          failsWith "line 1, col 68"
                                                             (titled <> "(graph g (:r #titled \"a\"))"))
 
       -- Wherever a built-in property is written
@@ -672,38 +674,38 @@ assertions = Group "Properties: assertions, #titled x"
                                                                  "{\"a\": true, \"b\": false}")
     , ("as a case branch's head",                 compilesToJSON (titled <> "(graph g (:r (case (:x 1) ((satisfies #titled) \"titled\") (otherwise \"untitled\"))))")
                                                                  "{\"r\": \"untitled\"}")
-    , ("satisfies keeps its parameter's contract an error", failsWith "expectedProperty = \"#record\", actualProperty = \"#string\""
+    , ("satisfies keeps its parameter's contract an error", failsWith "expectedRefinement = \"#record\", actualRefinement = \"#string\""
                                                             (titled <> "(graph g (:r (satisfies \"a\" #titled)))"))
     , ("a parameter's contract",                 compilesToJSON (titled <> "(define/procedure name-of (#titled r) (get r _label)) (graph g (:r (name-of (:_label \"A\"))))")
                                                                  "{\"r\": \"A\"}")
-    , ("which an argument without it fails",      failsWith "line 1, col 129"
+    , ("which an argument without it fails",      failsWith "line 1, col 131"
                                                             (titled <> "(define/procedure name-of (#titled r) (get r _label)) (graph g (:r (name-of (:x 1))))"))
-    , ("a return type",                           failsWith "line 1, col 87"
+    , ("a return type",                           failsWith "line 1, col 89"
                                                             (titled <> "(define/procedure make #titled () (:x 1)) (graph g (:r make))"))
     , ("a binding is never a property",           compilesToJSON (titled <> "(graph g (:r (let ($titled 1) #titled (:_label \"A\"))))")
                                                                  "{\"r\": {\"_label\": \"A\"}}")
 
       -- Every tag is resolved as written, before anything is evaluated
-    , ("an unknown one is reported at the tag",   failsWith "line 1, col 66"
+    , ("an unknown one is reported at the tag",   failsWith "line 1, col 68"
                                                             (titled <> "(graph g (:r #titeld (:_label \"A\")))"))
     , ("with the nearest property",               failsWith "Perhaps you meant: '#titled'?"
                                                             (titled <> "(graph g (:r #titeld (:_label \"A\")))"))
     , ("or built-in name",                        failsWith "Perhaps you meant: '#string'?"
                                                             "(graph g (:r #str \"a\"))")
-    , ("in a function no graph calls",            failsWith "Unknown property: #titeld"
+    , ("in a function no graph calls",            failsWith "Unknown refinement: #titeld"
                                                             (titled <> "(define/procedure unused (r) #titeld r) (graph g (:r 1))"))
-    , ("and in a parameter's contract",           failsWith "Unknown property: #titeld"
+    , ("and in a parameter's contract",           failsWith "Unknown refinement: #titeld"
                                                             "(define/procedure f (#titeld r) r) (graph g (:r 1))")
-    , ("a function is not a property",            failsWith "'f' is a function, not a property, so #f cannot assert it."
+    , ("a function is not a refinement",          failsWith "'f' is a function, not a refinement, so #f cannot assert it."
                                                             "(define/procedure f (x) x) (graph g (:r #f 1))")
 
       -- A tag is a call of its property, so recursion through it must go down
-    , ("asserting itself on a part goes down",    compilesToJSON "(define/property labelled (#record r) (and (has r _label) (forall (get-or r () part) (fn (#record p) (satisfies p #labelled))))) (graph g (:a (labelled (:_label \"A\" :part ((:_label \"B\")))) :b (labelled (:_label \"A\" :part ((:x 1))))))"
+    , ("asserting itself on a part goes down",    compilesToJSON "(define/refinement labelled (#record r) (and (has r _label) (forall (get-or r () part) (fn (#record p) (satisfies p #labelled))))) (graph g (:a (labelled (:_label \"A\" :part ((:_label \"B\")))) :b (labelled (:_label \"A\" :part ((:x 1))))))"
                                                                  "{\"a\": true, \"b\": false}")
     , ("on the whole value it is recursion",      failsWith "'p' calls itself"
-                                                            "(define/property p (#record r) (satisfies r #p)) (graph g (:r (p (:a 1))))")
+                                                            "(define/refinement p (#record r) (satisfies r #p)) (graph g (:r (p (:a 1))))")
     , ("as is being its own contract",            failsWith "'p' calls itself"
-                                                            "(define/property p (#p x) true) (graph g (:r (p 1)))")
+                                                            "(define/refinement p (#p x) true) (graph g (:r (p 1)))")
     ]
     where
-    titled = "(define/property titled (#record r) (has r _label)) "
+    titled = "(define/refinement titled (#record r) (has r _label)) "

@@ -19,12 +19,12 @@ import           Data.Ouro.Error.Diagnostics    (astCorruption,
                                                  malformedCaseBranch,
                                                  malformedTag, missingOtherwise,
                                                  missingOtherwiseBlurb,
-                                                 missingPathKey, notAProperty,
-                                                 propertyMismatch, targetMismatch,
+                                                 missingPathKey, notARefinement,
+                                                 refinementMismatch, targetMismatch,
                                                  typeMismatch,
                                                  typeMismatchBlurb,
                                                  unbalancedDelimiter,
-                                                 unknownProperty, withBlurb)
+                                                 unknownRefinement, withBlurb)
 import           Data.Ouro.Error.Types          (ErrorContext (..),
                                                  OuroError (..), TypeError (..))
 import qualified Data.Ouro.Internal.Expr        as I
@@ -41,7 +41,7 @@ import           Data.Ouro.Lisp.Eval.Scope      (allocFrame, allocValues, boundI
 import           Data.Ouro.Lisp.Eval.Structural (alreadyAField, compileArray,
                                                  compileRecord, evalFunction)
 import           Data.Ouro.Lisp.Eval.Types      (Env (..), EvalM, Expr (..),
-                                                 humanReadableType, propertyOf)
+                                                 humanReadableType, refinementOf)
 import qualified Data.Ouro.Lisp.Eval.Types      as L
 import           Data.Ouro.Lisp.Function        (checkParams, isFunctionKeyword,
                                                  misplacedBinding,
@@ -133,10 +133,10 @@ evalExpr expr = do
         S.Literal _ S.EmptyArr  -> pure $ Primitive I.EmptyArr
         S.Literal _ S.EmptyRec  -> pure $ Primitive I.EmptyRec
 
-        -- A property on its own, #string with nothing after it, is the subject-less form of
+        -- A refinement on its own, #string with nothing after it, is the subject-less form of
         -- (satisfies #string), which only a case branch head fills in
         S.Tagged pos _ (S.Hole _ "%subject")
-            -> lexicalError "A property on its own has nothing to check: a property is written before the value it applies to, as in #string x."
+            -> lexicalError "A refinement on its own has nothing to check: a refinement is written before the value it applies to, as in #string x."
                & withBlurb "In a case branch head, (satisfies #string) asks it of the case's target: (case x ((satisfies #string) \"text\") (otherwise \"other\"))."
                & OuroError pos
                & EvalError
@@ -334,7 +334,7 @@ evalExpr expr = do
                        | Just elems <- L.asArray arr
                        -> let answer = \case
                                   Primitive (I.Boolean b) -> pure (Right b)
-                                  other                   -> propertyMismatch "#boolean" (propertyOf other)
+                                  other                   -> refinementMismatch "#boolean" (refinementOf other)
                                                              & withBlurb (form <> " reads an Array of Booleans: each element must be true or false.")
                                                              & OuroError (S.exprPos arrExpr)
                                                              & EvalError
@@ -480,21 +480,21 @@ evalExpr expr = do
                & EvalError
                & pure
 
-        -- (satisfies x #p): whether x has the property #p, as a Boolean, asked as x ∈ #p is,
-        -- the value first; #p x states it. Only the property's check failing is false: an
-        -- error in x, or a property that is not one, stays an error. The property, written
-        -- last, has nothing after it, so it is read as a property on its own.
+        -- (satisfies x #p): whether x has the refinement #p, as a Boolean, asked as x ∈ #p is,
+        -- the value first; #p x states it. Only the refinement's check failing is false: an
+        -- error in x, or a refinement that is not one, stays an error. The refinement, written
+        -- last, has nothing after it, so it is read as a refinement on its own.
         S.Form _ [S.Symbol _ "satisfies", subject, S.Tagged tagPos tag (S.Hole _ "%subject")]
             | not (isSubjectHole subject)
             -> evalExpr subject >>= \case
                    err@(EvalError _) -> pure err
-                   value             -> checkProperty tag tagPos tagPos value >>= \case
-                                            EvalError (OuroError _ ctx) | isPropertyMismatch ctx -> pure (Primitive (I.Boolean False))
+                   value             -> checkRefinement tag tagPos tagPos value >>= \case
+                                            EvalError (OuroError _ ctx) | isRefinementMismatch ctx -> pure (Primitive (I.Boolean False))
                                             err@(EvalError _)                                    -> pure err
                                             _hasIt                                               -> pure (Primitive (I.Boolean True))
 
         S.Form pos (S.Symbol _ "satisfies" : _)
-            -> lexicalError "satisfies is written (satisfies value #property), or as the head of a case branch, ((satisfies #property) result)."
+            -> lexicalError "satisfies is written (satisfies value #refinement), or as the head of a case branch, ((satisfies #refinement) result)."
                & withBlurb "Perhaps write (satisfies x #string), or (case x ((satisfies #string) \"text\") (otherwise \"other\"))."
                & OuroError pos
                & EvalError
@@ -520,7 +520,7 @@ evalExpr expr = do
 
         S.Form pos (S.Symbol _ (S.formName -> "fn") : _)
             -> lexicalError "A fn is written (fn (args) expr): argument names or patterns, each with an optional type, then exactly one result expression."
-               & withBlurb "A signature's types are properties: (fn #number (#number n) (* n 2))."
+               & withBlurb "A signature's types are refinements: (fn #number (#number n) (* n 2))."
                & OuroError pos
                & EvalError
                & pure
@@ -656,7 +656,7 @@ evalExpr expr = do
 
 -- assertTag.
 --
--- Checks a value against a property, as a signature or an assertion such as #string x names
+-- Checks a value against a refinement, as a signature or an assertion such as #string x names
 -- it, written at the position given. Only #uri and #date convert: a String that passes them
 -- becomes a URI or a Date.
 assertTag :: SourcePos -> S.ReaderTag -> S.Expr -> EvalM L.Expr
@@ -664,14 +664,14 @@ assertTag tagPos tag payload = do
     evaluatedVal <- evalExpr payload
     case evaluatedVal of
         err@(EvalError _) -> pure err
-        _notError         -> checkProperty tag tagPos (S.exprPos payload) evaluatedVal
+        _notError         -> checkRefinement tag tagPos (S.exprPos payload) evaluatedVal
 
 
--- Checks an evaluated value against a property, its tag written at the first position and
--- the value at the second: the value, converted for #uri and #date, or a PropertyMismatch
+-- Checks an evaluated value against a refinement, its tag written at the first position and
+-- the value at the second: the value, converted for #uri and #date, or a RefinementMismatch
 -- error at the value
-checkProperty :: S.ReaderTag -> SourcePos -> SourcePos -> L.Expr -> EvalM L.Expr
-checkProperty tag tagPos pos evaluatedVal = case tag of
+checkRefinement :: S.ReaderTag -> SourcePos -> SourcePos -> L.Expr -> EvalM L.Expr
+checkRefinement tag tagPos pos evaluatedVal = case tag of
                                  S.Uri         -> assertUri  evaluatedVal
                                  S.Date        -> assertDate evaluatedVal
                                  S.StringTag   -> isString   evaluatedVal
@@ -680,72 +680,72 @@ checkProperty tag tagPos pos evaluatedVal = case tag of
                                  S.RecordTag   -> isRecord   evaluatedVal
                                  S.ArrayTag    -> isArray    evaluatedVal
                                  S.FunctionTag -> isFn       evaluatedVal
-                                 S.PropertyTag name -> isProperty name evaluatedVal
-                                 _badTag       -> malformedTag (T.pack (show tag)) "#record-empty and #array-empty are values, not properties, so nothing can be asserted with them"
+                                 S.RefinementTag name -> isRefinement name evaluatedVal
+                                 _badTag       -> malformedTag (T.pack (show tag)) "#record-empty and #array-empty are values, not refinements, so nothing can be asserted with them"
                                                   & OuroError pos
                                                   & EvalError
                                                   & pure
 
     where
-    -- Typed Primitive Helpers, each at the position checkProperty was given
+    -- Typed Primitive Helpers, each at the position checkRefinement was given
     isString v = case v of
                      Primitive (I.String _) -> pure v
-                     other                  -> failProperty "#string" (propertyOf other) (typeMismatchBlurb other)
+                     other                  -> failRefinement "#string" (refinementOf other) (typeMismatchBlurb other)
 
     isNumber v = case v of
                      Primitive (I.Number _) -> pure v
-                     other                  -> failProperty "#number" (propertyOf other) (typeMismatchBlurb other)
+                     other                  -> failRefinement "#number" (refinementOf other) (typeMismatchBlurb other)
 
     isRecord v = case v of
                      Record _ _           -> pure v
                      Primitive I.EmptyRec -> pure v
-                     other                -> failProperty "#record" (propertyOf other) (typeMismatchBlurb other)
+                     other                -> failRefinement "#record" (refinementOf other) (typeMismatchBlurb other)
 
     isArray v = case L.asArray v of
                     Just _  -> pure v
-                    Nothing -> failProperty "#array" (propertyOf v) (typeMismatchBlurb v)
+                    Nothing -> failRefinement "#array" (refinementOf v) (typeMismatchBlurb v)
 
     isFn v = case v of
                  FunctionClosure {}      -> pure v
                  PrimitiveOp _           -> pure v
-                 other                   -> failProperty "#function" (propertyOf other) (typeMismatchBlurb other)
+                 other                   -> failRefinement "#function" (refinementOf other) (typeMismatchBlurb other)
 
     isBoolean v = case v of
                       Primitive (I.Boolean _) -> pure v
-                      other                   -> failProperty "#boolean" (propertyOf other) (typeMismatchBlurb other)
+                      other                   -> failRefinement "#boolean" (refinementOf other) (typeMismatchBlurb other)
 
-    -- A property defined in Ouro, #titled: the value has it if the property, called on the
+    -- A refinement defined in Ouro, #titled: the value has it if the refinement, called on the
     -- value, answers true. It is found by the frames around the assertion, as a function is,
     -- but never among their bindings, since nothing bound by a let or a parameter is a
-    -- property. An error inside the property, its parameter's contract among them, stays
+    -- refinement. An error inside the refinement, its parameter's contract among them, stays
     -- the error. It is called where its tag is written, as the analysis found the call, so
-    -- a property asserting itself on a part of its value is accepted. The analysis reports
-    -- a tag that names no property, so the errors here are not reached from a compile.
-    isProperty :: Text -> L.Expr -> EvalM L.Expr
-    isProperty name v = do
+    -- a refinement asserting itself on a part of its value is accepted. The analysis reports
+    -- a tag that names no refinement, so the errors here are not reached from a compile.
+    isRefinement :: Text -> L.Expr -> EvalM L.Expr
+    isRefinement name v = do
         env <- ask
         case findFunction name env of
-            Just (fnEnv, M.SomeFunction (M.Function M.PropertyKind fnPos _ doc params result (S.Form _ bodyExprs)))
+            Just (fnEnv, M.SomeFunction (M.Function M.RefinementKind fnPos _ doc params result (S.Form _ bodyExprs)))
                 -> do
-                   -- The property and the value are bound under names that cannot be
-                   -- written in Ouro, and the property is called as any function is, so
+                   -- The refinement and the value are bound under names that cannot be
+                   -- written in Ouro, and the refinement is called as any function is, so
                    -- arity, its signature and the recursion check apply
                    frame  <- allocValues (\names -> env
                                                   & L.localScope       .~ names
                                                   & L.functionRegistry .~ Map.empty
                                                   & L.parentEnv        .~ Just env)
                                          tagPos
-                                         [("%property", FunctionClosure fnEnv (name, fnPos) params result bodyExprs), ("%property-value", v)]
+                                         [("%refinement", FunctionClosure fnEnv (name, fnPos) params result bodyExprs), ("%refinement-value", v)]
                    answer <- local (const frame) $
-                                 applyFunction tagPos [S.Symbol tagPos "%property", S.Symbol tagPos "%property-value"]
+                                 applyFunction tagPos [S.Symbol tagPos "%refinement", S.Symbol tagPos "%refinement-value"]
                    case answer of
                        Primitive (I.Boolean True)  -> pure v
-                       Primitive (I.Boolean False) -> failProperty ("#" <> name) ("a " <> propertyOf v <> " that is not #" <> name) (rule doc)
+                       Primitive (I.Boolean False) -> failRefinement ("#" <> name) ("a " <> refinementOf v <> " that is not #" <> name) (rule doc)
                        -- Its body is checked as #boolean, so anything else is an error
                        other                       -> pure other
 
             Just (_, M.SomeFunction (M.Function M.ProcedureKind _ _ _ _ _ _))
-                -> notAProperty name
+                -> notARefinement name
                    & OuroError tagPos
                    & EvalError
                    & pure
@@ -757,17 +757,17 @@ checkProperty tag tagPos pos evaluatedVal = case tag of
                    & pure
 
             Nothing
-                -> unknownProperty name []
+                -> unknownRefinement name []
                    & OuroError tagPos
                    & EvalError
                    & pure
 
         where
-        -- The property's doc, stated as the rule it asserts
+        -- The refinement's doc, stated as the rule it asserts
         rule = \case
             Just text -> "#" <> name <> ": " <> text
             Nothing   -> "#" <> name <> " has no doc, so the rule it asserts cannot be shown. "
-                      <> "Perhaps write one: (define/property " <> name <> " (#record r) (doc \"...\") ...)."
+                      <> "Perhaps write one: (define/refinement " <> name <> " (#record r) (doc \"...\") ...)."
 
     -- Complex Parsers
     assertUri :: L.Expr -> EvalM L.Expr
@@ -775,20 +775,20 @@ checkProperty tag tagPos pos evaluatedVal = case tag of
         Primitive (I.String rawText)
             -> case mkUri rawText of
                    Left _
-                       -> failProperty "#uri" "a #string that is not a URI" uriBlurb
+                       -> failRefinement "#uri" "a #string that is not a URI" uriBlurb
 
                    Right uri
                        -> case URI.uriScheme (uriParsed uri) of
                               Just _
                                   -> pure $ Primitive (I.URI uri)
                               Nothing
-                                  -> failProperty "#uri" "a #string without a URI scheme" uriBlurb
+                                  -> failRefinement "#uri" "a #string without a URI scheme" uriBlurb
 
         Primitive (I.URI uri)
             -> pure $ Primitive (I.URI uri)
 
         otherVal
-            -> failProperty "#uri" (propertyOf otherVal) uriBlurb
+            -> failRefinement "#uri" (refinementOf otherVal) uriBlurb
 
     assertDate :: L.Expr -> EvalM L.Expr
     assertDate =
@@ -796,21 +796,21 @@ checkProperty tag tagPos pos evaluatedVal = case tag of
          Primitive (I.String rawText)
              -> case parseISO8601 (T.unpack rawText) of
                     Just    utcTime -> pure $ Primitive (I.Date utcTime)
-                    Nothing         -> failProperty "#date" "a #string that is not a date" dateBlurb
+                    Nothing         -> failRefinement "#date" "a #string that is not a date" dateBlurb
 
          Primitive (I.Date date)
              -> pure $ Primitive (I.Date date)
 
          otherVal
-             -> failProperty "#date" (propertyOf otherVal) dateBlurb
+             -> failRefinement "#date" (refinementOf otherVal) dateBlurb
 
     uriBlurb  = "A #uri is a #string with a scheme, such as \"https://linked.art/example/1\"."
     dateBlurb = "A #date is a #string in ISO-8601 form, YYYY-MM-DDTHH:mm:ssZ, such as \"1642-01-01T00:00:00Z\"."
 
-    -- A value without the built-in property it is typed with
-    failProperty :: Text -> Text -> Text -> EvalM L.Expr
-    failProperty expected actual blurb =
-        propertyMismatch expected actual
+    -- A value without the built-in refinement it is typed with
+    failRefinement :: Text -> Text -> Text -> EvalM L.Expr
+    failRefinement expected actual blurb =
+        refinementMismatch expected actual
         & withBlurb blurb
         & OuroError pos
         & EvalError
@@ -902,7 +902,7 @@ evaluateGuards eval env pos target attempts branches =
                                Primitive (I.Boolean True)  -> eval body
                                Primitive (I.Boolean False) -> evaluateGuards eval env pos target (attempts + 1) rest
                                err@(EvalError _)           -> pure err
-                               other                       -> propertyMismatch "#boolean" (propertyOf other)
+                               other                       -> refinementMismatch "#boolean" (refinementOf other)
                                                               & withBlurb "A case condition answers true or false: ((when cond) result), or a comparison such as ((< 10) result)."
                                                               & OuroError (S.exprPos cond)
                                                               & EvalError
@@ -949,11 +949,11 @@ evaluateGuards eval env pos target attempts branches =
                & pure
 
 
--- Whether an error is a value lacking a property, under any blurbs written on it
-isPropertyMismatch :: ErrorContext -> Bool
-isPropertyMismatch = \case
-    Typing PropertyMismatch {} -> True
-    AnnotatedContext _ ctx     -> isPropertyMismatch ctx
+-- Whether an error is a value lacking a refinement, under any blurbs written on it
+isRefinementMismatch :: ErrorContext -> Bool
+isRefinementMismatch = \case
+    Typing RefinementMismatch {} -> True
+    AnnotatedContext _ ctx     -> isRefinementMismatch ctx
     _otherError                -> False
 
 
@@ -1176,7 +1176,7 @@ predicateVerdict :: Text -> SourcePos -> L.Expr -> Either L.Expr Bool
 predicateVerdict form arrPos = \case
     Primitive (I.Boolean b) -> Right b
     err@(EvalError _)       -> Left err
-    other                   -> propertyMismatch "#boolean" (propertyOf other)
+    other                   -> refinementMismatch "#boolean" (refinementOf other)
                                & withBlurb (form <> "'s function must answer true or false for each element.")
                                & OuroError arrPos
                                & EvalError

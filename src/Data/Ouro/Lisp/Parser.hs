@@ -19,7 +19,7 @@ import           Data.Ouro.Lisp.Function     (checkFunctionName, checkParams,
                                               duplicateFunction, functionBody,
                                               functionDoc, graphBody,
                                               isFunctionKeyword, patternParam,
-                                              propertyParams, propertyResult,
+                                              refinementParams, refinementResult,
                                               removedLocalDefn)
 import           Data.Ouro.Lisp.Module.Types (Declaration (..),
                                               FunctionKind (..),
@@ -133,7 +133,7 @@ buildModuleRegistry = foldM insertDecl emptyModule
             F.& OuroError pos
             F.& Left
 
-    -- define/procedure, define/property and define/constant are keywords, and defn/const and
+    -- define/procedure, define/refinement and define/constant are keywords, and defn/const and
     -- defn/property retired ones, so the functions of an import qualified define or defn would
     -- read as them. 'as define' and 'as defn' cannot be written (each on its own is an error); a
     -- path ending in either can.
@@ -147,8 +147,8 @@ buildModuleRegistry = foldM insertDecl emptyModule
             Nothing
                 -> Right ()
 
-    reservedQualifiers = [ ("define", "define/procedure, define/property and define/constant")
-                         , ("defn",   "defn/const and defn/property, which define/constant and define/property replace") ]
+    reservedQualifiers = [ ("define", "define/procedure, define/refinement and define/constant")
+                         , ("defn",   "defn/const and defn/property, which define/constant and define/refinement replace") ]
 
     qualifierClash earlier imp =
         lexicalError ("Two imports are both qualified '" <> qualifierOf imp <> "': " <> importPath earlier <> " and " <> importPath imp <> ".")
@@ -210,16 +210,16 @@ pHigherExpression = do
         Tkn.OpenParen -> within (Tkn.pos startTkn) ")" $ do
                          kwTkn <- popToken
                          case Tkn.tokenType kwTkn of
-                             Tkn.DefineProcedure -> pDefn ProcedureKind pArgs     (Tkn.pos startTkn)
-                             Tkn.DefineConstant  -> pDefn ProcedureKind (pure []) (Tkn.pos startTkn)
-                             Tkn.DefineProperty  -> pDefn PropertyKind  pArgs     (Tkn.pos startTkn)
-                             Tkn.Graph           -> pGraph (Tkn.pos startTkn)
-                             Tkn.Import          -> pImport (Tkn.pos startTkn)
-                             Tkn.Export          -> pExport (Tkn.pos startTkn)
-                             other               -> lexicalError ("'" <> Tkn.written other <> "' cannot begin a form at the top level of a file")
-                                                    F.& withBlurb topLevelForms
-                                                    F.& OuroError (Tkn.pos kwTkn)
-                                                    F.& Left
+                             Tkn.DefineProcedure  -> pDefn ProcedureKind  pArgs     (Tkn.pos startTkn)
+                             Tkn.DefineConstant   -> pDefn ProcedureKind  (pure []) (Tkn.pos startTkn)
+                             Tkn.DefineRefinement -> pDefn RefinementKind pArgs     (Tkn.pos startTkn)
+                             Tkn.Graph            -> pGraph (Tkn.pos startTkn)
+                             Tkn.Import           -> pImport (Tkn.pos startTkn)
+                             Tkn.Export           -> pExport (Tkn.pos startTkn)
+                             other                -> lexicalError ("'" <> Tkn.written other <> "' cannot begin a form at the top level of a file")
+                                                     F.& withBlurb topLevelForms
+                                                     F.& OuroError (Tkn.pos kwTkn)
+                                                     F.& Left
                                                     F.& lift
         other -> lexicalError ("A top-level form begins with '(', not '" <> Tkn.written other <> "'")
                  F.& withBlurb topLevelForms
@@ -232,7 +232,7 @@ pHigherExpression = do
 
 -- (define/procedure name (params) body), or (define/constant name body): a function of no
 -- parameters, with none written. Either may have a return type after its name.
--- (define/property name (params) body) is a property: a function of the property kind.
+-- (define/refinement name (params) body) is a refinement: a function of the refinement kind.
 pDefn :: FunctionKind k -> Parser [S.Param] -> SourcePos -> Parser ParsedDecl
 pDefn kind params pos = do
     name    <- expectSymbol "Expected a function name"
@@ -243,12 +243,12 @@ pDefn kind params pos = do
     -- A pattern parameter binds something, and each name is bound once
     lift (checkParams pos args)
 
-    -- A property's result is #boolean, and its one parameter has a contract
+    -- A refinement's result is #boolean, and its one parameter has a contract
     retType <- case kind of
-                   ProcedureKind -> pure written
-                   PropertyKind  -> do
-                                    lift (propertyParams name pos args)
-                                    lift (propertyResult pos written)
+                   ProcedureKind  -> pure written
+                   RefinementKind -> do
+                                     lift (refinementParams name pos args)
+                                     lift (refinementResult pos written)
 
     -- A (doc "...") among the body's direct elements is the function's documentation
     (doc, results) <- lift (functionDoc name body)
@@ -425,7 +425,7 @@ typeTag = \case
     Tkn.TagRecord   -> Just S.RecordTag
     Tkn.TagArray    -> Just S.ArrayTag
     Tkn.TagFunction -> Just S.FunctionTag
-    Tkn.TagProperty name -> Just (S.PropertyTag name)
+    Tkn.TagRefinement name -> Just (S.RefinementTag name)
     _notAType       -> Nothing
 
 -- Recursive Expr Router
@@ -444,7 +444,7 @@ pExpr = do
                              Tkn.Let            -> capture (S.Symbol (Tkn.pos t) "let")
                              Tkn.DefineProcedure -> capture (S.Symbol (Tkn.pos t) "define/procedure")
                              Tkn.DefineConstant  -> capture (S.Symbol (Tkn.pos t) "define/constant")
-                             Tkn.DefineProperty  -> capture (S.Symbol (Tkn.pos t) "define/property")
+                             Tkn.DefineRefinement -> capture (S.Symbol (Tkn.pos t) "define/refinement")
 
                              -- Parameterized Identifiers
                              Tkn.Symbol         txt -> capture (S.Symbol (Tkn.pos t) txt)
@@ -526,14 +526,14 @@ parseTaggedNode :: SourcePos -> S.ReaderTag -> Parser S.Expr
 parseTaggedNode tagPos tagType = do
                                  stream <- remainingTokens
                                  case stream of
-                                     -- A property on its own, at the end of a form: (satisfies x #string),
+                                     -- A refinement on its own, at the end of a form: (satisfies x #string),
                                      -- or a case head's (satisfies #string). Its subject is a hole that
                                      -- cannot be written in Ouro: satisfies takes its value before it,
                                      -- and anywhere else it is reported
                                      t : _ | Tkn.CloseParen <- Tkn.tokenType t
                                          -> pure $ S.Tagged tagPos tagType (S.Hole tagPos "%subject")
 
-                                     -- Otherwise the property applies to the expression after it
+                                     -- Otherwise the refinement applies to the expression after it
                                      _anExpression
                                          -> S.Tagged tagPos tagType <$> pExpr
 

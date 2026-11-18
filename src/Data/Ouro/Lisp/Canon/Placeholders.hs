@@ -58,12 +58,12 @@ placeholders = \case
 
 -- Forms with their own structure, whose arguments are not values a hole could stand for
 holeFreeForms :: [Text]
-holeFreeForms = [ "%attr", "case", "context", "define/constant", "define/procedure", "define/property", "fn", "graph", "inlay", "let", "thru"
+holeFreeForms = [ "%attr", "case", "context", "define/constant", "define/procedure", "define/refinement", "fn", "graph", "inlay", "let", "thru"
                 , "%binder" ]
 
 
 -- An argument that is a hole, or a hole under a type tag. A rest hole is not a parameter,
--- and nor is a subject-less property's '%subject', which only a case fills in.
+-- and nor is a subject-less refinement's '%subject', which only a case fills in.
 hole :: S.Expr -> Bool
 hole = \case
     S.Hole _ name                  -> "?" `T.isPrefixOf` name && not ("?.." `T.isPrefixOf` name)

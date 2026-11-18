@@ -204,9 +204,9 @@ splitErrorContext = \case
            , Nothing
            )
 
-    Typing (PropertyMismatch expected actual)
-        -> ( "Property Mismatch"
-           , [ highlightDiagnostic ("Expected data to have the property " <> expected <> ", got " <> actual <> " instead.")
+    Typing (RefinementMismatch expected actual)
+        -> ( "Refinement Mismatch"
+           , [ highlightDiagnostic ("Expected data to have the refinement " <> expected <> ", got " <> actual <> " instead.")
              ]
            , Nothing
            )
@@ -652,7 +652,7 @@ splitWarningContext ctx =
                , [ labeled "Constant: " (highlightDiagnostic name) ]
                , Just blurb
                )
-        Lint (UndocumentedProperty name)
+        Lint (UndocumentedRefinement name)
             -> ( title
                , [ labeled "Undocumented: " (highlightDiagnostic ("#" <> name)) ]
                , Just blurb

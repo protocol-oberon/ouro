@@ -24,13 +24,13 @@ data Declaration
 -- DataKind to represent the different types of function
 data FunctionDeclaration
     = Procedure
-    | Property
+    | Refinement
     deriving (Show, Eq)
 
 -- The kind of a function, at runtime: matching on it tells the type checker which it is
 data FunctionKind (k :: FunctionDeclaration) where
-    ProcedureKind :: FunctionKind 'Procedure
-    PropertyKind  :: FunctionKind 'Property
+    ProcedureKind  :: FunctionKind 'Procedure
+    RefinementKind :: FunctionKind 'Refinement
 
 deriving instance Show (FunctionKind k)
 deriving instance Eq   (FunctionKind k)
@@ -41,9 +41,9 @@ data SomeFunction where
 instance Eq SomeFunction where
     SomeFunction a@(Function ka _ _ _ _ _ _) == SomeFunction b@(Function kb _ _ _ _ _ _) =
         case (ka, kb) of
-            (ProcedureKind, ProcedureKind) -> a == b
-            (PropertyKind,  PropertyKind)  -> a == b
-            _differentKinds                -> False
+            (ProcedureKind, ProcedureKind)   -> a == b
+            (RefinementKind, RefinementKind) -> a == b
+            _differentKinds                  -> False
 
 instance Show SomeFunction where
     showsPrec d (SomeFunction f) = showParen (d > 10) (showString "SomeFunction " . showsPrec 11 f)

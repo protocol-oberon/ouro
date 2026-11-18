@@ -12,8 +12,8 @@ module Data.Ouro.Lisp.Function
 , misplacedBinding
 , misplacedDoc
 , patternParam
-, propertyParams
-, propertyResult
+, refinementParams
+, refinementResult
 , removedAttrForm
 , removedContextForm
 , removedLocalDefn
@@ -371,7 +371,7 @@ strayHole hole pos
 
 -- The keywords that define a named function, so that a local one can be reported
 isFunctionKeyword :: Text -> Bool
-isFunctionKeyword = (`elem` ["define/procedure", "define/property", "define/constant"])
+isFunctionKeyword = (`elem` ["define/procedure", "define/refinement", "define/constant"])
 
 
 -- Function names are plain symbols, in one namespace with values. A trailing '!'
@@ -401,7 +401,7 @@ checkFunctionName name pos
 -- adjoin, thru).
 -- A binding of one of their names is never called by them.
 readBySyntax :: [Text]
-readBySyntax = ["define/procedure", "define/property", "define/constant", "graph", "doc", "->", "adjoin", "and", "or", "thru", "with"]
+readBySyntax = ["define/procedure", "define/refinement", "define/constant", "graph", "doc", "->", "adjoin", "and", "or", "thru", "with"]
 
 
 -- A function can be defined once in each scope
@@ -415,7 +415,7 @@ duplicateFunction name pos =
 -- Forms the evaluator recognises by their head symbol, unless a binding around them has the
 -- name, which shadows the form, as in Scheme (see 'Analysis.Forms.shadowsForm')
 specialForms :: [Text]
-specialForms = [ "->", "adjoin", "all", "and", "any", "array", "attr", "case", "context", "define/constant", "define/procedure", "define/property", "doc"
+specialForms = [ "->", "adjoin", "all", "and", "any", "array", "attr", "case", "context", "define/constant", "define/procedure", "define/refinement", "doc"
                , "exists", "filter", "fn", "fold", "forall", "get", "get-or", "graph", "has", "image", "inlay", "insert"
                , "let", "list", "map", "nth", "omits", "or", "replace-at", "satisfies", "thru", "when", "with" ]
 
@@ -426,42 +426,42 @@ isHeadedBy keyword = \case
                       _otherExpr                      -> False
 
 
--- A property always answers true or false: its return type is #boolean, and is never
+-- A refinement always answers true or false: its return type is #boolean, and is never
 -- written. The tag, if one was written, is an error where it is.
-propertyResult :: SourcePos -> Maybe (SourcePos, S.ReaderTag) -> Either OuroError (Maybe (SourcePos, S.ReaderTag))
-propertyResult pos = \case
+refinementResult :: SourcePos -> Maybe (SourcePos, S.ReaderTag) -> Either OuroError (Maybe (SourcePos, S.ReaderTag))
+refinementResult pos = \case
     Nothing          -> Right $ Just (pos, S.BooleanTag)
-    Just (tagPos, _) -> lexicalError "A property always answers true or false, so it has no return type."
-                        & withBlurb "Write (define/property titled (#record r) ...): its result is checked as #boolean."
+    Just (tagPos, _) -> lexicalError "A refinement always answers true or false, so it has no return type."
+                        & withBlurb "Write (define/refinement titled (#record r) ...): its result is checked as #boolean."
                         & OuroError tagPos
                         & Left
 
 
--- A property is about one value, which it is given with a contract, never a function:
--- (define/property titled (#record r) ...). A parameter has no position of its own, so one
--- without a contract is reported at the property.
-propertyParams :: Text -> SourcePos -> [S.Param] -> Either OuroError ()
-propertyParams name pos = \case
+-- A refinement is about one value, which it is given with a contract, never a function:
+-- (define/refinement titled (#record r) ...). A parameter has no position of its own, so one
+-- without a contract is reported at the refinement.
+refinementParams :: Text -> SourcePos -> [S.Param] -> Either OuroError ()
+refinementParams name pos = \case
     [S.Param _ (Just (tagPos, S.FunctionTag)) _]
-        -> lexicalError "A property is about data, so its parameter cannot be #function."
-           & withBlurb "Give it the value it is about, with a contract: (define/property titled (#record r) ...)."
+        -> lexicalError "A refinement is about data, so its parameter cannot be #function."
+           & withBlurb "Give it the value it is about, with a contract: (define/refinement titled (#record r) ...)."
            & OuroError tagPos
            & Left
     [S.Param _ (Just _) _]
         -> Right ()
     -- A pattern's name cannot be written in Ouro, so it is not named
     [S.Param _ Nothing (Just _)]
-        -> lexicalError ("The pattern parameter of the property '" <> name <> "' has no contract.")
-           & withBlurb "Write the contract before the pattern: (define/property pair (#array (?a ?b)) ...)."
+        -> lexicalError ("The pattern parameter of the refinement '" <> name <> "' has no contract.")
+           & withBlurb "Write the contract before the pattern: (define/refinement pair (#array (?a ?b)) ...)."
            & OuroError pos
            & Left
     [S.Param param Nothing Nothing]
-        -> lexicalError ("The parameter '" <> param <> "' of the property '" <> name <> "' has no contract.")
-           & withBlurb ("Every parameter of a property has one, so the property is checked on data: a contract such as (#record " <> param <> ").")
+        -> lexicalError ("The parameter '" <> param <> "' of the refinement '" <> name <> "' has no contract.")
+           & withBlurb ("Every parameter of a refinement has one, so the refinement is checked on data: a contract such as (#record " <> param <> ").")
            & OuroError pos
            & Left
     _otherCount
-        -> lexicalError ("The property '" <> name <> "' takes one parameter, the value it is about.")
-           & withBlurb "A property is about one value, so it has one parameter: (define/property titled (#record r) ...)."
+        -> lexicalError ("The refinement '" <> name <> "' takes one parameter, the value it is about.")
+           & withBlurb "A refinement is about one value, so it has one parameter: (define/refinement titled (#record r) ...)."
            & OuroError pos
            & Left
