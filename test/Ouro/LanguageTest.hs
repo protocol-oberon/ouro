@@ -235,13 +235,13 @@ formsAndBuiltins = Group "Special forms and built-ins"
                                                                    "{\"a\": true, \"b\": false, \"c\": true}")
     , ("any is true when one element is",           compilesToJSON "(graph g (:a (any (false true false)) :b (any (false false)) :c (any ())))"
                                                                    "{\"a\": true, \"b\": false, \"c\": false}")
-    , ("all written in place stops at the first false", compilesToJSON "(graph g (let ($r (:x 1)) (:r (all ((has r year) (> (get r year) 1600))))))"
+    , ("all written in place stops at the first false", compilesToJSON "(graph g (let ($r (:x 1)) (:r (all ((has r year) (gt (get r year) 1600))))))"
                                                                        "{\"r\": false}")
     , ("any written in place stops at the first true", compilesToJSON "(graph g (:r (any (true (get () 5)))))"
                                                                       "{\"r\": true}")
     , ("a list is written in place",                compilesToJSON "(graph g (let ($a false) (:r (all (array a (get () 5))))))"
                                                                    "{\"r\": false}")
-    , ("an Array given another way is read whole",  compilesToJSON "(graph g (let ($conds (true false)) (:a (all conds) :b (any conds) :c (any (map (1 2) (> ? 1))))))"
+    , ("an Array given another way is read whole",  compilesToJSON "(graph g (let ($conds (true false)) (:a (all conds) :b (any conds) :c (any (map (1 2) (gt ? 1))))))"
                                                                    "{\"a\": false, \"b\": true, \"c\": true}")
     , ("its elements must be Booleans",             failsWith "expectedRefinement = \"#boolean\", actualRefinement = \"#number\""
                                                               "(graph g (let ($conds (true 1)) (:r (all conds))))")
@@ -259,7 +259,7 @@ formsAndBuiltins = Group "Special forms and built-ins"
                                                               "(graph g (:r (and true 1)))")
     , ("or checks its operands too",                failsWith "expectedRefinement = \"#boolean\", actualRefinement = \"#number\""
                                                               "(graph g (:r (or 1 true)))")
-    , ("and and or combine comparisons",            compilesToJSON "(graph g (:r (and (> 2 1) (or (eq \"a\" \"b\") (eq \"a\" \"a\")))))"
+    , ("and and or combine comparisons",            compilesToJSON "(graph g (:r (and (gt 2 1) (or (eq \"a\" \"b\") (eq \"a\" \"a\")))))"
                                                                    "{\"r\": true}")
     , ("and and or take holes",                     compilesToJSON "(graph g (:r (let ($f (and ? true)) (f false)) :s (map (true false) (or ? false))))"
                                                                    "{\"r\": false, \"s\": [true, false]}")
@@ -269,9 +269,9 @@ formsAndBuiltins = Group "Special forms and built-ins"
                                                               "(define/procedure and (x) x) (graph g (:r (and 1)))")
     , ("nor can or",                                failsWith "'or' is read by its syntax before any name is bound"
                                                               "(define/procedure or (x) x) (graph g (:r 1))")
-    , ("and and or guard an index",                 compilesToJSON "(graph g (let ($tags ()) (:featured (and (> (len tags) 0) (eq (get tags 0) \"featured\")) :listed (or (eq (len tags) 0) (eq (get tags 0) \"listed\")))))"
+    , ("and and or guard an index",                 compilesToJSON "(graph g (let ($tags ()) (:featured (and (gt (len tags) 0) (eq (get tags 0) \"featured\")) :listed (or (eq (len tags) 0) (eq (get tags 0) \"listed\")))))"
                                                                    "{\"featured\": false, \"listed\": true}")
-    , ("a chain of comparisons is all over its pairs", compilesToJSON "(graph g (:r (all ((< 2 1) (< 1 (get () 5))))))"
+    , ("a chain of comparisons is all over its pairs", compilesToJSON "(graph g (:r (all ((lt 2 1) (lt 1 (get () 5))))))"
                                                                        "{\"r\": false}")
 
       -- (fold array init f): a left fold, f called on the running value and each element
@@ -429,12 +429,12 @@ types = Group "Types: the rules as they are"
                                                                    "{\"r\": true}")
 
       -- Ordering and arithmetic
-    , ("dates cannot be ordered",                   failsWith "a Date > a Date"
-                                                              ("(graph g (:r (> " <> date <> " " <> date <> ")))"))
+    , ("dates cannot be ordered",                   failsWith "a Date gt a Date"
+                                                              ("(graph g (:r (gt " <> date <> " " <> date <> ")))"))
     , ("dates cannot be subtracted",                failsWith "a Date - a Date"
                                                               ("(graph g (:r (- " <> date <> " " <> date <> ")))"))
-    , ("strings cannot be ordered",                 failsWith "a String < a String"
-                                                              "(graph g (:r (< \"a\" \"b\")))")
+    , ("strings cannot be ordered",                 failsWith "a String lt a String"
+                                                              "(graph g (:r (lt \"a\" \"b\")))")
     , ("a URI cannot be extended",                  failsWith "a URI + a String"
                                                               "(graph g (:r (+ #uri \"https://a.org/\" \"x\")))")
     , ("durations do not add",                      failsWith "a Duration time period + a Duration time period"
@@ -482,22 +482,22 @@ operators = Group "Operators: operands and desugaring"
                                                                    "{\"d\": \"2020-01-02T23:59:59Z\"}")
     , ("thru shifts back with -",                   compilesToJSON "(graph g (:d (- #date \"2020-01-03T00:00:00Z\" (thru (days 1)))))"
                                                                    "{\"d\": \"2020-01-01T00:00:01Z\"}")
-    , ("all and fold under a property",             compilesToJSON "(graph g (:r #boolean (all ((< 1 2) (< 2 3))) :s #number (fold (2 3 4) 1 *)))"
+    , ("all and fold under a property",             compilesToJSON "(graph g (:r #boolean (all ((lt 1 2) (lt 2 3))) :s #number (fold (2 3 4) 1 *)))"
                                                                    "{\"r\": true, \"s\": 24}")
     , ("a typed function body",                     compilesToJSON "(define/procedure f () #uri (+ \"https://a.org/\" (+ \"b/\" \"c\"))) (graph g (:r (f)))"
                                                                    "{\"r\": \"https://a.org/b/c\"}")
-    , ("a guard compares the target",               compilesToJSON "(define/procedure size (n) (case n ((> 100) \"large\") ((< 10) \"small\") (otherwise \"medium\"))) (graph g (:a (size 150) :b (size 5) :c (size 50)))"
+    , ("a guard compares the target",               compilesToJSON "(define/procedure size (n) (case n ((gt 100) \"large\") ((lt 10) \"small\") (otherwise \"medium\"))) (graph g (:a (size 150) :b (size 5) :c (size 50)))"
                                                                    "{\"a\": \"large\", \"b\": \"small\", \"c\": \"medium\"}")
-    , ("a guard takes one operand",                 failsWith "< takes two operands, (< a b)"
-                                                              "(graph g (:r (case 5 ((< 10 20) \"a\") (otherwise \"b\"))))")
-    , ("two bounds are a when over all",            compilesToJSON "(graph g (:r (case 5 ((when (all ((> 5 1) (< 5 10)))) \"a\") (otherwise \"b\")) :s (case 15 ((when (all ((> 15 1) (< 15 10)))) \"a\") (otherwise \"b\"))))"
+    , ("a guard takes one operand",                 failsWith "lt takes two operands, (lt a b)"
+                                                              "(graph g (:r (case 5 ((lt 10 20) \"a\") (otherwise \"b\"))))")
+    , ("two bounds are a when over all",            compilesToJSON "(graph g (:r (case 5 ((when (all ((gt 5 1) (lt 5 10)))) \"a\") (otherwise \"b\")) :s (case 15 ((when (all ((gt 15 1) (lt 15 10)))) \"a\") (otherwise \"b\"))))"
                                                                    "{\"r\": \"a\", \"s\": \"b\"}")
-    , ("a guard's operand is desugared",            compilesToJSON "(graph g (:r (case 5 ((< (fold (1 2 3) 0 +)) \"a\") (otherwise \"b\"))))"
+    , ("a guard's operand is desugared",            compilesToJSON "(graph g (:r (case 5 ((lt (fold (1 2 3) 0 +)) \"a\") (otherwise \"b\"))))"
                                                                    "{\"r\": \"a\"}")
     , ("an operator needs two operands",            failsWith "IncorrectArity"
                                                               "(graph g (:r (+ 1)))")
     , ("a comparison needs two operands",           failsWith "IncorrectArity"
-                                                              "(graph g (:r (< 1)))")
+                                                              "(graph g (:r (lt 1)))")
     , ("neq compares exactly two values",           failsWith "IncorrectArity"
                                                               "(graph g (:r (neq 1 2 3)))")
     , ("so a neq guard takes one operand",          failsWith "IncorrectArity"
@@ -509,6 +509,31 @@ operators = Group "Operators: operands and desugaring"
                                                               "(graph g (:r (|- 1 #number)))")
     , ("∈ is read as in",                           failsWith "'in' is not bound here"
                                                               "(graph g (:r (∈ 1 #number)))")
+
+      -- Comparisons are words. '<' and '>' delimit an infix expression, its '<' written
+      -- against the first operand, so each old name is an error that names its word
+    , ("< is now lt",                               failsWith "'<' is now 'lt': (lt a b)"
+                                                              "(graph g (:r (< 1 2)))")
+    , ("<= is now leq",                             failsWith "'<=' is now 'leq': (leq a b)"
+                                                              "(graph g (:r (<= 1 2)))")
+    , (">= is now geq",                             failsWith "'>=' is now 'geq': (geq a b)"
+                                                              "(graph g (:r (>= 1 2)))")
+    , ("> closes no <, and names gt",               failsWith "A comparison is a word: (gt a b)"
+                                                              "(graph g (:r (> 1 2)))")
+    , ("= is now eq",                               failsWith "'=' is now 'eq': (eq a b)"
+                                                              "(graph g (:r (= 1 2)))")
+    , ("/= is now neq",                             failsWith "'/=' is now 'neq': (neq a b)"
+                                                              "(graph g (:r (/= 1 2)))")
+    , ("≠ is now neq",                              failsWith "' is now 'neq': (neq a b)"
+                                                              "(graph g (:r (≠ 1 2)))")
+    , ("an infix expression is not yet read",       failsWith "An infix expression, <a op b>, is not yet read."
+                                                              "(graph g (:r <1 lt 2>))")
+    , ("-> is a name of its own",                   compilesToJSON "(graph g (:r (-> 1 (+ 2))))"
+                                                                   "{\"r\": 3}")
+    , ("with a variant after a /, not yet a form",  failsWith "A qualified name, module/function"
+                                                              "(graph g (:r (->/or 1 0 (+ 2))))")
+    , ("written apart from what follows it",        failsWith "'->' is written apart from what follows it"
+                                                              "(graph g (:r (->x 1)))")
     , ("a bare thru is not a value",                failsWith "thru"
                                                               "(graph g (:r #date (thru (days 1))))")
     ]
@@ -621,7 +646,7 @@ encoding = Group "Encoding: source files are UTF-8"
       -- The symbols of logic and sets are their names
     , ("\172 \8743 \8744 are not, and, or",  compilesToJSON "(graph g (:a (\172 true) :b (\8743 true false) :c (\8744 false true)))"
                                                                  "{\"a\": false, \"b\": false, \"c\": true}")
-    , ("\8704 \8707 \8708 are the quantifiers", compilesToJSON "(graph g (:a (\8704 (1 2) (> ? 0)) :b (\8707 (1 2) (> ? 1)) :c (\8708 (1 2) (> ? 5))))"
+    , ("\8704 \8707 \8708 are the quantifiers", compilesToJSON "(graph g (:a (\8704 (1 2) (gt ? 0)) :b (\8707 (1 2) (gt ? 1)) :c (\8708 (1 2) (gt ? 5))))"
                                                                     "{\"a\": true, \"b\": true, \"c\": true}")
     , ("\8746 \8745 \8726 \8838 are the set operations", compilesToJSON "(graph g (:a (\8746 (1) (2)) :b (\8745 (1 2) (2)) :c (\8726 (1 2) (2)) :d (\8838 (1) (1 2))))"
                                                                             "{\"a\": [1, 2], \"b\": [2], \"c\": [1], \"d\": true}")
@@ -629,7 +654,7 @@ encoding = Group "Encoding: source files are UTF-8"
                                                             "(define/procedure \8743 (x) x) (graph g (:r 1))")
     , ("\8743x is an ordinary name",         compilesToJSON "(graph g (let ($\8743x 1) (:r \8743x)))"
                                                                  "{\"r\": 1}")
-    , ("= and /= are eq and neq",            compilesToJSON "(graph g (:a (= 1 1) :b (/= 1 2) :d (case 3 ((= 3) \"three\") (otherwise \"other\"))))"
+    , ("= and /= are eq and neq",            compilesToJSON "(graph g (:a (eq 1 1) :b (neq 1 2) :d (case 3 ((eq 3) \"three\") (otherwise \"other\"))))"
                                                                  "{\"a\": true, \"b\": true, \"d\": \"three\"}")
     , ("\8899 \8898 are unions and intersections", compilesToJSON "(graph g (:a (\8899 ((1) (2))) :b (\8898 ((1 2) (2)))))"
                                                                       "{\"a\": [1, 2], \"b\": [2]}")
@@ -837,25 +862,25 @@ logicAndCollections = Group "Built-ins: logic, arrays and records"
                                                            "(graph g (:r (not true false)))")
 
       -- exists, forall and filter
-    , ("exists finds an element",                compilesToJSON "(graph g (:r (exists (1 2 3) (> ? 2))))"
+    , ("exists finds an element",                compilesToJSON "(graph g (:r (exists (1 2 3) (gt ? 2))))"
                                                                 "{\"r\": true}")
-    , ("exists of nothing is false",             compilesToJSON "(graph g (:r (exists () (> ? 2))))"
+    , ("exists of nothing is false",             compilesToJSON "(graph g (:r (exists () (gt ? 2))))"
                                                                 "{\"r\": false}")
-    , ("forall checks each element",             compilesToJSON "(graph g (:a (forall (1 2 3) (> ? 0)) :b (forall (1 2 3) (> ? 1))))"
+    , ("forall checks each element",             compilesToJSON "(graph g (:a (forall (1 2 3) (gt ? 0)) :b (forall (1 2 3) (gt ? 1))))"
                                                                 "{\"a\": true, \"b\": false}")
-    , ("forall of nothing is true",              compilesToJSON "(graph g (:r (forall () (> ? 2))))"
+    , ("forall of nothing is true",              compilesToJSON "(graph g (:r (forall () (gt ? 2))))"
                                                                 "{\"r\": true}")
-    , ("exists stops at the deciding element",   compilesToJSON "(graph g (:r (exists (\"ab\" 5) (fn (x) (> (len x) 1)))))"
+    , ("exists stops at the deciding element",   compilesToJSON "(graph g (:r (exists (\"ab\" 5) (fn (x) (gt (len x) 1)))))"
                                                                 "{\"r\": true}")
-    , ("forall stops at the deciding element",   compilesToJSON "(graph g (:r (forall (\"ab\" 5) (fn (x) (> (len x) 5)))))"
+    , ("forall stops at the deciding element",   compilesToJSON "(graph g (:r (forall (\"ab\" 5) (fn (x) (gt (len x) 5)))))"
                                                                 "{\"r\": false}")
     , ("none is not exists",                     compilesToJSON "(graph g (:r (not (exists (1 2) (eq ? 3)))))"
                                                                 "{\"r\": true}")
-    , ("omits is true when no element answers true", compilesToJSON "(graph g (:a (omits (1 2) (> ? 2)) :b (omits (1 5) (> ? 2))))"
+    , ("omits is true when no element answers true", compilesToJSON "(graph g (:a (omits (1 2) (gt ? 2)) :b (omits (1 5) (gt ? 2))))"
                                                                     "{\"a\": true, \"b\": false}")
-    , ("omits of nothing is true",               compilesToJSON "(graph g (:r (omits () (> ? 2))))"
+    , ("omits of nothing is true",               compilesToJSON "(graph g (:r (omits () (gt ? 2))))"
                                                                 "{\"r\": true}")
-    , ("omits stops at the deciding element",    compilesToJSON "(graph g (:r (omits (\"ab\" 5) (fn (x) (> (len x) 1)))))"
+    , ("omits stops at the deciding element",    compilesToJSON "(graph g (:r (omits (\"ab\" 5) (fn (x) (gt (len x) 1)))))"
                                                                 "{\"r\": false}")
     , ("omits finds no contradiction",           compilesToJSON "(graph g (let ($book (:tp46 (\"a\" \"b\") :ntp46 (\"c\"))) (:r (omits (get-or book () tp46) (contains (get-or book () ntp46) ?)))))"
                                                                 "{\"r\": true}")
@@ -863,20 +888,20 @@ logicAndCollections = Group "Built-ins: logic, arrays and records"
                                                            "(graph g (:r (omits (1 2) 1)))")
     , ("omits can name a function",              compilesToJSON "(define/procedure omits (x) x) (graph g (:r (omits 1)))"
                                                            "{\"r\": 1}")
-    , ("filter keeps the matching elements",     compilesToJSON "(graph g (:r (filter (1 2 3) (> ? 1))))"
+    , ("filter keeps the matching elements",     compilesToJSON "(graph g (:r (filter (1 2 3) (gt ? 1))))"
                                                                 "{\"r\": [2, 3]}")
     , ("filter with has",                        compilesToJSON "(graph g (:r (filter ((:name \"a\") (:id 1)) (fn (p) (has p name)))))"
                                                                 "{\"r\": [{\"name\": \"a\"}]}")
-    , ("a hole for the array",                   compilesToJSON "(graph g (let ($big (exists ? (> ? 2))) (:r (big (1 5)))))"
+    , ("a hole for the array",                   compilesToJSON "(graph g (let ($big (exists ? (gt ? 2))) (:r (big (1 5)))))"
                                                                 "{\"r\": true}")
     , ("the answer must be a Boolean",           failsWith "expectedRefinement = \"#boolean\""
                                                            "(graph g (:r (exists (1 2) (+ ? 1))))")
     , ("exists needs a function",                failsWith "a function for exists to call"
                                                            "(graph g (:r (exists (1 2) 1)))")
     , ("forall needs an Array",                  failsWith "an Array for forall to go through"
-                                                           "(graph g (:r (forall 5 (> ? 1))))")
+                                                           "(graph g (:r (forall 5 (gt ? 1))))")
     , ("a malformed filter is an error",         failsWith "filter is written (filter array f)"
-                                                           "(graph g (:r (filter (> ? 1))))")
+                                                           "(graph g (:r (filter (gt ? 1))))")
     , ("exists can name a function",             compilesToJSON "(define/procedure exists (x) x) (graph g (:r (exists 1)))"
                                                            "{\"r\": 1}")
 
@@ -1016,7 +1041,7 @@ conditions = Group "Case: conditions"
                                                                 "{\"r\": \"b\"}")
     , ("when can use other values",              compilesToJSON "(graph g (let ($strict true) (:r (case 5 ((when strict) \"strict\") (otherwise \"lenient\")))))"
                                                                 "{\"r\": \"strict\"}")
-    , ("when takes and and or",                  compilesToJSON "(graph g (:r (case 5 ((when (and (> 5 1) (< 5 9))) \"in\") (otherwise \"out\"))))"
+    , ("when takes and and or",                  compilesToJSON "(graph g (:r (case 5 ((when (and (gt 5 1) (lt 5 9))) \"in\") (otherwise \"out\"))))"
                                                                 "{\"r\": \"in\"}")
     , ("when sits beside patterns and literals", compilesToJSON "(graph g (:r (case (:k 1) (2 \"two\") ((when false) \"no\") ((:k ?v) v) (otherwise \"other\"))))"
                                                                 "{\"r\": 1}")
@@ -1028,9 +1053,9 @@ conditions = Group "Case: conditions"
                                                            "{\"r\": 1}")
 
       -- Comparison guards become conditions on the case's target
-    , ("a guard compares a computed target",     compilesToJSON "(graph g (:r (case (+ 2 3) ((> 4) \"big\") (otherwise \"small\"))))"
+    , ("a guard compares a computed target",     compilesToJSON "(graph g (:r (case (+ 2 3) ((gt 4) \"big\") (otherwise \"small\"))))"
                                                                 "{\"r\": \"big\"}")
-    , ("a when over all stops at the first false", compilesToJSON "(graph g (:r (case 5 ((when (all ((< 5 1) (< 5 (get () 9))))) \"x\") (otherwise \"y\"))))"
+    , ("a when over all stops at the first false", compilesToJSON "(graph g (:r (case 5 ((when (all ((lt 5 1) (lt 5 (get () 9))))) \"x\") (otherwise \"y\"))))"
                                                                   "{\"r\": \"y\"}")
 
       -- satisfies asks a property; in a branch head, of the case's target
@@ -1236,7 +1261,7 @@ specialFormsAreBindings = Group "Special forms are bindings, as in Scheme"
                                                                    "{\"r\": [1, 2]}")
     , ("Canon's forms are not captured",            compilesToJSON "(graph g (let ($case 1 $fn 2 $inlay 3) (:r (or false true) :s (map (1 2) (+ ? 1)) :t (with (:a 1) :b 2))))"
                                                                    "{\"r\": true, \"s\": [2, 3], \"t\": {\"a\": 1, \"b\": 2}}")
-    , ("nor is a guard's",                          compilesToJSON "(graph g (let ($let 4) (:r (case 5 ((< 3) \"small\") (otherwise \"big\")))))"
+    , ("nor is a guard's",                          compilesToJSON "(graph g (let ($let 4) (:r (case 5 ((lt 3) \"small\") (otherwise \"big\")))))"
                                                                    "{\"r\": \"big\"}")
     ]
 
@@ -1316,7 +1341,7 @@ knownGaps = Group "Known gaps: current and fixed"
                                                                    "{\"r\": 1}")
     , ("gap 44 (fixed for arity): and its wrong arity", fixedGap $ compilesToJSON "(define/procedure f (x) x) (define/procedure h () (f 1 2)) (graph g (:r 1))"
                                                                    "{\"r\": 1}")
-    , ("gap 44 (fixed for names): an untaken branch's unbound name", fixedGap $ compilesToJSON "(graph g (:r (case 1 ((= 1) \"a\") (otherwise nope))))"
+    , ("gap 44 (fixed for names): an untaken branch's unbound name", fixedGap $ compilesToJSON "(graph g (:r (case 1 ((eq 1) \"a\") (otherwise nope))))"
                                                                    "{\"r\": \"a\"}")
     , ("gap 44 (fixed): an uncalled function's recursion", fixedGap $ compilesToJSON "(define/procedure f () (f)) (graph g (:r 1))"
                                                                    "{\"r\": 1}")

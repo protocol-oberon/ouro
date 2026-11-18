@@ -20,6 +20,8 @@ data TokenType
     = OpenParen        -- '('
     | CloseParen       -- ')'
     | DotDot           -- '..', between the ends of a range: (1..500)
+    | OpenAngle        -- '<', which opens an infix expression: <a lt b>
+    | CloseAngle       -- '>', which closes one
     -- Core lang symbols
     | Let              -- 'let' (used for binding context scopes)
     | Import           -- Module imports
@@ -59,6 +61,8 @@ written = \case
     OpenParen        -> "("
     CloseParen       -> ")"
     DotDot           -> ".."
+    OpenAngle        -> "<"
+    CloseAngle       -> ">"
     Let              -> "let"
     Import           -> "import"
     Export           -> "export"

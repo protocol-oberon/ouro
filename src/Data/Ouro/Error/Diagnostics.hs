@@ -123,8 +123,9 @@ unboundIdentifier var = Scope $ ScopeError { variableName = var }
 
 
 -- A name nothing binds where it is written, with the nearest of the names that are in scope
--- there, if one is near. list, the Array constructor's old name, names array instead (gap 55):
--- a module that defines its own list binds it, so this is never said of that list.
+-- there, if one is near. An old name says what it is now instead: list, the Array
+-- constructor (gap 55), and =, /= and ≠, the comparisons, which are words. A module that
+-- defines its own list binds it, so this is never said of that list.
 unboundName :: Text -> [Text] -> ErrorContext
 unboundName name inScope =
     withBlurb ( "'" <> name <> "' is not bound here: no attribute pair, let binding or parameter around it, "
@@ -132,10 +133,15 @@ unboundName name inScope =
               )
               (unboundIdentifier name)
     where
-    suggestion = case (name, rankBySimilarity name inScope) of
-                     ("list", _)                              -> "\n\n'list' is now 'array': (array 1 2 3)."
+    suggestion = case (lookup name renamed, rankBySimilarity name inScope) of
+                     (Just example, _)                        -> "\n\n'" <> name <> "' is now " <> example <> "."
                      (_, (bestMatch, score) : _) | score <= 3 -> "\n\nPerhaps you meant: '" <> bestMatch <> "'?"
                      _noneNear                                -> ""
+
+    renamed = [ ("list", "'array': (array 1 2 3)")
+              , ("=",    "'eq': (eq a b)")
+              , ("/=",   "'neq': (neq a b)")
+              , ("≠",    "'neq': (neq a b)") ]
 
 
 -- A refinement's tag that names no refinement: with the nearest of the module's refinements and

@@ -627,10 +627,24 @@ Ouro has no null.
 
 A symbol starts with one of:
 - a letter;
-- one of the operator characters ~_ + - * / < > = ! & | ~~;
+- one of the operator characters ~_ + - * / = ! & | ~~;
 - one of the symbols of logic and sets ~¬ ∧ ∨ ⋀ ⋁ ∀ ∃ ∄ ∪ ∩ ∖ ⊆ ⋃ ⋂ ⊨ ⊢ ∈~.
 
 It may also contain digits, ~?~ and ~'~, and =:= after its first character. On its own, each symbol of logic and sets, like =λ=, is read as the name it stands for. See [[*Functions: =define/procedure=, =fn= and calls][functions]].
+
+*** Angle brackets and =->=
+
+=<= and =>= delimit an infix expression, ~<a lt b>~, its =<= written against the first operand, so no name holds them.
+
+- An infix expression is not yet read: =<1 lt 2>= is =SYN0000=, "An infix expression, <a op b>, is not yet read."
+
+- A comparison is a word, =lt=, =leq=, =gt=, =geq=, beside =eq= and =neq=. Each old name is an error that says its word:
+  - =<=, =<== or =>== with a space after it, as in ~(< 1 2)~: "'<' is now 'lt': (lt a b)";
+  - a =>= that closes no =<=, as in ~(> 1 2)~: "This '>' closes no '<'", with the hint "A comparison is a word: (gt a b)";
+  - ~=~, ~/=~ and =≠=, which are unbound: their message ends "'=' is now 'eq': (eq a b)", or ='neq'=.
+
+- =->= is a name of its own, as =>= ends a name, and may carry a variant after a =/=, =->/or=. Written against a name, =->x=, it is =SYN0000=, "'->' is written apart from what follows it".
+  - =->/or= reads as a qualified name until it is a form, so it is the unknown-qualifier error.
 
 *** Attributes
 
@@ -968,17 +982,17 @@ Both kinds of function take an optional signature:
 
 The symbols of logic and sets are read the same way, as the names they stand for:
 
-| Symbol   | Name     | Symbol | Name        | Symbol | Name            |
-|----------+----------+--------+-------------+--------+-----------------|
-| =¬=      | =not=    | =∀=    | =forall=    | =⊆=    | =subset=        |
-| =∧=      | =and=    | =∃=    | =exists=    | =⋃=    | =unions=        |
-| =∨=      | =or=     | =∄=    | =omits=     | =⋂=    | =intersections= |
-| =⋀=      | =all=    | =∪=    | =union=     | =⊨=    | =satisfies=     |
-| =⋁=      | =any=    | =∩=    | =intersect= | ~=~    | =eq=            |
-| =⊢=      | =assert= | =∖=    | =setminus=  | ~/=~   | =neq=           |
-| ~\vert-~ | =assert= | =∈=    | =in=        | =≠=    | =neq=           |
+| Symbol | Name  | Symbol | Name        | Symbol   | Name            |
+|--------+-------+--------+-------------+----------+-----------------|
+| =¬=    | =not= | =∀=    | =forall=    | =⊆=      | =subset=        |
+| =∧=    | =and= | =∃=    | =exists=    | =⋃=      | =unions=        |
+| =∨=    | =or=  | =∄=    | =omits=     | =⋂=      | =intersections= |
+| =⋀=    | =all= | =∪=    | =union=     | =⊨=      | =satisfies=     |
+| =⋁=    | =any= | =∩=    | =intersect= | =⊢=      | =assert=        |
+|        |       | =∖=    | =setminus=  | ~\vert-~ | =assert=        |
+|        |       |        |             | =∈=      | =in=            |
 
-- ~(∀ xs (> ? 0))~ is ~(forall xs (> ? 0))~, and messages name the word.
+- ~(∀ xs (gt ? 0))~ is ~(forall xs (gt ? 0))~, and messages name the word.
 - =assert= and =in= are not yet bound: ~(⊢ x #number)~ is =SCP0000=, ='assert' is not bound here=, until the type syntax that gives them their meaning is built.
 - A longer name that begins with a symbol, such as =∧x=, is an ordinary symbol.
 
@@ -1307,7 +1321,7 @@ A call with =?= holes among its arguments is not called.
 - *A hole belongs to the call it is an argument of*.
   - So ~(* 2 (+ ? 1))~ multiplies 2 by a function (an error), and ~(f (g ?))~ passes =f= a function.
 - *Any call takes holes*:
-  - a =define/procedure=, a =fn=, a built-in, and an operator (~(< ? 10)~);
+  - a =define/procedure=, a =fn=, a built-in, and an operator (~(lt ? 10)~);
   - the special forms that evaluate their arguments;
     - =get=, =image=, =insert=, =replace-at=, =array=, =map=, =fold=, =->=.
   - The forms with their own structure do not: =let=, =fn=, =case=, =context=, =inlay=, =thru=.
@@ -1477,11 +1491,11 @@ With placeholders, ~(map xs (+ ? 1))~ needs no =fn=, and ~(map ? f)~ is a functi
 
 *** =exists=, =forall=, =omits= and =filter=
 
-Each calls =f= on the elements of an array exactly as =map= does, with the same arity, signature and recursion rules. The array is the domain, written first as in ∀x ∈ xs. f(x). They take holes: ~(exists ? (> ? 2))~.
+Each calls =f= on the elements of an array exactly as =map= does, with the same arity, signature and recursion rules. The array is the domain, written first as in ∀x ∈ xs. f(x). They take holes: ~(exists ? (gt ? 2))~.
 
 - =f= must answer =#boolean=; an answer that is not a Boolean is reported at the array.
 
-- =exists=, =forall= and =omits= stop at the element that decides the answer, as =or= and =and= stop at an operand. So ~(exists (1 "x") (> ? 0))~ is =true= without calling =f= on ="x"=.
+- =exists=, =forall= and =omits= stop at the element that decides the answer, as =or= and =and= stop at an operand. So ~(exists (1 "x") (gt ? 0))~ is =true= without calling =f= on ="x"=.
 
 On an empty array:
 
@@ -1544,7 +1558,7 @@ A refinement written on its own, with nothing after it, is meaningful only at th
 (-> 1 (- 10))                                       ; (- 1 10): the value goes first
 (-> 1 (- 10 ?))                                     ; (- 10 1): or where a hole marks it
 (-> 1 wrap)                                         ; (wrap 1): a bare name is called with it
-(-> 5 (case ((> 3) "big") (otherwise "small")))    ; special forms are steps too
+(-> 5 (case ((gt 3) "big") (otherwise "small")))    ; special forms are steps too
 #+END_SRC
 
 - *A step* is called with the value as its first argument.
@@ -1593,7 +1607,7 @@ A refinement written on its own, with nothing after it, is meaningful only at th
 #+BEGIN_SRC clojure
 (case target
   (("Manet" "Proust") "person")   ; alternatives: equal to any of the literals
-  ((> 100)            "large")    ; a guard: (op args...) with target as first argument
+  ((gt 100)           "large")    ; a guard: (op args...) with target as first argument
   ((?head ?..rest)    rest)       ; an array pattern
   ((:type "Person" :_label ?l) l) ; a record pattern
   (otherwise          "other"))
@@ -1603,7 +1617,7 @@ The target is evaluated once; the branches are tried in order and the first matc
 
 - =otherwise=: always matches; it is required, and must be the last branch.
 
-- *A guard*, a form headed by a comparison: ~>~, ~>=~, ~<~, ~<=~, =eq=, =neq=. The target is inserted as the comparison's first argument, so ~((< 10) e)~ tests ~(< target 10)~. A comparison takes two operands, so a guard takes one: ~((< 10 20) e)~ is an arity error, and two bounds are a =when= over =all=, ~((when (all ((> x 1) (< x 10)))) e)~.
+- *A guard*, a form headed by a comparison: =gt=, =geq=, =lt=, =leq=, =eq=, =neq=. The target is inserted as the comparison's first argument, so ~((lt 10) e)~ tests ~(lt target 10)~. A comparison takes two operands, so a guard takes one: ~((lt 10 20) e)~ is an arity error, and two bounds are a =when= over =all=, ~((when (all ((gt x 1) (lt x 10)))) e)~.
 
 - *A condition*, ~(when cond)~: =cond= must have the refinement =#boolean=; =true= takes the branch and =false= tries the next. It can use any value in scope, not only the target, but not the names a pattern binds. =when= is only a branch head, where it is read by its syntax; elsewhere a binding or a =define/procedure= of =when= shadows it.
 
@@ -1632,7 +1646,7 @@ Pattern variables are bound in a frame around the branch body. A record written 
 | Group        | Names                                     | Notes                                              |
 |--------------+-------------------------------------------+----------------------------------------------------|
 | Arithmetic   | ~+~ ~-~ ~*~ ~/~                           | two operands; many are folded, ~(fold xs 0 +)~     |
-| Comparison   | ~eq~ ~neq~ ~>~ ~>=~ ~<~ ~<=~              | two operands; a chain is =all= over its pairs      |
+| Comparison   | ~eq~ ~neq~ ~gt~ ~geq~ ~lt~ ~leq~          | two operands; a chain is =all= over its pairs      |
 | Extremes     | ~min~ ~max~                               | ~(max xs)~ of one Array of Numbers                 |
 | Negation     | ~not~                                     | ~(not b)~ of one Boolean                           |
 | Length       | ~len~                                     | an array's elements, or a string's characters      |
@@ -1652,11 +1666,11 @@ Pattern variables are bound in a frame around the branch body. A record written 
 
 Every built-in takes a fixed number of arguments, and many values are an array. An operator written with any number of operands but two is an arity error, whose hint is the fold.
 
-- Ordering (~>~ ~>=~ ~<~ ~<=~) compares numbers only.
+- Ordering (~gt~ ~geq~ ~lt~ ~leq~) compares numbers only.
 
 - =+= also joins strings and arrays, and adds durations to dates.
 
-- A chain of comparisons is =all= over its pairs: ~(all ((< a b) (< b c)))~.
+- A chain of comparisons is =all= over its pairs: ~(all ((lt a b) (lt b c)))~.
 
 *** Strings
 
@@ -1734,9 +1748,9 @@ Each evaluates in order, and stops at the operand that decides the answer, so ~(
 
 - Each operand it reaches must have the refinement =#boolean=. Unlike other Lisps, Ouro has no truthiness, and the result is always =true= or =false=.
 
-- =all= and =any= stop only over an array written in place, a literal one or an =(array ...)=. That keeps the guard ~(all ((has r year) (> (get r year) 1600)))~ from reading a year =r= does not have. An array given any other way, a binding or a =map='s result, is evaluated whole, then read in order.
+- =all= and =any= stop only over an array written in place, a literal one or an =(array ...)=. That keeps the guard ~(all ((has r year) (gt (get r year) 1600)))~ from reading a year =r= does not have. An array given any other way, a binding or a =map='s result, is evaluated whole, then read in order.
 
-- A chain of comparisons is =all= over its pairs, and stops the same way: ~(all ((< 2 1) (< 1 (get () 5))))~ is =false=.
+- A chain of comparisons is =all= over its pairs, and stops the same way: ~(all ((lt 2 1) (lt 1 (get () 5))))~ is =false=.
 
 All four:
 
@@ -1950,7 +1964,7 @@ Before evaluation, ~Canon.canonicalModule~ rewrites every function body and grap
 | 2. threading     | top-down  | ~(-> x step ...)~ into nested calls                                          |
 | 3. connectives   | top-down  | ~(and a b)~, =or=, and =all= and =any= written in place into a =%case= chain |
 | 4. bindings      | top-down  | =$name value= in a =let='s bindings into ~(%bind "name" value)~              |
-| 5. guards        | top-down  | a condition, =(when c)=, or a guard ~((< 10) e)~ into a ~(%when c)~ head     |
+| 5. guards        | top-down  | a condition, =(when c)=, or a guard ~((lt 10) e)~ into a ~(%when c)~ head     |
 | 6. contexts      | bottom-up | =:context e= into ~(%context e)~                                             |
 | 7. adjoin        | bottom-up | ~(adjoin base item ...)~ into ~(%adjoin base addition ...)~                  |
 | 8. with          | bottom-up | ~(with base item ...)~ into ~((%inlay base) item ...)~                       |
@@ -1971,7 +1985,7 @@ In more detail:
 
 - in thru, as an operand of =+= or =-=, the operation is nested once for each duration.
 
-Nothing is unrolled: every built-in takes a fixed number of arguments, so ~(+ a b c)~ and ~(< a b c)~ are arity errors, and many values are an array, ~(fold xs 0 +)~, ~(all (a b c))~.
+Nothing is unrolled: every built-in takes a fixed number of arguments, so ~(+ a b c)~ and ~(lt a b c)~ are arity errors, and many values are an array, ~(fold xs 0 +)~, ~(all (a b c))~.
 
 *** Walks
 
@@ -2027,7 +2041,7 @@ Each pass is a module of its own under =Lisp/Canon/=, with the walks in =Travers
 | ~(+ d (thru (days n)))~                 | ~(+ (+ (+ (+ d (days n)) (hours 23)) (minutes 59)) (seconds 59))~   |
 | ~(thru (years n))~, ~(thru (months n))~ | ~(years-end n)~, ~(months-end n)~ (resolved against the date)       |
 | =case= alternatives ~(("a" "b") e)~     | one branch per literal                                              |
-| a =case= guard ~((< 10) e)~             | ~((%when (< %target 10)) e)~, the case bound as below               |
+| a =case= guard ~((lt 10) e)~             | ~((%when (lt %target 10)) e)~, the case bound as below               |
 | a condition ~((when c) e)~              | ~((%when c) e)~                                                     |
 | a refinement ~((satisfies #p) e)~         | ~((%when (satisfies %target #p)) e)~, the case bound as for a guard |
 | =$name value= in a =let='s bindings     | ~(%bind "name" value)~                                              |

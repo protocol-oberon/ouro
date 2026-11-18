@@ -21,8 +21,8 @@ names :: Group
 names = Group "Static analysis: names are checked where they are written"
     [ ("an uncalled function's unbound name",     importsFailAt "SCP0000" ("inline-test", 1, 24) ["variableName = \"nope\""] []
                                                                 "(define/procedure f () nope) (graph g (:r 1))")
-    , ("a branch not taken",                      importsFailAt "SCP0000" ("inline-test", 1, 45) ["variableName = \"nope\""] []
-                                                                "(graph g (:r (case 1 ((= 1) \"a\") (otherwise nope))))")
+    , ("a branch not taken",                      importsFailAt "SCP0000" ("inline-test", 1, 46) ["variableName = \"nope\""] []
+                                                                "(graph g (:r (case 1 ((eq 1) \"a\") (otherwise nope))))")
     , ("an uncalled fn's body",                   importsFailAt "SCP0000" ("inline-test", 1, 27) ["variableName = \"nope\""] []
                                                                 "(graph g (let ($f (fn (x) nope)) (:r 1)))")
     , ("a qualifier never imported",              importsFailAt "SCP0007" ("inline-test", 1, 24) ["people"] []
@@ -70,7 +70,7 @@ calls = Group "Static analysis: a call of a known function has its arity"
                                                                 [("lib", "(export f)\n(define/procedure f (x) x)")]
                                                                 "(import lib)\n(define/procedure h () (lib/f 1 2))\n(graph g (:r 1))")
     , ("in a branch not taken",                   failsWith "IncorrectArity"
-                                                                "(define/procedure f (x) x) (graph g (:r (case 1 ((= 1) 1) (otherwise (f)))))")
+                                                                "(define/procedure f (x) x) (graph g (:r (case 1 ((eq 1) 1) (otherwise (f)))))")
     , ("a constant called with an argument",      failsWith "IncorrectArity"
                                                                 "(define/procedure c () 1) (define/procedure h () (c 1)) (graph g (:r 1))")
     , ("a name bound around the call is its own", compilesToJSON "(define/procedure f (x) x) (graph g (let ($f (fn (a b) a)) (:r (f 1 2))))"
@@ -79,12 +79,12 @@ calls = Group "Static analysis: a call of a known function has its arity"
       -- A built-in takes a fixed number of arguments, checked as a function's are
     , ("a built-in's wrong arity, uncalled",      importsFailAt "SCP0002" ("inline-test", 1, 24) ["nameOfFunc = \"+\"", "+ takes two operands, (+ a b). For more, fold them: (fold (a b c) start +)."] []
                                                                 "(define/procedure h () (+ 1 2 3)) (graph g (:r 1))")
-    , ("in a branch not taken",                   importsFailAt "SCP0002" ("inline-test", 1, 43) ["nameOfFunc = \"len\"", "len takes one Array or String: (len xs)."] []
-                                                                "(graph g (:r (case 1 ((= 1) 1) (otherwise (len (1) (2))))))")
+    , ("in a branch not taken",                   importsFailAt "SCP0002" ("inline-test", 1, 44) ["nameOfFunc = \"len\"", "len takes one Array or String: (len xs)."] []
+                                                                "(graph g (:r (case 1 ((eq 1) 1) (otherwise (len (1) (2))))))")
     , ("with the hint for many sets",             importsFailAt "SCP0002" ("inline-test", 1, 24) ["For more, unions takes one Array of them: (unions (a b c))."] []
                                                                 "(define/procedure h () (union (1) (2) (3))) (graph g (:r 1))")
-    , ("and in a guard, with the target",         importsFailAt "SCP0002" ("inline-test", 1, 23) ["nameOfFunc = \"<\""] []
-                                                                "(graph g (:r (case 5 ((< 1 9) \"a\") (otherwise \"b\"))))")
+    , ("and in a guard, with the target",         importsFailAt "SCP0002" ("inline-test", 1, 23) ["nameOfFunc = \"lt\""] []
+                                                                "(graph g (:r (case 5 ((lt 1 9) \"a\") (otherwise \"b\"))))")
     , ("a binding of a built-in's name is its own", compilesToJSON "(graph g (let ($len (fn (a b) a)) (:r (len 1 2))))"
                                                                    "{\"r\": 1}")
     , ("and so is a function of the module",      compilesToJSON "(define/procedure len (a b) a) (graph g (:r (len 1 2)))"

@@ -93,8 +93,8 @@ plainNames = Group "Functions: names are plain symbols, in one namespace"
       -- A define/procedure may take a built-in's name, and replaces it everywhere, with a warning
     , ("a defn named after a built-in warns",      warnsWith "The function 'eq' replaces the built-in 'eq'"
                                                              "(define/procedure eq (a b) true) (graph g (:r (eq 1 2)))")
-    , ("so does one named with its symbol",        warnsWith "replaces the built-in 'eq'"
-                                                             "(define/procedure = (a b) true) (graph g (:r (= 1 2)))")
+    , ("= is a name like any other, not eq",       compilesToJSON "(define/procedure = (a b) true) (graph g (:r (= 1 2) :s (eq 1 2)))"
+                                                                  "{\"r\": true, \"s\": false}")
     , ("it replaces calls and guards alike",       compilesToJSON "(define/procedure eq (a b) true) (graph g (:r (eq 1 2) :s (case 1 ((eq 2) \"guard\") (otherwise \"no\"))))"
                                                                   "{\"r\": true, \"s\": \"guard\"}")
     , ("other names do not warn",                  compilesWithoutWarnings "(define/procedure mine (a b) true) (graph g (:r (mine 1 2)))")
@@ -351,7 +351,7 @@ threading = Group "Functions: with and -> build a value step by step"
                                                                  "{\"r\": [{\"a\": 1, \"seen\": true}, {\"a\": 2, \"seen\": true}]}")
     , ("pipelines nest",                          compilesToJSON "(graph g (:r (-> (-> 1 (+ 1)) (* 10))))"
                                                                  "{\"r\": 20}")
-    , ("special forms are steps too",             compilesToJSON "(graph g (:r (-> (:a 1) (get a)) :s (-> 5 (case ((> 3) \"big\") (otherwise \"small\")))))"
+    , ("special forms are steps too",             compilesToJSON "(graph g (:r (-> (:a 1) (get a)) :s (-> 5 (case ((gt 3) \"big\") (otherwise \"small\")))))"
                                                                  "{\"r\": 1, \"s\": \"big\"}")
     , ("a pipeline of no steps is its value",     compilesToJSON "(graph g (:r (-> 1)))"
                                                                  "{\"r\": 1}")

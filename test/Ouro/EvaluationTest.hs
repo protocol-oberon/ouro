@@ -34,7 +34,7 @@ tests = Group "Evaluation Tests (Surface to Higher IR)"
     , ("evaluates (%attr \"key\" val) forms",          prop_attr_form)
 
     , ("evaluates (+ 2 2) via env mapping",            prop_add_primitive)
-    , ("evaluates (> 10 5) via env mapping",           prop_gt_primitive)
+    , ("evaluates (gt 10 5) via env mapping",           prop_gt_primitive)
     , ("evaluates (eq true true) for identity",        prop_eq_primitive)
     , ("all over written comparisons is their and",    prop_all_comparisons)
 
@@ -105,7 +105,7 @@ prop_add_primitive = withTests 1 . property $ do
 
 prop_gt_primitive :: Property
 prop_gt_primitive = withTests 1 . property $ do
-    let expr = S.Form dummyPos [ S.Symbol dummyPos ">", S.Literal dummyPos (S.Num 10), S.Literal dummyPos (S.Num 5) ]
+    let expr = S.Form dummyPos [ S.Symbol dummyPos "gt", S.Literal dummyPos (S.Num 10), S.Literal dummyPos (S.Num 5) ]
     runEval expr === L.Primitive (I.Boolean True)
 
 prop_eq_primitive :: Property
@@ -115,18 +115,18 @@ prop_eq_primitive = withTests 1 . property $ do
 
 
 -- A comparison takes two operands, so a chain is written as all over its neighbouring pairs,
--- (all ((< a b) (< b c))), which holds when every pair does
+-- (all ((lt a b) (lt b c))), which holds when every pair does
 prop_all_comparisons :: Property
 prop_all_comparisons = property $ do
-    opName <- forAll $ Gen.element ["<", "<=", ">", ">=", "eq"]
+    opName <- forAll $ Gen.element ["lt", "leq", "gt", "geq", "eq"]
     nums   <- forAll $ Gen.list (Range.linear 3 5) (fromIntegral <$> Gen.int (Range.linear 0 3))
 
     let op       = case opName of
-                       "<"  -> (<)
-                       "<=" -> (<=)
-                       ">"  -> (>)
-                       ">=" -> (>=)
-                       _eq  -> (==)
+                       "lt"  -> (<)
+                       "leq" -> (<=)
+                       "gt"  -> (>)
+                       "geq" -> (>=)
+                       _eq   -> (==)
         num      = S.Literal dummyPos . S.Num
         pairs    = zipWith (\a b -> S.Form dummyPos [S.Symbol dummyPos opName, num a, num b]) nums (drop 1 nums)
         expr     = S.Form dummyPos [S.Symbol dummyPos "all", S.Form dummyPos pairs]

@@ -197,7 +197,7 @@ The `(case)` special form serves as the Ouro's main mode of control flow, it exp
 (:trgt   99
  :result (case trgt
                ((eq 100)  "fails")
-               ((> 100)   "fails")
+               ((gt 100)  "fails")
                (otherwise "fails")))
 ```
 
@@ -590,7 +590,7 @@ A record can't end up with a key twice, so inserting an attribute pair whose key
 ``` clojure
 (graph tags
   (let ($tags ())
-    (:featured (and (> (len tags) 0) (eq (get tags 0) "featured"))    ; false: get is never reached
+    (:featured (and (gt (len tags) 0) (eq (get tags 0) "featured"))    ; false: get is never reached
      :listed   (or  (eq (len tags) 0) (eq (get tags 0) "listed")))))  ; true
 
 (define/property labelled (#record r)
@@ -610,8 +610,8 @@ The quantifiers ask the same of every element of an Array. `(forall xs f)` is `t
 (let ($present ("leaf marker" "clasp")
       $absent  ("endband"))
   (:consistent (omits present (contains absent ?))        ; true: nothing is both present and absent
-   :any-clasp  (exists present (= ? "clasp"))             ; true
-   :long       (filter present (fn (s) (> (len s) 6)))))  ; ("leaf marker")
+   :any-clasp  (exists present (eq ? "clasp"))             ; true
+   :long       (filter present (fn (s) (gt (len s) 6)))))  ; ("leaf marker")
 ```
 
 `omits` is named for what the data omits, not for what does not exist: a record's silence is not an observation, so `omits` says only that the Array has no such element.
@@ -628,9 +628,8 @@ The connectives, the quantifiers and the set operations can be written with the 
 | `⋀`    | `all`          | `⊆`    | `subset`        |
 | `⋁`    | `any`          | `⋃`    | `unions`        |
 | `∀`    | `forall`       | `⋂`    | `intersections` |
-| `∃`    | `exists`       | `=`    | `eq`            |
-| `∄`    | `omits`        | `/=`   | `neq`           |
-| `⊨`    | `satisfies`    | `λ`    | `fn`            |
+| `∃`    | `exists`       | `λ`    | `fn`            |
+| `∄`    | `omits`        | `⊨`    | `satisfies`     |
 
 ``` clojure
 (define/procedure consistent #boolean (#record book)
@@ -656,18 +655,18 @@ Ouro has the following built in functions:
 
 Time windows are made with `(years n)`, `(months n)`, `(days n)`, `(hours n)`, `(minutes n)` and `(seconds n)`. Shifting by months or years clips to the end of a shorter month instead of rolling over into the next one, so 31 March minus one month is the last day of February.
 
-**Relational Comparisons:** Relational operators compare two numbers. A chain is `all` over its pairs: `(all ((< 0 x) (< x 10)))`.
+**Relational Comparisons:** Relational operators compare two numbers. A chain is `all` over its pairs: `(all ((lt 0 x) (lt x 10)))`.
 
 | Function  | Syntax Example | Evaluation Matrix                                 |
 |:----------|:---------------|:--------------------------------------------------|
-| **`>`**   | `(> 10 5)`     | Evaluates to `true` (Strictly greater).           |
-| **`>=`**  | `(>= 10 10)`   | Evaluates to `true` (Greater or equal).           |
-| **`<`**   | `(< 2 5)`      | Evaluates to `true` (Strictly less).              |
-| **`<=`**  | `(<= 5 5)`     | Evaluates to `true` (Less or equal).              |
+| **`gt`**  | `(gt 10 5)`    | Evaluates to `true` (Strictly greater).           |
+| **`geq`** | `(geq 10 10)`  | Evaluates to `true` (Greater or equal).           |
+| **`lt`**  | `(lt 2 5)`     | Evaluates to `true` (Strictly less).              |
+| **`leq`** | `(leq 5 5)`    | Evaluates to `true` (Less or equal).              |
 | **`eq`**  | `(eq 1 1)`     | Evaluates to `true` (The values are equal).       |
 | **`neq`** | `(neq 1 2)`    | Evaluates to `true` (The values differ).          |
 
-`eq` compares records and arrays by value, and `=` and `/=` are `eq` and `neq`. Using an operator with any number of operands but two is an arity error, whose hint is the fold.
+`eq` compares records and arrays by value. Using an operator with any number of operands but two is an arity error, whose hint is the fold.
 
 **Smallest and largest:** `min` and `max` take one Array of Numbers, so a summary is worked out from the data rather than typed beside it. Several Numbers are written as one Array.
 
@@ -852,7 +851,7 @@ Names:
 
 - Functions and graphs are named in kebab-case, `make-place`. A name with a capital or an underscore is a warning (`WRN0004`) that suggests the kebab-case spelling. Attribute keys and local bindings are exempt, since keys follow the data's vocabulary (`:_label`).
 - A `define/procedure` may take the name of a built-in or a special form, as in Scheme, and replaces it throughout the file, with a warning (`WRN0003`). The names read before any name is bound cannot be taken (`SYN0008`), since such a function could never be called: `define/procedure`, `define/property`, `define/constant`, `graph`, `doc`, `and`, `or`, `->`, `with`, `adjoin` and `thru`.
-- A `/` qualifies an imported name, `base/aat`, so no function, parameter or `let` binding can have one. The operators `/` and `/=` are names like any other.
+- A `/` qualifies an imported name, `base/aat`, so no function, parameter or `let` binding can have one. The operator `/` is a name like any other.
 
 ### Signatures
 

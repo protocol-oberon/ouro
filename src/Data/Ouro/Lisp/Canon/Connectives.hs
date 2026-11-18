@@ -20,7 +20,7 @@ import           Text.Megaparsec        (SourcePos)
 --   (all ())         true, and (any ()) is false
 --
 -- Only an array written in place is a chain, a literal one or a (list ...): it is what stops
--- the guard (all ((has r year) (> (get r year) 1600))) reading a year r does not have. An
+-- the guard (all ((has r year) (gt (get r year) 1600))) reading a year r does not have. An
 -- array given any other way is evaluated whole, and all and any read its Booleans. An and
 -- or or with another number of operands is left for the evaluator to report.
 --

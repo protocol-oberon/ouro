@@ -56,7 +56,7 @@ imports = Group "Modules: import, export and the bundled std"
     , ("std compiles without warnings",            compilesWithoutWarnings "(import std/base) (graph g (base/aat \"1\" \"A\"))")
     , ("a local function and an import's apart",   compilesToJSON "(import std/base) (define/procedure aat (x) \"mine\") (graph g (:a (aat 1) :b (base/aat \"1\" \"A\")))"
                                                                   "{\"a\": \"mine\", \"b\": {\"id\": \"http://vocab.getty.edu/aat/1\", \"type\": \"Type\", \"_label\": \"A\"}}")
-    , ("/ and /= are not qualified names",         compilesToJSON "(graph g (:a (/ 6 3) :b (/= 1 2)))"
+    , ("/ and /= are not qualified names",         compilesToJSON "(graph g (:a (/ 6 3) :b (neq 1 2)))"
                                                                   "{\"a\": 2, \"b\": true}")
 
       -- Finding modules and names
@@ -179,7 +179,7 @@ importedModules = Group "Modules: imported modules, in memory"
                                                                   "{\"r\": 2}")
     , ("as a step of ->",                          importsToJSON [helpers] "(import helpers) (graph g (:r (-> \"Ann\" (helpers/greet))))"
                                                                           "{\"r\": \"Hello, Ann\"}")
-    , ("in a case condition",                      importsToJSON [("checks", "(export big)\n(define/procedure big (n) (> n 10))")]
+    , ("in a case condition",                      importsToJSON [("checks", "(export big)\n(define/procedure big (n) (gt n 10))")]
                                                                  "(import checks) (graph g (:r (case 20 ((when (checks/big 20)) \"big\") (otherwise \"small\"))))"
                                                                  "{\"r\": \"big\"}")
     , ("a wrong number of arguments",              failsWith "nameOfFunc = \"aat\""

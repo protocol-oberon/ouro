@@ -48,7 +48,7 @@ baseline = Group "Scoping: baseline (must keep passing)"
                                                                "(graph g (:a 1 :b 1))")
     , ("case alternatives sugar",                 compilesLike "(graph g (:n \"Proust\" :r (case n ((\"Manet\" \"Proust\") \"person\") (otherwise \"other\"))))"
                                                                "(graph g (:n \"Proust\" :r \"person\"))")
-    , ("case guards",                             compilesLike "(graph g (:n 150 :r (case n ((> 100) \"big\") (otherwise \"small\"))))"
+    , ("case guards",                             compilesLike "(graph g (:n 150 :r (case n ((gt 100) \"big\") (otherwise \"small\"))))"
                                                                "(graph g (:n 150 :r \"big\"))")
     , ("cyclic bindings are an error",            failsToCompile "(graph g (:a b :b a))")
     , ("wrong arity is an error",                 failsToCompile "(define/procedure id! (a) a) (graph g (:r (id! 1 2)))")

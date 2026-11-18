@@ -473,6 +473,18 @@ pExpr = do
                              -- A range's '..' is read by the form around it; anywhere else it has no meaning
                              Tkn.DotDot         -> lift (Left (misplacedRange (Tkn.pos t)))
 
+                             -- An infix expression, <a lt b>, is not yet read; a '>' alone closes none,
+                             -- and is most likely a comparison's old name
+                             Tkn.OpenAngle      -> lexicalError "An infix expression, <a op b>, is not yet read."
+                                                   & OuroError (Tkn.pos t)
+                                                   & Left
+                                                   & lift
+                             Tkn.CloseAngle     -> lexicalError "This '>' closes no '<'."
+                                                   & withBlurb "A comparison is a word: (gt a b), and (geq a b) for at least."
+                                                   & OuroError (Tkn.pos t)
+                                                   & Left
+                                                   & lift
+
                              -- Unbalanced Boundaries are immediate semantic loop violations
                              Tkn.CloseParen -> let context = Syntax UnbalancedDelimiter
                                                                  { expectedDelim = "Opening Form Boundary '('"

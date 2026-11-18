@@ -16,20 +16,20 @@ import           Data.Text                         (Text)
 -- cond is true and skips when it is false:
 --
 --   ((when (has book ntp46)) e)   ((%when (has book ntp46)) e)
---   ((< 10 20) e)                 ((%when (< %target 10 20)) e)
+--   ((lt 10 20) e)                ((%when (lt %target 10 20)) e)
 --   ((satisfies #uri) e)          ((%when (satisfies %target #uri)) e)
 --
 -- A guard is about the case's target, which it takes first, as a '->' step takes the value
 -- threaded into it: a comparison, or satisfies, whose subject comes first. The case binds
 -- its target once, to a name that cannot be written in Ouro, and the condition names it:
 --
---   (case x ((< 10) e) ...)   (let ((%bind "%target" x)) (case %target ((%when (< %target 10)) e) ...))
+--   (case x ((lt 10) e) ...)   (let ((%bind "%target" x)) (case %target ((%when (lt %target 10)) e) ...))
 --
 -- A branch head is matched, not evaluated, so 'placeholders' and 'connectives' left it
 -- alone; a condition is evaluated, so they are run on it here. A comparison takes two
--- operands, so a guard takes one: ((< 10 20) e) is (< %target 10 20), an arity error. Top-down, after
--- 'bindings', so the binding is written as bindings writes one; before 'alternatives',
--- which keeps a (%when ...) head.
+-- operands, so a guard takes one: ((lt 10 20) e) is (lt %target 10 20), an arity error.
+-- Top-down, after 'bindings', so the binding is written as bindings writes one; before
+-- 'alternatives', which keeps a (%when ...) head.
 guards :: S.Expr -> S.Expr
 guards = topDown $ \case
     S.Form pos (cSym@(S.Symbol _ (S.formName -> "case")) : target : branches)
@@ -70,4 +70,4 @@ guards = topDown $ \case
 
 -- The comparisons that can head a case guard
 guardOperators :: [Text]
-guardOperators = [">=", ">", "<=", "<", "eq", "neq"]
+guardOperators = ["geq", "gt", "leq", "lt", "eq", "neq"]

@@ -44,10 +44,10 @@ builtinRegistry = Map.fromList
                       , ("-",           handleSubtraction)
                       , ("*",           handleMultiplication)
                       , ("/",           handleDivision)
-                      , (">=",          handleGreaterEq)
-                      , (">",           handleGreater)
-                      , ("<=",          handleLessEq)
-                      , ("<",           handleLess)
+                      , ("geq",         handleGreaterEq)
+                      , ("gt",          handleGreater)
+                      , ("leq",         handleLessEq)
+                      , ("lt",          handleLess)
                       , ("eq",          handleEquality)
                       , ("neq",         handleNeq)
                       , ("not",         handleNot)
@@ -100,7 +100,7 @@ builtinRegistry = Map.fromList
 -- %adjoin, is made only by Canon and has none.
 builtinArity :: Map.Map Text (Int, Text)
 builtinArity = Map.fromList $
-       [ (op, (2, operandHint op)) | op <- ["+", "-", "*", "/", ">", ">=", "<", "<=", "eq", "neq"] ]
+       [ (op, (2, operandHint op)) | op <- ["+", "-", "*", "/", "gt", "geq", "lt", "leq", "eq", "neq"] ]
     <> [ ("union",         (2, setHint "union" "is every value of either" "unions"))
        , ("intersect",     (2, setHint "intersect" "is every value of both" "intersections"))
        , ("setminus",      (2, setHint "setminus" "is every value of the first that is not in the second" "setminus"))
@@ -299,7 +299,7 @@ handleGreater pos =
 
                    _typeMismatch
                        -> Data.Ouro.Error.Diagnostics.typeMismatch "Matching numeric values for greater than"
-                               (humanReadableType a <> " > " <> humanReadableType b)
+                               (humanReadableType a <> " gt " <> humanReadableType b)
                           & Data.Ouro.Error.Diagnostics.withBlurb (Data.Ouro.Error.Diagnostics.binaryOpMismatchBlurb a b)
                           & OuroError pos
                           & L.EvalError
@@ -307,7 +307,7 @@ handleGreater pos =
 
      -- The wrong number of operands, as written: each operator compares or combines two values
      operands
-         -> wrongOperandCount ">" operands
+         -> wrongOperandCount "gt" operands
             & OuroError pos
             & L.EvalError
             & pure
@@ -325,7 +325,7 @@ handleGreaterEq pos =
 
                    _typeMismatch
                        -> Data.Ouro.Error.Diagnostics.typeMismatch "Matching numeric values for greater than or equal to"
-                               (humanReadableType a <> " >= " <> humanReadableType b)
+                               (humanReadableType a <> " geq " <> humanReadableType b)
                           & Data.Ouro.Error.Diagnostics.withBlurb (Data.Ouro.Error.Diagnostics.binaryOpMismatchBlurb a b)
                           & OuroError pos
                           & L.EvalError
@@ -333,7 +333,7 @@ handleGreaterEq pos =
 
      -- The wrong number of operands, as written: each operator compares or combines two values
      operands
-         -> wrongOperandCount ">=" operands
+         -> wrongOperandCount "geq" operands
             & OuroError pos
             & L.EvalError
             & pure
@@ -351,7 +351,7 @@ handleLess pos =
 
                    _typeMismatch
                        -> Data.Ouro.Error.Diagnostics.typeMismatch "Matching numeric values for less than"
-                               (humanReadableType a <> " < " <> humanReadableType b)
+                               (humanReadableType a <> " lt " <> humanReadableType b)
                            & Data.Ouro.Error.Diagnostics.withBlurb (Data.Ouro.Error.Diagnostics.binaryOpMismatchBlurb a b)
                            & OuroError pos
                            & L.EvalError
@@ -359,7 +359,7 @@ handleLess pos =
 
      -- The wrong number of operands, as written: each operator compares or combines two values
      operands
-         -> wrongOperandCount "<" operands
+         -> wrongOperandCount "lt" operands
             & OuroError pos
             & L.EvalError
             & pure
@@ -377,7 +377,7 @@ handleLessEq pos =
 
                    _typeMismatch
                        -> Data.Ouro.Error.Diagnostics.typeMismatch "Matching numeric values for less than or equal to"
-                               (humanReadableType a <> " <= " <> humanReadableType b)
+                               (humanReadableType a <> " leq " <> humanReadableType b)
                            & Data.Ouro.Error.Diagnostics.withBlurb (Data.Ouro.Error.Diagnostics.binaryOpMismatchBlurb a b)
                            & OuroError pos
                            & L.EvalError
@@ -385,7 +385,7 @@ handleLessEq pos =
 
      -- The wrong number of operands, as written: each operator compares or combines two values
      operands
-         -> wrongOperandCount "<=" operands
+         -> wrongOperandCount "leq" operands
             & OuroError pos
             & L.EvalError
             & pure

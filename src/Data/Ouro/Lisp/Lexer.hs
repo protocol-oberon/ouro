@@ -16,7 +16,7 @@ import           Text.Megaparsec            (MonadParsec (eof, lookAhead, notFol
                                              oneOf, option, optional, runParser,
                                              some, try, (<|>))
 import           Text.Megaparsec.Char       (alphaNumChar, char, letterChar,
-                                             space1, string)
+                                             space1, spaceChar, string)
 import qualified Text.Megaparsec.Char.Lexer as L
 import           Text.Megaparsec.Error      (ErrorItem (Tokens),
                                              ParseErrorBundle)
@@ -46,13 +46,18 @@ lexeme = L.lexeme sc
 
 
 -- Rigid Structural Syntax Elements. Ouro has no brackets: '[' and ']' are errors where they
--- are written, which say how an array is written.
+-- are written, which say how an array is written. '<' and '>' delimit an infix expression,
+-- <a op b>, its '<' written against the first operand: so a '<', '<=' or '>=' with a space
+-- after it can only be a comparison's old name, and is an error that names its word.
 pDelims :: Parser Tkn.Token
 pDelims = lexeme . withPos $ choice
                              [ Tkn.OpenParen    <$ char '('
                              , Tkn.CloseParen   <$ char ')'
                              , Tkn.DotDot       <$ string ".."
                              , noBrackets
+                             , oldComparison
+                             , Tkn.OpenAngle    <$ char '<'
+                             , Tkn.CloseAngle   <$ char '>'
                              ]
     where
     noBrackets :: Parser Tkn.TokenType
@@ -61,6 +66,19 @@ pDelims = lexeme . withPos $ choice
                  _           <- oneOf ("[]" :: String)
                  M.region (\err -> M.setErrorOffset startOffset err)
                           (fail "Ouro has no brackets: an array is written in parentheses, (1 2 3)")
+
+    oldComparison :: Parser Tkn.TokenType
+    oldComparison = do
+                    startOffset <- M.getOffset
+                    written     <- try (choice (map string ["<=", ">=", "<"]) <* lookAhead (() <$ spaceChar <|> () <$ char ')' <|> eof))
+                    M.region (\err -> M.setErrorOffset startOffset err)
+                             (fail (T.unpack ("'" <> written <> "' is now '" <> word written <> "': (" <> word written <> " a b)")))
+
+    word :: Text -> Text
+    word = \case
+        "<=" -> "leq"
+        ">=" -> "geq"
+        _lt  -> "lt"
 
 
 -- Core Operational Keywords & Symbols. A keyword that only begins a longer name
@@ -229,6 +247,20 @@ pSymbol :: Parser Tkn.Token
 pSymbol = lexeme . withPos $ Tkn.Symbol <$> symbolName
 
 
+-- '->', a name of its own now '>' ends a name, with a variant after a '/', as ->/or. Written
+-- against a name, ->x, it is an error, which would otherwise fall apart into '-' and a '>'.
+pArrow :: Parser Tkn.Token
+pArrow = lexeme . withPos $ do
+    startOffset <- M.getOffset
+    _           <- try (string "->")
+    variant     <- option "" (T.cons '/' . T.pack <$> (char '/' *> some letterChar))
+    next        <- optional (lookAhead symbolChar)
+    case next of
+        Nothing -> pure (Tkn.Symbol ("->" <> variant))
+        Just _  -> M.region (\err -> M.setErrorOffset startOffset err)
+                            (fail "'->' is written apart from what follows it: (-> x f)")
+
+
 -- Private bindings in a let, written '$name value'. The name is any symbol, so the
 -- binding can be referred to by that symbol.
 pBinding :: Parser Tkn.Token
@@ -242,13 +274,10 @@ pBinding = lexeme . withPos $ Tkn.Binding <$> (char '$' *> symbolName)
 -- its first character a symbol may hold ':', so a path can name a compact IRI key: (get r crm:P2).
 symbolName :: Parser Text
 symbolName = do
-             first <- letterChar <|> oneOf ("_+-*/<>=!&|~" :: String) <|> oneOf mathSymbols
+             first <- letterChar <|> oneOf ("_+-*/=!&|~" :: String) <|> oneOf mathSymbols
              rest  <- many symbolChar
              pure $ case first : rest of
                         "λ"   -> "fn"
-                        "="   -> "eq"
-                        "/="  -> "neq"
-                        "≠"   -> "neq"
                         "¬"   -> "not"
                         "∧"   -> "and"
                         "∨"   -> "or"
@@ -269,13 +298,14 @@ symbolName = do
                         "∈"   -> "in"
                         name  -> T.pack name
     where
-    -- They are not letters, so each is allowed to begin a symbol by name
-    mathSymbols = "¬∧∨⋀⋁∀∃∄∪∩∖⊆⋃⋂⊨⊢∈" :: String
+    -- They are not letters, so each is allowed to begin a symbol by name. '≠' names nothing:
+    -- it is read so that its use is unbound, with a message naming neq
+    mathSymbols = "¬∧∨⋀⋁∀∃∄∪∩∖⊆⋃⋂⊨⊢∈≠" :: String
 
 
 -- A character a symbol may hold after its first
 symbolChar :: Parser Char
-symbolChar = alphaNumChar <|> oneOf ("_-+*/<>=!?&|~':" :: String)
+symbolChar = alphaNumChar <|> oneOf ("_-+*/=!?&|~':" :: String)
 
 
 pSingleToken :: Parser Tkn.Token
@@ -286,6 +316,7 @@ pSingleToken =  pDelims
             <|> pBinding
             <|> pReaderTags
             <|> pHole
+            <|> pArrow
             <|> pLiterals
             <|> pSymbol
 
