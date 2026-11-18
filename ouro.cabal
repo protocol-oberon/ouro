@@ -87,6 +87,7 @@ library
         Data.Ouro.Lisp.Canon.Connectives
         Data.Ouro.Lisp.Canon.Context
         Data.Ouro.Lisp.Canon.Guards
+        Data.Ouro.Lisp.Canon.Infix
         Data.Ouro.Lisp.Canon.Placeholders
         Data.Ouro.Lisp.Canon.Threading
         Data.Ouro.Lisp.Canon.Thru

@@ -526,8 +526,33 @@ operators = Group "Operators: operands and desugaring"
                                                               "(graph g (:r (/= 1 2)))")
     , ("≠ is now neq",                              failsWith "' is now 'neq': (neq a b)"
                                                               "(graph g (:r (≠ 1 2)))")
-    , ("an infix expression is not yet read",       failsWith "An infix expression, <a op b>, is not yet read."
-                                                              "(graph g (:r <1 lt 2>))")
+
+      -- <a op b> is (op a b), as SRFI 105's {a op b}: no precedence, nesting written, and a
+      -- chain only where a left fold means something
+    , ("<a op b> is (op a b)",                      compilesToJSON "(graph g (:r <1 lt 2> :s <\"a\" eq \"b\">))"
+                                                                   "{\"r\": true, \"s\": false}")
+    , ("a chain folds left",                        compilesToJSON "(graph g (:r <1 + 2 + 3> :s <10 - 2 - 3>))"
+                                                                   "{\"r\": 6, \"s\": 5}")
+    , ("nesting is written",                        compilesToJSON "(graph g (:r <2 lt <1 + 2>> :s <<10 - 2> * 3>))"
+                                                                   "{\"r\": true, \"s\": 24}")
+    , ("any name of two arguments is an operator",  compilesToJSON "(define/procedure plus (a b) (+ a b)) (graph g (:r <1 plus 2>))"
+                                                                   "{\"r\": 3}")
+    , ("a hole makes it a function",                compilesToJSON "(graph g (:r (filter (1500 1700) <? gt 1600>)))"
+                                                                   "{\"r\": [1700]}")
+    , ("one element is not infix",                  failsWith "An infix expression has an operator between each two operands"
+                                                              "(graph g (:r <1>))")
+    , ("nor are two",                               failsWith "An infix expression has an operator between each two operands"
+                                                              "(graph g (:r <not true>))")
+    , ("nor an operand without its operator",       failsWith "An infix expression has an operator between each two operands"
+                                                              "(graph g (:r <1 + 2 3>))")
+    , ("an operator is a name",                     failsWith "An infix operator is a name"
+                                                              "(graph g (:r <1 (array) 2>))")
+    , ("mixed operators are nested by hand",        failsWith "'+' and '-' are mixed in one infix expression."
+                                                              "(graph g (:r <1 + 2 - 3>))")
+    , ("a relation does not chain",                 failsWith "Write each pair: (all (<a lt b> <b lt c>))."
+                                                              "(graph g (:r <1 lt 2 lt 3>))")
+    , ("nor does a function of the module",         failsWith "Nest it: <<a plus b> plus c>."
+                                                              "(define/procedure plus (a b) (+ a b)) (graph g (:r <1 plus 2 plus 3>))")
     , ("-> is a name of its own",                   compilesToJSON "(graph g (:r (-> 1 (+ 2))))"
                                                                    "{\"r\": 3}")
     , ("with a variant after a /, not yet a form",  failsWith "A qualified name, module/function"

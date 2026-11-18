@@ -7,9 +7,10 @@ import           Control.Monad               (foldM, foldM_, when)
 import           Control.Monad.State.Strict  (MonadTrans (lift),
                                               StateT (runStateT), gets,
                                               modify')
-import           Data.Foldable               (traverse_)
+import           Data.Foldable               (find, traverse_)
 import qualified Data.Function               as F
 import qualified Data.Map                    as Map
+import           Data.Maybe                  (isNothing)
 import           Data.Ouro.Error.Diagnostics (lexicalError, missingAttributeValue,
                                               unbalancedDelimiter, withBlurb)
 import           Data.Ouro.Error.Types       (ErrorContext (..), OuroError (..),
@@ -473,12 +474,9 @@ pExpr = do
                              -- A range's '..' is read by the form around it; anywhere else it has no meaning
                              Tkn.DotDot         -> lift (Left (misplacedRange (Tkn.pos t)))
 
-                             -- An infix expression, <a lt b>, is not yet read; a '>' alone closes none,
-                             -- and is most likely a comparison's old name
-                             Tkn.OpenAngle      -> lexicalError "An infix expression, <a op b>, is not yet read."
-                                                   & OuroError (Tkn.pos t)
-                                                   & Left
-                                                   & lift
+                             -- An infix expression, <a lt b>, read to its '>'; a '>' alone closes
+                             -- none, and is most likely a comparison's old name
+                             Tkn.OpenAngle      -> consume ts >> parseInfix (Tkn.pos t)
                              Tkn.CloseAngle     -> lexicalError "This '>' closes no '<'."
                                                    & withBlurb "A comparison is a word: (gt a b), and (geq a b) for at least."
                                                    & OuroError (Tkn.pos t)
@@ -515,6 +513,72 @@ parseFormContainer startPos = do
                                       -> lift (Left (misplacedRange pos))
                                   (_, [])
                                       -> pure $ S.Form startPos terms
+
+
+-- An infix expression, <a op b>, as SRFI 105 reads {a op b}, written (%infix a op b) for
+-- 'Canon.Infix' to make prefix. Its shape is checked here, so that pass cannot fail: an
+-- operator between each two operands, every one a name and the same name, since there is no
+-- precedence, and nesting is written, <<a + b> * c>. A name chains only where a left fold
+-- means something, its result the kind of its first operand; a relation's chain,
+-- <a lt b lt c>, is written as its pairs.
+parseInfix :: SourcePos -> Parser S.Expr
+parseInfix startPos = do
+    terms <- within startPos ">" (collectUntil Tkn.CloseAngle)
+    lift (infixForm startPos terms)
+
+infixForm :: SourcePos -> [S.Expr] -> Either OuroError S.Expr
+infixForm startPos terms =
+    case (length terms >= 3 && odd (length terms), traverse operatorName operators) of
+        (False, _)
+            -> shapeError
+
+        (True,  Nothing)
+            -> notAName
+
+        (True,  Just [])
+            -> shapeError
+        (True,  Just (name : more))
+            -> case (filter (/= name) more, more) of
+                   (other : _, _) -> mixed name other
+                   ([], [])       -> written
+                   ([], _chain)   -> case name `elem` chaining of
+                                         True  -> written
+                                         False -> doesNotChain name
+
+    where
+    written = Right (S.Form startPos (S.Symbol startPos "%infix" : terms))
+
+    -- Every second element, the operators between the operands
+    operators = [ term | (index, term) <- zip [0 :: Int ..] terms, odd index ]
+
+    operatorName = \case
+        S.Symbol _ name -> Just name
+        _notAName       -> Nothing
+
+    -- The operators a chain folds through: each gives back the kind of its first operand
+    chaining  = ["+", "-", "*", "/", "and", "or", "union", "intersect", "setminus", "assert"]
+    relations = ["lt", "leq", "gt", "geq", "eq", "neq", "in"]
+
+    -- An error at the first operator that meets the condition, or at the '<'
+    failAt found message blurb =
+        Left (OuroError (maybe startPos S.exprPos (find found operators)) (withBlurb blurb (lexicalError message)))
+
+    shapeError = failAt (const False)
+                        "An infix expression has an operator between each two operands: <a op b>."
+                        "A single value needs no brackets, and an operation of one operand is a call: (not b)."
+    notAName   = failAt (isNothing . operatorName)
+                        "An infix operator is a name: <a op b>."
+                        "Write the operation as a call, or bind it to a name first."
+    mixed name other
+               = failAt ((== Just other) . operatorName)
+                        ("'" <> name <> "' and '" <> other <> "' are mixed in one infix expression.")
+                        ("There is no precedence: nest one, <<a " <> name <> " b> " <> other <> " c>.")
+    doesNotChain name
+               = failAt (const False)
+                        ("'" <> name <> "' does not chain.")
+                        (case name `elem` relations of
+                             True  -> "Write each pair: (all (<a " <> name <> " b> <b " <> name <> " c>))."
+                             False -> "Nest it: <<a " <> name <> " b> " <> name <> " c>.")
 
 
 -- An attribute pair or a binding, which the parser writes as a form headed by a name that

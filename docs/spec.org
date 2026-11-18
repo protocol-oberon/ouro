@@ -636,7 +636,18 @@ It may also contain digits, ~?~ and ~'~, and =:= after its first character. On i
 
 =<= and =>= delimit an infix expression, ~<a lt b>~, its =<= written against the first operand, so no name holds them.
 
-- An infix expression is not yet read: =<1 lt 2>= is =SYN0000=, "An infix expression, <a op b>, is not yet read."
+- ~<a op b>~ is ~(op a b)~, as SRFI 105's ~{a op b}~ is. The parser reads it, and the first Canon pass, =infix=, writes it as a call, so every later pass sees prefix forms only.
+  - Any name of two arguments is an operator: ~<1 lt 2>~, ~<x contains "a">~, a function of the module.
+  - There is no precedence: nesting is written, ~<<10 minus 2> times 3>~, ~<2 lt <1 + 2>>~.
+  - A hole makes it a function, as in any call: ~(filter years <? gt 1600>)~.
+
+- A chain folds left by threading, ~<a + b + c>~ being ~(-> a (+ b) (+ c))~, that is ~(+ (+ a b) c)~, for the operators whose result is the kind of their first operand: =+=, =-=, =*=, =/=, =and=, =or=, =union=, =intersect=, =setminus= and =assert=.
+
+- Each other shape is =SYN0000=, reported by the parser:
+  - fewer than three elements, or an operand without its operator, ~<1>~, ~<not b>~, ~<1 + 2 3>~: "An infix expression has an operator between each two operands: <a op b>.";
+  - an operator that is not a name, ~<1 (f) 2>~: "An infix operator is a name: <a op b>.";
+  - two operators, ~<1 + 2 - 3>~: "'+' and '-' are mixed in one infix expression.", with the hint to nest one;
+  - a chain of any other name: "'lt' does not chain.", whose hint for a relation (=lt=, =leq=, =gt=, =geq=, =eq=, =neq=, =in=) is to write each pair, ~(all (<a lt b> <b lt c>))~, and for any other name to nest it.
 
 - A comparison is a word, =lt=, =leq=, =gt=, =geq=, beside =eq= and =neq=. Each old name is an error that says its word:
   - =<=, =<== or =>== with a space after it, as in ~(< 1 2)~: "'<' is now 'lt': (lt a b)";
@@ -1960,6 +1971,7 @@ Before evaluation, ~Canon.canonicalModule~ rewrites every function body and grap
 
 | Pass             | Walk      | Rewrites                                                                     |
 |------------------+-----------+------------------------------------------------------------------------------|
+| 0. infix         | top-down  | ~<a op b>~ into ~(op a b)~, and a chain into ~(-> a (op b) ...)~             |
 | 1. placeholders  | top-down  | a call with =?= holes into a function of them                                |
 | 2. threading     | top-down  | ~(-> x step ...)~ into nested calls                                          |
 | 3. connectives   | top-down  | ~(and a b)~, =or=, and =all= and =any= written in place into a =%case= chain |
@@ -2024,7 +2036,7 @@ Each pass is a module of its own under =Lisp/Canon/=, with the walks in =Travers
 9. =Thru.hs=
 10. =Alternatives.hs=
 
-=Lisp/Canon.hs= is the single entry point: it lists the passes, in order, and runs them, and ~Canon.runPasses~ runs any selection of them. A =define/procedure='s parameter patterns go through ~Canon.patternPasses~, every pass but placeholders, threading and connectives, since a pattern is matched, not evaluated.
+=Lisp/Canon.hs= is the single entry point: it lists the passes, in order, and runs them, and ~Canon.runPasses~ runs any selection of them. A =define/procedure='s parameter patterns go through ~Canon.patternPasses~, every pass but placeholders, threading and connectives, since a pattern is matched, not evaluated; infix runs on them too, as a binder is written in a parameter list.
 
 *** Sugar and core
 

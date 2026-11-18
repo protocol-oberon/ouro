@@ -15,6 +15,7 @@ import           Data.Ouro.Lisp.Canon.Bindings     (bindings)
 import           Data.Ouro.Lisp.Canon.Connectives  (connectives)
 import           Data.Ouro.Lisp.Canon.Context      (contexts)
 import           Data.Ouro.Lisp.Canon.Guards       (guards)
+import           Data.Ouro.Lisp.Canon.Infix        (infixForms)
 import           Data.Ouro.Lisp.Canon.Placeholders (placeholders)
 import           Data.Ouro.Lisp.Canon.Threading    (threading)
 import           Data.Ouro.Lisp.Canon.Thru         (thru)
@@ -31,6 +32,9 @@ import           Data.Text                         (Text)
 -- Each pass is a module of its own under Canon/, and walks the tree in one of the ways in
 -- 'Canon.Traverse': top-down, bottom-up, or over lists of siblings.
 --
+--    0. infix         top-down   <a op b> becomes (op a b), and a chain <a op b op c> threads
+--                                a through its steps, (-> a (op b) (op c)), so every pass
+--                                after it sees prefix forms only
 --    1. placeholders  top-down   a call with '?' holes becomes a function of them
 --    2. threading     top-down   (-> x step ...) threads x through its steps. A step with a
 --                                hole is already a function (1), and a step is rewritten
@@ -42,7 +46,7 @@ import           Data.Text                         (Text)
 --                                decide the answer
 --    4. bindings      top-down   '$name value' in a let becomes (%bind "name" value), before a
 --                                value can expand into several elements (9)
---    5. guards        top-down   a case condition, (when c) or a guard ((< 10) e), becomes a
+--    5. guards        top-down   a case condition, (when c) or a guard ((lt 10) e), becomes a
 --                                (%when c) head; a guard names the case's target, bound once,
 --                                and alternatives (10) keep it
 --    6. contexts      bottom-up  ':context e' becomes the record's metadata, (%context e)
@@ -61,17 +65,24 @@ data Pass = Pass
 
 passes :: [Pass]
 passes =
-    [ Pass "placeholders" placeholders
+    [ Pass "infix"        infixForms
+    , Pass "placeholders" placeholders
     , Pass "threading"    threading
     , Pass "connectives"  connectives
-    ] <> patternPasses
+    ] <> laterPasses
 
 
--- The passes a function's parameter patterns go through: all but the first three, since a
--- pattern's holes match values, so they are neither placeholders nor threaded, and a
--- pattern is matched, so it holds no (and ...) or (or ...) to evaluate
+-- The passes a function's parameter patterns go through: infix, since a binder <x ⊢ p> is
+-- written in a parameter list, and none of the three after it, since a pattern's holes match
+-- values, so they are neither placeholders nor threaded, and a pattern is matched, so it
+-- holds no (and ...) or (or ...) to evaluate
 patternPasses :: [Pass]
-patternPasses =
+patternPasses = Pass "infix" infixForms : laterPasses
+
+
+-- The passes after the first four, which expressions and patterns share
+laterPasses :: [Pass]
+laterPasses =
     [ Pass "bindings"     bindings
     , Pass "guards"       guards
     , Pass "contexts"     contexts
