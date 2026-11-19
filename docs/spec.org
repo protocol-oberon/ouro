@@ -1027,10 +1027,17 @@ The symbols of logic and sets are read the same way, as the names they stand for
 
 ~(⊢ x p)~, or ~<x ⊢ p>~, asserts that =x= has the refinement =p=; ~(∈ x p)~, or ~<x ∈ p>~, asks whether it has.
 
-- =p= is the refinement's name, in a type position, never evaluated:
-  - a built-in, =string=, =number=, =boolean=, =record=, =array=, =function=, =uri= or =date=;
-  - or one defined in Ouro, =titled=; an imported one, =people/titled=, is not yet read.
+- =p= is a type, in a type position, never evaluated: a refinement's name, or ∪ ∩ ∖ of two types.
+  - A name is a built-in, =string=, =number=, =boolean=, =record=, =array=, =function=, =uri= or =date=, or one defined in Ouro, =titled=; an imported one, =people/titled=, is not yet read.
   - A binding of the name changes nothing: ~(let ($string 1) <"a" ⊢ string>)~ is ="a"=.
+
+- ∪ ∩ ∖ are written prefix or infix, wherever a type is: ~<x ⊢ (∪ string number)>~, ~(∈ x <string ∖ uri>)~, in a binder or a return type too.
+  - A union holds where either side does, an intersection where both do, a difference where the first does and the second does not.
+  - Each takes two types; a chain folds left, ~<string ∪ number ∪ boolean>~, and nesting is written.
+  - The value is never changed. A value outside is a refinement mismatch against the whole type, written as messages write it, ~(∪ #string #number)~.
+  - Only a refinement mismatch means a value is outside a side: an error inside one, a refinement whose own body fails, stays that error, and is never taken for "not in" and tried against the other side.
+  - Anything else in a type, ~(∪ string number boolean)~ or ~(∪ string 1)~, is =SYN0000=, "A type is a refinement's name, or ∪ ∩ ∖ of two types". An unknown refinement inside one is reported at the type.
+  - The complement, ~(∖ value p)~, waits for =value= as the root.
 
 - =⊢= is the assertion =#p x= is, written another way: the value passes on as it is, never converted, or it is a refinement mismatch (=TYP0001=) at the value. A chain asserts each, ~<r ⊢ record ⊢ titled>~.
 
@@ -1318,7 +1325,7 @@ A function's types are refinements in its header, each written by its name. =⊢
 
 - A binder is a name or a pattern, then =⊢= and one refinement. =<n ∈ number>= or a chain, =<n ⊢ number ⊢ number>=, is =SYN0000=: a binder asserts one refinement.
 
-- A requirement is written by its name for now; anything else is =SYN0000=, "A refinement in a signature is written by its name". Every signature's requirement is read in one place, ~Parser.requirementOf~.
+- A requirement is a type: a refinement's name, or ∪ ∩ ∖ of types, ~<x ⊢ (∪ painting print)>~ (see [[*Asserting and asking: =⊢= and =∈=][asserting and asking]]); anything else is =SYN0000=, "A type is a refinement's name, or ∪ ∩ ∖ of two types". Every signature's requirement is read in one place, ~Parser.requirementOf~, by the same reader as =⊢= and =∈=, ~Surface.readType~.
 
 - Scope: a signature's names are recorded by the parser, not resolved, since a return type is written before the parameters. A parameter's requirement may name only earlier parameters, a result's any of them, once requirements are more than names.
 
@@ -1971,8 +1978,8 @@ data Expr
     | Hole        SourcePos Text            -- ?, ?name or ?..name: a placeholder, or in a case pattern
     | Form        SourcePos [Expr]          -- (...)
 
--- A requirement: for now a refinement by its name
-data Type = Named Refinement
+-- A requirement: a refinement by its name, or ∪ ∩ ∖ of types
+data Type = Named Refinement | Union Type Type | Inter Type Type | Minus Type Type
 
 -- A refinement by its name: a built-in, or one defined in Ouro
 data Refinement = RUri | RDate | RString | RNumber | RBoolean | RRecord | RArray | RFunction

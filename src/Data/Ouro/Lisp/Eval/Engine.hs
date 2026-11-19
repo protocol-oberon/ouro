@@ -9,6 +9,7 @@ import           Control.Monad.Reader           (MonadReader (..), runReader)
 import           Control.Monad.State.Strict     (gets, modify)
 import qualified Data.IntMap.Strict             as IntMap
 import           Data.Function                  ((&))
+import           Data.Functor                   ((<&>))
 import qualified Data.Map                       as Map
 import           Data.Maybe                     (fromMaybe)
 import           Data.Ouro.Error.Diagnostics    (astCorruption,
@@ -712,7 +713,51 @@ checkRefinement ty typePos pos evaluatedVal = case ty of
         S.RFunction     -> isFn       evaluatedVal
         S.RDefined name -> isRefinement name evaluatedVal
 
+    -- ∪: in a or in b: b is asked only when the value is outside a
+    S.Union a b -> inType a >>= \case
+        Right True  -> pure evaluatedVal
+        Right False -> inType b >>= passesIf True
+        Left err    -> pure err
+
+    -- ∩: in a and in b: b is asked only when the value is in a
+    S.Inter a b -> inType a >>= \case
+        Right True  -> inType b >>= passesIf True
+        Right False -> notIn
+        Left err    -> pure err
+
+    -- ∖: in a and not in b: it holds only when b answers that the value is outside it
+    S.Minus a b -> inType a >>= \case
+        Right True  -> inType b >>= passesIf False
+        Right False -> notIn
+        Left err    -> pure err
+
     where
+    -- Whether the value is in a type: True, False where the check is a refinement mismatch, or
+    -- the error any other failure is, which stays that error, so a refinement broken inside a
+    -- union is never taken for a value outside it
+    inType :: S.Type -> EvalM (Either L.Expr Bool)
+    inType part = checkRefinement part typePos pos evaluatedVal
+        <&> \case
+             EvalError (OuroError _ ctx) | isRefinementMismatch ctx
+                 -> Right False
+
+             err@(EvalError _)
+                 -> Left err
+
+             _passed
+                 -> Right True
+
+    -- The value, if the last answer is the one wanted; the whole type's mismatch if not
+    passesIf :: Bool -> Either L.Expr Bool -> EvalM L.Expr
+    passesIf wanted = \case
+        Right answer | answer == wanted -> pure evaluatedVal
+        Right _                         -> notIn
+        Left err                        -> pure err
+
+    -- A value outside a compound type is reported against the whole of it
+    notIn :: EvalM L.Expr
+    notIn = failRefinement (S.renderType ty) (refinementOf evaluatedVal) ""
+
     -- Typed Primitive Helpers, each at the position checkRefinement was given
     isString v = case v of
                      Primitive (I.String _) -> pure v

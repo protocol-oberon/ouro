@@ -534,6 +534,32 @@ operators = Group "Operators: operands and desugaring"
     , ("no function is named in",                   failsWith "'in' is read by its syntax"
                                                               "(define/procedure in (a b) a) (graph g (:r 1))")
 
+      -- ∪ ∩ ∖ of types, prefix or infix, wherever a type is written; the value never changes
+    , ("⊢ a union, through either side",            compilesToJSON "(graph g (:a <1 ⊢ (∪ string number)> :b <\"x\" ⊢ <string ∪ number>>))"
+                                                                   "{\"a\": 1, \"b\": \"x\"}")
+    , ("outside both is a type error",              failsWith "expectedRefinement = \"(\\8746 #string #number)\""
+                                                              "(graph g (:r <true ⊢ (∪ string number)>))")
+    , ("an intersection holds both",                compilesToJSON "(graph g (:r <\"https://a.org\" ⊢ (∩ string uri)>))"
+                                                                   "{\"r\": \"https://a.org\"}")
+    , ("and refuses a value in one only",           failsWith "RefinementMismatch"
+                                                              "(graph g (:r <\"x\" ⊢ (∩ string uri)>))")
+    , ("a difference refuses what it takes away",   compilesToJSON "(graph g (:a <\"x\" ∈ (∖ string uri)> :b <\"https://a.org\" ∈ (∖ string uri)>))"
+                                                                   "{\"a\": true, \"b\": false}")
+    , ("a chain, and nesting",                      compilesToJSON "(graph g (:a <1 ∈ <string ∪ number ∪ boolean>> :b <1 ∈ <(∪ string number) ∩ number>>))"
+                                                                   "{\"a\": true, \"b\": true}")
+    , ("in a binder and a return type",             compilesToJSON "(define/procedure f ⊢ (∪ string number) (<x ⊢ (∪ string number)>) x) (graph g (:r (f 1)))"
+                                                                   "{\"r\": 1}")
+    , ("as a case head",                            compilesToJSON "(graph g (:r (case 1 ((∈ (∪ uri date)) \"when\") (otherwise \"other\"))))"
+                                                                   "{\"r\": \"other\"}")
+    , ("a union takes two types",                   failsWith "A type is a refinement's name, or"
+                                                              "(define/procedure f (<x ⊢ (∪ string number boolean)>) x) (graph g (:r 1))")
+    , ("each of them a type",                       failsWith "A type is a refinement's name, or"
+                                                              "(define/procedure f (<x ⊢ (∪ string 1)>) x) (graph g (:r 1))")
+    , ("an unknown refinement inside is reported",  failsWith "Unknown refinement: #titeld"
+                                                              "(graph g (:r <1 ⊢ (∪ number titeld)>))")
+    , ("an error inside a side stays that error",   failsWith "expectedRefinement = \"#record\""
+                                                              (titled <> "(define/refinement broken (<x ⊢ number>) <x ∈ titled>) (graph g (:r <1 ⊢ (∪ broken number)>))"))
+
       -- Comparisons are words. '<' and '>' delimit an infix expression, its '<' written
       -- against the first operand, so each old name is an error that names its word
     , ("< is now lt",                               failsWith "'<' is now 'lt': (lt a b)"

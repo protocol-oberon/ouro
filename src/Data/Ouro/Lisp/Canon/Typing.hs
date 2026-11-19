@@ -24,17 +24,21 @@ import qualified Data.Ouro.Lisp.Surface as S
 -- body it reads.
 typing :: S.Expr -> S.Expr
 typing = \case
-    S.Form _ [S.Symbol _ "assert", value, S.Symbol rPos name]
-        -> S.Asserted rPos (S.Named (S.refinementNamed name)) (typing value)
-    S.Form pos [S.Symbol _ "in", value, S.Symbol rPos name]
-        -> S.Form pos [S.Symbol pos "%in", typing value, subjectless rPos name]
-    S.Form pos [S.Symbol _ "in", S.Symbol rPos name]
-        -> S.Form pos [S.Symbol pos "%in", subjectless rPos name]
+    S.Form _ [S.Symbol _ "assert", value, written]
+        | Right ty <- S.readType written
+        -> S.Asserted (S.exprPos written) ty (typing value)
+    S.Form pos [S.Symbol _ "in", value, written]
+        | Right ty <- S.readType written
+        -> S.Form pos [S.Symbol pos "%in", typing value, subjectless (S.exprPos written) ty]
+    S.Form pos [S.Symbol _ "in", written]
+        | Right ty <- S.readType written
+        -> S.Form pos [S.Symbol pos "%in", subjectless (S.exprPos written) ty]
 
     -- A fn's return type, (fn ⊢ number (n) body), as the fn reads #number before its
     -- parameters, (fn #number (n) body). Its parameters' binders are read as any (⊢ x p)
-    S.Form pos (fnHead@(S.Symbol _ (S.formName -> "fn")) : S.Symbol _ "assert" : S.Symbol rPos name : params@(S.Form _ _) : body)
-        -> typing (S.Form pos (fnHead : S.Asserted rPos (S.Named (S.refinementNamed name)) params : body))
+    S.Form pos (fnHead@(S.Symbol _ (S.formName -> "fn")) : S.Symbol _ "assert" : written : params@(S.Form _ _) : body)
+        | Right ty <- S.readType written
+        -> typing (S.Form pos (fnHead : S.Asserted (S.exprPos written) ty params : body))
 
     S.Form     pos items     -> S.Form     pos (map typing items)
     S.Asserted pos ty inner  -> S.Asserted pos ty (typing inner)
@@ -42,4 +46,4 @@ typing = \case
 
     where
     -- A refinement on its own, as the parser reads #p at the end of a form
-    subjectless rPos name = S.Asserted rPos (S.Named (S.refinementNamed name)) (S.Hole rPos "%subject")
+    subjectless tPos ty = S.Asserted tPos ty (S.Hole tPos "%subject")

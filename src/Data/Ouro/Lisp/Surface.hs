@@ -67,6 +67,9 @@ data LiteralValue
 -- ∪ ∩ ∖, (array p) and (record …) follow
 data Type
     = Named Refinement
+    | Union Type Type          -- (∪ a b): in a, or in b
+    | Inter Type Type          -- (∩ a b): in a and in b
+    | Minus Type Type          -- (∖ a b): in a and not in b
     deriving (Show, Eq)
 
 -- A refinement by its name: a built-in, or one defined in Ouro
@@ -96,6 +99,54 @@ refinementNamed = \case
     "uri"      -> RUri
     "date"     -> RDate
     name       -> RDefined name
+
+
+-- A type as it is written: a refinement's name, or ∪ ∩ ∖ of two types, prefix or infix. Infix
+-- is still (%infix a op b ...) where the parser reads a binder, before Canon runs; its shape
+-- is the parser's to check, so a chain is folded left as the infix pass folds one. Anything
+-- else is not a type, and is given back for its caller to report or leave.
+readType :: Expr -> Either Expr Type
+readType = \case
+    Symbol _ name
+        -> Right (Named (refinementNamed name))
+    Form _ [Symbol _ op, a, b]
+        | Just combine <- setOperation op
+        -> combine <$> readType a <*> readType b
+    Form pos (Symbol _ "%infix" : first : rest)
+        -> readType (foldl (\acc (op, operand) -> Form pos [op, acc, operand]) first (pairs rest))
+    other
+        -> Left other
+    where
+    setOperation = \case
+        "union"     -> Just Union
+        "intersect" -> Just Inter
+        "setminus"  -> Just Minus
+        _notOne     -> Nothing
+
+    pairs = \case
+        op : operand : more -> (op, operand) : pairs more
+        _rest               -> []
+
+
+-- A type as a message writes it, in the messages' own spelling until they are rewritten
+renderType :: Type -> Text
+renderType = \case
+    Named refinement -> renderRefinement refinement
+    Union a b        -> "(∪ " <> renderType a <> " " <> renderType b <> ")"
+    Inter a b        -> "(∩ " <> renderType a <> " " <> renderType b <> ")"
+    Minus a b        -> "(∖ " <> renderType a <> " " <> renderType b <> ")"
+
+renderRefinement :: Refinement -> Text
+renderRefinement = \case
+    RUri          -> "#uri"
+    RDate         -> "#date"
+    RString       -> "#string"
+    RNumber       -> "#number"
+    RBoolean      -> "#boolean"
+    RRecord       -> "#record"
+    RArray        -> "#array"
+    RFunction     -> "#function"
+    RDefined name -> "#" <> name
 
 
 -- A function's parameter: its name, its type, if it has one, and the pattern it destructures

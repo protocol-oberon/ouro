@@ -365,11 +365,14 @@ names scope = \case
     _leaf                   -> mempty
 
 
--- The refinements a type names, each resolved as 'refinementName' resolves one: for now a type
--- is one refinement by its name
+-- The refinements a type names, each resolved as 'refinementName' resolves one, however deep in
+-- ∪ ∩ ∖ it is written
 typeNames :: Scope -> SourcePos -> S.Type -> Maybe [Size] -> Found
 typeNames scope pos ty args = case ty of
     S.Named refinement -> refinementName scope pos refinement args
+    S.Union a b        -> typeNames scope pos a args <> typeNames scope pos b args
+    S.Inter a b        -> typeNames scope pos a args <> typeNames scope pos b args
+    S.Minus a b        -> typeNames scope pos a args <> typeNames scope pos b args
 
 
 -- A refinement's name names a refinement of the module, titled: never a binding around it,
