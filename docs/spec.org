@@ -1961,15 +1961,23 @@ data Expr
     = Symbol      SourcePos Text            -- names, functions and special-form heads
     | DefunSymbol SourcePos Text            -- function identifiers (unused by the parser)
     | Literal     SourcePos LiteralValue    -- String, Number, Boolean, empty Array/Record
-    | Tagged      SourcePos ReaderTag Expr  -- #uri "...", #date "...", #record (...)
+    | Asserted    SourcePos Type Expr       -- (⊢ x p), <x ⊢ p>, and the old #p x
+    | Required    SourcePos Type Role Expr  -- a signature's requirement, made by the evaluator at a call
     | Hole        SourcePos Text            -- ?, ?name or ?..name: a placeholder, or in a case pattern
     | Form        SourcePos [Expr]          -- (...)
 
--- A function's parameter, the property written before it, if any, and the pattern it
--- destructures its argument with, if any
+-- A requirement: for now a refinement by its name
+data Type = Named Refinement
+
+-- A refinement by its name: a built-in, or one defined in Ouro
+data Refinement = RUri | RDate | RString | RNumber | RBoolean | RRecord | RArray | RFunction
+                | RDefined Text
+
+-- A function's parameter, its type, if it has one, and the pattern it destructures its
+-- argument with, if any
 data Param = Param
     { paramName    :: Text
-    , paramType    :: Maybe (SourcePos, ReaderTag)
+    , paramType    :: Maybe (SourcePos, Type)
     , paramPattern :: Maybe Expr
     }
 #+END_SRC
@@ -1992,7 +2000,7 @@ A module is the parser's other output: a registry of =define/procedure= declarat
 
 #+BEGIN_SRC haskell
 data HigherExpression (t :: Declaration) where
-    Function :: FunctionKind k -> SourcePos -> Text -> Maybe Text -> [Param] -> Maybe (SourcePos, ReaderTag) -> Expr -> HigherExpression ('FunctionExpr k)
+    Function :: FunctionKind k -> SourcePos -> Text -> Maybe Text -> [Param] -> Maybe (SourcePos, Type) -> Expr -> HigherExpression ('FunctionExpr k)
     Graph    :: SourcePos -> Text -> Expr            -> HigherExpression 'GraphExpr
 #+END_SRC
 

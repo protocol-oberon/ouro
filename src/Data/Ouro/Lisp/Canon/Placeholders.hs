@@ -45,8 +45,8 @@ placeholders = \case
         , any hole args
         -> holeFunction pos headExpr (map placeholders args)
 
-    S.Form    pos items     -> S.Form    pos (map placeholders items)
-    S.Tagged  pos tag inner -> S.Tagged  pos tag (placeholders inner)
+    S.Form     pos items    -> S.Form     pos (map placeholders items)
+    S.Asserted pos ty inner -> S.Asserted pos ty (placeholders inner)
     leaf                    -> leaf
 
     where
@@ -62,12 +62,12 @@ holeFreeForms = [ "%attr", "case", "context", "define/constant", "define/procedu
                 , "%binder" ]
 
 
--- An argument that is a hole, or a hole under a type tag. A rest hole is not a parameter,
+-- An argument that is a hole, or a hole asserted a type. A rest hole is not a parameter,
 -- and nor is a subject-less refinement's '%subject', which only a case fills in.
 hole :: S.Expr -> Bool
 hole = \case
     S.Hole _ name                  -> "?" `T.isPrefixOf` name && not ("?.." `T.isPrefixOf` name)
-    S.Tagged _ _ inner@(S.Hole _ _) -> hole inner
+    S.Asserted _ _ inner@(S.Hole _ _) -> hole inner
     _notAHole                      -> False
 
 
@@ -90,16 +90,16 @@ holeFunction pos headExpr args =
             | hole arg
             -> let ref = S.Symbol hPos name
                in (n, (ref, Just ref))
-        arg@(S.Tagged tPos tag inner)
+        arg@(S.Asserted tPos ty inner)
             | hole arg
             -> let (n', (ref, _)) = fill n inner
-               in (n', (ref, Just (S.Tagged tPos tag ref)))
+               in (n', (ref, Just (S.Asserted tPos ty ref)))
         arg
             -> (n, (arg, Nothing))
 
     -- A named hole written twice is one parameter: the first, with its type if it has one
     firstOfEach = foldr (\p kept -> p : filter ((/= paramName p) . paramName) kept) []
     paramName = \case
-        S.Tagged _ _ ref -> paramName ref
+        S.Asserted _ _ ref -> paramName ref
         S.Symbol _ name  -> name
         _notAParam       -> ""

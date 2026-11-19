@@ -144,7 +144,7 @@ unboundName name inScope =
               , ("≠",    "'neq': (neq a b)") ]
 
 
--- A refinement's tag that names no refinement: with the nearest of the module's refinements and
+-- A refinement's name that names no refinement: with the nearest of the module's refinements and
 -- the built-in names, if one is near. An imported refinement, #people/titled, is not yet read.
 unknownRefinement :: Text -> [Text] -> ErrorContext
 unknownRefinement name refinements =
@@ -162,7 +162,7 @@ unknownRefinement name refinements =
     builtinNames = ["string", "number", "boolean", "record", "array", "function", "record-empty", "array-empty", "uri", "date"]
 
 
--- A refinement's tag that names a function of the procedure kind: only a refinement is asserted
+-- A refinement's name that names a function of the procedure kind: only a refinement is asserted
 notARefinement :: Text -> ErrorContext
 notARefinement name =
     withBlurb ("Perhaps call it, (" <> name <> " x), or define it with define/refinement.")

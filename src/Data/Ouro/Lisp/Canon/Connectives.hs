@@ -47,8 +47,8 @@ connectives = \case
     S.Form pos [fnSym@(S.Symbol _ (S.formName -> "fn")), params, body]
         -> S.Form pos [fnSym, params, connectives body]
 
-    S.Form    pos items     -> S.Form    pos (map connectives items)
-    S.Tagged  pos tag inner -> S.Tagged  pos tag (connectives inner)
+    S.Form     pos items    -> S.Form     pos (map connectives items)
+    S.Asserted pos ty inner -> S.Asserted pos ty (connectives inner)
     leaf                    -> leaf
 
     where
@@ -78,7 +78,7 @@ chain pos isAll = \case
 
     where
     -- Each operand is checked where it is written
-    asBool operand = S.Tagged (S.exprPos operand) S.BooleanTag operand
+    asBool operand = S.Asserted (S.exprPos operand) (S.Named S.RBoolean) operand
 
 
 -- The elements of an array written in place: (), #array-empty, an (array ...), or a form

@@ -25,8 +25,8 @@ threading = \case
     S.Form _ (S.Symbol _ "->" : start : steps)
         -> threading (foldl thread start steps)
 
-    S.Form    pos items     -> S.Form    pos (map threading items)
-    S.Tagged  pos tag inner -> S.Tagged  pos tag (threading inner)
+    S.Form     pos items    -> S.Form     pos (map threading items)
+    S.Asserted pos ty inner -> S.Asserted pos ty (threading inner)
     leaf                    -> leaf
 
     where

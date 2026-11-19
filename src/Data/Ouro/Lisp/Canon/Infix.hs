@@ -26,8 +26,8 @@ infixForms = \case
                []     -> S.Form pos [op, first, second]
                _chain -> S.Form pos (S.Symbol pos "->" : first : steps (op : second : rest))
 
-    S.Form    pos items     -> S.Form    pos (map infixForms items)
-    S.Tagged  pos tag inner -> S.Tagged  pos tag (infixForms inner)
+    S.Form     pos items    -> S.Form     pos (map infixForms items)
+    S.Asserted pos ty inner -> S.Asserted pos ty (infixForms inner)
     leaf                    -> leaf
 
     where

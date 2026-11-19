@@ -17,7 +17,7 @@ import           Data.Ouro.Error.Diagnostics    (astCorruption,
                                                  inexhaustiveCaseBlurb,
                                                  lexicalError,
                                                  malformedCaseBranch,
-                                                 malformedTag, missingOtherwise,
+                                                 missingOtherwise,
                                                  missingOtherwiseBlurb,
                                                  missingPathKey, notARefinement,
                                                  refinementMismatch, targetMismatch,
@@ -92,7 +92,7 @@ evaluate imported moduleEnv rootExpr = L.runEvalM (L.defaultEnv imported moduleE
 -- an evaluation, and that value is every later use's: nothing it can see varies, so it
 -- cannot differ. A fn of no parameters written inside a function closes over a frame that
 -- each call of that function binds afresh, so it is evaluated each time it is named.
-constant :: Env -> SourcePos -> L.FunctionId -> Maybe (SourcePos, S.ReaderTag) -> [S.Expr] -> EvalM L.Expr
+constant :: Env -> SourcePos -> L.FunctionId -> Maybe (SourcePos, S.Type) -> [S.Expr] -> EvalM L.Expr
 constant closureEnv pos fnId resultType bodyExprs =
     case closureEnv ^. L.parentEnv of
         Just _  -> call
@@ -135,17 +135,17 @@ evalExpr expr = do
 
         -- A refinement on its own, #string with nothing after it, is the subject-less form of
         -- (satisfies #string), which only a case branch head fills in
-        S.Tagged pos _ (S.Hole _ "%subject")
+        S.Asserted pos _ (S.Hole _ "%subject")
             -> lexicalError "A refinement on its own has nothing to check: a refinement is written before the value it applies to, as in #string x."
                & withBlurb "In a case branch head, (satisfies #string) asks it of the case's target: (case x ((satisfies #string) \"text\") (otherwise \"other\"))."
                & OuroError pos
                & EvalError
                & pure
 
-        S.Tagged tagPos tag payload -> assertTag tagPos tag payload
+        S.Asserted typePos ty payload -> assertType typePos ty payload
 
         -- A signature's requirement, on an argument or a result
-        S.Required tagPos tag _role payload -> assertTag tagPos tag payload
+        S.Required typePos ty _role payload -> assertType typePos ty payload
         -- A name of a function of no parameters, written as a value, is its result: Ouro has no
         -- effects, so the function cannot be told from its value. It is called as (name) is,
         -- so arity, signatures, blame and the recursion check apply, and a definition's value is kept
@@ -497,11 +497,11 @@ evalExpr expr = do
         -- the value first; #p x states it. Only the refinement's check failing is false: an
         -- error in x, or a refinement that is not one, stays an error. The refinement, written
         -- last, has nothing after it, so it is read as a refinement on its own.
-        S.Form _ [S.Symbol _ (S.asks -> True), subject, S.Tagged tagPos tag (S.Hole _ "%subject")]
+        S.Form _ [S.Symbol _ (S.asks -> True), subject, S.Asserted typePos ty (S.Hole _ "%subject")]
             | not (isSubjectHole subject)
             -> evalExpr subject >>= \case
                    err@(EvalError _) -> pure err
-                   value             -> checkRefinement tag tagPos tagPos value >>= \case
+                   value             -> checkRefinement ty typePos typePos value >>= \case
                                             EvalError (OuroError _ ctx) | isRefinementMismatch ctx -> pure (Primitive (I.Boolean False))
                                             err@(EvalError _)                                    -> pure err
                                             _hasIt                                               -> pure (Primitive (I.Boolean True))
@@ -538,14 +538,14 @@ evalExpr expr = do
             -> pure (EvalError (misplacedBinding name pos))
 
         -- (fn (args) expr): an anonymous function, closed over the scope it is written in.
-        -- A return type is read as a tag on the parameter list: (fn #number (n) expr).
+        -- A return type is read as an assertion on the parameter list: (fn ⊢ number (n) expr).
         S.Form pos [S.Symbol _ (S.formName -> "fn"), S.Form _ params, body]
             | Just typed <- traverse param (zip [1 ..] params)
             -> pure (either EvalError (const (FunctionClosure env ("fn", pos) typed Nothing [body])) (checkParams pos typed))
 
-        S.Form pos [S.Symbol _ (S.formName -> "fn"), S.Tagged tPos tag (S.Form _ params), body]
+        S.Form pos [S.Symbol _ (S.formName -> "fn"), S.Asserted tPos ty (S.Form _ params), body]
             | Just typed <- traverse param (zip [1 ..] params)
-            -> pure (either EvalError (const (FunctionClosure env ("fn", pos) typed (Just (tPos, tag)) [body])) (checkParams pos typed))
+            -> pure (either EvalError (const (FunctionClosure env ("fn", pos) typed (Just (tPos, ty)) [body])) (checkParams pos typed))
 
         S.Form pos (S.Symbol _ (S.formName -> "fn") : _)
             -> lexicalError "A fn is written (fn (args) expr): argument names or patterns, each with an optional type, then exactly one result expression."
@@ -683,37 +683,34 @@ evalExpr expr = do
                in pure $ EvalError $ OuroError pos context
 
 
--- assertTag.
+-- assertType.
 --
--- Checks a value against a refinement, as a signature or an assertion such as #string x names
--- it, written at the position given. Only #uri and #date convert: a String that passes them
+-- Checks a value against a type, as a signature or an assertion such as (⊢ x string) names
+-- it, written at the position given. Only uri and date convert: a String that passes them
 -- becomes a URI or a Date.
-assertTag :: SourcePos -> S.ReaderTag -> S.Expr -> EvalM L.Expr
-assertTag tagPos tag payload = do
+assertType :: SourcePos -> S.Type -> S.Expr -> EvalM L.Expr
+assertType typePos ty payload = do
     evaluatedVal <- evalExpr payload
     case evaluatedVal of
         err@(EvalError _) -> pure err
-        _notError         -> checkRefinement tag tagPos (S.exprPos payload) evaluatedVal
+        _notError         -> checkRefinement ty typePos (S.exprPos payload) evaluatedVal
 
 
--- Checks an evaluated value against a refinement, its tag written at the first position and
--- the value at the second: the value, converted for #uri and #date, or a RefinementMismatch
--- error at the value
-checkRefinement :: S.ReaderTag -> SourcePos -> SourcePos -> L.Expr -> EvalM L.Expr
-checkRefinement tag tagPos pos evaluatedVal = case tag of
-                                 S.Uri         -> assertUri  evaluatedVal
-                                 S.Date        -> assertDate evaluatedVal
-                                 S.StringTag   -> isString   evaluatedVal
-                                 S.NumberTag   -> isNumber   evaluatedVal
-                                 S.BooleanTag  -> isBoolean  evaluatedVal
-                                 S.RecordTag   -> isRecord   evaluatedVal
-                                 S.ArrayTag    -> isArray    evaluatedVal
-                                 S.FunctionTag -> isFn       evaluatedVal
-                                 S.RefinementTag name -> isRefinement name evaluatedVal
-                                 _badTag       -> malformedTag (T.pack (show tag)) "#record-empty and #array-empty are values, not refinements, so nothing can be asserted with them"
-                                                  & OuroError pos
-                                                  & EvalError
-                                                  & pure
+-- Checks an evaluated value against a type, written at the first position, the value at the
+-- second: the value, converted for uri and date, or a RefinementMismatch error at the value.
+-- A type is, for now, a refinement by its name.
+checkRefinement :: S.Type -> SourcePos -> SourcePos -> L.Expr -> EvalM L.Expr
+checkRefinement ty typePos pos evaluatedVal = case ty of
+    S.Named refinement -> case refinement of
+        S.RUri          -> assertUri  evaluatedVal
+        S.RDate         -> assertDate evaluatedVal
+        S.RString       -> isString   evaluatedVal
+        S.RNumber       -> isNumber   evaluatedVal
+        S.RBoolean      -> isBoolean  evaluatedVal
+        S.RRecord       -> isRecord   evaluatedVal
+        S.RArray        -> isArray    evaluatedVal
+        S.RFunction     -> isFn       evaluatedVal
+        S.RDefined name -> isRefinement name evaluatedVal
 
     where
     -- Typed Primitive Helpers, each at the position checkRefinement was given
@@ -743,13 +740,13 @@ checkRefinement tag tagPos pos evaluatedVal = case tag of
                       Primitive (I.Boolean _) -> pure v
                       other                   -> failRefinement "#boolean" (refinementOf other) (typeMismatchBlurb other)
 
-    -- A refinement defined in Ouro, #titled: the value has it if the refinement, called on the
+    -- A refinement defined in Ouro, titled: the value has it if the refinement, called on the
     -- value, answers true. It is found by the frames around the assertion, as a function is,
     -- but never among their bindings, since nothing bound by a let or a parameter is a
     -- refinement. An error inside the refinement, its parameter's contract among them, stays
-    -- the error. It is called where its tag is written, as the analysis found the call, so
+    -- the error. It is called where its assertion is written, as the analysis found the call, so
     -- a refinement asserting itself on a part of its value is accepted. The analysis reports
-    -- a tag that names no refinement, so the errors here are not reached from a compile.
+    -- a name that names no refinement, so the errors here are not reached from a compile.
     isRefinement :: Text -> L.Expr -> EvalM L.Expr
     isRefinement name v = do
         env <- ask
@@ -763,10 +760,10 @@ checkRefinement tag tagPos pos evaluatedVal = case tag of
                                                   & L.localScope       .~ names
                                                   & L.functionRegistry .~ Map.empty
                                                   & L.parentEnv        .~ Just env)
-                                         tagPos
+                                         typePos
                                          [("%refinement", FunctionClosure fnEnv (name, fnPos) params result bodyExprs), ("%refinement-value", v)]
                    answer <- local (const frame) $
-                                 applyFunction tagPos [S.Symbol tagPos "%refinement", S.Symbol tagPos "%refinement-value"]
+                                 applyFunction typePos [S.Symbol typePos "%refinement", S.Symbol typePos "%refinement-value"]
                    case answer of
                        Primitive (I.Boolean True)  -> pure v
                        Primitive (I.Boolean False) -> failRefinement ("#" <> name) ("a " <> refinementOf v <> " that is not #" <> name) (rule doc)
@@ -775,19 +772,19 @@ checkRefinement tag tagPos pos evaluatedVal = case tag of
 
             Just (_, M.SomeFunction (M.Function M.ProcedureKind _ _ _ _ _ _))
                 -> notARefinement name
-                   & OuroError tagPos
+                   & OuroError typePos
                    & EvalError
                    & pure
 
             Just _
                 -> astCorruption name "Corrupted function registry entry."
-                   & OuroError tagPos
+                   & OuroError typePos
                    & EvalError
                    & pure
 
             Nothing
                 -> unknownRefinement name []
-                   & OuroError tagPos
+                   & OuroError typePos
                    & EvalError
                    & pure
 
@@ -1024,7 +1021,7 @@ validatePath = traverse $ \case
         | isHoleName k
         -> holeInPath holePos
 
-    S.Tagged holePos _ (S.Symbol _ k)
+    S.Asserted holePos _ (S.Symbol _ k)
         | isHoleName k
         -> holeInPath holePos
 

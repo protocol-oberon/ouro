@@ -4,9 +4,9 @@
 -- The static analysis: every module checked as written, all of it, before anything is
 -- evaluated, so a mistake in a function no graph calls, or in a branch not taken, is reported
 -- too (see the org note, "Static analysis"). It checks names, that every name resolves where
--- it is written, and every refinement's tag names a refinement; calls, that a call of a known
+-- it is written, and every refinement's name names a refinement; calls, that a call of a known
 -- function has its arity; and recursion, that a function reaching itself by its name, or a
--- refinement by its tag, goes down into a value each time round, so it finishes.
+-- refinement by an assertion, goes down into a value each time round, so it finishes.
 -- The scope rules are the evaluator's, and what a form is and what it binds come from
 -- 'Analysis.Forms', which the evaluator uses too.
 module Data.Ouro.Lisp.Analysis
@@ -160,15 +160,15 @@ analyseModule imported ouroModule =
 
     root = Scope Map.empty (ouroModule ^. functionRegistry) imported Nothing Map.empty
 
-    -- A body the parser rejected is reported by the parser. The return type is read as a
-    -- tag on the body, which is how it is checked: a call of its refinement on the result
+    -- A body the parser rejected is reported by the parser. The return type is read as an
+    -- assertion on the body, which is how it is checked: a call of its refinement on the result
     function :: SomeFunction -> Found
     function (SomeFunction (Function _ pos name _ params resultType body)) =
         case body of
             S.Form _ exprs | Right result <- functionBody name pos exprs -> parameters (inside (Defn name) root) ownParameters params (returned resultType result)
             _rejected                                                     -> mempty
 
-    returned resultType result = maybe result (\(tPos, tag) -> S.Tagged tPos tag result) resultType
+    returned resultType result = maybe result (\(tPos, ty) -> S.Asserted tPos ty result) resultType
 
     graph :: HigherExpression 'GraphExpr -> Found
     graph (Graph _ _ body) = names root body
@@ -261,7 +261,7 @@ parameters closure sizes params body =
         Nothing                    -> mempty
         Just (patternFound, holes) -> contracts <> patternFound <> names (sized given (within (Set.fromList (map S.paramName params) <> holes) closure)) body
     where
-    contracts = mconcat [ refinementTag closure tPos tag Nothing | S.Param _ (Just (tPos, tag)) _ <- params ]
+    contracts = mconcat [ typeNames closure tPos ty Nothing | S.Param _ (Just (tPos, ty)) _ <- params ]
 
     given = Map.unions [ Map.insert (S.paramName p) argument (foldMap (`holeSizes` argument) (S.paramPattern p))
                        | (p, argument) <- zip params (sizes <> repeat Map.empty) ]
@@ -312,16 +312,16 @@ holeSizes :: S.Expr -> Size -> Map.Map Text Size
 holeSizes p argument = Map.map (\case Smaller -> partOf argument; NoLarger -> argument) (parts p)
     where
     parts = \case
-        S.Hole _ hole       -> named' NoLarger hole
-        S.Tagged _ _ inner  -> parts inner
-        S.Form _ elems      -> Map.unions (map (element (length elems)) elems)
-        _noHole             -> Map.empty
+        S.Hole _ hole        -> named' NoLarger hole
+        S.Asserted _ _ inner -> parts inner
+        S.Form _ elems       -> Map.unions (map (element (length elems)) elems)
+        _noHole              -> Map.empty
 
     element count = \case
         S.Hole _ hole
             | isRestHole hole, count == 1 -> named' NoLarger hole
             | otherwise                   -> named' Smaller hole
-        S.Tagged _ _ inner                -> element count inner
+        S.Asserted _ _ inner              -> element count inner
         S.Form _ [S.Symbol _ "%attr", _, inner]
                                           -> partOf (parts inner)
         nested                            -> partOf (parts nested)
@@ -335,7 +335,7 @@ holeSizes p argument = Map.map (\case Smaller -> partOf argument; NoLarger -> ar
 size :: Scope -> S.Expr -> Size
 size scope = \case
     S.Symbol _ name    -> Map.findWithDefault Map.empty name (scopeSizes scope)
-    S.Tagged _ _ inner -> size scope inner
+    S.Asserted _ _ inner -> size scope inner
     S.Form _ items
         | shadowsForm (bound scope) items                         -> Map.empty
     S.Form _ (S.Symbol _ "get" : target : _ : _)                  -> partOf (size scope target)
@@ -359,21 +359,28 @@ elementSize scope = partOf . size scope
 -- Every name in an expression resolves where it is written
 names :: Scope -> S.Expr -> Found
 names scope = \case
-    S.Symbol pos name      -> resolve scope pos name
-    S.Tagged pos tag inner -> refinementTag scope pos tag (Just [size scope inner]) <> names scope inner
-    S.Form pos items       -> form scope pos items
-    _leaf                  -> mempty
+    S.Symbol pos name       -> resolve scope pos name
+    S.Asserted pos ty inner -> typeNames scope pos ty (Just [size scope inner]) <> names scope inner
+    S.Form pos items        -> form scope pos items
+    _leaf                   -> mempty
 
 
--- A refinement's tag names a refinement of the module, #titled: never a binding around it, since
--- nothing bound is a refinement. Unknown, it is SYN0000, with the nearest refinement or built-in
--- name; a function of the procedure kind is not one. A tag is a call of its refinement on the
--- value it is written before, of the size given (unknown for a contract or a fn's return
--- type), so a refinement asserting itself must go down into a value too. An imported refinement,
--- #people/titled, is not yet read, and a built-in refinement names nothing.
-refinementTag :: Scope -> SourcePos -> S.ReaderTag -> Maybe [Size] -> Found
-refinementTag scope pos tag args = case tag of
-    S.RefinementTag name
+-- The refinements a type names, each resolved as 'refinementName' resolves one: for now a type
+-- is one refinement by its name
+typeNames :: Scope -> SourcePos -> S.Type -> Maybe [Size] -> Found
+typeNames scope pos ty args = case ty of
+    S.Named refinement -> refinementName scope pos refinement args
+
+
+-- A refinement's name names a refinement of the module, titled: never a binding around it,
+-- since nothing bound is a refinement. Unknown, it is SYN0000, with the nearest refinement or
+-- built-in name; a function of the procedure kind is not one. An assertion is a call of its
+-- refinement on the value it asserts, of the size given (unknown for a signature's), so a
+-- refinement asserting itself must go down into a value too. An imported refinement,
+-- people/titled, is not yet read, and a built-in refinement names nothing.
+refinementName :: Scope -> SourcePos -> S.Refinement -> Maybe [Size] -> Found
+refinementName scope pos refinement args = case refinement of
+    S.RDefined name
         -> case Map.lookup name (scopeFunctions scope) of
                Just (SomeFunction (Function RefinementKind _ _ _ _ _ _)) -> naming scope (Defn name) pos args
                Just (SomeFunction (Function ProcedureKind _ _ _ _ _ _))  -> problem (OuroError pos (notARefinement name))
@@ -441,8 +448,8 @@ lambda scope sizes items = case items of
         | shadowsForm (bound scope) items                         -> Nothing
     [S.Symbol fnPos (S.formName -> "fn"), S.Form _ params, body]
         | Just typed <- traverse param (zip [1 ..] params)        -> Just (checked fnPos typed body)
-    [S.Symbol fnPos (S.formName -> "fn"), S.Tagged tPos tag (S.Form _ params), body]
-        | Just typed <- traverse param (zip [1 ..] params)        -> Just (refinementTag scope tPos tag Nothing <> checked fnPos typed body)
+    [S.Symbol fnPos (S.formName -> "fn"), S.Asserted tPos ty (S.Form _ params), body]
+        | Just typed <- traverse param (zip [1 ..] params)        -> Just (typeNames scope tPos ty Nothing <> checked fnPos typed body)
     S.Symbol _ (S.formName -> "fn") : _                           -> Just mempty
     _notAFn                                                       -> Nothing
     where
@@ -500,8 +507,8 @@ form scope pos items = case items of
     S.Symbol _ (S.formName -> "let") : _             -> mempty
 
     S.Symbol _ "when" : _                            -> mempty
-    [S.Symbol _ (S.asks -> True), subject, S.Tagged tPos tag (S.Hole _ "%subject")]
-        | not (isSubjectHole subject)                -> refinementTag scope tPos tag (Just [size scope subject]) <> names scope subject
+    [S.Symbol _ (S.asks -> True), subject, S.Asserted tPos ty (S.Hole _ "%subject")]
+        | not (isSubjectHole subject)                -> typeNames scope tPos ty (Just [size scope subject]) <> names scope subject
     S.Symbol _ (S.formName -> "satisfies") : _       -> mempty
     S.Symbol _ "assert" : _                          -> mempty
     S.Symbol _ "in" : _                              -> mempty

@@ -168,17 +168,17 @@ bindableAttr = \case
                         _otherForm                           -> False
 
 
--- A function parameter is a name or a pattern, optionally typed by the tag before it:
--- n, #number n, (?a ?b) or #array (?a ?b). A pattern is named by its position among the parameters.
+-- A function parameter is a name or a pattern, optionally typed: n, <n ⊢ number>, (?a ?b)
+-- or <(?a ?b) ⊢ array>, or by the old tag before it, #number n. A pattern is named by its position among the parameters.
 -- A '$name' is read as (%binder "name"), which is a binding, not a pattern.
 param :: (Int, S.Expr) -> Maybe S.Param
 param (index, expr) = case expr of
-    S.Symbol _ name                       -> Just (S.Param name Nothing Nothing)
-    S.Tagged pos tag (S.Symbol _ name)    -> Just (S.Param name (Just (pos, tag)) Nothing)
-    S.Form _ (S.Symbol _ "%binder" : _)   -> Nothing
-    pattern@(S.Form _ _)                  -> Just (patternParam index Nothing pattern)
-    S.Tagged pos tag pattern@(S.Form _ _) -> Just (patternParam index (Just (pos, tag)) pattern)
-    _notAParameter                        -> Nothing
+    S.Symbol _ name                        -> Just (S.Param name Nothing Nothing)
+    S.Asserted pos ty (S.Symbol _ name)    -> Just (S.Param name (Just (pos, ty)) Nothing)
+    S.Form _ (S.Symbol _ "%binder" : _)    -> Nothing
+    pattern@(S.Form _ _)                   -> Just (patternParam index Nothing pattern)
+    S.Asserted pos ty pattern@(S.Form _ _) -> Just (patternParam index (Just (pos, ty)) pattern)
+    _notAParameter                         -> Nothing
 
 
 -- The name a pattern's hole binds: '?' binds nothing; '?name' and '?..name' bind 'name'

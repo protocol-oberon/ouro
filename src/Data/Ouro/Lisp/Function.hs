@@ -40,25 +40,25 @@ import           Text.Megaparsec             (SourcePos)
 
 -- Signatures.
 --
--- A function's types are written as tags in its header: one between the name and the
--- parameters for the result, and one before a parameter for that parameter:
+-- A function's types are written in its header: ⊢ and a type between the name and the
+-- parameters for the result, and a binder for a parameter:
 --
---   (define/procedure node #record (#uri id type) (:id id :type type))
---   (fn #number (n) (* n 2))
+--   (define/procedure node ⊢ record (<id ⊢ uri> type) (:id id :type type))
+--   (fn ⊢ number (n) (* n 2))
 --
--- A signature is a declaration, kept with the function, and each of its tags is a
+-- A signature is a declaration, kept with the function, and each of its types is a
 -- requirement, checked when the function is called in the role it has there: each argument
 -- as that argument of the function, where the call is written, so a mismatch is reported at
 -- the argument, and the result as the function's result. It checks a value just as the same
--- tag would anywhere else, and converts to a URI or a Date in the same way. Nothing is
+-- type would anywhere else, and converts to a URI or a Date in the same way. Nothing is
 -- inferred: an untyped parameter or result is not checked.
 requiredArgument :: Callee -> Int -> S.Param -> S.Expr -> S.Expr
 requiredArgument owner index param arg =
-    maybe arg (\(pos, tag) -> S.Required pos tag (ArgumentOf owner index) arg) (S.paramType param)
+    maybe arg (\(pos, ty) -> S.Required pos ty (ArgumentOf owner index) arg) (S.paramType param)
 
-requiredResult :: Callee -> Maybe (SourcePos, S.ReaderTag) -> S.Expr -> S.Expr
+requiredResult :: Callee -> Maybe (SourcePos, S.Type) -> S.Expr -> S.Expr
 requiredResult owner result body =
-    maybe body (\(pos, tag) -> S.Required pos tag (ResultOf owner) body) result
+    maybe body (\(pos, ty) -> S.Required pos ty (ResultOf owner) body) result
 
 -- A function as its signature's requirements name it: a fn by what it is, any other by its name
 callee :: Text -> Callee
@@ -78,8 +78,8 @@ callee = \case
 --
 -- The parameter itself is named by its position, '%arg1', '%arg2', ..., which cannot be
 -- written in Ouro, so its argument is only reached through the holes.
-patternParam :: Int -> Maybe (SourcePos, S.ReaderTag) -> S.Expr -> S.Param
-patternParam index tag pattern = S.Param ("%arg" <> T.pack (show index)) tag (Just pattern)
+patternParam :: Int -> Maybe (SourcePos, S.Type) -> S.Expr -> S.Param
+patternParam index ty pattern = S.Param ("%arg" <> T.pack (show index)) ty (Just pattern)
 
 
 -- checkParams.
@@ -120,7 +120,7 @@ checkParams pos params = do
     holeNames = \case
         S.Hole _ hole      -> [ name | let name = T.dropWhile (`elem` ['?', '.']) hole, not (T.null name) ]
         S.Form _ elems     -> concatMap holeNames elems
-        S.Tagged _ _ inner -> holeNames inner
+        S.Asserted _ _ inner -> holeNames inner
         _leaf              -> []
 
     repeated = go []
@@ -239,7 +239,7 @@ nestedDoc :: S.Expr -> Maybe SourcePos
 nestedDoc = \case
     S.Form pos (S.Symbol _ "doc" : _) -> Just pos
     S.Form _ items                    -> listToMaybe (mapMaybe nestedDoc items)
-    S.Tagged _ _ inner                -> nestedDoc inner
+    S.Asserted _ _ inner              -> nestedDoc inner
     _leaf                             -> Nothing
 
 
@@ -427,15 +427,15 @@ isHeadedBy keyword = \case
                       _otherExpr                      -> False
 
 
--- A refinement always answers true or false: its return type is #boolean, and is never
--- written. The tag, if one was written, is an error where it is.
-refinementResult :: SourcePos -> Maybe (SourcePos, S.ReaderTag) -> Either OuroError (Maybe (SourcePos, S.ReaderTag))
+-- A refinement always answers true or false: its return type is boolean, and is never
+-- written. One written is an error where it is.
+refinementResult :: SourcePos -> Maybe (SourcePos, S.Type) -> Either OuroError (Maybe (SourcePos, S.Type))
 refinementResult pos = \case
-    Nothing          -> Right $ Just (pos, S.BooleanTag)
-    Just (tagPos, _) -> lexicalError "A refinement always answers true or false, so it has no return type."
-                        & withBlurb "Write (define/refinement titled (#record r) ...): its result is checked as #boolean."
-                        & OuroError tagPos
-                        & Left
+    Nothing           -> Right $ Just (pos, S.Named S.RBoolean)
+    Just (typePos, _) -> lexicalError "A refinement always answers true or false, so it has no return type."
+                         & withBlurb "Write (define/refinement titled (#record r) ...): its result is checked as #boolean."
+                         & OuroError typePos
+                         & Left
 
 
 -- A refinement is about one value, which it is given with a contract, never a function:
@@ -443,10 +443,10 @@ refinementResult pos = \case
 -- without a contract is reported at the refinement.
 refinementParams :: Text -> SourcePos -> [S.Param] -> Either OuroError ()
 refinementParams name pos = \case
-    [S.Param _ (Just (tagPos, S.FunctionTag)) _]
+    [S.Param _ (Just (typePos, S.Named S.RFunction)) _]
         -> lexicalError "A refinement is about data, so its parameter cannot be #function."
            & withBlurb "Give it the value it is about, with a contract: (define/refinement titled (#record r) ...)."
-           & OuroError tagPos
+           & OuroError typePos
            & Left
     [S.Param _ (Just _) _]
         -> Right ()

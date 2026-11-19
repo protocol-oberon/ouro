@@ -168,7 +168,7 @@ prop_single_pass = withTests 1 . property $ do
     let sym             = S.Symbol dummyPos
         num             = S.Literal dummyPos . S.Num
         bool            = S.Literal dummyPos . S.Bool
-        asBool          = S.Tagged dummyPos S.BooleanTag
+        asBool          = S.Asserted dummyPos (S.Named S.RBoolean)
         form            = S.Form dummyPos
         onlyConnectives = filter ((== "connectives") . Canon.passName) Canon.passes
     Canon.runPasses onlyConnectives (form [sym "all", form [bool True, bool False]])

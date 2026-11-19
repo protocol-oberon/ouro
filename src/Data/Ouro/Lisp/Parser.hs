@@ -263,7 +263,7 @@ pDefn kind params pos = do
 
 -- A function's return type, between its name and its parameters: ⊢ and its refinement,
 -- (define/procedure f ⊢ string (x) ...), or a type tag, (define/procedure f #string (x) ...)
-pReturnType :: Parser (Maybe (SourcePos, S.ReaderTag))
+pReturnType :: Parser (Maybe (SourcePos, S.Type))
 pReturnType = do
     stream <- remainingTokens
     case stream of
@@ -273,7 +273,7 @@ pReturnType = do
                written <- pExpr
                Just <$> lift (requirementOf written)
         t : ts | Just tag <- typeTag (Tkn.tokenType t)
-            -> consume ts >> pure (Just (Tkn.pos t, tag))
+            -> consume ts >> pure (Just (Tkn.pos t, S.Named tag))
         _noReturnType
             -> pure Nothing
 
@@ -282,10 +282,10 @@ pReturnType = do
 -- <r ⊢ titled>. Every signature's requirement is read here, so that a requirement written as
 -- more than a name, such as one applied to an earlier parameter, (has-part-of-type kind),
 -- is read in this one place when there are such.
-requirementOf :: S.Expr -> Either OuroError (SourcePos, S.ReaderTag)
+requirementOf :: S.Expr -> Either OuroError (SourcePos, S.Type)
 requirementOf = \case
     S.Symbol pos name
-        -> Right (pos, S.refinementNamed name)
+        -> Right (pos, S.Named (S.refinementNamed name))
     other
         -> lexicalError "A refinement in a signature is written by its name: <x ⊢ string>, ⊢ record."
            F.& withBlurb "A refinement of the module is named the same way: <r ⊢ titled>."
@@ -395,8 +395,8 @@ expectCloseParen = do
                           F.& lift
 
 
--- A parameter list: names or patterns, each optionally typed by the tag before it,
--- (#uri id type) or ((?slug ?label))
+-- A parameter list: names or patterns, each optionally typed by a binder or by the old tag
+-- before it, (<id ⊢ uri> type), (#uri id type) or ((?slug ?label))
 pArgs :: Parser [S.Param]
 pArgs = do
     t <- popToken
@@ -428,11 +428,11 @@ pArgs = do
                                            -> do
                                               consume rest
                                               pattern <- parseFormContainer (Tkn.pos next)
-                                              collectArgs (patternParam (length acc + 1) (Just (Tkn.pos t, tag)) pattern : acc)
+                                              collectArgs (patternParam (length acc + 1) (Just (Tkn.pos t, S.Named tag)) pattern : acc)
                                        _aName
                                            -> do
                                               name <- expectSymbol "A parameter's type is written before its name, as in (#number n)"
-                                              collectArgs (S.Param name (Just (Tkn.pos t, tag)) Nothing : acc)
+                                              collectArgs (S.Param name (Just (Tkn.pos t, S.Named tag)) Nothing : acc)
             _notAParameter      -> lexicalError "A parameter is a name, or a pattern in parentheses, each optionally typed: (#number n) or ((?a ?b))"
                                    F.& OuroError (Tkn.pos t)
                                    F.& Left
@@ -463,17 +463,17 @@ binderParam index pos = \case
 
 -- The tags that name a type, in an expression or a signature. '#record-empty' and
 -- '#array-empty' are values, not types.
-typeTag :: Tkn.TokenType -> Maybe S.ReaderTag
+typeTag :: Tkn.TokenType -> Maybe S.Refinement
 typeTag = \case
-    Tkn.TagUri      -> Just S.Uri
-    Tkn.TagDate     -> Just S.Date
-    Tkn.TagString   -> Just S.StringTag
-    Tkn.TagNumber   -> Just S.NumberTag
-    Tkn.TagBoolean  -> Just S.BooleanTag
-    Tkn.TagRecord   -> Just S.RecordTag
-    Tkn.TagArray    -> Just S.ArrayTag
-    Tkn.TagFunction -> Just S.FunctionTag
-    Tkn.TagRefinement name -> Just (S.RefinementTag name)
+    Tkn.TagUri      -> Just S.RUri
+    Tkn.TagDate     -> Just S.RDate
+    Tkn.TagString   -> Just S.RString
+    Tkn.TagNumber   -> Just S.RNumber
+    Tkn.TagBoolean  -> Just S.RBoolean
+    Tkn.TagRecord   -> Just S.RRecord
+    Tkn.TagArray    -> Just S.RArray
+    Tkn.TagFunction -> Just S.RFunction
+    Tkn.TagRefinement name -> Just (S.RDefined name)
     _notAType       -> Nothing
 
 -- Recursive Expr Router
@@ -509,7 +509,7 @@ pExpr = do
                              -- Reader Macros & Type Assertions
                              -- Note: We intentionally pop 'ts' here to advance past the macro tag
                              tkn | Just tag <- typeTag tkn
-                                                -> consume ts >> parseTaggedNode (Tkn.pos t) tag
+                                                -> consume ts >> parseTaggedNode (Tkn.pos t) (S.Named tag)
 
                              -- Empty Collections instantiate as direct fallback values
                              Tkn.TagRecordEmpty -> capture (S.Literal (Tkn.pos t) S.EmptyRec)
@@ -645,7 +645,7 @@ misplacedRange pos =
 
 
 -- Reader Tag Helper: Verifies that the evaluated expression is a raw string payload
-parseTaggedNode :: SourcePos -> S.ReaderTag -> Parser S.Expr
+parseTaggedNode :: SourcePos -> S.Type -> Parser S.Expr
 parseTaggedNode tagPos tagType = do
                                  stream <- remainingTokens
                                  case stream of
@@ -654,11 +654,11 @@ parseTaggedNode tagPos tagType = do
                                      -- cannot be written in Ouro: satisfies takes its value before it,
                                      -- and anywhere else it is reported
                                      t : _ | Tkn.CloseParen <- Tkn.tokenType t
-                                         -> pure $ S.Tagged tagPos tagType (S.Hole tagPos "%subject")
+                                         -> pure $ S.Asserted tagPos tagType (S.Hole tagPos "%subject")
 
                                      -- Otherwise the refinement applies to the expression after it
                                      _anExpression
-                                         -> S.Tagged tagPos tagType <$> pExpr
+                                         -> S.Asserted tagPos tagType <$> pExpr
 
 
 -- Reader Macro Helper: Desugars attributes into `(%attr "name" expr)`. '%' cannot be

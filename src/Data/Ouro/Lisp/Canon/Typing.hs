@@ -25,7 +25,7 @@ import qualified Data.Ouro.Lisp.Surface as S
 typing :: S.Expr -> S.Expr
 typing = \case
     S.Form _ [S.Symbol _ "assert", value, S.Symbol rPos name]
-        -> S.Tagged rPos (S.refinementNamed name) (typing value)
+        -> S.Asserted rPos (S.Named (S.refinementNamed name)) (typing value)
     S.Form pos [S.Symbol _ "in", value, S.Symbol rPos name]
         -> S.Form pos [S.Symbol pos "%in", typing value, subjectless rPos name]
     S.Form pos [S.Symbol _ "in", S.Symbol rPos name]
@@ -34,12 +34,12 @@ typing = \case
     -- A fn's return type, (fn ⊢ number (n) body), as the fn reads #number before its
     -- parameters, (fn #number (n) body). Its parameters' binders are read as any (⊢ x p)
     S.Form pos (fnHead@(S.Symbol _ (S.formName -> "fn")) : S.Symbol _ "assert" : S.Symbol rPos name : params@(S.Form _ _) : body)
-        -> typing (S.Form pos (fnHead : S.Tagged rPos (S.refinementNamed name) params : body))
+        -> typing (S.Form pos (fnHead : S.Asserted rPos (S.Named (S.refinementNamed name)) params : body))
 
-    S.Form    pos items     -> S.Form    pos (map typing items)
-    S.Tagged  pos tag inner -> S.Tagged  pos tag (typing inner)
-    leaf                    -> leaf
+    S.Form     pos items     -> S.Form     pos (map typing items)
+    S.Asserted pos ty inner  -> S.Asserted pos ty (typing inner)
+    leaf                     -> leaf
 
     where
     -- A refinement on its own, as the parser reads #p at the end of a form
-    subjectless rPos name = S.Tagged rPos (S.refinementNamed name) (S.Hole rPos "%subject")
+    subjectless rPos name = S.Asserted rPos (S.Named (S.refinementNamed name)) (S.Hole rPos "%subject")

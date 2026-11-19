@@ -96,7 +96,7 @@ data Expr where
 
     -- A function, closed over the frame it is defined in, with its signature: its
     -- parameters and the requirement on its result, if it has one
-    FunctionClosure :: Env -> FunctionId -> [S.Param] -> Maybe (SourcePos, S.ReaderTag) -> [S.Expr] -> Expr
+    FunctionClosure :: Env -> FunctionId -> [S.Param] -> Maybe (SourcePos, S.Type) -> [S.Expr] -> Expr
 
     -- An error, where the value would have been
     EvalError   :: OuroError -> Expr

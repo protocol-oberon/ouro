@@ -104,8 +104,8 @@ kebabCase name
 lintFns :: S.Expr -> [OuroWarning]
 lintFns = \case
     S.Form _ [S.Symbol _ "fn", S.Form _ _, body] -> lintResult "fn" body <> lintFns body
-    S.Form    _ exprs                            -> concatMap lintFns exprs
-    S.Tagged  _ _ expr                           -> lintFns expr
+    S.Form     _ exprs                           -> concatMap lintFns exprs
+    S.Asserted _ _ expr                          -> lintFns expr
     _leaf                                        -> []
 
 

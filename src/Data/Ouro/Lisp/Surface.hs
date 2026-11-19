@@ -29,7 +29,7 @@ import           Text.Megaparsec       (SourcePos)
 -- Booleans, and empty structures) into an un-indexed payload wrapper, the parser can handle scalar
 -- primitives flexibly as generic data tokens prior to evaluation.
 --
--- Type assertions are injected via the Tagged constructor '#'. This allows for explicit validation of types
+-- Type assertions are the Asserted constructor, (⊢ x p) or #p x. This allows for explicit validation of types
 -- which may visually share identical lexical layouts under raw JSON-LD rules (such as Strings and URLs),
 -- ensuring they can be contextualized and evaluated strictly according to intent by the compiler.
 --
@@ -45,8 +45,8 @@ data Expr
     = Symbol      SourcePos Text            -- variable names and functions
     | DefunSymbol SourcePos Text            -- function identifiers
     | Literal     SourcePos LiteralValue    -- Raw String, Number, Boolean, empty Array/Record
-    | Tagged      SourcePos ReaderTag Expr  -- #uri "...", #date "..."
-    | Required    SourcePos ReaderTag Role Expr  -- A signature's requirement on an argument or a result, in its role: made by the evaluator at a call, never written
+    | Asserted    SourcePos Type Expr       -- (⊢ x p), <x ⊢ p>, and the old #p x: x, asserted to have the type
+    | Required    SourcePos Type Role Expr  -- A signature's requirement on an argument or a result, in its role: made by the evaluator at a call, never written
     | Hole        SourcePos Text            -- ?, ?name or ?..name in a case pattern
     | Form        SourcePos [Expr]          -- (...) nested lists
     deriving (Show, Eq)
@@ -63,49 +63,52 @@ data LiteralValue
     deriving (Show, Eq)
 
 
--- Explicit semantic metadata tags used to enforce validation boundaries
--- or assert target GADT types during evaluation.
-data ReaderTag
-    = Uri
-    | Date
-    | StringTag   -- For string assertion   (#string variable)
-    | NumberTag   -- For numeric assertion  (#number variable)
-    | BooleanTag  -- For boolean assertion  (#boolean variable)
-    | RecordTag   -- For record assertion   (#record variable)
-    | ArrayTag    -- For array assertion    (#array variable)
-    | FunctionTag -- For function assertion (#function variable)
-    | RefinementTag Text -- For refinement assertion (#titled variable): a refinement defined in Ouro, by its name as written
-    | RecEmpty
-    | ArrEmpty
+-- A requirement, as a signature or an assertion writes it: for now a refinement by its name;
+-- ∪ ∩ ∖, (array p) and (record …) follow
+data Type
+    = Named Refinement
+    deriving (Show, Eq)
+
+-- A refinement by its name: a built-in, or one defined in Ouro
+data Refinement
+    = RUri              -- strings that parse as a URI
+    | RDate             -- strings that parse as a date
+    | RString
+    | RNumber
+    | RBoolean
+    | RRecord
+    | RArray
+    | RFunction
+    | RDefined Text     -- a refinement defined in Ouro, by its name as written: titled, people/titled
     deriving (Show, Eq)
 
 
 -- The refinement a name names, as ⊢ and ∈ and a binder write it: a built-in by its word, any
 -- other name one defined in Ouro
-refinementNamed :: Text -> ReaderTag
+refinementNamed :: Text -> Refinement
 refinementNamed = \case
-    "string"   -> StringTag
-    "number"   -> NumberTag
-    "boolean"  -> BooleanTag
-    "record"   -> RecordTag
-    "array"    -> ArrayTag
-    "function" -> FunctionTag
-    "uri"      -> Uri
-    "date"     -> Date
-    name       -> RefinementTag name
+    "string"   -> RString
+    "number"   -> RNumber
+    "boolean"  -> RBoolean
+    "record"   -> RRecord
+    "array"    -> RArray
+    "function" -> RFunction
+    "uri"      -> RUri
+    "date"     -> RDate
+    name       -> RDefined name
 
 
--- A function's parameter: its name, the type tag written before it, if any, and the
--- pattern it destructures its argument with, if any, as in
+-- A function's parameter: its name, its type, if it has one, and the pattern it destructures
+-- its argument with, if any, as in
 --
---   (define/procedure node (#uri id type) ...)
+--   (define/procedure node (<id ⊢ uri> type) ...)
 --   (fn ((?slug ?label)) ...)
 --
 -- A pattern parameter's name cannot be written in Ouro ('%arg1', ...), so its argument
 -- is only reached through the holes of its pattern.
 data Param = Param
     { paramName    :: Text
-    , paramType    :: Maybe (SourcePos, ReaderTag)
+    , paramType    :: Maybe (SourcePos, Type)
     , paramPattern :: Maybe Expr
     } deriving (Show, Eq)
 
@@ -115,7 +118,7 @@ exprPos = \case
            Symbol      pos _   -> pos
            DefunSymbol pos _   -> pos
            Literal     pos _   -> pos
-           Tagged      pos _ _ -> pos
+           Asserted    pos _ _ -> pos
            Required    pos _ _ _ -> pos
            Hole        pos _   -> pos
            Form        pos _   -> pos
@@ -132,10 +135,10 @@ isPatternForm = \case
 
 containsHole :: Expr -> Bool
 containsHole = \case
-                Hole   _ _       -> True
-                Form   _ elems   -> any containsHole elems
-                Tagged _ _ inner -> containsHole inner
-                _leaf            -> False
+                Hole     _ _       -> True
+                Form     _ elems   -> any containsHole elems
+                Asserted _ _ inner -> containsHole inner
+                _leaf              -> False
 
 
 -- Matches the parsed form of a ':key value' attribute pair
