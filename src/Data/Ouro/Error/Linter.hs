@@ -36,8 +36,11 @@ lintExpression =
      []         -> []
 
     where
-    -- The tokens after a definition's return type, which is one refinement tag, if it has one
+    -- The tokens after a definition's return type, ⊢ and a refinement's name or one refinement
+    -- tag, if it has one
     afterReturnType = \case
+        Tkn.Token _ (Tkn.Symbol "assert") : Tkn.Token _ (Tkn.Symbol _) : rest
+                               -> rest
         Tkn.Token _ tag : rest
             | isReturnType tag -> rest
         tokens                 -> tokens

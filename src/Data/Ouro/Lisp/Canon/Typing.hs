@@ -3,7 +3,6 @@ module Data.Ouro.Lisp.Canon.Typing
 ) where
 
 import qualified Data.Ouro.Lisp.Surface as S
-import           Data.Text              (Text)
 
 
 -- typing.
@@ -16,6 +15,7 @@ import           Data.Text              (Text)
 --   <x ⊢ titled>         #titled x
 --   (∈ x titled)         (%in x #titled)                   true or false
 --   ((∈ titled) e)       ((%in #titled) e)                 a case branch's head
+--   (fn ⊢ number (<n ⊢ number>) e)   (fn #number (#number n) e)   a fn's signature
 --
 -- %in is in, written so that no binding, of satisfies or any name, can capture it. Any other
 -- shape is left as it is, for the evaluator to report as a misplaced assert or in. Runs after
@@ -25,11 +25,16 @@ import           Data.Text              (Text)
 typing :: S.Expr -> S.Expr
 typing = \case
     S.Form _ [S.Symbol _ "assert", value, S.Symbol rPos name]
-        -> S.Tagged rPos (refinement name) (typing value)
+        -> S.Tagged rPos (S.refinementNamed name) (typing value)
     S.Form pos [S.Symbol _ "in", value, S.Symbol rPos name]
         -> S.Form pos [S.Symbol pos "%in", typing value, subjectless rPos name]
     S.Form pos [S.Symbol _ "in", S.Symbol rPos name]
         -> S.Form pos [S.Symbol pos "%in", subjectless rPos name]
+
+    -- A fn's return type, (fn ⊢ number (n) body), as the fn reads #number before its
+    -- parameters, (fn #number (n) body). Its parameters' binders are read as any (⊢ x p)
+    S.Form pos (fnHead@(S.Symbol _ (S.formName -> "fn")) : S.Symbol _ "assert" : S.Symbol rPos name : params@(S.Form _ _) : body)
+        -> typing (S.Form pos (fnHead : S.Tagged rPos (S.refinementNamed name) params : body))
 
     S.Form    pos items     -> S.Form    pos (map typing items)
     S.Tagged  pos tag inner -> S.Tagged  pos tag (typing inner)
@@ -37,18 +42,4 @@ typing = \case
 
     where
     -- A refinement on its own, as the parser reads #p at the end of a form
-    subjectless rPos name = S.Tagged rPos (refinement name) (S.Hole rPos "%subject")
-
-
--- The refinement a name names: a built-in by its word, any other name one defined in Ouro
-refinement :: Text -> S.ReaderTag
-refinement = \case
-    "string"   -> S.StringTag
-    "number"   -> S.NumberTag
-    "boolean"  -> S.BooleanTag
-    "record"   -> S.RecordTag
-    "array"    -> S.ArrayTag
-    "function" -> S.FunctionTag
-    "uri"      -> S.Uri
-    "date"     -> S.Date
-    name       -> S.RefinementTag name
+    subjectless rPos name = S.Tagged rPos (S.refinementNamed name) (S.Hole rPos "%subject")

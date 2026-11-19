@@ -151,6 +151,39 @@ signatures = Group "Functions: signatures are properties in the header"
 
     -- A return type says what the result is, so a typed one-value array is not a mistake
     , ("#array silences the one-value warning",   compilesWithoutWarnings "(define/constant f #array (\"x\")) (graph g (:r (f) :s (let ($h (fn #array () (\"y\"))) (h))))")
+
+      -- A binder, <n ⊢ number>, types a parameter, and ⊢ after the name the result: the same
+      -- signatures, the requirement a refinement's name
+    , ("a binder types a parameter",              compilesToJSON "(define/procedure node ⊢ record (<id ⊢ uri> type) (:id id :type type)) (graph g (:r (node \"https://a.org/x\" \"Type\")))"
+                                                                 "{\"r\": {\"id\": \"https://a.org/x\", \"type\": \"Type\"}}")
+    , ("and converts as a tag does",              compilesToJSON "(define/procedure year-end ⊢ date (<d ⊢ date>) (+ d (thru (years 1)))) (graph g (:r (year-end \"2020-01-01T00:00:00Z\")))"
+                                                                 "{\"r\": \"2021-12-31T23:59:59Z\"}")
+    , ("a pattern binder",                        compilesToJSON "(define/procedure first-of (<(?a ?b) ⊢ array>) a) (graph g (:r (first-of (1 2))))"
+                                                                 "{\"r\": 1}")
+    , ("a binder in a fn, and its return type",   compilesToJSON "(graph g (let ($double (fn ⊢ number (<n ⊢ number>) (* n 2))) (:r (double 21))))"
+                                                                 "{\"r\": 42}")
+    , ("a constant's return type",                compilesToJSON "(define/constant c ⊢ string \"a\") (graph g (:r c))"
+                                                                 "{\"r\": \"a\"}")
+    , ("old and new together",                    compilesToJSON "(define/procedure pair (#number a <b ⊢ string>) (array a b)) (graph g (:r (pair 1 \"two\")))"
+                                                                 "{\"r\": [1, \"two\"]}")
+    , ("a binder's argument is checked",          failsWith "expectedRefinement = \"#number\", actualRefinement = \"#string\""
+                                                            "(define/procedure double (<n ⊢ number>) (* n 2)) (graph g (:r (double \"x\")))")
+    , ("at the argument",                         failsWith "line 1, col 71"
+                                                            "(define/procedure double (<n ⊢ number>) (* n 2)) (graph g (:r (double \"x\")))")
+    , ("and ⊢'s result",                          failsWith "expectedRefinement = \"#number\", actualRefinement = \"#string\""
+                                                            "(define/procedure label ⊢ number (who) (+ who \"!\")) (graph g (:r (label \"a\")))")
+    , ("a fn's ⊢ result",                         failsWith "expectedRefinement = \"#string\""
+                                                            "(graph g (let ($f (fn ⊢ string (n) n)) (:r (f 1))))")
+    , ("a binder asserts, so ∈ is no binder",     failsWith "A parameter's binder is a name or a pattern, then"
+                                                            "(define/procedure f (<n ∈ number>) n) (graph g (:r (f 1)))")
+    , ("nor is a chain",                          failsWith "A parameter's binder is a name or a pattern, then"
+                                                            "(define/procedure f (<n ⊢ number ⊢ number>) n) (graph g (:r (f 1)))")
+    , ("a requirement is a name",                 failsWith "A refinement in a signature is written by its name"
+                                                            "(define/procedure f (<n ⊢ (array)>) n) (graph g (:r (f 1)))")
+    , ("as a return type's is",                   failsWith "A refinement in a signature is written by its name"
+                                                            "(define/procedure f ⊢ 1 (n) n) (graph g (:r (f 1)))")
+    , ("a constant of ⊢ string still warns",      warnsWith "The procedure 'c' takes no parameters"
+                                                            "(define/procedure c ⊢ string () \"a\") (graph g (:r c))")
     ]
 
 
@@ -634,6 +667,16 @@ properties = Group "Properties: define/refinement"
     , ("one without a doc is a warning",          warnsWith "The refinement 'titled' has no doc"
                                                             "(define/refinement titled (#record r) (has r _label)) (graph g (:r 1))")
     , ("one with a doc is not",                   compilesWithoutWarnings "(define/refinement titled (#record r) (doc \"Has a label.\") (has r _label)) (graph g (:r 1))")
+
+      -- Written with a binder, a refinement keeps every rule
+    , ("a binder gives it its contract",          compilesToJSON "(define/refinement titled (<r ⊢ record>) (has r _label)) (graph g (:a (titled (:_label \"A\")) :b (titled (:x 1))))"
+                                                                 "{\"a\": true, \"b\": false}")
+    , ("a pattern binder too",                    compilesToJSON "(define/refinement same (<(?a ?b) ⊢ array>) (eq a b)) (graph g (:a (same (1 1)) :b (same (1 2))))"
+                                                                 "{\"a\": true, \"b\": false}")
+    , ("⊢ gives it no return type",               failsWith "A refinement always answers true or false, so it has no return type."
+                                                            "(define/refinement p ⊢ boolean (<n ⊢ number>) true) (graph g (:r 1))")
+    , ("and a binder of function is refused",     failsWith "A refinement is about data, so its parameter cannot be #function."
+                                                            "(define/refinement p (<f ⊢ function>) true) (graph g (:r 1))")
     ]
     where
     kindOf m = ( kind <$> Map.lookup "titled" (M._functionRegistry m)

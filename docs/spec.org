@@ -1283,22 +1283,29 @@ A returned function is called through =let=.
 
 *** Signatures
 
-A function's types are built-in refinements in its header. One between the name and the parameters is the return type. One before a parameter is that parameter's type.
+A function's types are refinements in its header, each written by its name. =⊢= and a refinement between the name and the parameters is the return type. A parameter written as a binder, =<n ⊢ number>=, has that refinement.
 
 - Either can be left out, and so can any parameter's.
 
 #+BEGIN_SRC clojure
-(define/procedure node #record (#uri id type)
+(define/procedure node ⊢ record (<id ⊢ uri> type)
   (:id id :type type))
 
-(let ($double (fn #number (#number n) (* n 2)))
+(define/procedure first-of (<(?a ?b) ⊢ array>) a)      ; a pattern binder
+
+(let ($double (fn ⊢ number (<n ⊢ number>) (* n 2)))
   (:r (double 21)))               ; {"r": 42}
 #+END_SRC
 
-- The types are the built-in refinements.
-  - =#string=, =#number=, =#boolean=, =#uri=, =#date=, =#record=, =#array= and =#function=.
+- A refinement is a built-in, =string=, =number=, =boolean=, =uri=, =date=, =record=, =array= or =function=, or one of the module, =titled=.
 
-- There is one sigil for types: =#= always names a refinement, and its position says what it applies to.
+- A binder is a name or a pattern, then =⊢= and one refinement. =<n ∈ number>= or a chain, =<n ⊢ number ⊢ number>=, is =SYN0000=: a binder asserts one refinement.
+
+- A requirement is written by its name for now; anything else is =SYN0000=, "A refinement in a signature is written by its name". Every signature's requirement is read in one place, ~Parser.requirementOf~.
+
+- Scope: a signature's names are recorded by the parser, not resolved, since a return type is written before the parameters. A parameter's requirement may name only earlier parameters, a result's any of them, once requirements are more than names.
+
+- The old spelling, a tag, still reads the same: =#record= after the name, =#uri id= for a parameter, =#array (?a ?b)= for a pattern. The two may be mixed, =(#number a <b ⊢ string>)=, until the old one is an error.
 
 - A refinement in a signature behaves exactly as it would anywhere else.
   - It checks the value, and =#uri= and =#date= convert a string.

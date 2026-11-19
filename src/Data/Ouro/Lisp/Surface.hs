@@ -80,6 +80,21 @@ data ReaderTag
     deriving (Show, Eq)
 
 
+-- The refinement a name names, as ⊢ and ∈ and a binder write it: a built-in by its word, any
+-- other name one defined in Ouro
+refinementNamed :: Text -> ReaderTag
+refinementNamed = \case
+    "string"   -> StringTag
+    "number"   -> NumberTag
+    "boolean"  -> BooleanTag
+    "record"   -> RecordTag
+    "array"    -> ArrayTag
+    "function" -> FunctionTag
+    "uri"      -> Uri
+    "date"     -> Date
+    name       -> RefinementTag name
+
+
 -- A function's parameter: its name, the type tag written before it, if any, and the
 -- pattern it destructures its argument with, if any, as in
 --

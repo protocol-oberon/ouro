@@ -507,6 +507,8 @@ operators = Group "Operators: operands and desugaring"
                                                                    "{\"r\": 1, \"s\": \"https://a.org/x\"}")
     , ("its ASCII spelling is |-",                  compilesToJSON "(graph g (:r (|- 1 number)))"
                                                                    "{\"r\": 1}")
+    , ("|- infix, and in a signature",              compilesToJSON "(define/procedure twice |- number (<x |- number>) (+ x x)) (graph g (:a <1 |- number> :b (twice 2)))"
+                                                                   "{\"a\": 1, \"b\": 4}")
     , ("a value without it is a type error",        failsWith "expectedRefinement = \"#number\", actualRefinement = \"#string\""
                                                               "(graph g (:r <\"a\" ⊢ number>))")
     , ("∈ asks",                                    compilesToJSON "(graph g (:r (∈ 1 number) :s <\"a\" ∈ number>))"

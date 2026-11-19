@@ -261,15 +261,36 @@ pDefn kind params pos = do
     pure $ PFunction (SomeFunction (Function kind pos name doc args retType (S.Form pos [result])))
 
 
--- A type tag between a function's name and its parameters is its return type
+-- A function's return type, between its name and its parameters: ⊢ and its refinement,
+-- (define/procedure f ⊢ string (x) ...), or a type tag, (define/procedure f #string (x) ...)
 pReturnType :: Parser (Maybe (SourcePos, S.ReaderTag))
 pReturnType = do
     stream <- remainingTokens
     case stream of
+        t : ts | Tkn.Symbol "assert" <- Tkn.tokenType t
+            -> do
+               consume ts
+               written <- pExpr
+               Just <$> lift (requirementOf written)
         t : ts | Just tag <- typeTag (Tkn.tokenType t)
             -> consume ts >> pure (Just (Tkn.pos t, tag))
         _noReturnType
             -> pure Nothing
+
+
+-- A requirement as a signature writes it, after ⊢: for now a refinement's name, (⊢ string) or
+-- <r ⊢ titled>. Every signature's requirement is read here, so that a requirement written as
+-- more than a name, such as one applied to an earlier parameter, (has-part-of-type kind),
+-- is read in this one place when there are such.
+requirementOf :: S.Expr -> Either OuroError (SourcePos, S.ReaderTag)
+requirementOf = \case
+    S.Symbol pos name
+        -> Right (pos, S.refinementNamed name)
+    other
+        -> lexicalError "A refinement in a signature is written by its name: <x ⊢ string>, ⊢ record."
+           F.& withBlurb "A refinement of the module is named the same way: <r ⊢ titled>."
+           F.& OuroError (S.exprPos other)
+           F.& Left
 
 
 pGraph :: SourcePos -> Parser ParsedDecl
@@ -395,6 +416,10 @@ pArgs = do
             Tkn.OpenParen       -> do
                                    pattern <- parseFormContainer (Tkn.pos t)
                                    collectArgs (patternParam (length acc + 1) Nothing pattern : acc)
+            Tkn.OpenAngle       -> do
+                                   binder <- parseInfix (Tkn.pos t)
+                                   param  <- lift (binderParam (length acc + 1) (Tkn.pos t) binder)
+                                   collectArgs (param : acc)
             tkn | Just tag <- typeTag tkn
                                 -> do
                                    stream <- remainingTokens
@@ -412,6 +437,28 @@ pArgs = do
                                    F.& OuroError (Tkn.pos t)
                                    F.& Left
                                    F.& lift
+
+
+-- A parameter written as a binder, <n ⊢ number>, read as an infix expression: a name or a
+-- pattern, then ⊢ and one requirement. A binder asserts, so another operator, <x ∈ p>, is
+-- an error, as is a chain of requirements, which wait for a requirement's intersection.
+binderParam :: Int -> SourcePos -> S.Expr -> Either OuroError S.Param
+binderParam index pos = \case
+    S.Form _ [S.Symbol _ "%infix", target, S.Symbol _ "assert", written]
+        -> do
+           requirement <- requirementOf written
+           case target of
+               S.Symbol _ name      -> Right (S.Param name (Just requirement) Nothing)
+               pattern@(S.Form _ _) -> Right (patternParam index (Just requirement) pattern)
+               _notAParameter       -> notABinder
+    _otherInfix
+        -> notABinder
+
+    where
+    notABinder = lexicalError "A parameter's binder is a name or a pattern, then ⊢ and its refinement: <n ⊢ number>, <(?a ?b) ⊢ array>."
+                 F.& withBlurb "A binder asserts one refinement, so ∈, or a chain of them, is not a binder."
+                 F.& OuroError pos
+                 F.& Left
 
 
 -- The tags that name a type, in an expression or a signature. '#record-empty' and
