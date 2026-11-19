@@ -506,7 +506,7 @@ constants = Group "Functions: a function of no parameters, named, is its value"
                                                                  "{\"r\": 1}")
     , ("a let-bound fn of no parameters",         compilesToJSON "(graph g (let ($c (fn () 2)) (:a c :b (c))))"
                                                                  "{\"a\": 2, \"b\": 2}")
-    , ("one inside a function is evaluated for each call", compilesToJSON "(define/procedure make (x) (let ($k (fn () x)) k)) (graph g (:a (make 1) :b (make 2)))"
+    , ("one inside a function is evaluated for each call", compilesToJSON "(define/procedure mint (x) (let ($k (fn () x)) k)) (graph g (:a (mint 1) :b (mint 2)))"
                                                                  "{\"a\": 1, \"b\": 2}")
     , ("a constant named again is the same value", compilesToJSON "(define/procedure c () (:n 1)) (define/procedure f (x) (:in x :again c)) (graph g (:a c :b (f c) :d (c)))"
                                                                  "{\"a\": {\"n\": 1}, \"b\": {\"in\": {\"n\": 1}, \"again\": {\"n\": 1}}, \"d\": {\"n\": 1}}")
@@ -724,7 +724,7 @@ assertions = Group "Properties: assertions, #titled x"
     , ("which an argument without it fails",      failsWith "line 1, col 131"
                                                             (titled <> "(define/procedure name-of (#titled r) (get r _label)) (graph g (:r (name-of (:x 1))))"))
     , ("a return type",                           failsWith "line 1, col 89"
-                                                            (titled <> "(define/procedure make #titled () (:x 1)) (graph g (:r make))"))
+                                                            (titled <> "(define/procedure mint #titled () (:x 1)) (graph g (:r mint))"))
     , ("a binding is never a property",           compilesToJSON (titled <> "(graph g (:r (let ($titled 1) #titled (:_label \"A\"))))")
                                                                  "{\"r\": {\"_label\": \"A\"}}")
 

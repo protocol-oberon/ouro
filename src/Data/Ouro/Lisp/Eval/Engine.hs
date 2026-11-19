@@ -236,6 +236,20 @@ evalExpr expr = do
         -- (array a b): an Array of its values, each evaluated
         S.Form _ (S.Symbol _ "array" : items)            -> Array <$> mapM evalExpr items
 
+        -- (make record item ...) and (make array element ...): a record or an array of what
+        -- follows, whatever its shape, as a literal of that kind is built. So a record of inlays
+        -- alone, which its shape reads as an array, can be written (gap 14). The kind is a name
+        -- in a type position, never evaluated.
+        S.Form pos (S.Symbol _ "make" : S.Symbol _ kind : items)
+            | kind == "record" -> compileRecord (\currentEnv e -> local (const currentEnv) (evalExpr e)) env items
+            | kind == "array"  -> compileArray  (\currentEnv e -> local (const currentEnv) (evalExpr e)) env pos items
+        S.Form pos (S.Symbol _ "make" : _)
+            -> lexicalError "make makes a record or an array: (make record :k v), (make array x y)."
+               & withBlurb "Its first operand is the kind, written by its name; (make array) is [] and (make record) is {}."
+               & OuroError pos
+               & EvalError
+               & pure
+
         -- (map array f): calls f on each element. The Array comes first, as every form takes
         -- what it works on, so '->' threads through it. Each call is an ordinary call, written
         -- in a frame that binds the function and the element to names that cannot be

@@ -597,6 +597,28 @@ classification :: Group
 classification = Group "Classification: records, arrays and calls"
     [ ("an array holds values of any type",         compilesToJSON "(graph g (:r (1 \"a\" true (:k 1) (2 3))))"
                                                                    "{\"r\": [1, \"a\", true, {\"k\": 1}, [2, 3]]}")
+    , ("inlays alone are an array, spliced",        compilesToJSON "(graph g (:r ((inlay (1 2)) (inlay (3)))))"
+                                                                   "{\"r\": [1, 2, 3]}")
+    , ("so a record's inlays alone need make",      failsWith "a valid Array to inlay"
+                                                              "(define/procedure a () (:k 1)) (define/procedure b () (:j 2)) (graph g ((inlay (a)) (inlay (b))))")
+
+      -- make makes what its kind names, whatever the shape of what follows
+    , ("make array begins with a name",             compilesToJSON "(define/constant k \"x\") (graph g (:r (make array k 2)))"
+                                                                   "{\"r\": [\"x\", 2]}")
+    , ("its empty values",                          compilesToJSON "(graph g (:a (make array) :b (make record)))"
+                                                                   "{\"a\": [], \"b\": {}}")
+    , ("make record takes a literal's items",       compilesToJSON "(graph g (:r (make record :k 1 :j (+ 1 1))))"
+                                                                   "{\"r\": {\"k\": 1, \"j\": 2}}")
+    , ("and its inlays alone",                      compilesToJSON "(graph g (:r (make record (inlay (:a 1)) (inlay (:b 2)))))"
+                                                                   "{\"r\": {\"a\": 1, \"b\": 2}}")
+    , ("the kind is a record or an array",          failsWith "make makes a record or an array"
+                                                              "(graph g (:r (make string \"a\")))")
+    , ("written by its name",                       failsWith "make makes a record or an array"
+                                                              "(graph g (:r (make)))")
+    , ("its names are checked",                     failsWith "'nope' is not bound here"
+                                                              "(graph g (:r (make array nope)))")
+    , ("no function is named make",                 failsWith "'make' is read by its syntax"
+                                                              "(define/procedure make (x) x) (graph g (:r 1))")
     , ("a record in an array has its own parentheses", compilesToJSON "(graph g (:r ((:k 1) \"x\" 3)))"
                                                                    "{\"r\": [{\"k\": 1}, \"x\", 3]}")
     , ("an array of one record",                    compilesToJSON "(graph g (:r ((:a 1))))"
@@ -1332,8 +1354,8 @@ knownGaps = Group "Known gaps: current and fixed"
                                                               "(graph g (let ($get 1) (:r get)))")
     , ("gap 11 (fixed): a parameter named fn",      fixedGap $ failsWith "A fn is written"
                                                               "(define/procedure call (fn) (fn)) (graph g (:r (call 1)))")
-    , ("gap 14: a record of only inlays is an array", failsWith "a valid Array to inlay"
-                                                              "(define/procedure a () (:k 1)) (define/procedure b () (:j 2)) (graph g ((inlay (a)) (inlay (b))))")
+    , ("gap 14 (fixed): a record of only inlays is made", compilesToJSON "(define/procedure a () (:k 1)) (define/procedure b () (:j 2)) (graph g (make record (inlay (a)) (inlay (b))))"
+                                                              "{\"k\": 1, \"j\": 2}")
     , ("gap 17 (fixed): a URI's empty root path is dropped", fixedGap $ compilesToJSON "(graph g (:u #uri \"https://a.org/\"))"
                                                                    "{\"u\": \"https://a.org\"}")
     , ("gap 18: an attribute pair among values has no hint", failsWithout "(1 (:a 2))"

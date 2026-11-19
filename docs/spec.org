@@ -909,6 +909,23 @@ A form headed by a symbol is a call, so an array whose first element is a variab
   - =list=, its old name, is an error that names =array= (=SCP0000=, "'list' is now 'array'"), unless the module defines its own =list=.
 - Arrays, like JSON arrays, can hold values of any type: ~(1 "a" (:k 1) (2 3))~.
 
+*** =make=: a record or an array, whatever its shape
+
+~(make record item ...)~ and ~(make array element ...)~ build a record or an array of what follows, as a literal of that kind is built, whatever the shape of what follows.
+
+#+BEGIN_SRC clojure
+(make array vocab/artwork 2)            ; an array beginning with a name
+(make array)                            ; []
+(make record)                           ; {}
+(make record :k 1 :j (+ 1 1))           ; {"k": 1, "j": 2}, as (:k 1 :j (+ 1 1))
+(make record (inlay base) (inlay more)) ; a record of inlays alone
+#+END_SRC
+
+- The kind is =record= or =array=, written by its name and never evaluated; any other is =SYN0000=, "make makes a record or an array".
+- A record's items are a record literal's: attribute pairs, inlays and contexts, which see each other as a literal's do.
+- So a record of inlays alone has a spelling: ~((inlay xs) (inlay ys))~, with no attribute pair, is an array, the inlays spliced, as its shape says.
+- =make= is read by its syntax, as =and= is: no function can be named =make= (=SYN0008=). A parameter or a binding of the name is a name like any other.
+
 *** Inlays are layers
 
 =inlay= splices a record's attribute pairs into the surrounding record, but a key still appears once.
@@ -1125,7 +1142,7 @@ When it is evaluated:
 
 - a =(fn () …)= written inside a function closes over a frame each call binds afresh;
   - so it is evaluated each time it is named;
-  - ~(define/procedure make (x) (let ($k (fn () x)) k))~ gives =1= for ~(make 1)~ and =2= for ~(make 2)~;
+  - ~(define/procedure mint (x) (let ($k (fn () x)) k))~ gives =1= for ~(mint 1)~ and =2= for ~(mint 2)~;
 
 - each graph is evaluated on its own, so a constant is evaluated once per graph that names it.
 
@@ -1157,7 +1174,7 @@ A refinement is asserted with its tag, ~#titled x~, as a built-in one is.
 
 - The tag works wherever a built-in refinement does:
   - ~(satisfies x #titled)~ and a =case= branch's ~(satisfies #titled)~ answer =false= where the assertion fails;
-  - a parameter's contract, ~(define/procedure name-of (#titled r) …)~, and a return type, ~(define/procedure make #titled () …)~, assert it, as yet without blame.
+  - a parameter's contract, ~(define/procedure name-of (#titled r) …)~, and a return type, ~(define/procedure mint #titled () …)~, assert it, as yet without blame.
 
 - A tag names a refinement of the module, never a binding: ~(let ($titled 1) #titled r)~ still asserts the refinement.
 
@@ -2781,14 +2798,17 @@ Left as they are on purpose:
 - the =[ ]= bracket syntax parsed but had no meaning. It is removed, and a =[= or =]= is a lexical error, "Ouro has no brackets: an array is written in parentheses, (1 2 3)";
 - =validate= without =-o= overwrote its input. It now writes the JSON to stdout, and nothing else, so it can be piped.
 
-** PENDING A record made only of inlays is read as an array
+** FIXED A record made only of inlays is read as an array
 :PROPERTIES:
 :ID:       14
 :FOUND:    2026-10-12
+:FIXED_IN: 0.7.0.0
 :END:
 ~((inlay (a)) (inlay (b)))~ has no written attribute pair, so structural classification makes it an array, and each =inlay= then expects an array. Workaround: write at least one attribute pair.
 
 Waits on a decision of syntax: whether an =inlay= makes the form it is written in a record.
+
+/Fixed/ (2026-11-19) by =make=: ~(make record (inlay (a)) (inlay (b)))~ is a record. The classification is unchanged, as both readings are wanted: inlays alone in a form are an array, splicing arrays, and =make record= says when a record is meant.
 
 ** FIXED Empty arrays could not be joined
 :PROPERTIES:

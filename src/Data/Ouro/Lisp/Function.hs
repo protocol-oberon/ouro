@@ -398,10 +398,11 @@ checkFunctionName name pos
 
 -- The forms read by their syntax before any name is bound: the declarations, a module's
 -- definitions and graphs, a function's doc, and the forms Canon rewrites (and, or, ->, with,
--- adjoin, thru, and assert and in, whose refinement is a name in a type position).
+-- adjoin, thru, and assert and in, whose refinement is a name in a type position), and make,
+-- whose kind is one.
 -- A binding of one of their names is never called by them.
 readBySyntax :: [Text]
-readBySyntax = ["define/procedure", "define/refinement", "define/constant", "graph", "doc", "->", "adjoin", "and", "or", "thru", "with", "assert", "in"]
+readBySyntax = ["define/procedure", "define/refinement", "define/constant", "graph", "doc", "->", "adjoin", "and", "or", "thru", "with", "assert", "in", "make"]
 
 
 -- A function can be defined once in each scope
@@ -417,7 +418,7 @@ duplicateFunction name pos =
 specialForms :: [Text]
 specialForms = [ "->", "adjoin", "all", "and", "any", "array", "assert", "attr", "case", "context", "define/constant", "define/procedure", "define/refinement", "doc"
                , "exists", "filter", "fn", "fold", "forall", "get", "get-or", "graph", "has", "image", "in", "inlay", "insert"
-               , "let", "map", "nth", "omits", "or", "replace-at", "satisfies", "thru", "when", "with" ]
+               , "let", "make", "map", "nth", "omits", "or", "replace-at", "satisfies", "thru", "when", "with" ]
 
 
 isHeadedBy :: Text -> S.Expr -> Bool
