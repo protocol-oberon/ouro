@@ -71,6 +71,7 @@ builtinRegistry = Map.fromList
                       -- Runtime temporal handlers
                       , ("years-end",   handleYearsEndModifier)
                       , ("months-end",  handleMonthsEndModifier)
+                      , ("shift",       handleShift)
                       -- Strings: each takes the string first, so -> threads through them
                       , ("to-string",   handleToString)
                       , ("split",       handleSplit)
@@ -108,6 +109,7 @@ builtinArity = Map.fromList $
        , ("not",           (1, "not takes one Boolean: (not b)."))
        , ("len",           (1, "len takes one Array or String: (len xs)."))
        , ("contains",      (2, "contains takes an Array or a String, then the value to look for: (contains (1 2 3) 2)."))
+       , ("shift",         (2, "shift takes a date, then the duration to move it by: (shift d (days 1)), or (days -1) to move it back."))
        , ("distinct",      (1, "distinct takes one Array: (distinct (1 2 1))."))
        , ("unions",        (1, "unions takes one Array of Arrays: (unions ((1) (2 3)))."))
        , ("intersections", (1, "intersections takes one Array of Arrays: (intersections ((1 2) (2 3)))."))
@@ -157,8 +159,8 @@ handleAddition pos =
     \case
      [a, b]
          -> case (a, b) of
-                (L.Primitive (I.Date utc),   L.Duration unit amt)       -> pure $ L.Primitive (I.Date (applyDuration utc unit amt))
-                (L.Duration unit amt,        L.Primitive (I.Date utc))  -> pure $ L.Primitive (I.Date (applyDuration utc unit amt))
+                (L.Primitive (I.String date), L.Duration unit amt)      -> pure $ shiftDate pos date unit amt
+                (L.Duration unit amt,        L.Primitive (I.String date)) -> pure $ shiftDate pos date unit amt
                 (L.Primitive (I.String s1),  L.Primitive (I.String s2)) -> pure $ L.Primitive (I.String (s1 <> s2))
                 (L.Primitive (I.Number n1),  L.Primitive (I.Number n2)) -> pure $ L.Primitive (I.Number (n1 + n2))
                 -- Arrays join, whatever their elements: like JSON arrays, they need not be homogeneous
@@ -193,8 +195,8 @@ handleSubtraction :: SourcePos -> [L.Expr] -> Reader Env L.Expr
 handleSubtraction pos =
     \case
      [a, b] -> case (a , b) of
-                   (L.Primitive (I.Date utc),  L.Duration unit amt)       -> pure $ L.Primitive (I.Date (applyDuration utc unit (-amt)))
-                   (L.Duration unit amt,       L.Primitive (I.Date utc))  -> pure $ L.Primitive (I.Date (applyDuration utc unit (-amt)))
+                   (L.Primitive (I.String date), L.Duration unit amt)     -> pure $ shiftDate pos date unit (-amt)
+                   (L.Duration unit amt,       L.Primitive (I.String date)) -> pure $ shiftDate pos date unit (-amt)
                    (L.Primitive (I.Number n1), L.Primitive (I.Number n2)) -> pure $ L.Primitive (I.Number (n1 - n2))
 
                    -- Error propagation
@@ -468,6 +470,42 @@ handleNot pos =
             & pure
 
 
+-- handleShift.
+--
+-- (shift date duration): the date moved by the duration, a negative one moving it back. A
+-- date is a string that is in date, so it is read where it is used (see 'shiftDate').
+handleShift :: SourcePos -> [L.Expr] -> Reader Env L.Expr
+handleShift pos =
+    \case
+     [err@(L.EvalError _), _]
+         -> pure err
+
+     [_, err@(L.EvalError _)]
+         -> pure err
+
+     [L.Primitive (I.String date), L.Duration unit amt]
+         -> pure (shiftDate pos date unit amt)
+
+     [L.Primitive (I.String _), other]
+         -> Data.Ouro.Error.Diagnostics.typeMismatch "a duration to shift the date by" (humanReadableType other)
+            & Data.Ouro.Error.Diagnostics.withBlurb "A duration is made by (years n), (months n), (days n), (hours n), (minutes n) or (seconds n)."
+            & OuroError pos
+            & L.EvalError
+            & pure
+
+     [other, _]
+         -> Data.Ouro.Error.Diagnostics.refinementMismatch "#date" (L.refinementOf other)
+            & OuroError pos
+            & L.EvalError
+            & pure
+
+     args
+         -> Data.Ouro.Error.Diagnostics.incorrectArity "shift" 2 (length args)
+            & OuroError pos
+            & L.EvalError
+            & pure
+
+
 -- Functions cannot be compared: two different functions can behave identically,
 -- so any answer 'eq' gave would be misleading
 isFunction :: L.Expr -> Bool
@@ -504,6 +542,19 @@ isNumber = \case
 
 
 --- Time Shifting & L.Duration Modifiers ---
+-- A date shifted by a duration. A date is a string that is in date, never converted, so it
+-- is read here, where it is used, and the date it becomes is written back as a string. A
+-- string that is not a date is the refinement mismatch #date x would be.
+shiftDate :: SourcePos -> Text -> PeriodUnit -> Int -> L.Expr
+shiftDate pos written unit amt =
+    case parseISO8601 (T.unpack written) of
+        Just utc -> L.Primitive (I.String (I.renderDate (applyDuration utc unit amt)))
+        Nothing  -> refinementMismatch "#date" "a #string that is not a date"
+                    & withBlurb "A #date is a #string in ISO-8601 form, YYYY-MM-DDTHH:mm:ssZ, such as \"1642-01-01T00:00:00Z\"."
+                    & OuroError pos
+                    & L.EvalError
+
+
 -- Shifts a date by a duration. Months and years clip to the end of a shorter month rather
 -- than rolling over into the next: 31 January + 1 month is the last day of February, and
 -- 29 February + 1 year is 28 February. A shift never skips past the month it lands in.

@@ -162,8 +162,8 @@ formsAndBuiltins = Group "Special forms and built-ins"
                                                                    "{\"a\": 9, \"b\": 6, \"c\": 0}")
     , ("len of a record is a type error",           failsWith "An Array or a String"
                                                               "(graph g (:r (len (:a 1))))")
-    , ("so is len of a URI",                        failsWith "An Array or a String"
-                                                              "(graph g (:r (len #uri \"https://a.org/x\")))")
+    , ("a URI is its string, so len counts it",     compilesToJSON "(graph g (:r (len #uri \"https://a.org/x\")))"
+                                                                   "{\"r\": 15}")
     , ("len takes one argument",                    failsWith "IncorrectArity"
                                                               "(graph g (:r (len (1) (2))))")
     , ("len is an ordinary function value",         compilesToJSON "(graph g (:r (map (\"ab\" (1 2 3)) len)))"
@@ -421,29 +421,29 @@ types = Group "Types: the rules as they are"
       -- Equality
     , ("eq across types is false",                  compilesToJSON "(graph g (:r (eq 1 \"1\") :s (eq true 1)))"
                                                                    "{\"r\": false, \"s\": false}")
-    , ("a URI is not equal to its String",          compilesToJSON "(graph g (:r (eq #uri \"https://a.org\" \"https://a.org\")))"
-                                                                   "{\"r\": false}")
+    , ("a URI is equal to its string",              compilesToJSON "(graph g (:r (eq #uri \"https://a.org\" \"https://a.org\")))"
+                                                                   "{\"r\": true}")
     , ("a case literal of another type never matches", compilesToJSON "(graph g (:r (case 5 (\"5\" \"string\") (otherwise \"number\"))))"
                                                                    "{\"r\": \"number\"}")
     , ("records are equal whatever the order of their attribute pairs", compilesToJSON "(graph g (:r (eq (:a 1 :b 2) (:b 2 :a 1))))"
                                                                    "{\"r\": true}")
 
       -- Ordering and arithmetic
-    , ("dates cannot be ordered",                   failsWith "a Date gt a Date"
+    , ("dates cannot be ordered: they are strings", failsWith "a String and a String do not support the requested operation"
                                                               ("(graph g (:r (gt " <> date <> " " <> date <> ")))"))
-    , ("dates cannot be subtracted",                failsWith "a Date - a Date"
+    , ("nor subtracted",                            failsWith "a String and a String do not support the requested operation"
                                                               ("(graph g (:r (- " <> date <> " " <> date <> ")))"))
     , ("strings cannot be ordered",                 failsWith "a String lt a String"
                                                               "(graph g (:r (lt \"a\" \"b\")))")
-    , ("a URI cannot be extended",                  failsWith "a URI + a String"
-                                                              "(graph g (:r (+ #uri \"https://a.org/\" \"x\")))")
+    , ("a URI joins as a string does",              compilesToJSON "(graph g (:r (+ #uri \"https://a.org/\" \"x\")))"
+                                                                   "{\"r\": \"https://a.org/x\"}")
     , ("durations do not add",                      failsWith "a Duration time period + a Duration time period"
                                                               "(graph g (:r (+ (days 1) (days 2))))")
 
       -- Assertions check, and only #uri and #date convert a String
     , ("#number does not convert a string",         failsWith "expectedRefinement = \"#number\", actualRefinement = \"#string\""
                                                               "(graph g (:r #number \"5\"))")
-    , ("#uri does not accept a date",               failsWith "expectedRefinement = \"#uri\", actualRefinement = \"#date\""
+    , ("#uri does not accept a date",               failsWith "expectedRefinement = \"#uri\", actualRefinement = \"a #string"
                                                               ("(graph g (:r #uri " <> date <> "))"))
 
       -- A failed property names both properties, and says why when the value's own is not enough
@@ -685,6 +685,25 @@ dates = Group "Dates: calendar arithmetic"
     , ("in each of the four keys",                  withTests 1 . property $
                                                     [ either (const True) (const False) (validate "t.json" (timespan [(k, "81-01-01T00:00:00Z")]) defaultOptions) | k <- dateKeys ]
                                                     === [True, True, True, True])
+
+      -- A date is a string in date, never converted: asserted, it passes on as written, and
+      -- shift moves it, reading it where it is used
+    , ("a date passes on as written",               compilesToJSON "(graph g (:r <\"2020-01-31T00:00:00Z\" ⊢ date>))"
+                                                                   "{\"r\": \"2020-01-31T00:00:00Z\"}")
+    , ("shift moves a date",                        compilesToJSON ("(graph g (:a (shift " <> date "2020-01-31" <> " (days 1)) :b (shift " <> date "2020-01-31" <> " (months 1))))")
+                                                                   "{\"a\": \"2020-02-01T00:00:00Z\", \"b\": \"2020-02-29T00:00:00Z\"}")
+    , ("a negative duration moves it back",         compilesToJSON ("(graph g (:r (shift " <> date "2020-03-31" <> " (months -1))))")
+                                                                   "{\"r\": \"2020-02-29T00:00:00Z\"}")
+    , ("through a thru, forwards",                  compilesToJSON ("(graph g (:r (shift " <> date "2020-01-31" <> " (thru (days 1)))))")
+                                                                   "{\"r\": \"2020-02-01T23:59:59Z\"}")
+    , ("on a string, unasserted",                   compilesToJSON "(graph g (:r (shift \"2020-01-31T00:00:00Z\" (days 1))))"
+                                                                   "{\"r\": \"2020-02-01T00:00:00Z\"}")
+    , ("a string that is no date is refused",       failsWith "actualRefinement = \"a #string that is not a date\""
+                                                              "(graph g (:r (shift \"tomorrow\" (days 1))))")
+    , ("as is a value that is no duration",         failsWith "a duration to shift the date by"
+                                                              ("(graph g (:r (shift " <> date "2020-01-31" <> " 1)))"))
+    , ("shift takes two operands",                  failsWith "shift takes a date, then the duration"
+                                                              ("(graph g (:r (shift " <> date "2020-01-31" <> ")))"))
     ]
 
     where
@@ -1228,8 +1247,8 @@ contexts = Group "Contexts: a context is a value"
                                                               "(graph g (:context ((\"https://a.org/c.json\")) :a 1))")
     , ("an expanded definition's keys are keywords", failsWith "cannot be part of the definition of the term 't'"
                                                               "(graph g (:context (:t (:@id \"x\" :foo 1)) :a 1))")
-    , ("a date has no place in a context",          failsWith "cannot hold a Date"
-                                                              "(graph g (:context (:@vocab #date \"2020-01-01T00:00:00Z\") :a 1))")
+    , ("a date is a string in a context too",       compilesToJSON "(graph g (:context (:@vocab #date \"2020-01-01T00:00:00Z\") :a 1))"
+                                                                   "{\"@context\": {\"@vocab\": \"2020-01-01T00:00:00Z\"}, \"a\": 1}")
     , ("it is reported at the context",             failsWith "line 1, col 20"
                                                               "(graph g (:context (:ex 5) :a 1))")
     , ("the (context (...)) form is replaced",      failsWith "has been replaced by ':context value'"

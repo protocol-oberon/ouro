@@ -14,8 +14,8 @@ import           Text.Megaparsec               (SourcePos)
 --   (thru (days n))     (days n) (hours 23) (minutes 59) (seconds 59)
 --   (thru (years n))    (years-end n)        resolved against the date at run time
 --
--- + and - take two operands, so a date shifted by a thru is shifted by each duration in
--- turn, the operation nested once for each:
+-- shift, + and - take two operands, so a date shifted by a thru is shifted by each duration
+-- in turn, the operation nested once for each:
 --
 --   (+ date (thru (days n)))   (+ (+ (+ (+ date (days n)) (hours 23)) (minutes 59)) (seconds 59))
 --
@@ -29,11 +29,13 @@ thru = siblings expand . bottomUp shift
         item : rest                                          -> item : expand rest
         []                                                   -> []
 
-    -- A date and a thru, as the operands of + or -: the duration added, or taken, one by one.
-    -- A Duration may come first in +, so a thru written first is added from the right.
+    -- A date and a thru, as the operands of shift, + or -: the duration added, or taken, one
+    -- by one. A Duration may come first in +, so a thru written first is added from the right.
+    -- shift takes a thru forwards only: a thru's parts are positive, and a (days n) of a
+    -- negative n is not known to be one until it is evaluated.
     shift = \case
         S.Form pos [opSym@(S.Symbol _ op), date, S.Form tPos [S.Symbol _ "thru", durationExpr]]
-            | op `elem` ["+", "-"]
+            | op `elem` ["shift", "+", "-"]
             -> foldl (\shifted d -> S.Form pos [opSym, shifted, d]) date (thruOf tPos durationExpr)
         S.Form pos [opSym@(S.Symbol _ "+"), S.Form tPos [S.Symbol _ "thru", durationExpr], date]
             -> foldr (\d shifted -> S.Form pos [opSym, d, shifted]) date (thruOf tPos durationExpr)

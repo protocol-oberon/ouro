@@ -1032,7 +1032,7 @@ The symbols of logic and sets are read the same way, as the names they stand for
   - or one defined in Ouro, =titled=; an imported one, =people/titled=, is not yet read.
   - A binding of the name changes nothing: ~(let ($string 1) <"a" ⊢ string>)~ is ="a"=.
 
-- =⊢= is the assertion =#p x= is, written another way: the value passes on, =#uri= and =#date= converting it, or it is a refinement mismatch (=TYP0001=) at the value. A chain asserts each, ~<r ⊢ record ⊢ titled>~.
+- =⊢= is the assertion =#p x= is, written another way: the value passes on as it is, never converted, or it is a refinement mismatch (=TYP0001=) at the value. A chain asserts each, ~<r ⊢ record ⊢ titled>~.
 
 - =∈= is the question ~(satisfies x #p)~ is: =true= or =false=, an error inside it staying that error. As the head of a =case= branch it is about the case's target, ~((∈ string) "text")~.
 
@@ -1325,8 +1325,8 @@ A function's types are refinements in its header, each written by its name. =⊢
 - The old spelling, a tag, still reads the same: =#record= after the name, =#uri id= for a parameter, =#array (?a ?b)= for a pattern. The two may be mixed, =(#number a <b ⊢ string>)=, until the old one is an error.
 
 - A refinement in a signature behaves exactly as it would anywhere else.
-  - It checks the value, and =#uri= and =#date= convert a string.
-  - In =node= above, =id= arrives as a URI.
+  - It checks the value, and passes it on unchanged: =uri= and =date= are refinements of =string=, not conversions.
+  - In =node= above, =id= arrives as the string it was, checked to be a URI.
 
 - Each argument is checked where the call is written, so a mismatch is reported at the argument, in the call.
 
@@ -1372,7 +1372,7 @@ A call with =?= holes among its arguments is not called.
 - *A named hole is one parameter*, however often it is written: ~(* ?n ?n)~ takes one.
   - Parameters follow the order in which each hole is first written, so ~(+ ?a ?b ?a)~ takes =a= then =b=.
 - *A typed hole is a typed parameter*.
-  - ~(node #uri ? "Painting")~ checks, and converts, its argument as a signature would.
+  - ~(node #uri ? "Painting")~ checks its argument as a signature would.
   - A mismatch is reported at the argument where the placeholder is called.
   - An untyped hole passed to a typed parameter of the function is checked by that function.
   - A mismatch is then reported at the hole.
@@ -1718,6 +1718,7 @@ Pattern variables are bound in a frame around the branch body. A record written 
 | Sets         | ~union~ ~intersect~ ~setminus~ ~subset~   | ~(union (1 2) (2 3))~ is ~(1 2 3)~                 |
 | Big sets     | ~unions~ ~intersections~                  | over one array of arrays: ~(unions (map xs f))~    |
 | Durations    | =years months days hours minutes seconds= | ~(days 19)~ is a Duration                          |
+| Dates        | ~shift~                                   | ~(shift d (days 19))~ moves a date                 |
 | End-of-unit  | =(thru d)=                                | ~(thru (days 1))~ = 1 day 23:59:59                 |
 
 *** Arity and operators
@@ -1867,13 +1868,17 @@ Many sets are an array of them, for =unions= and =intersections= below, and anot
 
 *** Dates and durations
 
-Dates are shifted with =+= and =-=: ~(+ start (days 19))~. Shifting by months or years clips to the end of a shorter month instead of rolling over, so 31 March minus one month is the last day of February.
+A date is a string that is in =date=: =uri= and =date= are refinements of =string=, as every refinement is a set, so asserting one never changes the value. ~<"2020-01-31T00:00:00Z" ⊢ date>~ is that string, written as it was; a URI is its string, =eq= to it, and every function on strings takes it.
+
+~(shift date duration)~ moves a date, a negative duration moving it back: ~(shift start (days 19))~, ~(shift start (months -1))~. The date is read where it is used, so a string that is no date is a refinement mismatch there, and the date it becomes is written back as a string. Shifting by months or years clips to the end of a shorter month instead of rolling over, so 31 March shifted back a month is the last day of February. =shift= takes a =thru= forwards, ~(shift start (thru (days 1)))~.
+
+=+= and =-= still shift a date by a duration, read the same way, until that is an error naming =shift=; =-= is how a =thru= is taken backwards for now.
 
 =thru= exists for Linked Art timespans, whose =end_of_the_end= is the last moment of a period: ~(thru (days 1))~ is 1 day 23:59:59, and ~(thru (years 0))~ is to the end of the current year:
 
 #+BEGIN_SRC clojure
 :begin_of_the_begin #date "1642-01-01T00:00:00Z"
-:end_of_the_end     (+ begin_of_the_begin (thru (years 0)))   ; 1642-12-31T23:59:59Z
+:end_of_the_end     (shift begin_of_the_begin (thru (years 0)))   ; 1642-12-31T23:59:59Z
 #+END_SRC
 
 ** =@context=

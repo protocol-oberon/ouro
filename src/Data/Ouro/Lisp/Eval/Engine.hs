@@ -796,9 +796,11 @@ checkRefinement ty typePos pos evaluatedVal = case ty of
                       <> "Perhaps write one: (define/refinement " <> name <> " (#record r) (doc \"...\") ...)."
 
     -- Complex Parsers
+    -- uri and date are refinements of string, as any refinement is a set: a string that is
+    -- in them passes on as itself, never converted
     assertUri :: L.Expr -> EvalM L.Expr
     assertUri = \case
-        Primitive (I.String rawText)
+        string@(Primitive (I.String rawText))
             -> case mkUri rawText of
                    Left _
                        -> failRefinement "#uri" "a #string that is not a URI" uriBlurb
@@ -806,12 +808,9 @@ checkRefinement ty typePos pos evaluatedVal = case ty of
                    Right uri
                        -> case URI.uriScheme (uriParsed uri) of
                               Just _
-                                  -> pure $ Primitive (I.URI uri)
+                                  -> pure string
                               Nothing
                                   -> failRefinement "#uri" "a #string without a URI scheme" uriBlurb
-
-        Primitive (I.URI uri)
-            -> pure $ Primitive (I.URI uri)
 
         otherVal
             -> failRefinement "#uri" (refinementOf otherVal) uriBlurb
@@ -819,13 +818,10 @@ checkRefinement ty typePos pos evaluatedVal = case ty of
     assertDate :: L.Expr -> EvalM L.Expr
     assertDate =
         \case
-         Primitive (I.String rawText)
+         string@(Primitive (I.String rawText))
              -> case parseISO8601 (T.unpack rawText) of
-                    Just    utcTime -> pure $ Primitive (I.Date utcTime)
-                    Nothing         -> failRefinement "#date" "a #string that is not a date" dateBlurb
-
-         Primitive (I.Date date)
-             -> pure $ Primitive (I.Date date)
+                    Just    _ -> pure string
+                    Nothing   -> failRefinement "#date" "a #string that is not a date" dateBlurb
 
          otherVal
              -> failRefinement "#date" (refinementOf otherVal) dateBlurb
