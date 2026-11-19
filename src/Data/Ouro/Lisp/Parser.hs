@@ -287,7 +287,7 @@ requirementOf written = case S.readType written of
     Right ty
         -> Right (S.exprPos written, ty)
     Left other
-        -> lexicalError "A type is a refinement's name, or ∪ ∩ ∖ of two types: <x ⊢ string>, <x ⊢ (∪ string number)>."
+        -> lexicalError "A type is a refinement's name, ∪ ∩ ∖ of two types, or (array p): <x ⊢ string>, <x ⊢ (∪ string number)>, <xs ⊢ (array titled)>."
            F.& withBlurb "A refinement of the module is named the same way: <r ⊢ titled>."
            F.& OuroError (S.exprPos other)
            F.& Left

@@ -698,8 +698,8 @@ assertType typePos ty payload = do
 
 
 -- Checks an evaluated value against a type, written at the first position, the value at the
--- second: the value, converted for uri and date, or a RefinementMismatch error at the value.
--- A type is, for now, a refinement by its name.
+-- second: the value itself, never converted, or a RefinementMismatch error at the value.
+-- A type is a refinement by its name, or one built from them with ∪ ∩ ∖ and (array p).
 checkRefinement :: S.Type -> SourcePos -> SourcePos -> L.Expr -> EvalM L.Expr
 checkRefinement ty typePos pos evaluatedVal = case ty of
     S.Named refinement -> case refinement of
@@ -731,12 +731,22 @@ checkRefinement ty typePos pos evaluatedVal = case ty of
         Right False -> notIn
         Left err    -> pure err
 
+    -- (array p): an array whose every element is in p: the elements are asked in order, and
+    -- the first outside is named
+    S.ArrayOf element -> case L.asArray evaluatedVal of
+        Nothing    -> notIn
+        Just items -> everyElement element (zip [1 :: Int ..] items)
+
     where
     -- Whether the value is in a type: True, False where the check is a refinement mismatch, or
     -- the error any other failure is, which stays that error, so a refinement broken inside a
     -- union is never taken for a value outside it
     inType :: S.Type -> EvalM (Either L.Expr Bool)
-    inType part = checkRefinement part typePos pos evaluatedVal
+    inType part = inTypeOf part evaluatedVal
+
+    -- The same, of another value: an element of an array
+    inTypeOf :: S.Type -> L.Expr -> EvalM (Either L.Expr Bool)
+    inTypeOf part value = checkRefinement part typePos pos value
         <&> \case
              EvalError (OuroError _ ctx) | isRefinementMismatch ctx
                  -> Right False
@@ -757,6 +767,16 @@ checkRefinement ty typePos pos evaluatedVal = case ty of
     -- A value outside a compound type is reported against the whole of it
     notIn :: EvalM L.Expr
     notIn = failRefinement (S.renderType ty) (refinementOf evaluatedVal) ""
+
+    -- Each element in the element type, in order, stopping at the first outside it; an error
+    -- inside an element's check stays that error
+    everyElement :: S.Type -> [(Int, L.Expr)] -> EvalM L.Expr
+    everyElement element = \case
+        []               -> pure evaluatedVal
+        (i, item) : rest -> inTypeOf element item >>= \case
+            Right True  -> everyElement element rest
+            Right False -> failRefinement (S.renderType ty) ("an array whose element " <> T.pack (show i) <> " is " <> refinementOf item) ""
+            Left err    -> pure err
 
     -- Typed Primitive Helpers, each at the position checkRefinement was given
     isString v = case v of

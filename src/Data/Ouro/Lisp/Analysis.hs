@@ -334,7 +334,7 @@ holeSizes p argument = Map.map (\case Smaller -> partOf argument; NoLarger -> ar
 -- an empty fallback, image and filter, no larger than the value they look into
 size :: Scope -> S.Expr -> Size
 size scope = \case
-    S.Symbol _ name    -> Map.findWithDefault Map.empty name (scopeSizes scope)
+    S.Symbol _ name      -> Map.findWithDefault Map.empty name (scopeSizes scope)
     S.Asserted _ _ inner -> size scope inner
     S.Form _ items
         | shadowsForm (bound scope) items                         -> Map.empty
@@ -366,13 +366,15 @@ names scope = \case
 
 
 -- The refinements a type names, each resolved as 'refinementName' resolves one, however deep in
--- ∪ ∩ ∖ it is written
+-- ∪ ∩ ∖ it is written. An array's element type is about its elements, each a part of the
+-- subject, so a refinement asserted on them goes down into the value
 typeNames :: Scope -> SourcePos -> S.Type -> Maybe [Size] -> Found
 typeNames scope pos ty args = case ty of
     S.Named refinement -> refinementName scope pos refinement args
     S.Union a b        -> typeNames scope pos a args <> typeNames scope pos b args
     S.Inter a b        -> typeNames scope pos a args <> typeNames scope pos b args
     S.Minus a b        -> typeNames scope pos a args <> typeNames scope pos b args
+    S.ArrayOf element  -> typeNames scope pos element (fmap (map partOf) args)
 
 
 -- A refinement's name names a refinement of the module, titled: never a binding around it,

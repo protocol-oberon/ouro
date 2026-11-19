@@ -551,14 +551,36 @@ operators = Group "Operators: operands and desugaring"
                                                                    "{\"r\": 1}")
     , ("as a case head",                            compilesToJSON "(graph g (:r (case 1 ((∈ (∪ uri date)) \"when\") (otherwise \"other\"))))"
                                                                    "{\"r\": \"other\"}")
-    , ("a union takes two types",                   failsWith "A type is a refinement's name, or"
+    , ("a union takes two types",                   failsWith "A type is a refinement's name"
                                                               "(define/procedure f (<x ⊢ (∪ string number boolean)>) x) (graph g (:r 1))")
-    , ("each of them a type",                       failsWith "A type is a refinement's name, or"
+    , ("each of them a type",                       failsWith "A type is a refinement's name"
                                                               "(define/procedure f (<x ⊢ (∪ string 1)>) x) (graph g (:r 1))")
     , ("an unknown refinement inside is reported",  failsWith "Unknown refinement: #titeld"
                                                               "(graph g (:r <1 ⊢ (∪ number titeld)>))")
     , ("an error inside a side stays that error",   failsWith "expectedRefinement = \"#record\""
                                                               (titled <> "(define/refinement broken (<x ⊢ number>) <x ∈ titled>) (graph g (:r <1 ⊢ (∪ broken number)>))"))
+
+      -- (array p): an array whose every element is in p
+    , ("every element in p",                        compilesToJSON "(graph g (:a <(1 2 3) ⊢ (array number)> :b <(make array) ⊢ (array string)>))"
+                                                                   "{\"a\": [1, 2, 3], \"b\": []}")
+    , ("a value that is no array is refused",       failsWith "expectedRefinement = \"(array #number)\""
+                                                              "(graph g (:r <\"x\" ⊢ (array number)>))")
+    , ("an element outside is named",               failsWith "an array whose element 3 is #string"
+                                                              "(graph g (:r <(1 2 \"x\") ⊢ (array number)>))")
+    , ("nested, and over a union",                  compilesToJSON "(graph g (:a <((1) (2 3)) ⊢ (array (array number))> :b <(1 \"a\") ∈ (array (∪ string number))>))"
+                                                                   "{\"a\": [[1], [2, 3]], \"b\": true}")
+    , ("in a binder",                               compilesToJSON "(define/procedure total ⊢ number (<xs ⊢ (array number)>) (fold xs 0 +)) (graph g (:r (total (1 2 3))))"
+                                                                   "{\"r\": 6}")
+    , ("as a case head",                            compilesToJSON "(graph g (:r (case (1 2) ((∈ (array string)) \"words\") (otherwise \"other\"))))"
+                                                                   "{\"r\": \"other\"}")
+    , ("(array) is no type",                        failsWith "A type is a refinement's name"
+                                                              "(define/procedure f (<x ⊢ (array)>) x) (graph g (:r 1))")
+    , ("nor is (array a b)",                        failsWith "A type is a refinement's name"
+                                                              "(define/procedure f (<x ⊢ (array string number)>) x) (graph g (:r 1))")
+    , ("an error inside an element's check stays",  failsWith "expectedRefinement = \"#record\""
+                                                              (titled <> "(define/refinement broken (<x ⊢ number>) <x ∈ titled>) (graph g (:r <(1) ⊢ (array broken)>))"))
+    , ("a refinement over its own parts descends",  compilesToJSON "(define/refinement tree (<n ⊢ record>) (doc \"Its parts are trees.\") <(get-or n () part) ∈ (array tree)>) (graph g (:r <(:part ((:part ()))) ∈ tree>))"
+                                                                   "{\"r\": true}")
 
       -- Comparisons are words. '<' and '>' delimit an infix expression, its '<' written
       -- against the first operand, so each old name is an error that names its word

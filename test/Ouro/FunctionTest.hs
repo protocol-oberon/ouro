@@ -178,9 +178,9 @@ signatures = Group "Functions: signatures are properties in the header"
                                                             "(define/procedure f (<n ∈ number>) n) (graph g (:r (f 1)))")
     , ("nor is a chain",                          failsWith "A parameter's binder is a name or a pattern, then"
                                                             "(define/procedure f (<n ⊢ number ⊢ number>) n) (graph g (:r (f 1)))")
-    , ("a requirement is a type",                 failsWith "A type is a refinement's name, or"
+    , ("a requirement is a type",                 failsWith "A type is a refinement's name"
                                                             "(define/procedure f (<n ⊢ (array)>) n) (graph g (:r (f 1)))")
-    , ("as a return type's is",                   failsWith "A type is a refinement's name, or"
+    , ("as a return type's is",                   failsWith "A type is a refinement's name"
                                                             "(define/procedure f ⊢ 1 (n) n) (graph g (:r (f 1)))")
     , ("a constant of ⊢ string still warns",      warnsWith "The procedure 'c' takes no parameters"
                                                             "(define/procedure c ⊢ string () \"a\") (graph g (:r c))")

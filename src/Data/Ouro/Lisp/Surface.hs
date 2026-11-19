@@ -70,6 +70,7 @@ data Type
     | Union Type Type          -- (∪ a b): in a, or in b
     | Inter Type Type          -- (∩ a b): in a and in b
     | Minus Type Type          -- (∖ a b): in a and not in b
+    | ArrayOf Type             -- (array p): an array whose every element is in p
     deriving (Show, Eq)
 
 -- A refinement by its name: a built-in, or one defined in Ouro
@@ -101,14 +102,17 @@ refinementNamed = \case
     name       -> RDefined name
 
 
--- A type as it is written: a refinement's name, or ∪ ∩ ∖ of two types, prefix or infix. Infix
--- is still (%infix a op b ...) where the parser reads a binder, before Canon runs; its shape
--- is the parser's to check, so a chain is folded left as the infix pass folds one. Anything
--- else is not a type, and is given back for its caller to report or leave.
+-- A type as it is written: a refinement's name, ∪ ∩ ∖ of two types, prefix or infix, or
+-- (array p). Infix is still (%infix a op b ...) where the parser reads a binder, before Canon
+-- runs; its shape is the parser's to check, so a chain is folded left as the infix pass folds
+-- one. (array p) is read only here, in a type position, so it never meets (array a b), the
+-- value. Anything else is not a type, and is given back for its caller to report or leave.
 readType :: Expr -> Either Expr Type
 readType = \case
     Symbol _ name
         -> Right (Named (refinementNamed name))
+    Form _ [Symbol _ "array", element]
+        -> ArrayOf <$> readType element
     Form _ [Symbol _ op, a, b]
         | Just combine <- setOperation op
         -> combine <$> readType a <*> readType b
@@ -135,6 +139,7 @@ renderType = \case
     Union a b        -> "(∪ " <> renderType a <> " " <> renderType b <> ")"
     Inter a b        -> "(∩ " <> renderType a <> " " <> renderType b <> ")"
     Minus a b        -> "(∖ " <> renderType a <> " " <> renderType b <> ")"
+    ArrayOf element  -> "(array " <> renderType element <> ")"
 
 renderRefinement :: Refinement -> Text
 renderRefinement = \case
