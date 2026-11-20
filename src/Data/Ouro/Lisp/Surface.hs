@@ -6,60 +6,26 @@ import           Data.Text             (Text)
 import           Text.Megaparsec       (SourcePos)
 
 
--- Expr.
---
--- An untyped, ergonomically flexible Abstract Syntax Tree for the Ouro Lisp surface syntax.
--- Designed to prioritize lazy structural evaluation, recursive macro expansion, and developer ergonomics.
---
--- Unlike the rigid, type-indexed backbone of the internal core GADT, the surface AST is intentionally
--- untyped at the representation layer. This architectural omission of strict types allows the syntax
--- tree to support dynamic Lisp macros, forward variable referencing, and knot-tied lexical environment
--- mapping before any type verification or graph compilation passes occur.
---
--- We use uniform metadata anchoring (SourcePos) across all constructors to preserve physical text
--- coordinates from the lexer stream. This ensures that down-funnel type assertion failures and scope
--- lookup errors can map back to precise file locations during compilation.
---
--- Explicit token boundaries are maintained for identifiers and structural keys:
---   * Attr (:key) captures semantic keywords representing graph property transitions.
---   * Symbol (var) serves as an unbound lexical identifier, acting as a lookup hook for local variables,
---     parent frames, or native primitive operation registry fallbacks.
---
--- Atomic leaves are grouped homogeneously under Literal. By packaging raw values (Strings, Numbers,
--- Booleans, and empty structures) into an un-indexed payload wrapper, the parser can handle scalar
--- primitives flexibly as generic data tokens prior to evaluation.
---
--- Type assertions are the Asserted constructor, (⊢ x p) or #p x. This allows for explicit validation of types
--- which may visually share identical lexical layouts under raw JSON-LD rules (such as Strings and URLs),
--- ensuring they can be contextualized and evaluated strictly according to intent by the compiler.
---
--- Sequence nesting relies on uniform, unrestricted collections:
---   * Form (...) is the one list container: records, arrays, special forms and calls share it.
---     The source is written as this tree, but a program cannot build or read code as a value:
---     Ouro has no quote, eval or macros (see Appendix A of the spec).
---
--- The surface AST is short-lived. Canon rewrites its derived forms into core ones, the static
--- analysis checks it, and the Engine evaluates it, resolving its lazy environments, into the
--- strict 'JLD.Type' core GADT.
+-- The source as written, untyped, each node at its position. Canon rewrites it, the analysis
+-- checks it, and the engine evaluates it into the core Expr. docs/spec.org says what it means.
 data Expr
-    = Symbol      SourcePos Text            -- variable names and functions
-    | DefunSymbol SourcePos Text            -- function identifiers
-    | Literal     SourcePos LiteralValue    -- Raw String, Number, Boolean, empty Array/Record
-    | Asserted    SourcePos Type Expr       -- (⊢ x p), <x ⊢ p>, and the old #p x: x, asserted to have the type
-    | Required    SourcePos Type Role Expr  -- A signature's requirement on an argument or a result, in its role: made by the evaluator at a call, never written
+    = Symbol      SourcePos Text            -- a name: a variable, a function, a special form's head
+    | Literal     SourcePos LiteralValue    -- a string, number or boolean, or an empty array or record
+    | Asserted    SourcePos Type Expr       -- <x ⊢ p>, (⊢ x p), the old #p x: x, asserted to be in p
+    | Required    SourcePos Type Role Expr  -- a signature's requirement in its role, made at a call, never written
     | Hole        SourcePos Text            -- ?, ?name or ?..name in a case pattern
-    | Form        SourcePos [Expr]          -- (...) nested lists
+    | Form        SourcePos [Expr]          -- (...): records, arrays, special forms and calls alike
     deriving (Show, Eq)
 
 
--- Represents standard scalar literals and empty JSON data shapes
--- directly parsed from the Lisp source text.
+-- A literal as written: a scalar, or #array-empty and #record-empty until # retires for
+-- (make array) and (make record)
 data LiteralValue
     = Str  Text
+    | Num  Double
     | Bool Bool
     | EmptyArr
     | EmptyRec
-    | Num Double
     deriving (Show, Eq)
 
 
@@ -73,16 +39,17 @@ data Type
     | ArrayOf Type             -- (array p): an array whose every element is in p
     deriving (Show, Eq)
 
+
 -- A refinement by its name: a built-in, or one defined in Ouro
 data Refinement
-    = RUri              -- strings that parse as a URI
-    | RDate             -- strings that parse as a date
-    | RString
-    | RNumber
-    | RBoolean
-    | RRecord
-    | RArray
-    | RFunction
+    = RUri              -- the strings that parse as a URI
+    | RDate             -- the strings that parse as a date
+    | RString           -- the strings
+    | RNumber           -- the numbers
+    | RBoolean          -- true and false
+    | RRecord           -- the records, the empty one included
+    | RArray            -- the arrays, the empty one included
+    | RFunction         -- procedures and refinements
     | RDefined Text     -- a refinement defined in Ouro, by its name as written: titled, people/titled
     deriving (Show, Eq)
 
@@ -141,6 +108,8 @@ renderType = \case
     Minus a b        -> "(∖ " <> renderType a <> " " <> renderType b <> ")"
     ArrayOf element  -> "(array " <> renderType element <> ")"
 
+
+-- A refinement as a message writes it, # and all, until the messages are rewritten
 renderRefinement :: Refinement -> Text
 renderRefinement = \case
     RUri          -> "#uri"
@@ -169,39 +138,39 @@ data Param = Param
     } deriving (Show, Eq)
 
 
+-- Where an expression was written
 exprPos :: Expr -> SourcePos
 exprPos = \case
-           Symbol      pos _   -> pos
-           DefunSymbol pos _   -> pos
-           Literal     pos _   -> pos
-           Asserted    pos _ _ -> pos
-           Required    pos _ _ _ -> pos
-           Hole        pos _   -> pos
-           Form        pos _   -> pos
+    Symbol   pos _     -> pos
+    Literal  pos _     -> pos
+    Asserted pos _ _   -> pos
+    Required pos _ _ _ -> pos
+    Hole     pos _     -> pos
+    Form     pos _     -> pos
 
 
--- A case branch head is a destructuring pattern when it is a record form,
--- or when a '?' hole appears anywhere inside it. Other forms keep their
--- meaning as guards or as the alternatives sugar.
+-- A case branch head is a destructuring pattern when it is a record form, or when a ? hole
+-- appears anywhere inside it; other forms keep their meaning as guards or alternatives
 isPatternForm :: Expr -> Bool
 isPatternForm = \case
-                 Form _ elems -> any isAttrForm elems || any containsHole elems
-                 _notAForm    -> False
+    Form _ elems -> any isAttrForm elems || any containsHole elems
+    _notAForm    -> False
 
 
+-- Whether a ? hole appears anywhere inside
 containsHole :: Expr -> Bool
 containsHole = \case
-                Hole     _ _       -> True
-                Form     _ elems   -> any containsHole elems
-                Asserted _ _ inner -> containsHole inner
-                _leaf              -> False
+    Hole     _ _       -> True
+    Form     _ elems   -> any containsHole elems
+    Asserted _ _ inner -> containsHole inner
+    _leaf              -> False
 
 
--- Matches the parsed form of a ':key value' attribute pair
+-- Matches the parsed form of a :key value attribute pair
 isAttrForm :: Expr -> Bool
 isAttrForm = \case
-              Form _ (Symbol _ "%attr" : _) -> True
-              _notAnAttr                    -> False
+    Form _ (Symbol _ "%attr" : _) -> True
+    _notAnAttr                    -> False
 
 
 -- The heads Canon writes for the forms it builds: %case for and and or, %let for a case's
@@ -217,6 +186,7 @@ formName = \case
     "%inlay" -> "inlay"
     "%in"    -> "in"
     name     -> name
+
 
 -- A head that asks whether a value has a refinement: in, as Canon writes ∈, or satisfies, its
 -- old name, until that is an error

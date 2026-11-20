@@ -675,14 +675,6 @@ evalExpr expr = do
                       TargetList        -> compileArray  wrappedEvaluator env pos allItems
                       TargetFunctionApp -> applyFunction pos allItems
 
-        otherNode
-            -> let pos     = S.exprPos otherNode
-                   context = Typing $ TypeMismatch
-                               { expectedType = "a valid runtime configuration primitive value"
-                               , actualType   = "an unrecognized compiler macro token shape"
-                               }
-               in pure $ EvalError $ OuroError pos context
-
 
 -- assertType.
 --
