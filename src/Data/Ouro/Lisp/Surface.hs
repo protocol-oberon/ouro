@@ -29,14 +29,15 @@ data LiteralValue
     deriving (Show, Eq)
 
 
--- A requirement, as a signature or an assertion writes it: for now a refinement by its name;
--- ∪ ∩ ∖, (array p) and (record …) follow
+-- A requirement, as a signature or an assertion writes it: a refinement by its name, or one
+-- built from them with ∪ ∩ ∖, (array p) and (record :k p …)
 data Type
-    = Named Refinement
-    | Union Type Type          -- (∪ a b): in a, or in b
-    | Inter Type Type          -- (∩ a b): in a and in b
-    | Minus Type Type          -- (∖ a b): in a and not in b
-    | ArrayOf Type             -- (array p): an array whose every element is in p
+    = Named    Refinement
+    | Union    Type Type        -- (∪ a b): in a, or in b
+    | Inter    Type Type        -- (∩ a b): in a and in b
+    | Minus    Type Type        -- (∖ a b): in a and not in b
+    | ArrayOf  Type             -- (array p): an array whose every element is in p
+    | RecordOf [(Text, Type)]   -- (record :k p …): a record with at least these keys, each in its type
     deriving (Show, Eq)
 
 
@@ -69,24 +70,40 @@ refinementNamed = \case
     name       -> RDefined name
 
 
--- A type as it is written: a refinement's name, ∪ ∩ ∖ of two types, prefix or infix, or
--- (array p). Infix is still (%infix a op b ...) where the parser reads a binder, before Canon
--- runs; its shape is the parser's to check, so a chain is folded left as the infix pass folds
--- one. (array p) is read only here, in a type position, so it never meets (array a b), the
--- value. Anything else is not a type, and is given back for its caller to report or leave.
+-- A type as it is written: a refinement's name, ∪ ∩ ∖ of two types, prefix or infix,
+-- (array p), or (record :k p …). Infix is still (%infix a op b ...) where the parser reads a
+-- binder, before Canon runs; its shape is the parser's to check, so a chain is folded left as
+-- the infix pass folds one. (array p) and (record :k p …) are read only here, in a type
+-- position, so they never meet (array a b) or a record, the values. A record type's key
+-- written twice is given back at its second pair, and (record) is the set record. Anything
+-- else is not a type, and is given back for its caller to report or leave.
 readType :: Expr -> Either Expr Type
 readType = \case
+    -- A refinement's name: a built-in, or one defined in Ouro
     Symbol _ name
         -> Right (Named (refinementNamed name))
+
+    -- (array p): the arrays whose every element is in p
     Form _ [Symbol _ "array", element]
         -> ArrayOf <$> readType element
+
+    -- (record :k p …): the records with at least these keys, each read as a type, no key twice
+    Form _ (Symbol _ "record" : written)
+        -> RecordOf <$> (traverse keyed written >>= distinct)
+
+    -- ∪ ∩ ∖ of two types, by their names as the infix pass writes them
     Form _ [Symbol _ op, a, b]
         | Just combine <- setOperation op
         -> combine <$> readType a <*> readType b
+
+    -- An infix chain the parser has not yet handed to Canon, folded left
     Form pos (Symbol _ "%infix" : first : rest)
         -> readType (foldl (\acc (op, operand) -> Form pos [op, acc, operand]) first (pairs rest))
+
+    -- Anything else is not a type
     other
         -> Left other
+
     where
     setOperation = \case
         "union"     -> Just Union
@@ -98,15 +115,30 @@ readType = \case
         op : operand : more -> (op, operand) : pairs more
         _rest               -> []
 
+    -- A record type's pair, :k p, as the parser reads it, (%attr "k" p): its type read, and
+    -- its form kept, so that a key written twice is reported where it is
+    keyed = \case
+        pair@(Form _ [Symbol _ "%attr", Literal _ (Str key), ty]) -> (\t -> (key, t, pair)) <$> readType ty
+        other                                                     -> Left other
+
+    -- No key written twice: the second is given back
+    distinct = go []
+        where
+        go _ [] = Right []
+        go seen ((key, ty, pair) : rest)
+            | key `elem` seen = Left pair
+            | otherwise       = ((key, ty) :) <$> go (key : seen) rest
+
 
 -- A type as a message writes it, in the messages' own spelling until they are rewritten
 renderType :: Type -> Text
 renderType = \case
     Named refinement -> renderRefinement refinement
-    Union a b        -> "(∪ " <> renderType a <> " " <> renderType b <> ")"
-    Inter a b        -> "(∩ " <> renderType a <> " " <> renderType b <> ")"
-    Minus a b        -> "(∖ " <> renderType a <> " " <> renderType b <> ")"
-    ArrayOf element  -> "(array " <> renderType element <> ")"
+    Union    a b     -> "(∪ " <> renderType a <> " " <> renderType b <> ")"
+    Inter    a b     -> "(∩ " <> renderType a <> " " <> renderType b <> ")"
+    Minus    a b     -> "(∖ " <> renderType a <> " " <> renderType b <> ")"
+    ArrayOf  element -> "(array " <> renderType element <> ")"
+    RecordOf pairs   -> "(record" <> foldMap (\(key, t) -> " :" <> key <> " " <> renderType t) pairs <> ")"
 
 
 -- A refinement as a message writes it, # and all, until the messages are rewritten

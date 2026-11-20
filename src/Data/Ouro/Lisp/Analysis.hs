@@ -366,8 +366,9 @@ names scope = \case
 
 
 -- The refinements a type names, each resolved as 'refinementName' resolves one, however deep in
--- ∪ ∩ ∖ it is written. An array's element type is about its elements, each a part of the
--- subject, so a refinement asserted on them goes down into the value
+-- ∪ ∩ ∖ it is written. An array's element type is about its elements, and a record type's key
+-- types about the values at its keys, each a part of the subject, so a refinement asserted on
+-- them goes down into the value
 typeNames :: Scope -> SourcePos -> S.Type -> Maybe [Size] -> Found
 typeNames scope pos ty args = case ty of
     S.Named refinement -> refinementName scope pos refinement args
@@ -375,6 +376,7 @@ typeNames scope pos ty args = case ty of
     S.Inter a b        -> typeNames scope pos a args <> typeNames scope pos b args
     S.Minus a b        -> typeNames scope pos a args <> typeNames scope pos b args
     S.ArrayOf element  -> typeNames scope pos element (fmap (map partOf) args)
+    S.RecordOf pairs   -> foldMap (\(_, t) -> typeNames scope pos t (fmap (map partOf) args)) pairs
 
 
 -- A refinement's name names a refinement of the module, titled: never a binding around it,

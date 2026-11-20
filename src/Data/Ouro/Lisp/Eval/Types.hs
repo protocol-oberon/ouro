@@ -197,13 +197,22 @@ instance Show Expr where
     EvalError err -> showString "EvalError " . showsPrec 11 err
 
 
--- The elements of an array value. An array literal and '#array-empty' are both arrays;
--- like JSON arrays, their elements can be of any type.
+-- The elements of an array value. An array literal and the empty array, (make array), are
+-- both arrays; like JSON arrays, their elements can be of any type.
 asArray :: Expr -> Maybe [Expr]
 asArray = \case
     Array elements       -> Just elements
     Primitive I.EmptyArr -> Just []
     _notAnArray          -> Nothing
+
+
+-- The attribute pairs of a record value. A record literal and the empty record, (make record),
+-- are both records, the empty one with no pairs.
+asRecord :: Expr -> Maybe [(Text, Expr)]
+asRecord = \case
+    Record _ pairs       -> Just pairs
+    Primitive I.EmptyRec -> Just []
+    _notARecord          -> Nothing
 
 
 -- Type collapses L.Expr into internal I.Expr: a value the gate (validateAST) has let through

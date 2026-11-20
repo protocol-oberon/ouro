@@ -279,7 +279,8 @@ pReturnType = do
 
 
 -- A requirement as a signature writes it, after ⊢: a refinement's name, (⊢ string) or
--- <r ⊢ titled>, or ∪ ∩ ∖ of types, <r ⊢ (∪ painting print)>. Every signature's requirement
+-- <r ⊢ titled>, ∪ ∩ ∖ of types, <r ⊢ (∪ painting print)>, (array p) or (record :k p …),
+-- <r ⊢ (record :label string)>. Every signature's requirement
 -- is read here, so that a requirement written as more, such as one applied to an earlier
 -- parameter, (has-part-of-type kind), is read in this one place when there are such.
 requirementOf :: S.Expr -> Either OuroError (SourcePos, S.Type)
@@ -287,7 +288,7 @@ requirementOf written = case S.readType written of
     Right ty
         -> Right (S.exprPos written, ty)
     Left other
-        -> lexicalError "A type is a refinement's name, ∪ ∩ ∖ of two types, or (array p): <x ⊢ string>, <x ⊢ (∪ string number)>, <xs ⊢ (array titled)>."
+        -> lexicalError "A type is a refinement's name, ∪ ∩ ∖ of two types, (array p) or (record :k p …): <x ⊢ string>, <x ⊢ (∪ string number)>, <xs ⊢ (array titled)>, <r ⊢ (record :label string)>."
            F.& withBlurb "A refinement of the module is named the same way: <r ⊢ titled>."
            F.& OuroError (S.exprPos other)
            F.& Left

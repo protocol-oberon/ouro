@@ -1036,7 +1036,7 @@ The symbols of logic and sets are read the same way, as the names they stand for
   - Each takes two types; a chain folds left, ~<string ∪ number ∪ boolean>~, and nesting is written.
   - The value is never changed. A value outside is a refinement mismatch against the whole type, written as messages write it, ~(∪ #string #number)~.
   - Only a refinement mismatch means a value is outside a side: an error inside one, a refinement whose own body fails, stays that error, and is never taken for "not in" and tried against the other side.
-  - Anything else in a type, ~(∪ string number boolean)~ or ~(∪ string 1)~, is =SYN0000=, "A type is a refinement's name, ∪ ∩ ∖ of two types, or (array p)". An unknown refinement inside one is reported at the type.
+  - Anything else in a type, ~(∪ string number boolean)~ or ~(∪ string 1)~, is =SYN0000=, "A type is a refinement's name, ∪ ∩ ∖ of two types, (array p) or (record :k p …)". An unknown refinement inside one is reported at the type.
   - The complement, ~(∖ value p)~, waits for =value= as the root.
 
 - ~(array p)~ is an array whose every element is in =p=: ~<xs ⊢ (array number)>~, ~(array (∪ string number))~, ~(array (array number))~.
@@ -1333,7 +1333,7 @@ A function's types are refinements in its header, each written by its name. =⊢
 
 - A binder is a name or a pattern, then =⊢= and one refinement. =<n ∈ number>= or a chain, =<n ⊢ number ⊢ number>=, is =SYN0000=: a binder asserts one refinement.
 
-- A requirement is a type: a refinement's name, or ∪ ∩ ∖ of types, ~<x ⊢ (∪ painting print)>~ (see [[*Asserting and asking: =⊢= and =∈=][asserting and asking]]); anything else is =SYN0000=, "A type is a refinement's name, ∪ ∩ ∖ of two types, or (array p)". Every signature's requirement is read in one place, ~Parser.requirementOf~, by the same reader as =⊢= and =∈=, ~Surface.readType~.
+- A requirement is a type: a refinement's name, ∪ ∩ ∖ of types, ~<x ⊢ (∪ painting print)>~, =(array p)= or =(record :k p …)= (see [[*Asserting and asking: =⊢= and =∈=][asserting and asking]]); anything else is =SYN0000=, "A type is a refinement's name, ∪ ∩ ∖ of two types, (array p) or (record :k p …)". Every signature's requirement is read in one place, ~Parser.requirementOf~, by the same reader as =⊢= and =∈=, ~Surface.readType~.
 
 - Scope: a signature's names are recorded by the parser, not resolved, since a return type is written before the parameters. A parameter's requirement may name only earlier parameters, a result's any of them, once requirements are more than names.
 
@@ -1986,8 +1986,9 @@ data Expr
     | Hole        SourcePos Text            -- ?, ?name or ?..name: a placeholder, or in a case pattern
     | Form        SourcePos [Expr]          -- (...)
 
--- A requirement: a refinement by its name, ∪ ∩ ∖ of types, or (array p)
+-- A requirement: a refinement by its name, ∪ ∩ ∖ of types, (array p) or (record :k p …)
 data Type = Named Refinement | Union Type Type | Inter Type Type | Minus Type Type | ArrayOf Type
+          | RecordOf [(Text, Type)]
 
 -- A refinement by its name: a built-in, or one defined in Ouro
 data Refinement = RUri | RDate | RString | RNumber | RBoolean | RRecord | RArray | RFunction

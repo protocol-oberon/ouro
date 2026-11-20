@@ -582,6 +582,44 @@ operators = Group "Operators: operands and desugaring"
     , ("a refinement over its own parts descends",  compilesToJSON "(define/refinement tree (<n ⊢ record>) (doc \"Its parts are trees.\") <(get-or n () part) ∈ (array tree)>) (graph g (:r <(:part ((:part ()))) ∈ tree>))"
                                                                    "{\"r\": true}")
 
+      -- (record :k p …): a record with at least these keys, each value in its type
+    , ("a record with the keys",                    compilesToJSON "(graph g (:r <(:label \"a\" :part ()) ⊢ (record :label string :part array)>))"
+                                                                   "{\"r\": {\"label\": \"a\", \"part\": []}}")
+    , ("other keys are left alone",                 compilesToJSON "(graph g (:r <(:label \"a\" :note 1) ⊢ (record :label string)>))"
+                                                                   "{\"r\": {\"label\": \"a\", \"note\": 1}}")
+    , ("a value that is no record is refused",      failsWith "expectedRefinement = \"(record :label #string)\""
+                                                              "(graph g (:r <\"x\" ⊢ (record :label string)>))")
+    , ("a missing key is named",                    failsWith "a record without label"
+                                                              "(graph g (:r <(:note 1) ⊢ (record :label string)>))")
+    , ("a value outside its key's type is named",   failsWith "a record whose label is #number"
+                                                              "(graph g (:r <(:label 1) ⊢ (record :label string)>))")
+    , ("the keys are asked in the order written",   failsWith "a record without label"
+                                                              "(graph g (:r <(:part 1) ⊢ (record :label string :part array)>))")
+    , ("(record) is every record",                  compilesToJSON "(graph g (:a <(make record) ⊢ (record)> :b <(:k 1) ∈ (record)> :c <1 ∈ (record)>))"
+                                                                   "{\"a\": {}, \"b\": true, \"c\": false}")
+    , ("nested, and in a union",                    compilesToJSON "(graph g (:a <(:t (:b \"x\")) ∈ (record :t (record :b string))> :b <(:n 1) ∈ (∪ (record :s string) (record :n number))>))"
+                                                                   "{\"a\": true, \"b\": true}")
+    , ("in a binder",                               compilesToJSON "(define/procedure label-of ⊢ string (<r ⊢ (record :label string)>) (get r label)) (graph g (:r (label-of (:label \"a\"))))"
+                                                                   "{\"r\": \"a\"}")
+    , ("as a case head",                            compilesToJSON "(graph g (:r (case (:part ()) ((∈ (record :part array)) \"node\") (otherwise \"leaf\"))))"
+                                                                   "{\"r\": \"node\"}")
+    , ("an error inside a key's check stays",       failsWith "expectedRefinement = \"#record\""
+                                                              (titled <> "(define/refinement broken (<x ⊢ number>) <x ∈ titled>) (graph g (:r <(:k 1) ⊢ (record :k broken)>))"))
+    , ("a refinement through its own keys descends", compilesToJSON "(define/refinement tree (<n ⊢ record>) (doc \"A leaf, or parts that are trees.\") <n ∈ (∪ (record :leaf string) (record :part (array tree)))>) (graph g (:r <(:part ((:leaf \"a\"))) ∈ tree>))"
+                                                                   "{\"r\": true}")
+    , ("a record type is read",                     compilesToJSON "(define/procedure f (<r ⊢ (record :label string :part (array record))>) r) (graph g (:ok 1))"
+                                                                   "{\"ok\": 1}")
+    , ("(record) is read too",                      compilesToJSON "(define/procedure f (<r ⊢ (record)>) r) (graph g (:ok 1))"
+                                                                   "{\"ok\": 1}")
+    , ("a key written twice is no type",            failsWith "A type is a refinement's name"
+                                                              "(define/procedure f (<r ⊢ (record :k string :k number)>) r) (graph g (:ok 1))")
+    , ("reported at the second pair",               failsWith "line 1, col 45"
+                                                              "(define/procedure f (<r ⊢ (record :k string :k number)>) r) (graph g (:ok 1))")
+    , ("a key's type is a type, not a value",       failsWith "A type is a refinement's name"
+                                                              "(define/procedure f (<r ⊢ (record :k 1)>) r) (graph g (:ok 1))")
+    , ("and every item is a pair",                  failsWith "A type is a refinement's name"
+                                                              "(define/procedure f (<r ⊢ (record :k string number)>) r) (graph g (:ok 1))")
+
       -- Comparisons are words. '<' and '>' delimit an infix expression, its '<' written
       -- against the first operand, so each old name is an error that names its word
     , ("< is now lt",                               failsWith "'<' is now 'lt': (lt a b)"

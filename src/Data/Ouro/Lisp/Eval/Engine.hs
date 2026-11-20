@@ -11,7 +11,7 @@ import qualified Data.IntMap.Strict             as IntMap
 import           Data.Function                  ((&))
 import           Data.Functor                   ((<&>))
 import qualified Data.Map                       as Map
-import           Data.Maybe                     (fromMaybe)
+import           Data.Maybe                     (fromMaybe, isJust)
 import           Data.Ouro.Error.Diagnostics    (astCorruption,
                                                  indexOutOfBounds,
                                                  inexhaustiveCase,
@@ -691,19 +691,16 @@ assertType typePos ty payload = do
 
 -- Checks an evaluated value against a type, written at the first position, the value at the
 -- second: the value itself, never converted, or a RefinementMismatch error at the value.
--- A type is a refinement by its name, or one built from them with ∪ ∩ ∖ and (array p).
+-- A type is a refinement by its name, or one built from them with ∪ ∩ ∖, (array p) and
+-- (record :k p …).
 checkRefinement :: S.Type -> SourcePos -> SourcePos -> L.Expr -> EvalM L.Expr
 checkRefinement ty typePos pos evaluatedVal = case ty of
-    S.Named refinement -> case refinement of
-        S.RUri          -> assertUri  evaluatedVal
-        S.RDate         -> assertDate evaluatedVal
-        S.RString       -> isString   evaluatedVal
-        S.RNumber       -> isNumber   evaluatedVal
-        S.RBoolean      -> isBoolean  evaluatedVal
-        S.RRecord       -> isRecord   evaluatedVal
-        S.RArray        -> isArray    evaluatedVal
-        S.RFunction     -> isFn       evaluatedVal
-        S.RDefined name -> isRefinement name evaluatedVal
+    S.Named refinement
+        -> case refinement of
+               S.RDefined name -> checkDefined typePos pos name evaluatedVal
+               builtIn         -> case builtInProblem builtIn evaluatedVal of
+                                      Nothing              -> pure evaluatedVal
+                                      Just (actual, blurb) -> failRefinement (S.renderRefinement builtIn) actual blurb
 
     -- ∪: in a or in b: b is asked only when the value is outside a
     S.Union a b -> inType a >>= \case
@@ -725,9 +722,17 @@ checkRefinement ty typePos pos evaluatedVal = case ty of
 
     -- (array p): an array whose every element is in p: the elements are asked in order, and
     -- the first outside is named
-    S.ArrayOf element -> case L.asArray evaluatedVal of
-        Nothing    -> notIn
-        Just items -> everyElement element (zip [1 :: Int ..] items)
+    S.ArrayOf element
+        -> case L.asArray evaluatedVal of
+               Nothing    -> notIn
+               Just items -> everyElement element (zip [1 :: Int ..] items)
+
+    -- (record :k p …): a record with at least these keys, each value in its type: the keys
+    -- are asked in the order written, and the first missing or outside is named
+    S.RecordOf pairs
+        -> case L.asRecord evaluatedVal of
+               Nothing     -> notIn
+               Just fields -> everyKey fields pairs
 
     where
     -- Whether the value is in a type: True, False where the check is a refinement mismatch, or
@@ -736,7 +741,7 @@ checkRefinement ty typePos pos evaluatedVal = case ty of
     inType :: S.Type -> EvalM (Either L.Expr Bool)
     inType part = inTypeOf part evaluatedVal
 
-    -- The same, of another value: an element of an array
+    -- The same, of another value: an element of an array, or a record's value at a key
     inTypeOf :: S.Type -> L.Expr -> EvalM (Either L.Expr Bool)
     inTypeOf part value = checkRefinement part typePos pos value
         <&> \case
@@ -770,130 +775,138 @@ checkRefinement ty typePos pos evaluatedVal = case ty of
             Right False -> failRefinement (S.renderType ty) ("an array whose element " <> T.pack (show i) <> " is " <> refinementOf item) ""
             Left err    -> pure err
 
-    -- Typed Primitive Helpers, each at the position checkRefinement was given
-    isString v = case v of
-                     Primitive (I.String _) -> pure v
-                     other                  -> failRefinement "#string" (refinementOf other) (typeMismatchBlurb other)
+    -- Each written key present, and its value in the key's type, in order, stopping at the
+    -- first missing or outside; an error inside a key's check stays that error
+    everyKey :: [(Text, L.Expr)] -> [(Text, S.Type)] -> EvalM L.Expr
+    everyKey fields = \case
+        []
+            -> pure evaluatedVal
 
-    isNumber v = case v of
-                     Primitive (I.Number _) -> pure v
-                     other                  -> failRefinement "#number" (refinementOf other) (typeMismatchBlurb other)
+        (key, keyType) : rest
+            -> case lookup key fields of
+                   Nothing    -> failRefinement (S.renderType ty) ("a record without " <> key) ""
+                   Just value -> inTypeOf keyType value >>= \case
+                       Right True  -> everyKey fields rest
+                       Right False -> failRefinement (S.renderType ty) ("a record whose " <> key <> " is " <> refinementOf value) ""
+                       Left err    -> pure err
 
-    isRecord v = case v of
-                     Record _ _           -> pure v
-                     Primitive I.EmptyRec -> pure v
-                     other                -> failRefinement "#record" (refinementOf other) (typeMismatchBlurb other)
-
-    isArray v = case L.asArray v of
-                    Just _  -> pure v
-                    Nothing -> failRefinement "#array" (refinementOf v) (typeMismatchBlurb v)
-
-    isFn v = case v of
-                 FunctionClosure {}      -> pure v
-                 PrimitiveOp _           -> pure v
-                 other                   -> failRefinement "#function" (refinementOf other) (typeMismatchBlurb other)
-
-    isBoolean v = case v of
-                      Primitive (I.Boolean _) -> pure v
-                      other                   -> failRefinement "#boolean" (refinementOf other) (typeMismatchBlurb other)
-
-    -- A refinement defined in Ouro, titled: the value has it if the refinement, called on the
-    -- value, answers true. It is found by the frames around the assertion, as a function is,
-    -- but never among their bindings, since nothing bound by a let or a parameter is a
-    -- refinement. An error inside the refinement, its parameter's contract among them, stays
-    -- the error. It is called where its assertion is written, as the analysis found the call, so
-    -- a refinement asserting itself on a part of its value is accepted. The analysis reports
-    -- a name that names no refinement, so the errors here are not reached from a compile.
-    isRefinement :: Text -> L.Expr -> EvalM L.Expr
-    isRefinement name v = do
-        env <- ask
-        case findFunction name env of
-            Just (fnEnv, M.SomeFunction (M.Function M.RefinementKind fnPos _ doc params result (S.Form _ bodyExprs)))
-                -> do
-                   -- The refinement and the value are bound under names that cannot be
-                   -- written in Ouro, and the refinement is called as any function is, so
-                   -- arity, its signature and the recursion check apply
-                   frame  <- allocValues (\names -> env
-                                                  & L.localScope       .~ names
-                                                  & L.functionRegistry .~ Map.empty
-                                                  & L.parentEnv        .~ Just env)
-                                         typePos
-                                         [("%refinement", FunctionClosure fnEnv (name, fnPos) params result bodyExprs), ("%refinement-value", v)]
-                   answer <- local (const frame) $
-                                 applyFunction typePos [S.Symbol typePos "%refinement", S.Symbol typePos "%refinement-value"]
-                   case answer of
-                       Primitive (I.Boolean True)  -> pure v
-                       Primitive (I.Boolean False) -> failRefinement ("#" <> name) ("a " <> refinementOf v <> " that is not #" <> name) (rule doc)
-                       -- Its body is checked as #boolean, so anything else is an error
-                       other                       -> pure other
-
-            Just (_, M.SomeFunction (M.Function M.ProcedureKind _ _ _ _ _ _))
-                -> notARefinement name
-                   & OuroError typePos
-                   & EvalError
-                   & pure
-
-            Just _
-                -> astCorruption name "Corrupted function registry entry."
-                   & OuroError typePos
-                   & EvalError
-                   & pure
-
-            Nothing
-                -> unknownRefinement name []
-                   & OuroError typePos
-                   & EvalError
-                   & pure
-
-        where
-        -- The refinement's doc, stated as the rule it asserts
-        rule = \case
-            Just text -> "#" <> name <> ": " <> text
-            Nothing   -> "#" <> name <> " has no doc, so the rule it asserts cannot be shown. "
-                      <> "Perhaps write one: (define/refinement " <> name <> " (#record r) (doc \"...\") ...)."
-
-    -- Complex Parsers
-    -- uri and date are refinements of string, as any refinement is a set: a string that is
-    -- in them passes on as itself, never converted
-    assertUri :: L.Expr -> EvalM L.Expr
-    assertUri = \case
-        string@(Primitive (I.String rawText))
-            -> case mkUri rawText of
-                   Left _
-                       -> failRefinement "#uri" "a #string that is not a URI" uriBlurb
-
-                   Right uri
-                       -> case URI.uriScheme (uriParsed uri) of
-                              Just _
-                                  -> pure string
-                              Nothing
-                                  -> failRefinement "#uri" "a #string without a URI scheme" uriBlurb
-
-        otherVal
-            -> failRefinement "#uri" (refinementOf otherVal) uriBlurb
-
-    assertDate :: L.Expr -> EvalM L.Expr
-    assertDate =
-        \case
-         string@(Primitive (I.String rawText))
-             -> case parseISO8601 (T.unpack rawText) of
-                    Just    _ -> pure string
-                    Nothing   -> failRefinement "#date" "a #string that is not a date" dateBlurb
-
-         otherVal
-             -> failRefinement "#date" (refinementOf otherVal) dateBlurb
-
-    uriBlurb  = "A #uri is a #string with a scheme, such as \"https://linked.art/example/1\"."
-    dateBlurb = "A #date is a #string in ISO-8601 form, YYYY-MM-DDTHH:mm:ssZ, such as \"1642-01-01T00:00:00Z\"."
-
-    -- A value without the built-in refinement it is typed with
+    -- A value without the refinement it is checked against, at the value
     failRefinement :: Text -> Text -> Text -> EvalM L.Expr
-    failRefinement expected actual blurb =
-        refinementMismatch expected actual
-        & withBlurb blurb
-        & OuroError pos
-        & EvalError
-        & pure
+    failRefinement expected actual blurb = pure (refinementFailure pos expected actual blurb)
+
+
+-- A refinement defined in Ouro, titled: the value has it if the refinement, called on the
+-- value, answers true. It is found by the frames around the assertion, as a function is,
+-- but never among their bindings, since nothing bound by a let or a parameter is a
+-- refinement. An error inside the refinement, its parameter's contract among them, stays
+-- the error. It is called where its assertion is written, as the analysis found the call, so
+-- a refinement asserting itself on a part of its value is accepted. The analysis reports
+-- a name that names no refinement, so the errors here are not reached from a compile.
+checkDefined :: SourcePos -> SourcePos -> Text -> L.Expr -> EvalM L.Expr
+checkDefined typePos pos name v = do
+    env <- ask
+    case findFunction name env of
+        Just (fnEnv, M.SomeFunction (M.Function M.RefinementKind fnPos _ doc params result (S.Form _ bodyExprs)))
+            -> do
+               -- The refinement and the value are bound under names that cannot be
+               -- written in Ouro, and the refinement is called as any function is, so
+               -- arity, its signature and the recursion check apply
+               frame  <- allocValues (\names -> env
+                                              & L.localScope       .~ names
+                                              & L.functionRegistry .~ Map.empty
+                                              & L.parentEnv        .~ Just env)
+                                     typePos
+                                     [("%refinement", FunctionClosure fnEnv (name, fnPos) params result bodyExprs), ("%refinement-value", v)]
+               answer <- local (const frame) $
+                             applyFunction typePos [S.Symbol typePos "%refinement", S.Symbol typePos "%refinement-value"]
+               case answer of
+                   Primitive (I.Boolean True)  -> pure v
+                   Primitive (I.Boolean False) -> pure (refinementFailure pos ("#" <> name) ("a " <> refinementOf v <> " that is not #" <> name) (rule doc))
+                   -- Its body is checked as #boolean, so anything else is an error
+                   other                       -> pure other
+
+        Just (_, M.SomeFunction (M.Function M.ProcedureKind _ _ _ _ _ _))
+            -> notARefinement name
+               & OuroError typePos
+               & EvalError
+               & pure
+
+        Just _
+            -> astCorruption name "Corrupted function registry entry."
+               & OuroError typePos
+               & EvalError
+               & pure
+
+        Nothing
+            -> unknownRefinement name []
+               & OuroError typePos
+               & EvalError
+               & pure
+
+    where
+    -- The refinement's doc, stated as the rule it asserts
+    rule = \case
+        Just text -> "#" <> name <> ": " <> text
+        Nothing   -> "#" <> name <> " has no doc, so the rule it asserts cannot be shown. "
+                  <> "Perhaps write one: (define/refinement " <> name <> " (#record r) (doc \"...\") ...)."
+
+
+-- A value outside the refinement it is checked against, at the value: what was expected,
+-- what was found, and how to put it right
+refinementFailure :: SourcePos -> Text -> Text -> Text -> L.Expr
+refinementFailure pos expected actual blurb =
+    refinementMismatch expected actual
+    & withBlurb blurb
+    & OuroError pos
+    & EvalError
+
+
+-- Whether a value is of a built-in kind, a refinement checked by the value's shape alone:
+-- string, number, boolean, record, array or function. Any other refinement is no kind.
+hasKind :: S.Refinement -> L.Expr -> Bool
+hasKind refinement value = case (refinement, value) of
+    (S.RString,   Primitive (I.String _))           -> True
+    (S.RNumber,   Primitive (I.Number _))           -> True
+    (S.RBoolean,  Primitive (I.Boolean _))          -> True
+    (S.RRecord,   _) | isJust (L.asRecord value)    -> True
+    (S.RArray,    _) | isJust (L.asArray value)     -> True
+    (S.RFunction, FunctionClosure {})               -> True
+    (S.RFunction, PrimitiveOp _)                    -> True
+    _notOfTheKind                                   -> False
+
+
+-- Why a value is outside a built-in refinement, as what it is and how to put it right, or
+-- Nothing when it is in it: a kind by the value's shape, uri and date by parsing a string,
+-- which passes on as itself, never converted. A refinement defined in Ouro is asked by
+-- calling it, never here.
+builtInProblem :: S.Refinement -> L.Expr -> Maybe (Text, Text)
+builtInProblem refinement value = case (refinement, value) of
+    (S.RUri, Primitive (I.String rawText))
+        -> case mkUri rawText of
+               Left _    -> Just ("a #string that is not a URI", uriBlurb)
+               Right uri -> case URI.uriScheme (uriParsed uri) of
+                                Just _  -> Nothing
+                                Nothing -> Just ("a #string without a URI scheme", uriBlurb)
+
+    (S.RUri, _)
+        -> Just (refinementOf value, uriBlurb)
+
+    (S.RDate, Primitive (I.String rawText))
+        -> case parseISO8601 (T.unpack rawText) of
+               Just _  -> Nothing
+               Nothing -> Just ("a #string that is not a date", dateBlurb)
+
+    (S.RDate, _)
+        -> Just (refinementOf value, dateBlurb)
+
+    (kind, _)
+        | hasKind kind value -> Nothing
+        | otherwise          -> Just (refinementOf value, typeMismatchBlurb value)
+
+
+uriBlurb, dateBlurb :: Text
+uriBlurb  = "A #uri is a #string with a scheme, such as \"https://linked.art/example/1\"."
+dateBlurb = "A #date is a #string in ISO-8601 form, YYYY-MM-DDTHH:mm:ssZ, such as \"1642-01-01T00:00:00Z\"."
 
 
 -- applyFunction.
