@@ -8,7 +8,7 @@
   (:id (example (+ "person/" slug)) :type "Person" :_label label))
 
 ;; A working life, with nothing yet known of it
-(graph person-rembrandt-44
+(document person-rembrandt-44
   (-> (person "rembrandt/44" "Rembrandt")
       (with :context     "https://linked.art/ns/v1/linked-art.json")
       (with :carried_out ((:type "Activity" :classified_as (array vocab/professional-activity))))))

@@ -12,7 +12,7 @@
   (:id (example (+ "event/" slug)) :type "Activity" :_label label))
 
 ;; An auction: its day, with a display title, its auctioneer, and the set of lots it sold
-(graph event-0
+(document event-0
   (-> (activity "0" "Foster Auction of March 1820")
       (with :context              "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as        (array activity-type/auction-event))

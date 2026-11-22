@@ -11,7 +11,7 @@
   (:id (example path) :type type :_label label))
 
 ;; A move from one gallery to another: no title or custody passes
-(graph provenance-wiley-move-1
+(document provenance-wiley-move-1
   (-> (provenance "wiley_move/1" "Movement of Wiley Painting")
       (with :context "https://linked.art/ns/v1/linked-art.json")
       (with :part    ((:type       "Move"

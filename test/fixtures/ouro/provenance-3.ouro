@@ -20,7 +20,7 @@
    :possessed_by  ((:type "Group" :_label owner))))
 
 ;; Two dealers buy a painting together: the whole right of ownership, in two shares
-(graph provenance-3
+(document provenance-3
   (-> (provenance "3" "Purchase of Painting by Two Dealers")
       (with :context "https://linked.art/ns/v1/linked-art.json")
       (with :part    ((:type        "RightAcquisition"

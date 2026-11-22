@@ -295,7 +295,7 @@ ambiguousModule path files =
 
 -- The settings package.ouro can have, in the order they are listed
 buildSettings :: [Text]
-buildSettings = ["sources", "outputs", "graphs", "ouro"]
+buildSettings = ["sources", "outputs", "documents", "ouro"]
 
 
 -- The names package.ouro cannot define, kept for later versions of it
@@ -321,7 +321,7 @@ unsupportedBuildSetting setting =
               (Build (UnsupportedBuildSetting { unsupportedSetting = setting }))
     where
     explanation = case setting of
-                      "graphs"  -> "Until it does, every graph of every module is built: perhaps remove it."
+                      "documents" -> "Until it does, every document of every module is built: perhaps remove it."
                       _other    -> "Perhaps remove it."
 
 
@@ -334,7 +334,7 @@ missingSourceFolder folder looked =
               (Build (MissingSourceFolder { sourceFolder = folder }))
 
 
--- A declaration package.ouro cannot hold, such as "a graph"
+-- A declaration package.ouro cannot hold, such as "a document"
 notPackageData :: Text -> ErrorContext
 notPackageData declaration =
     withBlurb ( "package.ouro holds one function, (define/constant package ...), and nothing else, so it cannot have "
@@ -436,37 +436,37 @@ invalidVersion written =
               (Build (InvalidVersion { writtenVersion = written }))
 
 
--- A graph chosen by :graphs or -g whose module the project does not have, with the project's
+-- A document chosen by :documents or -t whose module the project does not have, with the project's
 -- modules to suggest the closest of
 unknownModule :: Text -> Text -> [Text] -> ErrorContext
 unknownModule selection name modules =
-    withBlurb ( "The project has no module " <> name <> ", so it has no graph " <> selection <> "."
+    withBlurb ( "The project has no module " <> name <> ", so it has no document " <> selection <> "."
              <> closest name modules
               )
               (Build (UnknownModule { unknownSelection = selection }))
 
 
--- A graph chosen by :graphs or -g not written module/graph
+-- A document chosen by :documents or -t not written module/document
 graphSelectionForm :: Text -> ErrorContext
 graphSelectionForm written =
-    withBlurb ( "A graph is chosen by its module and its name, as people/person for the graph person of the module people."
+    withBlurb ( "A document is chosen by its module and its name, as people/person for the document person of the module people."
               )
               (Build (GraphSelectionForm { writtenSelection = written }))
 
 
--- A graph built whose name cannot be a file name on every system
+-- A document built whose name cannot be a file name on every system
 graphFileName :: Text -> Text -> ErrorContext
 graphFileName name problem =
-    withBlurb ( "A graph is written to a file named after it, " <> name <> ".json, so its name must be a file name on every system: "
+    withBlurb ( "A document is written to a file named after it, " <> name <> ".json, so its name must be a file name on every system: "
              <> "it cannot hold a slash or a backslash, nor any of < > : \" | ? *, nor be a name Windows keeps for a device, con, prn, aux, nul, com1 to com9 or lpt1 to lpt9, in any case."
               )
               (Build (GraphFileName { fileNameGraph = name, fileNameProblem = problem }))
 
 
--- Graphs of one module named apart only by case
+-- Documents of one module named apart only by case
 graphNameCase :: Text -> Text -> ErrorContext
 graphNameCase name other =
-    withBlurb ( "Where file names ignore case, as on Windows and macOS, " <> name <> ".json and " <> other <> ".json are one file, so one graph would be written over the other. "
+    withBlurb ( "Where file names ignore case, as on Windows and macOS, " <> name <> ".json and " <> other <> ".json are one file, so one document would be written over the other. "
              <> "Name them apart by more than case."
               )
               (Build (GraphNameCase { caseGraph = name, caseOther = other }))
@@ -682,7 +682,7 @@ warningBlurb = \case
         <> "Perhaps choose another name for the " <> kind <> ", unless replacing '" <> name <> "' is intended."
 
     Lint (NotKebabCase _ _ kebab)
-        -> "Functions and graphs are named in kebab-case, as in other Lisps: lowercase words joined by '-'. "
+        -> "Functions and documents are named in kebab-case, as in other Lisps: lowercase words joined by '-'. "
         <> "Attribute keys and local bindings may be named as their data needs.\n\n"
         <> "Perhaps rename it '" <> kebab <> "'."
 
@@ -691,7 +691,7 @@ warningBlurb = \case
         <> "Perhaps rename the file, unless replacing the bundled module is intended."
 
     Lint (ProcedureOfNoParameters name)
-        -> "A function of no parameters is a constant: named as a value it is its result, worked out once per graph, "
+        -> "A function of no parameters is a constant: named as a value it is its result, worked out once per document, "
         <> "whichever keyword defines it.\n\n"
         <> "Perhaps define it as one: (define/constant " <> name <> " value)."
 

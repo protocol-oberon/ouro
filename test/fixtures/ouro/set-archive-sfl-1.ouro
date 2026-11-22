@@ -10,7 +10,7 @@
   (:id (example (+ "set/" slug)) :type "Set" :_label label))
 
 ;; A grouping within an archival grouping, a member of it
-(graph set-archive-sfl-1
+(document set-archive-sfl-1
   (-> (set "archive_sfl/1" "Stieglitz Family Letters")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as (array set-type/archival-sub-grouping))

@@ -10,7 +10,7 @@
 
 ;; A generated description: classified as generated, made at one instant by a technique, and
 ;; licensed. linked.art gives the two AAT terms for that no labels.
-(graph object-nightwatch-70
+(document object-nightwatch-70
   (-> (object "nightwatch/70" "Night Watch")
       (with :context        "https://linked.art/ns/v1/linked-art.json")
       (with :referred_to_by (array (-> (base/description "Rembrandt's The Night Watch is a dynamic 17th-century group portrait of an Amsterdam militia company ...")

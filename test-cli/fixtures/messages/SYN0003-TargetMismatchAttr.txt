@@ -1,10 +1,10 @@
 Error [SYN0003]: Target Mismatch
-  ┌── │SYN0003-TargetMismatchAttr.ouro:1:25│
+  ┌── │SYN0003-TargetMismatchAttr.ouro:1:28│
   │
-1 │ (graph g (:r (get (1 2) 1.5)))
-  │                         ^
-  │                         Expected: a whole number to index an Array with
-  │                         Got:      1.5
+1 │ (document g (:r (get (1 2) 1.5)))
+  │                            ^
+  │                            Expected: a whole number to index an Array with
+  │                            Got:      1.5
   │ 
 
 An index in a path counts the elements of an Array: (get r part 0) is the first part.

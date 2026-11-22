@@ -21,23 +21,23 @@ import           System.FilePath     (takeExtension)
 -- Main Parser directly returns a Command
 pCommand :: Parser Command
 pCommand = subparser
-         (  command "build"    (info (pBuild    <**> helper) (progDesc "Build the graphs of the project in a folder, with the settings of its package.ouro, if it has one"))
+         (  command "build"    (info (pBuild    <**> helper) (progDesc "Build the documents of the project in a folder, with the settings of its package.ouro, if it has one"))
          <> command "validate" (info (pValidate <**> helper) (progDesc "Validate JSON-LD"))
          )
 
 
 -- The project's folder, the current one when not given, and the graphs chosen, every one when
--- none is: -g people/person, as often as needed
+-- none is: -t people/person, as often as needed
 pBuild :: Parser Command
 pBuild =  Build
       <$> argument str ( metavar "DIR"
                       <> help "The project's folder, the current one when not given"
                       <> value "."
                        )
-      <*> many (strOption ( long "graph"
-                         <> short 'g'
-                         <> metavar "MODULE/GRAPH"
-                         <> help "A graph to build, as people/person; may be given more than once, and replaces :graphs"
+      <*> many (strOption ( long "target"
+                         <> short 't'
+                         <> metavar "MODULE/DOCUMENT"
+                         <> help "A document to build, as people/person; may be given more than once, and replaces :documents"
                           ))
 
 

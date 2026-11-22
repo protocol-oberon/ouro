@@ -1,1 +1,1 @@
-(graph g (:a b :b a))
+(document g (:a b :b a))

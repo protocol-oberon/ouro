@@ -8,7 +8,7 @@
   (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
 
 ;; A print, made by printing from a plate: the plate is an object of its own
-(graph object-ccp-1
+(document object-ccp-1
   (-> (object "ccp/1" "Chaucer's Canterbury Pilgrims")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as (array object-type/print))

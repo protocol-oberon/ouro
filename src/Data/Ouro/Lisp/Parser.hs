@@ -130,7 +130,7 @@ buildModuleRegistry = foldM insertDecl emptyModule
     -- Imports and exports are the first thing in a file: they say what it depends on and offers
     comesFirst m pos =
         when (not (Map.null (m ^. functionRegistry) && Map.null (m ^. graphRegistry))) $
-            lexicalError "Imports and exports come first in a file, before any definition or graph."
+            lexicalError "Imports and exports come first in a file, before any definition or document."
             F.& withBlurb "Perhaps move it to the top of the file, so the file's dependencies and exports are the first thing read."
             F.& OuroError pos
             F.& Left
@@ -215,7 +215,8 @@ pHigherExpression = do
                              Tkn.DefineProcedure  -> pDefn ProcedureKind  pArgs     (Tkn.pos startTkn)
                              Tkn.DefineConstant   -> pDefn ProcedureKind  (pure []) (Tkn.pos startTkn)
                              Tkn.DefineRefinement -> pDefn RefinementKind pArgs     (Tkn.pos startTkn)
-                             Tkn.Graph            -> pGraph (Tkn.pos startTkn)
+                             Tkn.Document         -> pGraph (Tkn.pos startTkn)
+                             Tkn.RetiredGraph     -> pGraph (Tkn.pos startTkn)
                              Tkn.Import           -> pImport (Tkn.pos startTkn)
                              Tkn.Export           -> pExport (Tkn.pos startTkn)
                              other                -> lexicalError ("'" <> Tkn.written other <> "' cannot begin a form at the top level of a file")
@@ -229,7 +230,7 @@ pHigherExpression = do
                  F.& Left
                  F.& lift
     where
-    topLevelForms = "A file's top level holds (define/procedure ...), (define/constant ...), (graph ...), (import ...) and (export ...) forms; anything else is written inside one of them."
+    topLevelForms = "A file's top level holds (define/procedure ...), (define/constant ...), (document ...), (import ...) and (export ...) forms; anything else is written inside one of them."
 
 
 -- (define/procedure name (params) body), or (define/constant name body): a function of no
@@ -297,7 +298,7 @@ requirementOf written = case S.readType written of
 
 pGraph :: SourcePos -> Parser ParsedDecl
 pGraph pos = do
-    name <- expectSymbol "Expected graph name"
+    name <- expectSymbol "Expected document name"
     body <- collectUntil Tkn.CloseParen
 
     -- A graph is one expression, usually a Record

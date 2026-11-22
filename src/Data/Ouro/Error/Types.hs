@@ -408,12 +408,12 @@ data BuildError
       { writtenVersion :: Text
       }
 
-    -- A graph chosen by :graphs or -g whose module the project does not have
+    -- A document chosen by :documents or -t whose module the project does not have
     | UnknownModule
       { unknownSelection :: Text
       }
 
-    -- A graph chosen by :graphs or -g not written module/graph
+    -- A document chosen by :documents or -t not written module/document
     | GraphSelectionForm
       { writtenSelection :: Text
       }
@@ -505,7 +505,7 @@ data LinterWarning
     --
     -- * Remediation: Issue warning. Suggest the kebab-case name.
     | NotKebabCase
-      { declarationKind :: Text -- "function", "refinement" or "graph"
+      { declarationKind :: Text -- "function", "refinement" or "document"
       , declarationName :: Text -- The name as written
       , kebabName       :: Text -- The suggested kebab-case name
       }

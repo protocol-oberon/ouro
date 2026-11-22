@@ -14,7 +14,7 @@
 (define/constant yuag   (node "group/yuag" "Group" "Yale University Art Gallery"))
 
 ;; An exchange: two objects, each passing between the same two owners
-(graph provenance-yuag-stora-1
+(document provenance-yuag-stora-1
   (-> (provenance "yuag_stora/1" "Exchange of Objects")
       (with :context "https://linked.art/ns/v1/linked-art.json")
       (with :part    ((:type                   "Acquisition"

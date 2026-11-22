@@ -27,45 +27,45 @@ import           Utils             (compileG, compiledLike, compilesLike,
 
 baseline :: Group
 baseline = Group "Scoping: baseline (must keep passing)"
-    [ ("forward references within a record",      compilesLike "(graph g (:a b :b 1))"
-                                                               "(graph g (:a 1 :b 1))")
-    , ("nested records see outer bindings",       compilesLike "(graph g (:x 1 :inner (:y x)))"
-                                                               "(graph g (:x 1 :inner (:y 1)))")
+    [ ("forward references within a record",      compilesLike "(document g (:a b :b 1))"
+                                                               "(document g (:a 1 :b 1))")
+    , ("nested records see outer bindings",       compilesLike "(document g (:x 1 :inner (:y x)))"
+                                                               "(document g (:x 1 :inner (:y 1)))")
     , ("function defines shadow without leaking", compilesLike (T.unlines
                                                                  [ "(define/procedure sandbox! () (let ($env \"dev\") (:fenv env)))"
-                                                                 , "(graph g (let ($env \"prod\") (:genv env (inlay (sandbox!)))))" ])
-                                                               "(graph g (:genv \"prod\" :fenv \"dev\"))")
+                                                                 , "(document g (let ($env \"prod\") (:genv env (inlay (sandbox!)))))" ])
+                                                               "(document g (:genv \"prod\" :fenv \"dev\"))")
     , ("functions are first-class values",        compilesLike (T.unlines
                                                                  [ "(define/procedure mk! (v) (:v v))"
                                                                  , "(define/procedure call! (make) ((inlay (make 1)) :d 2))"
-                                                                 , "(graph g (:r (call! mk!)))" ])
-                                                               "(graph g (:r (:v 1 :d 2)))")
-    , ("arguments from a local call-site scope",  compilesLike "(define/procedure f! (a) (:out a)) (graph g (:rec (:loc \"local\" :res (f! loc))))"
-                                                               "(graph g (:rec (:loc \"local\" :res (:out \"local\"))))")
-    , ("functions calling functions",             compilesLike "(define/procedure inner! (b) b) (define/procedure outer! (a) (inner! a)) (graph g (:r (outer! 7)))"
-                                                               "(graph g (:r 7))")
-    , ("unused arguments are not forced early",   compilesLike "(define/procedure k! (a b) a) (graph g (:a (k! 1 b) :b a))"
-                                                               "(graph g (:a 1 :b 1))")
-    , ("case alternatives sugar",                 compilesLike "(graph g (:n \"Proust\" :r (case n ((\"Manet\" \"Proust\") \"person\") (otherwise \"other\"))))"
-                                                               "(graph g (:n \"Proust\" :r \"person\"))")
-    , ("case guards",                             compilesLike "(graph g (:n 150 :r (case n ((gt 100) \"big\") (otherwise \"small\"))))"
-                                                               "(graph g (:n 150 :r \"big\"))")
-    , ("cyclic bindings are an error",            failsToCompile "(graph g (:a b :b a))")
-    , ("wrong arity is an error",                 failsToCompile "(define/procedure id! (a) a) (graph g (:r (id! 1 2)))")
-    , ("direct recursion is an error",            failsToCompile "(define/procedure f! (n) (f! n)) (graph g (:r (f! 1)))")
-    , ("let values stay private to get",          failsToCompile "(graph g (:rec (let ($hidden 5) (:a 1)) :r (get rec hidden)))")
+                                                                 , "(document g (:r (call! mk!)))" ])
+                                                               "(document g (:r (:v 1 :d 2)))")
+    , ("arguments from a local call-site scope",  compilesLike "(define/procedure f! (a) (:out a)) (document g (:rec (:loc \"local\" :res (f! loc))))"
+                                                               "(document g (:rec (:loc \"local\" :res (:out \"local\"))))")
+    , ("functions calling functions",             compilesLike "(define/procedure inner! (b) b) (define/procedure outer! (a) (inner! a)) (document g (:r (outer! 7)))"
+                                                               "(document g (:r 7))")
+    , ("unused arguments are not forced early",   compilesLike "(define/procedure k! (a b) a) (document g (:a (k! 1 b) :b a))"
+                                                               "(document g (:a 1 :b 1))")
+    , ("case alternatives sugar",                 compilesLike "(document g (:n \"Proust\" :r (case n ((\"Manet\" \"Proust\") \"person\") (otherwise \"other\"))))"
+                                                               "(document g (:n \"Proust\" :r \"person\"))")
+    , ("case guards",                             compilesLike "(document g (:n 150 :r (case n ((gt 100) \"big\") (otherwise \"small\"))))"
+                                                               "(document g (:n 150 :r \"big\"))")
+    , ("cyclic bindings are an error",            failsToCompile "(document g (:a b :b a))")
+    , ("wrong arity is an error",                 failsToCompile "(define/procedure id! (a) a) (document g (:r (id! 1 2)))")
+    , ("direct recursion is an error",            failsToCompile "(define/procedure f! (n) (f! n)) (document g (:r (f! 1)))")
+    , ("let values stay private to get",          failsToCompile "(document g (:rec (let ($hidden 5) (:a 1)) :r (get rec hidden)))")
     , ("local functions shadow top-level ones",   compilesLike (T.unlines
                                                                  [ "(define/procedure helper () \"top\")"
                                                                  , "(define/procedure caller! () (let ($helper (fn () \"local\")) (:r (helper))))"
-                                                                 , "(graph g (:res (caller!)))" ])
-                                                               "(graph g (:res (:r \"local\")))")
+                                                                 , "(document g (:res (caller!)))" ])
+                                                               "(document g (:res (:r \"local\")))")
     , ("an expression can be replaced by its value", prop_substitution)
     ]
 
 lexicalRecords :: Group
 lexicalRecords = Group "Scoping: lexical records, shared bindings"
-    [ ("bindings evaluate in their own scope",    compilesLike "(graph g (:x \"outer\" :y x :inner (:x \"inner\" :z y)))"
-                                                               "(graph g (:x \"outer\" :y \"outer\" :inner (:x \"inner\" :z \"outer\")))")
+    [ ("bindings evaluate in their own scope",    compilesLike "(document g (:x \"outer\" :y x :inner (:x \"inner\" :z y)))"
+                                                               "(document g (:x \"outer\" :y \"outer\" :inner (:x \"inner\" :z \"outer\")))")
     , ("each binding is evaluated once",          prop_sharedChain)
     ]
 
@@ -73,12 +73,12 @@ callSiteArguments :: Group
 callSiteArguments = Group "Scoping: arguments evaluate at the call site"
     [ ("callee defines do not capture arguments", compilesLike (T.unlines
                                                                  [ "(define/procedure f! (a) (let ($x \"inside\") (:out a)))"
-                                                                 , "(graph g (:x \"outside\" :res (f! x)))" ])
-                                                               "(graph g (:x \"outside\" :res (:out \"outside\")))")
-    , ("callee parameters do not capture arguments", compilesLike "(define/procedure f! (a b) b) (graph g (:a \"caller\" :r (f! 1 a)))"
-                                                               "(graph g (:a \"caller\" :r \"caller\"))")
-    , ("nesting a call is not recursion",         compilesLike "(define/procedure id! (a) a) (graph g (:r (id! (id! 1))))"
-                                                               "(graph g (:r 1))")
+                                                                 , "(document g (:x \"outside\" :res (f! x)))" ])
+                                                               "(document g (:x \"outside\" :res (:out \"outside\")))")
+    , ("callee parameters do not capture arguments", compilesLike "(define/procedure f! (a b) b) (document g (:a \"caller\" :r (f! 1 a)))"
+                                                               "(document g (:a \"caller\" :r \"caller\"))")
+    , ("nesting a call is not recursion",         compilesLike "(define/procedure id! (a) a) (document g (:r (id! (id! 1))))"
+                                                               "(document g (:r 1))")
     ]
 
 lexicalFunctions :: Group
@@ -87,49 +87,49 @@ lexicalFunctions = Group "Scoping: functions resolve names where they are define
                                                                  [ "(define/procedure helper () \"defined next to uses-helper!\")"
                                                                  , "(define/procedure uses-helper! () (helper))"
                                                                  , "(define/procedure caller! () (let ($helper (fn () \"caller's own helper\")) (:r (uses-helper!))))"
-                                                                 , "(graph g (:res (caller!)))" ])
-                                                               "(graph g (:res (:r \"defined next to uses-helper!\")))")
+                                                                 , "(document g (:res (caller!)))" ])
+                                                               "(document g (:res (:r \"defined next to uses-helper!\")))")
     ]
 
 valuePatterns :: Group
 valuePatterns = Group "Scoping: value patterns, no quoting"
-    [ ("array head and rest",                     compilesLike "(graph g (:t (1 2 3) :r (case t ((?head ?..rest) rest) (otherwise t))))"
-                                                               "(graph g (:t (1 2 3) :r (2 3)))")
-    , ("patterns see values, not code",           compilesLike "(graph g (:t ((+ 2 4) 3) :r (case t ((6 ?x) x) (otherwise 0))))"
-                                                               "(graph g (:t (6 3) :r 3))")
-    , ("nested literal arrays match exactly",     compilesLike "(graph g (:t ((1 2) 3) :r (case t (((1 2) ?x) x) (otherwise 0))))"
-                                                               "(graph g (:t ((1 2) 3) :r 3))")
+    [ ("array head and rest",                     compilesLike "(document g (:t (1 2 3) :r (case t ((?head ?..rest) rest) (otherwise t))))"
+                                                               "(document g (:t (1 2 3) :r (2 3)))")
+    , ("patterns see values, not code",           compilesLike "(document g (:t ((+ 2 4) 3) :r (case t ((6 ?x) x) (otherwise 0))))"
+                                                               "(document g (:t (6 3) :r 3))")
+    , ("nested literal arrays match exactly",     compilesLike "(document g (:t ((1 2) 3) :r (case t (((1 2) ?x) x) (otherwise 0))))"
+                                                               "(document g (:t ((1 2) 3) :r 3))")
     , ("record patterns match by key",            compilesLike (person "(case p ((:type \"Person\" :_label ?l) l) (otherwise \"none\"))")
                                                                (personWith "\"Manet\""))
     , ("record patterns are open",                compilesLike (person "(case p ((:type \"Person\") \"person\") (otherwise \"none\"))")
                                                                (personWith "\"person\""))
     , ("record rest binds unmentioned attribute pairs", compilesLike (person "(case p ((:type ? ?..rest) rest) (otherwise p))")
                                                                (personWith "(:_label \"Manet\" :id \"https://linked.art/example/person/manet\")"))
-    , ("symbols in patterns compare by value",    compilesLike "(graph g (:pt \"Person\" :p (:type \"Person\") :r (case p ((:type pt) \"yes\") (otherwise \"no\"))))"
-                                                               "(graph g (:pt \"Person\" :p (:type \"Person\") :r \"yes\"))")
-    , ("patterns work on function results",       compilesLike "(define/procedure mk! (n) (:a n)) (graph g (:r (case (mk! 1) ((:a ?v) v) (otherwise 0))))"
-                                                               "(graph g (:r 1))")
+    , ("symbols in patterns compare by value",    compilesLike "(document g (:pt \"Person\" :p (:type \"Person\") :r (case p ((:type pt) \"yes\") (otherwise \"no\"))))"
+                                                               "(document g (:pt \"Person\" :p (:type \"Person\") :r \"yes\"))")
+    , ("patterns work on function results",       compilesLike "(define/procedure mk! (n) (:a n)) (document g (:r (case (mk! 1) ((:a ?v) v) (otherwise 0))))"
+                                                               "(document g (:r 1))")
     -- These compile today; each must fail once quoting is removed
-    , ("quote is no longer a special form",       failsToCompile "(graph g (:a (eval (quote (+ 1 2)))))")
-    , ("quoting a binding is no longer possible", failsToCompile "(graph g (:a (eval (quote b)) :b 1))")
-    , ("the quote prefix is no longer syntax",    failsToCompile "(graph g (:a (eval '(+ 1 2))))")
+    , ("quote is no longer a special form",       failsToCompile "(document g (:a (eval (quote (+ 1 2)))))")
+    , ("quoting a binding is no longer possible", failsToCompile "(document g (:a (eval (quote b)) :b 1))")
+    , ("the quote prefix is no longer syntax",    failsToCompile "(document g (:a (eval '(+ 1 2))))")
     ]
 
 valueGetAndErrors :: Group
 valueGetAndErrors = Group "Scoping: value-based get, no hidden errors"
-    [ ("get through a function result",           compilesLike "(define/procedure mk! (n) (:a n)) (graph g (:rec (mk! 1) :r (get rec a)))"
-                                                               "(graph g (:rec (:a 1) :r 1))")
-    , ("get through a case result",               compilesLike "(graph g (:f 1 :rec (case f (1 (:a \"one\")) (otherwise (:a \"other\"))) :r (get rec a)))"
-                                                               "(graph g (:f 1 :rec (:a \"one\") :r \"one\"))")
-    , ("get through an inlay",                    compilesLike "(define/procedure mk! (n) (:a n)) (graph g (:rec (:inner (:x 0 (inlay (mk! 1)))) :r (get rec inner a)))"
-                                                               "(graph g (:rec (:inner (:x 0 :a 1)) :r 1))")
-    , ("errors in unused let bindings are reported", failsToCompile "(graph g (let ($unused (/ 1 0)) (:a 1)))")
-    , ("errors in unused arguments are reported", failsToCompile "(define/procedure k! (a b) a) (graph g (:a (k! 1 (/ 1 0))))")
+    [ ("get through a function result",           compilesLike "(define/procedure mk! (n) (:a n)) (document g (:rec (mk! 1) :r (get rec a)))"
+                                                               "(document g (:rec (:a 1) :r 1))")
+    , ("get through a case result",               compilesLike "(document g (:f 1 :rec (case f (1 (:a \"one\")) (otherwise (:a \"other\"))) :r (get rec a)))"
+                                                               "(document g (:f 1 :rec (:a \"one\") :r \"one\"))")
+    , ("get through an inlay",                    compilesLike "(define/procedure mk! (n) (:a n)) (document g (:rec (:inner (:x 0 (inlay (mk! 1)))) :r (get rec inner a)))"
+                                                               "(document g (:rec (:inner (:x 0 :a 1)) :r 1))")
+    , ("errors in unused let bindings are reported", failsToCompile "(document g (let ($unused (/ 1 0)) (:a 1)))")
+    , ("errors in unused arguments are reported", failsToCompile "(define/procedure k! (a b) a) (document g (:a (k! 1 (/ 1 0))))")
     ]
 
 cleanup :: Group
 cleanup = Group "Scoping: cleanup"
-    [ ("comparing functions is a type error",     failsToCompile "(define/procedure id! (a) a) (graph g (:s (eq id! id!)))")
+    [ ("comparing functions is a type error",     failsToCompile "(define/procedure id! (a) a) (document g (:s (eq id! id!)))")
     ]
 
 
@@ -139,7 +139,7 @@ cleanup = Group "Scoping: cleanup"
 prop_substitution :: Property
 prop_substitution = property $ do
     (src, value) <- forAll $ Gen.filter (\(_, v) -> abs v <= 2 ^ (53 :: Int)) genArith
-    compiledLike ("(graph g (:a " <> src <> "))") ("(graph g (:a " <> tshow value <> "))")
+    compiledLike ("(document g (:a " <> src <> "))") ("(document g (:a " <> tshow value <> "))")
 
     where
     genArith :: Gen (Text, Integer)
@@ -157,7 +157,7 @@ prop_sharedChain :: Property
 prop_sharedChain = withTests 1 . property $ do
     let n      = 40 :: Int
         link i = ":a" <> tshow i <> " (+ a" <> tshow (i - 1) <> " a" <> tshow (i - 1) <> ") "
-        src    = "(graph g (:a0 1 " <> T.concat (map link [1 .. n]) <> "))"
+        src    = "(document g (:a0 1 " <> T.concat (map link [1 .. n]) <> "))"
 
     result <- evalIO . timeout 5000000 $
                   case compileG src of
@@ -173,10 +173,10 @@ prop_sharedChain = withTests 1 . property $ do
 -- Helpers
 -- A Manet record bound to 'p', with 'r' computed by the given expression
 person :: Text -> Text
-person rExpr = "(graph g (:p " <> manet <> " :r " <> rExpr <> "))"
+person rExpr = "(document g (:p " <> manet <> " :r " <> rExpr <> "))"
 
 personWith :: Text -> Text
-personWith rValue = "(graph g (:p " <> manet <> " :r " <> rValue <> "))"
+personWith rValue = "(document g (:p " <> manet <> " :r " <> rValue <> "))"
 
 manet :: Text
 manet = "(:id \"https://linked.art/example/person/manet\" :type \"Person\" :_label \"Manet\")"

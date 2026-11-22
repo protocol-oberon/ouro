@@ -1,10 +1,10 @@
 Error [BLD0006]: Not Package Data
   ┌── │test-cli/fixtures/messages/BLD0006-NotPackageData/package.ouro:2:1│
   │
-2 │ (graph g (:a 1))
+2 │ (document g (:a 1))
   │ ^
-  │ Found: a graph
+  │ Found: a document
   │ 
 
 package.ouro holds one function, (define/constant package ...), and nothing else, so it cannot have a
-graph. Perhaps move it into a module under :sources.
+document. Perhaps move it into a module under :sources.

@@ -9,7 +9,7 @@
 
 ;; An uncertain height: a value with an upper and a lower limit, how it is shown, and who
 ;; measured it. linked.art gives the object no label.
-(graph object-8
+(document object-8
   (:context  "https://linked.art/ns/v1/linked-art.json"
    :id       (example "object/8")
    :type     "HumanMadeObject"

@@ -15,7 +15,7 @@
   (:type "Production" :technique (array technique) :carried_out_by (array artist)))
 
 ;; A work of two artists, each with a technique of their own: the making has a part for each
-(graph object-run-1
+(document object-run-1
   (-> (object "run/1" "RUN")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as (array object-type/painting))

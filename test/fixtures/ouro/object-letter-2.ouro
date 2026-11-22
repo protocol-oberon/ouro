@@ -13,7 +13,7 @@
 
 ;; The letter's place in the order of its archive: a sort value, assigned under the influence of
 ;; the set it sorts within
-(graph object-letter-2
+(document object-letter-2
   (-> (object "letter/2" "Obermeyer 1920")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :identified_by (array (base/name vocab/primary-name "Obermeyer, Bertha (1920)")

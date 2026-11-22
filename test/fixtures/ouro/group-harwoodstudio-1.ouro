@@ -9,7 +9,7 @@
   (:id (example (+ "group/" slug)) :type "Group" :_label label))
 
 ;; A studio, formed under the influence of its master
-(graph group-harwoodstudio-1
+(document group-harwoodstudio-1
   (-> (group "harwoodstudio/1" "Studio of Francis Harwood")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as (array group-type/studio))

@@ -10,7 +10,7 @@
   (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
 
 ;; A member of an auction lot
-(graph object-spring-20
+(document object-spring-20
   (-> (object "spring/20" "Spring")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as (array object-type/painting))

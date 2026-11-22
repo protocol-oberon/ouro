@@ -9,7 +9,7 @@
   (:id (example (+ "concept/" slug)) :type "Type" :_label label))
 
 ;; A local concept: broader than another, equivalent to an external one, made from two others
-(graph concept-1
+(document concept-1
   (-> (concept "1" "History of France")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :identified_by (array (base/name vocab/primary-name "History of France")))

@@ -9,7 +9,7 @@
   (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
 
 ;; A height, and who measured it, as part of what
-(graph object-nightwatch-9
+(document object-nightwatch-9
   (-> (object "nightwatch/9" "Night Watch by Rembrandt")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as (array object-type/painting))

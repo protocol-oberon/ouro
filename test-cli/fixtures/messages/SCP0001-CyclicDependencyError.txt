@@ -1,11 +1,10 @@
 Error [SCP0001]: Circular Reference
-  ┌── │SCP0001-CyclicDependencyError.ouro:1:14│
+  ┌── │SCP0001-CyclicDependencyError.ouro:1:17│
   │
-1 │ (graph g (:a b :b a))
-  │              ^
-  │              Expected: an independent expression or an outer-scope identifier
-  │              Got:      b
+1 │ (document g (:a b :b a))
+  │                 ^
+  │                 Expected: an independent expression or an outer-scope identifier
+  │                 Got:      b
   │ 
 
-An infinite lookup loop was detected. The identifier 'b' directly or indirectly references itself during
-evaluation.
+An infinite lookup loop was detected. The identifier 'b' directly or indirectly references itself during evaluation.

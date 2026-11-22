@@ -1107,7 +1107,7 @@ validatePath = traverse $ \case
     S.Form aPos (S.Symbol _ "%attr" : S.Literal _ (S.Str rawAttr) : _)
         -> targetMismatch "a lookup Symbol path component" (":" <> rawAttr)
            & withBlurb ( "The 'get' path operator expects bare lookup symbols (e.g., properties) "
-                      <> "to traverse target graph layers. You provided a colon-prefixed attribute identifier.\n\n"
+                      <> "to walk into the value's records. You provided a colon-prefixed attribute identifier.\n\n"
                       <> "Perhaps remove the leading colon operator from '" <> ":" <> rawAttr <> "' to "
                       <> "transition the token from a property key to an active navigation handle."
                        )

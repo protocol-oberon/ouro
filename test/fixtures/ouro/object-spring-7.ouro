@@ -9,7 +9,7 @@
   (:id (example (+ "place/" slug)) :type "Place" :_label label))
 
 ;; Where the painting is now: one place, not a set of them
-(graph object-spring-7
+(document object-spring-7
   (-> (object "spring/7" "Jeanne (Spring) by Manet")
       (with :context          "https://linked.art/ns/v1/linked-art.json")
       (with :current_location (place "W204" "Gallery W204"))))

@@ -16,7 +16,7 @@
 
 ;; A purchase with a commission: one payment to the seller, another to the auction house.
 ;; linked.art gives the first amount's currency its notation and not the second's.
-(graph provenance-fixme-1
+(document provenance-fixme-1
   (-> (provenance "fixme/1" "Purchase of Sculpture with Commission")
       (with :context "https://linked.art/ns/v1/linked-art.json")
       (with :part    (array (provenance/payment (provenance/money 900 iso/us-dollars) buyer (:type "Person" :_label "Seller"))

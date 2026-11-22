@@ -8,7 +8,7 @@
   (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
 
 ;; Classified by a term of linked.art's own vocabulary, equivalent to the AAT's
-(graph object-spring-31
+(document object-spring-31
   (-> (object "spring/31" "Jeanne (Spring) by Manet")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as ((:id         #uri "https://linked.art/vocab/terms/painting"

@@ -10,7 +10,7 @@
 
 ;; A span with a display name of its own, a record known by its id. linked.art ends the span in
 ;; 1842, kept here as it publishes it.
-(graph object-nightwatch-43
+(document object-nightwatch-43
   (-> (object "nightwatch/43" "Night Watch by Rembrandt")
       (with :context     "https://linked.art/ns/v1/linked-art.json")
       (with :produced_by (:type     "Production"

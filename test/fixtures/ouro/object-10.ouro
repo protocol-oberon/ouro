@@ -11,7 +11,7 @@
 
 ;; A title in two languages, with its subtitle as a part; linked.art writes English without its
 ;; code in the subtitle, and gives the object no label
-(graph object-10
+(document object-10
   (:context       "https://linked.art/ns/v1/linked-art.json"
    :id            (example "object/10")
    :type          "HumanMadeObject"

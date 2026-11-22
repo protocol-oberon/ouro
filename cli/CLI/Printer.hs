@@ -336,16 +336,16 @@ splitErrorContext = \case
            )
 
     Scope (NonExistentGraph trgt sug)
-        -> ("Non Existent Graph"
-           , [ labeled (pretty $ "Compilation target graph: '" <> trgt <> "' cannot be found") ""
-             , labeled (pretty $ "Perhaps you meant to target the graph: '" <> sug <> "'") ""
+        -> ("Non Existent Document"
+           , [ labeled (pretty $ "Compilation target document: '" <> trgt <> "' cannot be found") ""
+             , labeled (pretty $ "Perhaps you meant to target the document: '" <> sug <> "'") ""
              ]
            , Nothing
            )
 
     Scope (NoCompilationTarget filepath)
         -> ("No Compilation Target"
-           , [ labeled (pretty $ "The module: " <> filepath <> " lacks a compilation target (Graph)") ""]
+           , [ labeled (pretty $ "The module: " <> filepath <> " lacks a compilation target (Document)") ""]
            , Nothing
            )
 
@@ -414,8 +414,8 @@ splitErrorContext = \case
            )
 
     Build (NoBuildGraph found)
-        -> ("No Build Graph"
-           , [ labeled "Graph: " (pretty (fromMaybe "none" found)) ]
+        -> ("No Build Document"
+           , [ labeled "Document: " (pretty (fromMaybe "none" found)) ]
            , Nothing
            )
 
@@ -499,27 +499,27 @@ splitErrorContext = \case
 
     Build (UnknownModule selection)
         -> ("Unknown Module"
-           , [ labeled "Graph: " (pretty selection) ]
+           , [ labeled "Document: " (pretty selection) ]
            , Nothing
            )
 
     Build (GraphSelectionForm written)
-        -> ("Graph Selection Form"
+        -> ("Document Selection Form"
            , [ labeled "Written: " (pretty written) ]
            , Nothing
            )
 
     Build (GraphFileName name problem)
-        -> ("Graph File Name"
-           , [ labeled "Graph:   " (pretty name)
-             , labeled "Problem: " (pretty problem)
+        -> ("Document File Name"
+           , [ labeled "Document: " (pretty name)
+             , labeled "Problem:  " (pretty problem)
              ]
            , Nothing
            )
 
     Build (GraphNameCase name other)
-        -> ("Graph Name Case"
-           , [ labeled "Graph:     " (pretty name)
+        -> ("Document Name Case"
+           , [ labeled "Document:  " (pretty name)
              , labeled "Same file: " (pretty other)
              ]
            , Nothing

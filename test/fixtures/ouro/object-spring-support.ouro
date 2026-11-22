@@ -9,7 +9,7 @@
   (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
 
 ;; The painting's support, as a part of its own, with what it is made of
-(graph object-spring-support
+(document object-spring-support
   (-> (object "spring/support" "Support of Spring")
       (with :context        "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as  (array part-type/support))

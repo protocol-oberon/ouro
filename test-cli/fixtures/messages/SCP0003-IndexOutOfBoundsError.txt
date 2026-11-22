@@ -1,8 +1,8 @@
 Error [SCP0003]: Index Out of Bounds
-  ┌── │SCP0003-IndexOutOfBoundsError.ouro:1:22│
+  ┌── │SCP0003-IndexOutOfBoundsError.ouro:1:25│
   │
-1 │ (graph g (:r (get () 5)))
-  │                      ^
-  │                      The function 'get' attempted to look up an element with an index: 5
-  │                      But it was out of bounds as the target Array has a length of: 0
+1 │ (document g (:r (get () 5)))
+  │                         ^
+  │                         The function 'get' attempted to look up an element with an index: 5
+  │                         But it was out of bounds as the target Array has a length of: 0
   │ 

@@ -1,2 +1,2 @@
 (import latin)
-(graph g (:r (latin/f)))
+(document g (:r (latin/f)))

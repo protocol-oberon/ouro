@@ -8,7 +8,7 @@
   (:id (example (+ "visual/" slug)) :type "VisualItem" :_label label))
 
 ;; A kind of thing a painting shows, not a particular one: a parasol
-(graph visual-spring-5
+(document visual-spring-5
   (-> (visual "spring/5" "Visual Content of Spring")
       (with :context                     "https://linked.art/ns/v1/linked-art.json")
       (with :represents_instance_of_type (array (base/aat "300046218" "Parasol")))))

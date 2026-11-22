@@ -11,7 +11,7 @@
 
 ;; Three days of auction, begun some day in the first twenty of August and ended some day in
 ;; the last three weeks of September
-(graph event-stowe-1
+(document event-stowe-1
   (-> (activity "stowe/1" "Auction of Stowe House")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as (array activity-type/auction-event))

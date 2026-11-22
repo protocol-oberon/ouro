@@ -9,7 +9,7 @@
   (:id (example (+ "person/" slug)) :type "Person" :_label label))
 
 ;; An activity a person took part in without carrying it out: their own burial
-(graph person-rembrandt-14
+(document person-rembrandt-14
   (-> (person "rembrandt/14" "Rembrandt")
       (with :context         "https://linked.art/ns/v1/linked-art.json")
       (with :participated_in ((:type          "Activity"

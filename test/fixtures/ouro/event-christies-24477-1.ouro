@@ -13,7 +13,7 @@
   (:id (example (+ "event/" slug)) :type "Activity" :_label label))
 
 ;; An evening sale: it begins at five, so its span is written out
-(graph event-christies-24477-1
+(document event-christies-24477-1
   (-> (activity "christies_24477/1" "Impressionist Sale")
       (with :context        "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as  (array activity-type/auction-event))

@@ -1,12 +1,12 @@
-Error [BLD0019]: Graph File Name
+Error [BLD0019]: Document File Name
   ┌── │test-cli/fixtures/messages/BLD0019-GraphFileName/main.ouro:1:1│
   │
-1 │ (graph con
+1 │ (document con
   │ ^
-  │ Graph:   con
-  │ Problem: is a name Windows keeps for a device
+  │ Document: con
+  │ Problem:  is a name Windows keeps for a device
   │ 
 
-A graph is written to a file named after it, con.json, so its name must be a file name on every
+A document is written to a file named after it, con.json, so its name must be a file name on every
 system: it cannot hold a slash or a backslash, nor any of < > : " | ? *, nor be a name Windows keeps
 for a device, con, prn, aux, nul, com1 to com9 or lpt1 to lpt9, in any case.

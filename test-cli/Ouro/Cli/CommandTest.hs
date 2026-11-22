@@ -26,14 +26,14 @@ import           Utils              (fixedGap)
 builds :: Group
 builds = Group "CLI: ouro build"
     [ ("every graph is written, and counted",       withTests 1 . property $ do
-                                                        dir <- evalIO (writeFolder "build-success" [ ("main.ouro", "(graph g (:r 1))") ])
+                                                        dir <- evalIO (writeFolder "build-success" [ ("main.ouro", "(document g (:r 1))") ])
                                                         run <- evalIO (ouro dir ["build"])
                                                         exitCode run === ExitSuccess
-                                                        assert ("Build Success:       1 graphs" `T.isInfixOf` plain (out run))
+                                                        assert ("Build Success:       1 documents" `T.isInfixOf` plain (out run))
                                                         json <- evalIO (readText (dir </> "out" </> "main" </> "g.json"))
                                                         squash json === "{\"r\":1}")
     , ("a failure writes nothing, its errors on stderr", withTests 1 . property $ do
-                                                        dir <- evalIO (writeFolder "build-failure" [ ("main.ouro", "(graph g (:r (get () 5)))") ])
+                                                        dir <- evalIO (writeFolder "build-failure" [ ("main.ouro", "(document g (:r (get () 5)))") ])
                                                         run <- evalIO (ouro dir ["build"])
                                                         exitCode run === ExitFailure 1
                                                         assert ("Build Failed: nothing was written, due to compiler errors." `T.isInfixOf` plain (out run))
@@ -42,54 +42,54 @@ builds = Group "CLI: ouro build"
                                                         written <- evalIO (doesDirectoryExist (dir </> "out"))
                                                         written === False)
     , ("package.ouro's settings are used",          withTests 1 . property $ do
-                                                        dir <- evalIO (writeFolder "build-package" [ ("package.ouro", "(define/constant package (:sources \"src\" :outputs \"dist\"))"), ("src/main.ouro", "(graph g (:r 1))") ])
+                                                        dir <- evalIO (writeFolder "build-package" [ ("package.ouro", "(define/constant package (:sources \"src\" :outputs \"dist\"))"), ("src/main.ouro", "(document g (:r 1))") ])
                                                         run <- evalIO (ouro dir ["build"])
                                                         exitCode run === ExitSuccess
                                                         json <- evalIO (readText (dir </> "dist" </> "main" </> "g.json"))
                                                         squash json === "{\"r\":1}")
     , ("a folder that does not exist, on stderr",   withTests 1 . property $ do
-                                                        dir <- evalIO (writeFolder "build-no-folder" [ ("main.ouro", "(graph g (:r 1))") ])
+                                                        dir <- evalIO (writeFolder "build-no-folder" [ ("main.ouro", "(document g (:r 1))") ])
                                                         run <- evalIO (ouro dir ["build", "typo"])
                                                         exitCode run === ExitFailure 1
                                                         assert ("No folder typo" `T.isInfixOf` plain (err run))
                                                         written <- evalIO (doesDirectoryExist (dir </> "out"))
                                                         written === False)
-    , ("-g builds only the graphs named",           withTests 1 . property $ do
-                                                        dir <- evalIO (writeFolder "build-chosen" [ ("a.ouro", "(graph x (:r 1))\n(graph y (:r 2))"), ("b.ouro", "(graph g (:r (get () 5)))") ])
-                                                        run <- evalIO (ouro dir ["build", "-g", "a/y"])
+    , ("-t builds only the graphs named",           withTests 1 . property $ do
+                                                        dir <- evalIO (writeFolder "build-chosen" [ ("a.ouro", "(document x (:r 1))\n(document y (:r 2))"), ("b.ouro", "(document g (:r (get () 5)))") ])
+                                                        run <- evalIO (ouro dir ["build", "-t", "a/y"])
                                                         exitCode run === ExitSuccess
-                                                        assert ("Build Success:       1 graphs" `T.isInfixOf` plain (out run))
+                                                        assert ("Build Success:       1 documents" `T.isInfixOf` plain (out run))
                                                         written <- evalIO (traverse doesFileExist [dir </> "out" </> "a" </> "y.json", dir </> "out" </> "a" </> "x.json"])
                                                         written === [True, False])
-    , ("-g with a graph that does not exist suggests the closest", withTests 1 . property $ do
-                                                        dir <- evalIO (writeFolder "build-chosen-graph" [ ("a.ouro", "(graph person (:r 1))") ])
-                                                        run <- evalIO (ouro dir ["build", "-g", "a/persn"])
+    , ("-t with a graph that does not exist suggests the closest", withTests 1 . property $ do
+                                                        dir <- evalIO (writeFolder "build-chosen-graph" [ ("a.ouro", "(document person (:r 1))") ])
+                                                        run <- evalIO (ouro dir ["build", "-t", "a/persn"])
                                                         exitCode run === ExitFailure 1
                                                         assert ("Error [SCP0004]" `T.isInfixOf` plain (err run))
                                                         assert ("'person'" `T.isInfixOf` plain (err run)))
-    , ("-g with a module that does not exist suggests the closest", withTests 1 . property $ do
-                                                        dir <- evalIO (writeFolder "build-chosen-module" [ ("people.ouro", "(graph person (:r 1))") ])
-                                                        run <- evalIO (ouro dir ["build", "-g", "peopel/person"])
+    , ("-t with a module that does not exist suggests the closest", withTests 1 . property $ do
+                                                        dir <- evalIO (writeFolder "build-chosen-module" [ ("people.ouro", "(document person (:r 1))") ])
+                                                        run <- evalIO (ouro dir ["build", "-t", "peopel/person"])
                                                         exitCode run === ExitFailure 1
                                                         assert ("Error [BLD0017]" `T.isInfixOf` plain (err run))
-                                                        assert ("-g peopel/person" `T.isInfixOf` plain (err run))
+                                                        assert ("-t peopel/person" `T.isInfixOf` plain (err run))
                                                         assert ("Perhaps you meant 'people'" `T.isInfixOf` plain (err run)))
     , ("ouro compile is no longer a command",       withTests 1 . property $ do
-                                                        dir <- evalIO (writeFolder "compile-gone" [ ("m.ouro", "(graph g (:r 1))") ])
+                                                        dir <- evalIO (writeFolder "compile-gone" [ ("m.ouro", "(document g (:r 1))") ])
                                                         run <- evalIO (ouro dir ["compile", "m.ouro", "-t", "g"])
                                                         exitCode run === ExitFailure 1
                                                         written <- evalIO (doesFileExist (dir </> "g.json"))
                                                         written === False)
     , ("gap 27: a renamed graph's old output is left", withTests 1 . property $ do
-                                                        dir <- evalIO (writeFolder "build-stale" [ ("main.ouro", "(graph g (:r 1))") ])
+                                                        dir <- evalIO (writeFolder "build-stale" [ ("main.ouro", "(document g (:r 1))") ])
                                                         _   <- evalIO (ouro dir ["build"])
-                                                        evalIO (BS.writeFile (dir </> "main.ouro") "(graph h (:r 1))")
+                                                        evalIO (BS.writeFile (dir </> "main.ouro") "(document h (:r 1))")
                                                         run <- evalIO (ouro dir ["build"])
                                                         exitCode run === ExitSuccess
                                                         both <- evalIO (traverse (doesFileExist . (\graph -> dir </> "out" </> "main" </> graph)) ["g.json", "h.json"])
                                                         both === [True, True])
     , ("gap 35 (fixed): a build writes until a write fails", fixedGap . withTests 1 . property $ do
-                                                        dir <- evalIO (writeFolder "build-partial" [ ("a.ouro", "(graph g (:r 1))"), ("b.ouro", "(graph g (:r 2))"), ("out/b", "a file where a folder goes") ])
+                                                        dir <- evalIO (writeFolder "build-partial" [ ("a.ouro", "(document g (:r 1))"), ("b.ouro", "(document g (:r 2))"), ("out/b", "a file where a folder goes") ])
                                                         run <- evalIO (ouro dir ["build"])
                                                         exitCode run === ExitFailure 1
                                                         assert ("already exists" `T.isInfixOf` plain (err run))
@@ -97,27 +97,27 @@ builds = Group "CLI: ouro build"
                                                         written <- evalIO (doesFileExist (dir </> "out" </> "a" </> "g.json"))
                                                         written === True)
     , ("a write that fails leaves nothing written", withTests 1 . property $ do
-                                                        dir <- evalIO (writeFolder "build-all-or-nothing" [ ("a.ouro", "(graph g (:r 1))"), ("b.ouro", "(graph g (:r 2))"), ("out/b", "a file where a folder goes") ])
+                                                        dir <- evalIO (writeFolder "build-all-or-nothing" [ ("a.ouro", "(document g (:r 1))"), ("b.ouro", "(document g (:r 2))"), ("out/b", "a file where a folder goes") ])
                                                         run <- evalIO (ouro dir ["build"])
                                                         exitCode run === ExitFailure 1
                                                         assert ("Could not write" `T.isInfixOf` plain (err run))
-                                                        assert ("Build Failed: a graph could not be written, so none was." `T.isInfixOf` plain (out run))
+                                                        assert ("Build Failed: a document could not be written, so none was." `T.isInfixOf` plain (out run))
                                                         written <- evalIO (doesFileExist (dir </> "out" </> "a" </> "g.json"))
                                                         staged  <- evalIO (doesFileExist (dir </> "out" </> "a" </> "g.json.partial"))
                                                         (written, staged) === (False, False))
     , ("and a build that succeeds leaves no staged file", withTests 1 . property $ do
-                                                        dir <- evalIO (writeFolder "build-no-partial" [ ("a.ouro", "(graph g (:r 1))") ])
+                                                        dir <- evalIO (writeFolder "build-no-partial" [ ("a.ouro", "(document g (:r 1))") ])
                                                         run <- evalIO (ouro dir ["build"])
                                                         exitCode run === ExitSuccess
                                                         written <- evalIO (doesFileExist (dir </> "out" </> "a" </> "g.json"))
                                                         staged  <- evalIO (doesFileExist (dir </> "out" </> "a" </> "g.json.partial"))
                                                         (written, staged) === (True, False))
     , ("gap 37 (fixed): colours are written when the output is not a terminal", fixedGap . withTests 1 . property $ do
-                                                        dir <- evalIO (writeFolder "build-colours" [ ("main.ouro", "(graph g (:r (get () 5)))") ])
+                                                        dir <- evalIO (writeFolder "build-colours" [ ("main.ouro", "(document g (:r (get () 5)))") ])
                                                         run <- evalIO (ouro dir ["build"])
                                                         assert ("\ESC[" `T.isInfixOf` err run))
     , ("a diagnostic written to a file is plain text", withTests 1 . property $ do
-                                                        dir <- evalIO (writeFolder "build-plain" [ ("main.ouro", "(graph g (:r (get () 5)))") ])
+                                                        dir <- evalIO (writeFolder "build-plain" [ ("main.ouro", "(document g (:r (get () 5)))") ])
                                                         run <- evalIO (ouro dir ["build"])
                                                         exitCode run === ExitFailure 1
                                                         assert ("Error [" `T.isInfixOf` err run)

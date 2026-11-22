@@ -10,7 +10,7 @@
   (:id (example (+ "event/" slug)) :type "Event" :_label label))
 
 ;; An event that is no one's activity: from noon on 24 August 79 to the end of the 26th
-(graph event-vesuvius-1
+(document event-vesuvius-1
   (-> (event "vesuvius/1" "Eruption of Vesuvius")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :identified_by (array (base/name vocab/primary-name "Eruption of Vesuvius")))

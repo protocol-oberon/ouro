@@ -9,7 +9,7 @@
   (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
 
 ;; The museum's web page about the painting: a text, carried by a digital object at a URL
-(graph object-spring-9
+(document object-spring-9
   (-> (object "spring/9" "Jeanne (Spring) by Manet")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as (array object-type/painting))

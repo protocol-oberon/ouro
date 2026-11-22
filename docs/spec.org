@@ -4,7 +4,7 @@
 * Outline
 
 0. Design Goals and Philosophy
-   - A DSL for CIDOC-CRM / Linked Art compliant JSON-LD knowledge graphs, written by curators, not programmers.
+   - A DSL for CIDOC-CRM / Linked Art compliant JSON-LD knowledge documents, written by curators, not programmers.
    - Dynamic code, static output:
      - a resilient, dynamically typed evaluation phase (~L.Expr~), with optional checked annotations;
      - then a mandatory collapse into a strictly typed JSON-LD GADT (~I.Expr~).
@@ -19,7 +19,7 @@
    - Deterministic serialisation: a fold over the validated GADT, in source order.
 
 1. The Language (Syntax Layer)
-   - Program structure (=define/procedure=, =graph=), lexical elements, the EBNF grammar.
+   - Program structure (=define/procedure=, =document=), lexical elements, the EBNF grammar.
    - Records, arrays, bindings, functions, special forms, patterns, built-ins, =@context=.
    - The surface tree ~S.Expr~, desugaring (~Canon~), and structural classification.
 
@@ -48,7 +48,7 @@ Appendices:
 
 * Design Goals
 
-Ouro is a domain-specific language for constructing, validating and serialising CIDOC-CRM knowledge graphs.
+Ouro is a domain-specific language for constructing, validating and serialising CIDOC-CRM knowledge documents.
 Linked Art JSON-LD is its main target. It bridges human-readable data modelling and strict Semantic Web standards.
 
 Any Ouro program that compiles produces well-formed JSON.
@@ -85,7 +85,7 @@ Every expression can be replaced by its value without changing the program.
 
 Every name means what it meant where it was written. To find what a name refers to, read outward through the enclosing parentheses, never through the call stack.
 
-- *Order independence:* a record's attribute pairs and a =let='s bindings refer to each other in any order (This is Scheme's =letrec=). Curators can write a graph in the order that reads best.
+- *Order independence:* a record's attribute pairs and a =let='s bindings refer to each other in any order (This is Scheme's =letrec=). Curators can write a document in the order that reads best.
 
 - *Call-by-need:* every binding is a promise, evaluated at most once, only when needed, where it was written.
   - A binding is a record's attribute pair, a =let= binding or a function's argument.
@@ -95,8 +95,8 @@ Every name means what it meant where it was written. To find what a name refers 
 
 - *No hidden errors:* once the output is built, every promise it never needed is forced. So an error in an unused binding is still reported.
 
-- *Names are checked as written:* before anything is evaluated, the static analysis resolves every name by these rules. It covers every function and graph, of the module and of every module it imports.
-  - An unbound name is reported even in a function no graph calls, or a =case= branch not taken.
+- *Names are checked as written:* before anything is evaluated, the static analysis resolves every name by these rules. It covers every function and document, of the module and of every module it imports.
+  - An unbound name is reported even in a function no document calls, or a =case= branch not taken.
   - Its "Perhaps you meant" is ranked over every name in scope there, local bindings included.
   - A path's keys, as in ~(get r part)~, are keys, not names.
 
@@ -145,7 +145,7 @@ A function written where a value belongs, or called with the wrong number of arg
 - It is shown by its parameters' names: "Perhaps call it: (aat id label)", "It is called (c)."
 - A built-in or an anonymous =fn= has no parameter names, so it is told to be called with its arguments.
 - The call uses the function's own name, not the qualifier it was reached through.
-- A function found inside an array, when the output is checked, is reported at the graph with its path (='r[0]'=).
+- A function found inside an array, when the output is checked, is reported at the document with its path (='r[0]'=).
   - Its own position is gone by then.
 
 ** Deterministic serialisation
@@ -160,11 +160,11 @@ The flow from source to JSON is strictly linear (~Data.Ouro.compile~):
 |------+--------------------------+-----------------------------------------------------------------|
 |    1 | ~Lisp.Lexer~             | source text → ~[Token]~                                         |
 |    2 | ~Error.Linter~           | ~[Token]~ → warnings (does not stop compilation)                |
-|    3 | ~Lisp.Parser~            | ~[Token]~ → ~Module~ of =define/procedure= and =graph= ~S.Expr~ |
+|    3 | ~Lisp.Parser~            | ~[Token]~ → ~Module~ of =define/procedure= and =document= ~S.Expr~ |
 |  3.0 | ~Error.Linter~           | ~Module~ → warnings (does not stop compilation)                 |
 |  3.1 | ~Lisp.Canon~             | ~S.Expr~ → placeholders, then desugared ~S.Expr~                |
 |  3.2 | ~Lisp.Analysis~          | ~Module~ → errors: names, refinement tags, arity, recursion descends |
-|  3.3 | ~Data.Ouro~              | select the target graph (with a "did you mean")                 |
+|  3.3 | ~Data.Ouro~              | select the target document (with a "did you mean")                 |
 |    4 | ~Lisp.Eval.Engine~       | ~S.Expr~ → ~(L.Expr, [OuroError])~                              |
 |    5 | ~Data.Ouro.validateAST~  | the verification gate                                           |
 |    6 | ~Lisp.Eval.Types.freeze~ | ~L.Expr~ → ~I.Expr 'Primitive~                                  |
@@ -181,16 +181,16 @@ From pass 4 onwards, errors are collected and reported together.
 
 An Ouro file, a module, is a sequence of top-level declarations:
 - its imports and export first (see [[*Modules: =import= and =export=][modules]]);
-- then functions and graphs, in any order.
+- then functions and documents, in any order.
 
 #+BEGIN_SRC clojure
 (define/procedure name (arg ...) expr)   ; a named function, visible throughout the file
-(graph name expr)            ; a JSON-LD graph, compiled with -t name
+(document name expr)            ; a JSON-LD document, compiled with -t name
 #+END_SRC
 
 Every body is exactly one expression.
 - A function's body is its result.
-- A graph's body is its document, usually a record.
+- A document's body is its document, usually a record.
 - Private values are bound around that expression with =let=.
 - A function's header can also declare its types (see [[*Functions: =define/procedure=, =fn= and calls][signatures]]).
 
@@ -204,7 +204,7 @@ Every body is exactly one expression.
      :type   "Type"
      :_label (+ prefix label))))
 
-(graph spring
+(document spring
   (let ($artist "Manet")
     (:context       "https://linked.art/ns/v1/linked-art.json"
      :_label        (+ artist ", Spring")
@@ -227,11 +227,11 @@ Compiles (with ~ouro compile file.ouro -t spring~) to:
 }
 #+END_SRC
 
-Only graphs are serialised. Functions exist to build and reuse values. A module-wide constant is a function of no parameters, such as =getty-aat= above.
+Only documents are serialised. Functions exist to build and reuse values. A module-wide constant is a function of no parameters, such as =getty-aat= above.
 
 ** Modules: =import= and =export=
 
-A module uses another's functions by importing it, and offers its own by exporting them, both are written first in the file, before any =define/procedure= or =graph=. A file's dependencies, and what it offers, are the first thing read.
+A module uses another's functions by importing it, and offers its own by exporting them, both are written first in the file, before any =define/procedure= or =document=. A file's dependencies, and what it offers, are the first thing read.
 
 #+BEGIN_SRC clojure
 (import std/base)                     ; base/aat, base/name, ...
@@ -251,7 +251,7 @@ An imported function is always written with a qualifier, =qualifier/name=.
 
 A module has one =(export f g ...)=, naming at least one of its own functions, each once.
 - A module without one exports nothing.
-- Only functions cross modules, never graphs or values, so modules hold no state.
+- Only functions cross modules, never documents or values, so modules hold no state.
 - A module-wide constant is a function of no parameters.
 
 *** Each module is its own
@@ -432,11 +432,11 @@ A module that cannot be loaded is reported once, however many modules import it,
 
 ** Builds: =package.ouro= and =ouro build=
 
-=ouro build [DIR] [-g module/graph ...]= builds the project in =DIR=, the current directory when it is not given.
+=ouro build [DIR] [-t module/document ...]= builds the project in =DIR=, the current directory when it is not given.
 
 - It is the only command that compiles Ouro: =ouro compile= was removed in 0.5.
 - A project needs no file of its own.
-  - Without one, its modules are the files in =DIR=, and its graphs are written to =DIR/out=.
+  - Without one, its modules are the files in =DIR=, and its documents are written to =DIR/out=.
 - A =package.ouro= in =DIR= changes that. It holds one function, =package=, whose value is the project's settings:
 
 #+BEGIN_SRC clojure
@@ -454,8 +454,8 @@ A folder that does not exist is a message, "No folder typo", not the build of a 
 
 =package.ouro= is lexed, parsed and evaluated as a module is. Its settings are the value of =(package)=, so they are Ouro values, ~:outputs (+ "di" "st")~ included. It can import the bundled modules, and only them: any other import is =SCP0006=.
 
-=package.ouro=  holds nothing but its function, which is a single graph /package/.
-- A graph, an export or another function is =BLD0006=;
+=package.ouro=  holds nothing but its function, which is a single document /package/.
+- A document, an export or another function is =BLD0006=;
 
 - A function named =inputs=, =build= or =exports= is =BLD0010=, the names kept for later versions;
 
@@ -473,13 +473,13 @@ None is required, so ~(define/constant package #record-empty)~ is every default.
 | Setting    | Type             | Meaning                                    | When not given      |
 |------------+------------------+--------------------------------------------+---------------------|
 | =:sources= | String           | the source folder, relative to =DIR=       | ="."=               |
-| =:outputs= | String           | where the graphs are written               | ="out"=             |
-| =:graphs=  | Array of Strings | the graphs built (see below)               | every graph         |
+| =:outputs= | String           | where the documents are written               | ="out"=             |
+| =:documents=  | Array of Strings | the documents built (see below)               | every document         |
 | =:ouro=    | String           | the version of Ouro the project needs      | no check            |
 
 - A =:sources= folder that does not exist is =BLD0005=.
 
-- =:graphs= is an Array even when it names one graph.
+- =:documents= is an Array even when it names one document.
 
 - =:ouro= is numbers apart by dots, as ="0.5"=.
   - A version newer than the compiler's is =BLD0015=, which names both.
@@ -511,11 +511,11 @@ Every =.ouro= file under the source folder is a module, named by its path under 
 - A module whose path starts with =std= or =aat=, the folders of the bundled modules, is =BLD0009=.
   - It is reported in its file, and is not built.
 
-*** Every graph
+*** Every document
 
-Every graph of every module, modules nothing imports included, is written to =<outputs>/<module>/<graph>.json=.
+Every document of every module, modules nothing imports included, is written to =<outputs>/<module>/<document>.json=.
 
-- The graph =g= of =people/bob= is written to =out/people/bob/g.json=, its folders made.
+- The document =g= of =people/bob= is written to =out/people/bob/g.json=, its folders made.
 
 - A module of functions only writes nothing.
 
@@ -523,27 +523,27 @@ Every graph of every module, modules nothing imports included, is written to =<o
 
 - Modules are built in the order of their names.
 
-*** The graphs chosen
+*** The documents chosen
 
-=-g module/graph=, given any number of times, builds only the graphs it names, and replaces =:graphs=. Without =-g=, =:graphs= chooses them; without either, every graph of every module is built. A graph is named by its module and its name, split at the last =/=: =people/bob/g= is =g= of =people/bob=. Only the modules of the graphs chosen, and what they import, are compiled.
+=-t module/document=, given any number of times, builds only the documents it names, and replaces =:documents=. Without =-t=, =:documents= chooses them; without either, every document of every module is built. A document is named by its module and its name, split at the last =/=: =people/bob/g= is =g= of =people/bob=. Only the modules of the documents chosen, and what they import, are compiled.
 
-- So a module not chosen cannot fail the build. Only the graphs chosen are written, in the order they are named within each module.
+- So a module not chosen cannot fail the build. Only the documents chosen are written, in the order they are named within each module.
 
 - *Errors*:
-  - a name not written =module/graph= is =BLD0018=;
+  - a name not written =module/document= is =BLD0018=;
   - a module the project does not build is =BLD0017=, which suggests the closest module;
-  - a graph its module does not have is =SCP0004=, shown at the module's closest graph;
-  - for a module with no graphs, it is =SCP0005=;
-  - a graph chosen whose name is not a file name on every system is =BLD0019=: it cannot hold =/=, =\=, =<=, =>=, =:=, ="=, =|=, =?= or =*=, nor be a name Windows keeps for a device, =con=, =prn=, =aux=, =nul=, =com1= to =com9= or =lpt1= to =lpt9=, in any case (=console= is a name);
-  - two graphs chosen from one module, named apart only by case, =G= and =g=, are =BLD0020= at the second, since they are one file where file names ignore case. Graphs of different modules are written to different folders, so they may.
+  - a document its module does not have is =SCP0004=, shown at the module's closest document;
+  - for a module with no documents, it is =SCP0005=;
+  - a document chosen whose name is not a file name on every system is =BLD0019=: it cannot hold =/=, =\=, =<=, =>=, =:=, ="=, =|=, =?= or =*=, nor be a name Windows keeps for a device, =con=, =prn=, =aux=, =nul=, =com1= to =com9= or =lpt1= to =lpt9=, in any case (=console= is a name);
+  - two documents chosen from one module, named apart only by case, =G= and =g=, are =BLD0020= at the second, since they are one file where file names ignore case. Documents of different modules are written to different folders, so they may.
 
 - They are reported with the build's other errors, and like every error they stop the build before anything is written.
 
-- An error in a =-g= is reported at the argument itself, =-g people/persn=.
+- An error in a =-t= is reported at the argument itself, =-t people/persn=.
 
-- An error in =:graphs= is reported at the =package= function.
+- An error in =:documents= is reported at the =package= function.
 
-- =:graphs ()= builds nothing.
+- =:documents ()= builds nothing.
 
 *** Vendored libraries
 
@@ -562,7 +562,7 @@ A library works unchanged once copied in.
 - It imports another library by the other's collection name, so its dependencies are vendored beside it.
 
 - Its modules are compiled only when imported.
-  - So its graphs are never written.
+  - So its documents are never written.
   - A module of it nothing imports never fails the build.
 
 *Errors*:
@@ -588,7 +588,7 @@ An import spelt in another case than its file, =(import People)= for =people.our
 
 *** All or nothing
 
-If any graph of any module fails, nothing is written, and every error of every module is reported. Writing is all or nothing as well: each graph is staged beside its file and moved into place only once all are, so a graph that cannot be written leaves none written.
+If any document of any module fails, nothing is written, and every error of every module is reported. Writing is all or nothing as well: each document is staged beside its file and moved into place only once all are, so a document that cannot be written leaves none written.
 A stray file under the source folder, such as a scratch file, is built too, and can fail the build.
 
 *** Retired codes
@@ -596,7 +596,7 @@ A stray file under the source folder, such as a scratch file, is built too, and 
 These are never raised, and their codes are not reused:
 - =BLD0001=: =build.ouro='s required =:name=;
 - =BLD0003=: what =build.ouro= could not hold;
-- =BLD0004=: =build.ouro='s graph not named =build=.
+- =BLD0004=: =build.ouro='s document not named =build=.
 
 ** Lexical elements
 
@@ -616,7 +616,7 @@ These are never raised, and their codes are not reused:
 | Hole          | =?=, =?name=, =?..name=                        | a placeholder in a call, or part of a pattern      |
 | Delimiters    | =( )=                                          | =[= or =]= is an error: Ouro has no brackets       |
 | Range         | =(1..500)=, =(2 4 .. 10)=                      | see below                                          |
-| Keywords      | =define/procedure=, =define/constant=, =graph= | see below                                          |
+| Keywords      | =define/procedure=, =define/constant=, =document= | see below                                          |
 
 *** Prose: =(prose | …)=
 
@@ -710,11 +710,13 @@ An attribute is letters, digits, =-= and =_=, after an optional =@=. It may hold
 
 *** Keywords
 
-The keywords are =define/procedure=, =define/constant=, =define/refinement=, =graph=, =import= and =export=.
+The keywords are =define/procedure=, =define/constant=, =define/refinement=, =document=, =import= and =export=.
 
 - A definition names its kind.
   - =define= on its own, or of another kind (=define/graph=), is an error.
   - Its message: ='define' is not a definition: say what is defined, …=.
+
+- =graph=, the old name of =document=, still works, with a warning (=WRN0001=), "'graph' is now called 'document'"; it becomes an error in a later version. The build's =-g= and =:graphs= are now =-t= and =:documents=.
 
 - =defn=, =defn/const= and =defn/property=, which these replace, are errors that name their replacement.
   - =defn is now define/procedure: …=.
@@ -762,12 +764,12 @@ A =/= qualifies an imported name, =base/aat=. So a =define/procedure=, a paramet
 
 - =/= and =/== themselves are names, being unqualified.
 
-Functions and graphs are named in kebab-case, =make-place=. A name with a capital or an underscore is a warning (=WRN0004=) that suggests the kebab-case spelling.
+Functions and documents are named in kebab-case, =make-place=. A name with a capital or an underscore is a warning (=WRN0004=) that suggests the kebab-case spelling.
 - So =makePlace= and =make_place= are both =make-place=.
 - Attribute keys and local bindings are exempt, since keys follow the data's vocabulary (=:_label=).
 
 A =define/procedure= of no parameters, ~(define/procedure c () value)~, is a constant.
-- It is worked out once per graph, whichever keyword defines it, with a return type or without.
+- It is worked out once per document, whichever keyword defines it, with a return type or without.
 - So it is a warning (=WRN0006=) that suggests ~(define/constant c value)~.
 - The parsed tree does not keep which keyword was written, so the linter finds it in the tokens.
 
@@ -784,13 +786,13 @@ import       = "(" , "import" , module-path , [ "as" , symbol ] , ")" ;
 module-path  = symbol ;
 (* at most one, naming the module's own functions *)
 export       = "(" , "export" , symbol , { symbol } , ")" ;
-declaration  = procedure | constant | graph ;
+declaration  = procedure | constant | document ;
 procedure    = "(" , "define/procedure" , symbol , [ property ] , params , [ doc ] , expression , [ doc ] , ")" ;
 (* a procedure of no parameters *)
 constant     = "(" , "define/constant" , symbol , [ property ] , [ doc ] , expression , [ doc ] , ")" ;
 (* at most one, before or after the result *)
 doc          = "(" , "doc" , string , ")" ;
-graph        = "(" , "graph" , symbol , expression , ")" ;
+document        = "(" , "document" , symbol , expression , ")" ;
 (* a property types the parameter after it *)
 params       = "(" , { [ property ] , ( symbol | param-pattern ) } , ")" ;
 (* binds the parts of one argument *)
@@ -1122,7 +1124,7 @@ A local function is a =let=-bound =fn=:
 
 *** The body
 
-A function's body is one expression, written exactly as it would be anywhere else, and its value is the result. The body can include a =let=, so a function binds its private values the same way a graph does.
+A function's body is one expression, written exactly as it would be anywhere else, and its value is the result. The body can include a =let=, so a function binds its private values the same way a document does.
 
 - Parentheses around values make an array, so ~(fn () ("hello"))~ returns ~["hello"]~.
   - The compiler warns (=WRN0002=) when a result is a single plain value in parentheses.
@@ -1144,7 +1146,7 @@ A =define/procedure= is documented with a =(doc "...")= among the direct element
 
 - A function has at most one, holding a single string.
 
-- A =doc= anywhere else is an error: inside a result, in a =fn=, or in a graph.
+- A =doc= anywhere else is an error: inside a result, in a =fn=, or in a document.
   - It is reported when the file is parsed, so it is found even in a function that is never called.
 
 - =doc= cannot name a function.
@@ -1155,7 +1157,7 @@ A call with the wrong number of arguments is an error. Functions are not curried
 
 - A call written with a function's name is checked before evaluation, wherever it is written.
   - The function is the module's, one an import exports, or a built-in.
-  - This holds even in a function no graph calls.
+  - This holds even in a function no document calls.
 
 - A function reached through a value, a parameter, a =let= binding or =map= is checked when it is called.
 
@@ -1201,14 +1203,14 @@ A function of no parameters cannot be passed as a function.
 When it is evaluated:
 
 - one that closes over its module's root frame alone, as every =define/procedure= does, is evaluated once;
-  - that is the first time it is named in a graph's evaluation;
+  - that is the first time it is named in a document's evaluation;
   - that value is every later use's: nothing it can see varies;
 
 - a =(fn () …)= written inside a function closes over a frame each call binds afresh;
   - so it is evaluated each time it is named;
   - ~(define/procedure mint (x) (let ($k (fn () x)) k))~ gives =1= for ~(mint 1)~ and =2= for ~(mint 2)~;
 
-- each graph is evaluated on its own, so a constant is evaluated once per graph that names it.
+- each document is evaluated on its own, so a constant is evaluated once per document that names it.
 
 *** Refinements: =define/refinement=
 
@@ -1242,7 +1244,7 @@ A refinement is asserted with its tag, ~#titled x~, as a built-in one is.
 
 - A tag names a refinement of the module, never a binding: ~(let ($titled 1) #titled r)~ still asserts the refinement.
 
-- The static analysis resolves every tag as written, in functions no graph calls too, before anything is evaluated.
+- The static analysis resolves every tag as written, in functions no document calls too, before anything is evaluated.
   - One that names no refinement is =SYN0000= =Unknown refinement: #titeld= at the tag, with the nearest refinement or built-in name (=#str= suggests =#string=).
   - One that names a =define/procedure= is =SYN0000=, ='f' is a function, not a refinement=.
 
@@ -1262,7 +1264,7 @@ Each argument becomes a promise over the caller's scope.
 
 - It always means what it meant at the call site, so a function's own bindings can never capture it.
 
-- An argument the function never uses is still evaluated when the graph is finished, so its errors are reported.
+- An argument the function never uses is still evaluated when the document is finished, so its errors are reported.
 
 *** Closures
 
@@ -1339,7 +1341,7 @@ A call the analysis accepted runs, though its function is already being called, 
   - An error is no part of a value.
   - So ~(define/procedure f (n) (f (get n part)))~ stops with =get='s error once a =part= is missing.
 
-- This changes no output: an argument a graph never needs is evaluated anyway, for its errors (see No hidden errors).
+- This changes no output: an argument a document never needs is evaluated anyway, for its errors (see No hidden errors).
 
 *** Functions are values
 
@@ -1357,7 +1359,7 @@ A returned function is called through =let=.
   #+BEGIN_SRC clojure
   (define/procedure adder (n) (fn (x) (+ n x)))
 
-  (graph g
+  (document g
     (let ($inc (adder 1))
       (:r (inc 2))))              ; {"r": 3}
   #+END_SRC
@@ -1421,7 +1423,7 @@ A call with =?= holes among its arguments is not called.
 #+BEGIN_SRC clojure
 (define/procedure node (id type) (:id id :type type))
 
-(graph g
+(document g
   (let ($inc      (+ ? 1)                  ; (fn (a) (+ a 1))
         $painting (node ? "Painting")      ; (fn (a) (node a "Painting"))
         $square   (* ?n ?n))               ; (fn (n) (* n n))
@@ -1464,7 +1466,7 @@ A parameter can be a pattern, written as a =case= pattern is. It takes one argum
 #+BEGIN_SRC clojure
 (define/procedure label-of ((:_label ?l)) l)
 
-(graph g
+(document g
   (:people (map (("allan" "Scott Allan") ("beeny" "Emily Beeny"))
                 (fn ((?slug ?label)) (:id slug :_label label)))
    :label  (label-of (:type "Type" :_label "Beauty"))))
@@ -1521,7 +1523,7 @@ The exception is the forms Canon rewrites by their syntax, before any name is bo
 - =and=, =or=, =->=, =with=, =adjoin= and =thru=;
 - a =case= branch's =(when c)= and =(satisfies #p)= heads.
 
-A binding of one of their names is ignored where Canon reads the form (gap 45). A =define/procedure= cannot take their names, since it could never be called by them (=SYN0008=), nor the declarations' names: =define/procedure=, =graph=, =doc=.
+A binding of one of their names is ignored where Canon reads the form (gap 45). A =define/procedure= cannot take their names, since it could never be called by them (=SYN0008=), nor the declarations' names: =define/procedure=, =document=, =doc=.
 
 *** The subject first
 
@@ -2066,7 +2068,7 @@ A =$name= is read on its own as ~(%binder "name")~, and paired with its value on
 
 *** Modules
 
-A module is the parser's other output: a registry of =define/procedure= declarations and a registry of =graph= declarations, each a ~HigherExpression~ indexed by its kind:
+A module is the parser's other output: a registry of =define/procedure= declarations and a registry of =document= declarations, each a ~HigherExpression~ indexed by its kind:
 
 #+BEGIN_SRC haskell
 data HigherExpression (t :: Declaration) where
@@ -2090,7 +2092,7 @@ The lexer reports the retired keywords (=defn=, =defn/const=, =defn/property=) a
 
 ** Desugaring (~Canon~)
 
-Before evaluation, ~Canon.canonicalModule~ rewrites every function body and graph into a smaller core by running ~Canon.passes~ in order, one rule per pass. Each pass relies on the ones before it.
+Before evaluation, ~Canon.canonicalModule~ rewrites every function body and document into a smaller core by running ~Canon.passes~ in order, one rule per pass. Each pass relies on the ones before it.
 
 *** The passes
 
@@ -2133,7 +2135,7 @@ A pass walks the tree in one of three ways (~Canon.Traverse~):
 - bottom-up, rewriting a form's parts first;
 - over lists of siblings, for a rule that turns one element into several.
 
-An expression that stands on its own is a list of one: a graph's body, or the payload of a refinement. A =thru= there has no meaning, and is left for the evaluator to report.
+An expression that stands on its own is a list of one: a document's body, or the payload of a refinement. A =thru= there has no meaning, and is left for the evaluator to report.
 
 *** Order
 
@@ -2251,7 +2253,7 @@ Special forms are matched by =evalExpr= before classification, so =let=, =case= 
 
 * Intermediate Representation and Evaluation
 
-Evaluation turns the surface tree of the selected graph into ~L.Expr~, a value tree that may still contain errors and compile-time-only values. Its design mandates are:
+Evaluation turns the surface tree of the selected document into ~L.Expr~, a value tree that may still contain errors and compile-time-only values. Its design mandates are:
 
 1. *Lexical, lazy, shared:* bindings are promises evaluated at most once, in the scope where they were written.
 2. *Value-based:* everything (=get=, patterns, comparison) works on evaluated values, never on code.
@@ -2417,7 +2419,7 @@ Then ~destructure~ forces each pattern parameter's promise and matches it with ~
 
 *** Finishing
 
-~evaluate~ evaluates the graph, then forces every promise that is still ~Unforced~, repeating until none are left (forcing can allocate new promises). The errors found in those values are returned alongside the graph:
+~evaluate~ evaluates the document, then forces every promise that is still ~Unforced~, repeating until none are left (forcing can allocate new promises). The errors found in those values are returned alongside the document:
 
 #+BEGIN_SRC haskell
 evaluate :: Module -> S.Expr -> (L.Expr, [OuroError])
@@ -2441,15 +2443,15 @@ Before anything is serialised, ~validateAST~ walks the evaluated tree and collec
 
 1. Every ~EvalError~ in the output.
 
-2. Every value that has no JSON form: Durations, functions, built-ins and schema values, reported at the graph's position with the key path to the value (for example ='produced_by.timespan'=).
+2. Every value that has no JSON form: Durations, functions, built-ins and schema values, reported at the document's position with the key path to the value (for example ='produced_by.timespan'=).
 
 3. Infinity and NaN, which JSON cannot represent.
 
 4. The errors found in unused bindings, passed in from ~evaluate~.
 
-Errors are de-duplicated (an error in a binding that is also in the output is reported once) and sorted by position. *A graph compiles if and only if this list is empty.*
+Errors are de-duplicated (an error in a binding that is also in the output is reported once) and sorted by position. *A document compiles if and only if this list is empty.*
 
-There are two guards against compile-time-only values. ~emitProps~ checks each record attribute pair as it is emitted, which catches most mistakes with a precise position. ~validateAST~ then checks the whole tree, which also covers the graph root and array elements.
+There are two guards against compile-time-only values. ~emitProps~ checks each record attribute pair as it is emitted, which catches most mistakes with a precise position. ~validateAST~ then checks the whole tree, which also covers the document root and array elements.
 
 ** Type collapse (~freeze~)
 
@@ -2628,7 +2630,7 @@ The modules of each layer, with =←= for "is imported by":
 
 ** Ouro as a structural assembler
 
-Ouro's compiler guarantees structural validity: a compiled graph is well-formed JSON whose values have the types they were asserted to have. It does not resolve vocabularies, fetch remote contexts or check terms against CIDOC-CRM.
+Ouro's compiler guarantees structural validity: a compiled document is well-formed JSON whose values have the types they were asserted to have. It does not resolve vocabularies, fetch remote contexts or check terms against CIDOC-CRM.
 
 - *Justification:* limiting the compiler to structure keeps it deterministic, offline and immune to failures in external Linked Data services.
 
@@ -2643,7 +2645,7 @@ Ouro's compiler guarantees structural validity: a compiled graph is well-formed 
 | =(define :name value ...)=                         | =(let ($name value ...) expr)=                               |
 | =(let (:name value ...) expr)=                     | =(let ($name value ...) expr)=                               |
 | a local definition                                 | a =let=-bound =fn=                                           |
-| spliced graph bodies                               | =(graph name (:key value ...))=                              |
+| spliced document bodies                               | =(document name (:key value ...))=                              |
 | spliced function bodies, =return=                  | one result expression                                        |
 | required =!= on function names                     | plain names (=!= still allowed)                              |
 | =quote=, ='=, =eval=, =get'=                       | values: Ouro has no metaprogramming                          |
@@ -2683,10 +2685,10 @@ These are reported with a message:
   A definition can only appear at the top level of a file.
   #+end_example
 
-- spliced graph bodies:
+- spliced document bodies:
 
   #+begin_example
-  The graph 'g' must be one expression.
+  The document 'g' must be one expression.
   #+end_example
 
 - spliced function bodies, =return=:
@@ -2854,13 +2856,13 @@ The call was read as the special form, with a confusing error about =fn= syntax.
 :END:
 As pure constants they could be shared.
 
-/Fixed/ (2026-11-12, 0b7120c): a function of no parameters named as a value is worked out once per graph and that value reused, whichever keyword defines it. =define/constant= is the way to write one, which a =define/procedure= of no parameters is warned towards (=WRN0006=, 2026-11-15).
+/Fixed/ (2026-11-12, 0b7120c): a function of no parameters named as a value is worked out once per document and that value reused, whichever keyword defines it. =define/constant= is the way to write one, which a =define/procedure= of no parameters is warned towards (=WRN0006=, 2026-11-15).
 
 Left as they are on purpose:
 
 - a call, =(c)=, is evaluated each time;
 - a =(fn () …)= written inside a function is evaluated each time it is named, since it closes over a frame each call binds afresh;
-- each graph evaluates its constants on its own.
+- each document evaluates its constants on its own.
 
 ** OPEN [#C] Code health
 :PROPERTIES:
@@ -3000,7 +3002,7 @@ Found while testing the build file (2026-10-25). Waits on the error-code redesig
 :PROPERTIES:
 :ID:       27
 :END:
-Renaming or removing a graph, or a module, leaves the JSON an earlier build wrote for it in =:outputs=, so =:outputs= can hold graphs the source no longer has. A fix would be a manifest of what the last build wrote, removing only those files.
+Renaming or removing a document, or a module, leaves the JSON an earlier build wrote for it in =:outputs=, so =:outputs= can hold documents the source no longer has. A fix would be a manifest of what the last build wrote, removing only those files.
 
 Left as it is: builds were set aside as a priority (2026-11-08), and clearing =:outputs= before a build does the same by hand.
 
@@ -3056,13 +3058,13 @@ Roots were compared by their text after ~normalise~, which keeps a trailing slas
 :END:
 A folder holding a =package.ouro= is now a project of its own, and skipped whole.
 
-** FIXED A graph's name was not checked as a file name
+** FIXED A document's name was not checked as a file name
 :PROPERTIES:
 :ID:       34
 :FOUND:    2026-10-29
 :FIXED_IN: 0.6.1.0
 :END:
-A graph was written to =<outputs>/<module>/<graph>.json= whatever its name.
+A document was written to =<outputs>/<module>/<document>.json= whatever its name.
 
 On Windows:
 
@@ -3070,11 +3072,11 @@ On Windows:
 - =con= is a device (=withFile: does not exist=);
 - =ex:g=, a name gap 28 allows, was written to the alternate data stream =g.json= of a file =ex=, so the build reported it written and no file showed it.
 
-Graphs named apart only by case, =G= and =g=, shared one file on Windows and macOS: the second overwrote the first, under the first's name.
+Documents named apart only by case, =G= and =g=, shared one file on Windows and macOS: the second overwrote the first, under the first's name.
 
 Found while vetting =build.ouro= (2026-10-29).
 
-/Fixed/ (2026-11-16): a build checks the name of every graph it would write. A name that is not a file name on every system is =BLD0019=, and a graph of a module named apart from another only by case is =BLD0020= (see [[*The graphs chosen][the graphs chosen]]). Like any error, either stops the build with nothing written, so a graph is never lost to a file name.
+/Fixed/ (2026-11-16): a build checks the name of every document it would write. A name that is not a file name on every system is =BLD0019=, and a document of a module named apart from another only by case is =BLD0020= (see [[*The documents chosen][the documents chosen]]). Like any error, either stops the build with nothing written, so a document is never lost to a file name.
 
 ** FIXED A build wrote until a write failed
 :PROPERTIES:
@@ -3082,13 +3084,13 @@ Found while vetting =build.ouro= (2026-10-29).
 :FOUND:    2026-10-29
 :FIXED_IN: 0.6.2.0
 :END:
-All or nothing covers compiling; the CLI then writes each graph in turn, so a write that fails (gap 34, a full disk, a file held open) leaves the graphs before it written. It ends the build with a Haskell exception and its backtrace, not a diagnostic, and neither "Build Success" nor "Build Failed".
+All or nothing covers compiling; the CLI then writes each document in turn, so a write that fails (gap 34, a full disk, a file held open) leaves the documents before it written. It ends the build with a Haskell exception and its backtrace, not a diagnostic, and neither "Build Success" nor "Build Failed".
 
 Found while vetting =build.ouro= (2026-10-29).
 
-/Fixed/ (2026-11-17): writing is all or nothing too. Every graph is first written beside its file, as =<file>.partial=, its folder made if need be; only when all are staged is each moved into place, a rename within its folder. A write that fails removes those staged, names the file and why on stderr, and ends in "Build Failed: a graph could not be written, so none was."
+/Fixed/ (2026-11-17): writing is all or nothing too. Every document is first written beside its file, as =<file>.partial=, its folder made if need be; only when all are staged is each moved into place, a rename within its folder. A write that fails removes those staged, names the file and why on stderr, and ends in "Build Failed: a document could not be written, so none was."
 
-Limits: a folder made for a graph before the failure stays, empty. A move into place that fails, which a rename within a folder rarely does, says how many graphs were written before it.
+Limits: a folder made for a document before the failure stays, empty. A move into place that fails, which a rename within a folder rarely does, says how many documents were written before it.
 
 ** FIXED =ouro build DIR= with a folder that does not exist built the project above it
 :PROPERTIES:
@@ -3183,16 +3185,16 @@ No name is reserved now: a binding of a special form's name shadows the form, as
 :FOUND:    2026-11-08
 :FIXED_IN: 0.6.0.0
 :END:
-Compiling evaluates the graphs, so a mistake off their path was never reported. These all compile, while an unused =let= binding's unbound name is =SCP0000=:
+Compiling evaluates the documents, so a mistake off their path was never reported. These all compile, while an unused =let= binding's unbound name is =SCP0000=:
 
-- an unbound name in a function no graph calls, ~(define/procedure f () nope)~;
+- an unbound name in a function no document calls, ~(define/procedure f () nope)~;
 - a call with the wrong number of arguments in one;
 - an unbound name in a =case= branch that is not taken;
 - even a function that calls itself, ~(define/procedure f () (f))~.
 
 A library's broken function is found by whoever first calls it. Found while weighing static analysis (2026-11-08).
 
-- /Fixed for names:/ the static analysis reports an unbound name, qualifier or export wherever it is written, in a function no graph calls, an untaken branch and an imported module alike; the recursion still compiles.
+- /Fixed for names:/ the static analysis reports an unbound name, qualifier or export wherever it is written, in a function no document calls, an untaken branch and an imported module alike; the recursion still compiles.
 
 - /Fixed for arity:/ a call written with a function's name is checked against its parameters wherever it is written.
 
@@ -3218,7 +3220,7 @@ Scheme avoids this because its expander knows the scope at each point; the fix i
 :FOUND:    2026-11-08
 :FIXED_IN: 0.6.1.0
 :END:
-A file's top level holds =define/procedure=, =graph=, =import= and =export= forms, and any other, ~(foo f () 1)~, was =SYN0000=, with no blurb saying what may be written there:
+A file's top level holds =define/procedure=, =document=, =import= and =export= forms, and any other, ~(foo f () 1)~, was =SYN0000=, with no blurb saying what may be written there:
 
 #+begin_example
 Invalid top-level keyword: Symbol "foo"
@@ -3231,7 +3233,7 @@ An old =(defun ...)= is now reported this way. Found while making =defun= an ord
 #+begin_example
 'defun' cannot begin a form at the top level of a file
 
-A file's top level holds (define/procedure ...), (define/constant ...), (graph ...), (import ...) and
+A file's top level holds (define/procedure ...), (define/constant ...), (document ...), (import ...) and
 (export ...) forms; anything else is written inside one of them.
 #+end_example
 
@@ -3246,7 +3248,7 @@ A top level that does not begin with a form, as a stray =:k=, says so the same w
 The lexer reads the literals without checking that the word ends there, as it does for the keywords (=defnode= is a symbol), so:
 
 - ~(define/procedure null-result (x) x)~ is =SYN0000=, =Expected a function name=, with no blurb;
-- ~(graph null-results ...)~ is =Expected graph name=;
+- ~(document null-results ...)~ is =Expected document name=;
 - ~(:null-ish 1 :r null-ish)~ reads =null-ish= as =null= and =-ish=, reported as a record of the wrong shape.
 
 A name that only contains them, =truthy=, =is-null=, is a symbol. Found while sketching a null-result pattern in Ouro (2026-11-11).
@@ -3268,7 +3270,7 @@ The serialiser writes a Number with Haskell's =show=, dropping a trailing =.0=, 
 :FOUND:    2026-11-14
 :FIXED_IN: 0.6.0.0
 :END:
-Inside an expression, the keywords =defn/const= and =defn/property= were read as the symbols ="defn/const"= and ="defn/property"=, which look like a qualified name. So ~(graph g (:r (defn/const q 1)))~ was =SCP0007=, =Unknown Qualifier: defn=, with an unbound identifier besides, where a local =defn= was =SYN0000=, "A defn can only appear at the top level of a file." Found reviewing =defn/property= (2026-11-14).
+Inside an expression, the keywords =defn/const= and =defn/property= were read as the symbols ="defn/const"= and ="defn/property"=, which look like a qualified name. So ~(document g (:r (defn/const q 1)))~ was =SCP0007=, =Unknown Qualifier: defn=, with an unbound identifier besides, where a local =defn= was =SYN0000=, "A defn can only appear at the top level of a file." Found reviewing =defn/property= (2026-11-14).
 
 /Fixed/ (2026-11-14) by the rename to =define/procedure=, =define/property= and =define/constant=: the keywords a nested definition is recognised by are all three, so each in an expression is =SYN0000=:
 
@@ -3305,7 +3307,7 @@ Curators' numbers are mostly decimal measurements, so a summary worked out from 
 :FIXED_IN: 0.6.1.0
 :PINNED:   the benchmark =hoard= (=cabal bench=), not a test: a timing cannot be asserted
 :END:
-A graph that builds many records costs nearly the square of their number. The benchmark of a hoard of coins, each built through =std='s constructors as =test.ouro='s are, takes (2026-11-15):
+A document that builds many records costs nearly the square of their number. The benchmark of a hoard of coins, each built through =std='s constructors as =test.ouro='s are, takes (2026-11-15):
 
 - 85 ms for 100 coins;
 - 617 ms for 500;
@@ -3437,7 +3439,7 @@ At 2000 coins, the peak live heap was 64 MB. Two-thirds of it was ~STACK~ (33 MB
 
 Times in ms. Allocation grows linearly (203 MB to 655 MB, ×3.2); bytes copied grow ×8.
 
-What remains at 500 coins is mostly the evaluator's bindings: ~Map~, ~IntMap~, ~Env~, ~Promise~ and ~FrameEntry~, about 63% of the live heap. The promise store keeps every binding of a graph until the graph is finished, so the live heap grows with the graph. Releasing what no frame can reach is the remaining lever, and it touches the memoisation that gap 12's fix relies on.
+What remains at 500 coins is mostly the evaluator's bindings: ~Map~, ~IntMap~, ~Env~, ~Promise~ and ~FrameEntry~, about 63% of the live heap. The promise store keeps every binding of a document until the document is finished, so the live heap grows with the document. Releasing what no frame can reach is the remaining lever, and it touches the memoisation that gap 12's fix relies on.
 
 ~escapeString~ and ~escapeChar~ were 12% of the time and 16% of the allocation, since every string was escaped a character at a time. Now each run of characters needing no escape is written whole, which cut the allocation at 2000 coins from 815 MB to 655 MB.
 

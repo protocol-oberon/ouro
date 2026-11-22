@@ -19,7 +19,7 @@
                                      :classified_as (array group-type/museum)))))))
 
 ;; A painting owned jointly by two museums, each giving it an accession number of its own
-(graph object-yiadom-boakye-1
+(document object-yiadom-boakye-1
   (-> (object "yiadom-boakye/1" "Portrait of Lynette Yiadom-Boakye")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as (array object-type/painting))

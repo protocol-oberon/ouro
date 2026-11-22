@@ -1,2 +1,2 @@
 (define/refinement titled (#record r) (has r _label))
-(graph g (:r (titled (:_label "A"))))
+(document g (:r (titled (:_label "A"))))

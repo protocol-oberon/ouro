@@ -8,7 +8,7 @@
   (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
 
 ;; Classified by a local concept, equivalent to the AAT's
-(graph object-nightwatch-52
+(document object-nightwatch-52
   (-> (object "nightwatch/52" "Night Watch by Rembrandt")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as ((:id         (example "concept/painting")

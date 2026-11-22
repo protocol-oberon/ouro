@@ -1,1 +1,1 @@
-(define/constant package (:graphs ("peopel/person")))
+(define/constant package (:documents ("peopel/person")))

@@ -11,7 +11,7 @@
   (:id (example path) :type type :_label label))
 
 ;; A transfer, when what passed, title or custody, is not known
-(graph provenance-transfer-1
+(document provenance-transfer-1
   (-> (provenance "transfer/1" "Transfer of Painting")
       (with :context "https://linked.art/ns/v1/linked-art.json")
       (with :part    ((:type             "Transfer"

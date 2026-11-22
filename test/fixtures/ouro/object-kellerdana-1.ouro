@@ -8,7 +8,7 @@
   (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
 
 ;; A copy: its making was influenced by the portrait it copies
-(graph object-kellerdana-1
+(document object-kellerdana-1
   (-> (object "kellerdana/1" "Copy of Huntington Portrait")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as (array object-type/painting))

@@ -8,7 +8,7 @@
 
 ;; One day, some time around 1750: begun within one span and ended within another, with its
 ;; duration and the estimate it rests on
-(graph event-1
+(document event-1
   (:context "https://linked.art/ns/v1/linked-art.json"
    :id       (example "event/1")
    :type     "Activity"

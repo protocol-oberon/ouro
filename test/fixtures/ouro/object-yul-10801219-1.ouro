@@ -13,7 +13,7 @@
 
 ;; A library's copy of a book: its catalogue number, its physical description, and the text it
 ;; carries, shared by every copy
-(graph object-yul-10801219-1
+(document object-yul-10801219-1
   (-> (object "yul_10801219/1" "Yale's copy of Koot's Night Watch")
       (with :context        "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as  (array object-type/book))

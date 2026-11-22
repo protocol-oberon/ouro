@@ -1,2 +1,2 @@
 (import People)
-(graph g (:r (People/person "A")))
+(document g (:r (People/person "A")))

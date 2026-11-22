@@ -20,7 +20,7 @@
    :timespan      (with (time/year year) :_label year)
    :took_place_at ((:type "Place" :_label "London"))))
 
-(graph group-0
+(document group-0
   (-> (group "0" "Camden Town Group")
       (with :context        "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as  (array group-type/society nationality/british))

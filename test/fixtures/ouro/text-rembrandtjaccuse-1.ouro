@@ -16,7 +16,7 @@
   (:type "Creation" :classified_as (array kind) :carried_out_by (array who)))
 
 ;; A film's creation, in its parts: directed by one person, produced by another
-(graph text-rembrandtjaccuse-1
+(document text-rembrandtjaccuse-1
   (-> (text "rembrandtjaccuse/1" "Rembrandt's J'accuse")
       (with :context    "https://linked.art/ns/v1/linked-art.json")
       (with :created_by (:type     "Creation"

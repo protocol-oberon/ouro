@@ -8,7 +8,7 @@
   (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
 
 ;; One printed poster: the object, as opposed to the image it shows, which every copy shares
-(graph object-harpers-1
+(document object-harpers-1
   (-> (object "harpers/1" "Poster Item")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as (array object-type/print))

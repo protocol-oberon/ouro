@@ -9,7 +9,7 @@
 
 ;; A home page about the object: an English text, carried by a named web page at a URL.
 ;; linked.art gives the object no label.
-(graph object-7
+(document object-7
   (:context       "https://linked.art/ns/v1/linked-art.json"
    :id            (example "object/7")
    :type          "HumanMadeObject"

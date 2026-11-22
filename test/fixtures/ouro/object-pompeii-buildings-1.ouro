@@ -10,7 +10,7 @@
 
 ;; The buildings of a city, destroyed by an eruption: the Destruction is caused by the Event.
 ;; linked.art gives the eruption no label here.
-(graph object-pompeii-buildings-1
+(document object-pompeii-buildings-1
   (-> (object "pompeii-buildings/1" "Buildings making up the city of Pompeii")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :identified_by (array (base/name vocab/primary-name "City of Pompeii")))

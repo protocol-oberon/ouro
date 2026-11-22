@@ -8,7 +8,7 @@
   (+ "https://linked.art/example/" path))
 
 ;; An exhibition as an idea, about an artist, conceived by a curator
-(graph concept-0
+(document concept-0
   (-> (exhibition/concept (example "concept/0") "Gainsborough Exh.")
       (with :context        "https://linked.art/ns/v1/linked-art.json")
       (with :identified_by  (array (base/name vocab/primary-name "Gainsborough Exhibition")))

@@ -20,7 +20,7 @@
 ;; Linked Art's fullest object: names in three languages, an accession number, a description,
 ;; dimensions and materials, the sets it is in, what it shows, who owns it, where it is, and
 ;; its making
-(graph object-0
+(document object-0
   (-> (object "0" "Mona Lisa")
       (with :context          "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as    (array object-type/painting (base/aat "300133025" "Artwork")))

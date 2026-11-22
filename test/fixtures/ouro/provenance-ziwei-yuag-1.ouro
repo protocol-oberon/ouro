@@ -14,7 +14,7 @@
   (:id (example path) :type type :_label label))
 
 ;; A gift: title passes, and nothing is paid
-(graph provenance-ziwei-yuag-1
+(document provenance-ziwei-yuag-1
   (-> (provenance "ziwei_yuag/1" "Gift of Landscape to YUAG")
       (with :context  "https://linked.art/ns/v1/linked-art.json")
       (adjoin :classified_as provenance-type/gift)

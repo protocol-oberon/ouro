@@ -11,7 +11,7 @@
   (:id (example (+ "digital/" slug)) :type "DigitalObject" :_label label))
 
 ;; A web page, published over two days, from midnight to midnight
-(graph digital-operation-nw-1
+(document digital-operation-nw-1
   (-> (digital "operation_nw/1" "Operation Night Watch Publication")
       (with :context           "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as     (array digital-type/web-page))

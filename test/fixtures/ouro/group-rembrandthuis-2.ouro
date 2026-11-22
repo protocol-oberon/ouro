@@ -8,7 +8,7 @@
   (:id (example (+ "group/" slug)) :type "Group" :_label label))
 
 ;; Formed on a day: std/time's day runs from its first second to its last
-(graph group-rembrandthuis-2
+(document group-rembrandthuis-2
   (-> (group "rembrandthuis/2" "Rembrandt House Museum")
       (with :context   "https://linked.art/ns/v1/linked-art.json")
       (with :formed_by (:type "Formation" :timespan (time/day "1911-06-10")))))

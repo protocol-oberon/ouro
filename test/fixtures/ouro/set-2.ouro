@@ -13,7 +13,7 @@
   (:id (example (+ "set/" slug)) :type "Set" :_label label))
 
 ;; A lot's starting price: an amount of money, with how it is shown and where it was learnt
-(graph set-2
+(document set-2
   (-> (set "2" "Set of Objects for Lot 812")
       (with :context   "https://linked.art/ns/v1/linked-art.json")
       (with :dimension (array (-> (provenance/money 500 iso/us-dollars)

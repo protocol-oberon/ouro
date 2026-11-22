@@ -1,2 +1,2 @@
 (define/constant package (:sources "."))
-(graph g (:a 1))
+(document g (:a 1))

@@ -163,7 +163,7 @@ packageFunction file m =
     functions = m ^. functionRegistry
 
     others = [ OuroError pos (notPackageData "an export") | (_, pos) <- m ^. exports ]
-          <> [ OuroError pos (notPackageData "a graph") | Graph pos _ _ <- Map.elems (m ^. graphRegistry) ]
+          <> [ OuroError pos (notPackageData "a document") | Graph pos _ _ <- Map.elems (m ^. graphRegistry) ]
           <> [ OuroError pos (reservedPackageName name) | SomeFunction (Function _ pos name _ _ _ _) <- Map.elems functions, name `elem` reservedPackageNames ]
           <> [ OuroError pos (packageParameters (length params)) | Just (SomeFunction (Function _ pos _ _ params _ _)) <- [Map.lookup "package" functions], not (null params) ]
           <> [ OuroError pos (notPackageData "a function") | SomeFunction (Function _ pos _ _ _ _ _) <- extra ]
@@ -195,7 +195,7 @@ settings pos = \case
             unknown     = [ at (unknownBuildSetting key) | (key, _) <- pairs, key `notElem` buildSettings ]
             sources     = maybe (Right ".") (fmap T.unpack . text "sources") (setting "sources")
             outputs     = maybe (Right "out") (fmap T.unpack . text "outputs") (setting "outputs")
-            graphs      = maybe (Right Nothing) (fmap Just . graphNames) (setting "graphs")
+            graphs      = maybe (Right Nothing) (fmap Just . graphNames) (setting "documents")
             needed      = maybe (Right ()) (\value -> text "ouro" value >>= ouro) (setting "ouro")
         in case NE.nonEmpty (unknown <> problems sources <> problems outputs <> problems graphs <> problems needed) of
                Just errs -> Left errs
@@ -209,17 +209,17 @@ settings pos = \case
         L.Primitive (I.String t) -> Right t
         other                    -> Left (pure (mismatch "#string" other ("The package setting :" <> key <> " is a String.")))
 
-    -- :graphs is an Array of graphs, each written module/graph, even when it names one
+    -- :documents is an Array of documents, each written module/document, even when it names one
     graphNames = \case
         L.Primitive I.EmptyArr -> Right []
         L.Array elements
-            -> let checked = [ text ("graphs[" <> T.pack (show i) <> "]") element | (i, element) <- zip [0 :: Int ..] elements ]
+            -> let checked = [ text ("documents[" <> T.pack (show i) <> "]") element | (i, element) <- zip [0 :: Int ..] elements ]
                in case NE.nonEmpty (concatMap problems checked) of
                       Just errs -> Left errs
                       Nothing   -> sequence checked
         other
             -> Left (pure (mismatch "an Array of #string" other
-                             "The package setting :graphs is an Array of graphs, as in (\"people/person\"), even when it names one."))
+                             "The package setting :documents is an Array of documents, as in (\"people/person\"), even when it names one."))
 
     -- :ouro is the version of Ouro the project needs: no newer than this compiler
     ouro written = case traverse number (T.splitOn "." written) of
@@ -432,14 +432,14 @@ outputFile :: FilePath -> Text -> Text -> FilePath
 outputFile out name graph = out </> joinPath (map T.unpack (T.splitOn "/" name)) </> T.unpack graph <.> "json"
 
 
--- Builds the project in a folder: the graphs chosen, by -g, else by :graphs, else every graph
+-- Builds the project in a folder: the documents chosen, by -t, else by :documents, else every document
 -- of every module under its :sources, to <outputs>/<module>/<graph>.json; only the chosen
 -- graphs' modules, and what they import, are compiled. Its vendored libraries are read, and
 -- their modules compiled only when imported. A module under a bundled folder, std or aat, is an
 -- error, and is not built; nor is one under a folder named after a collection, which the overlap
 -- reports. A folder that does not exist, or a package.ouro that cannot be read, is a message,
--- since there is no source to show an error in. A graph chosen by -g that is wrong is reported
--- at the argument, "-g people/persn".
+-- since there is no source to show an error in. A document chosen by -t that is wrong is reported
+-- at the argument, "-t people/persn".
 buildProject :: FilePath -> [Text] -> IO (Either Text (BuildResult FilePath))
 buildProject dir requested = doesDirectoryExist dir >>= \case
     False -> pure (Left ("No folder " <> T.pack dir <> ": ouro build builds the project in a folder."))
@@ -464,7 +464,7 @@ buildProject dir requested = doesDirectoryExist dir >>= \case
             reserved  = [ OuroError (initialPos file) (reservedModule name) | (name, file) <- found, isReserved name ]
             buildable = [ (name, file) | (name, file) <- found, not (isReserved name), not (isCollection name) ]
             (wrong, modules) = case (requested, packageGraphs package) of
-                (_ : _, _)       -> select buildable [ (initialPos ("-g " <> T.unpack g), g) | g <- requested ]
+                (_ : _, _)       -> select buildable [ (initialPos ("-t " <> T.unpack g), g) | g <- requested ]
                 ([], Just names) -> select buildable [ (packageAt package, g) | g <- names ]
                 ([], Nothing)    -> ([], [ (initialPos file, name, AllGraphs) | (name, file) <- buildable ])
         built <- fmap (uncurry (outputFile (projectOut project)))

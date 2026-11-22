@@ -29,7 +29,8 @@ data TokenType
     | DefineProcedure           -- (define/procedure name (args) body): a named function of the procedure kind
     | DefineConstant            -- (define/constant name value): a procedure of no parameters
     | DefineRefinement          -- (define/refinement name (<x ⊢ record>) body): a named function of the refinement kind
-    | Graph                     -- (graph name body): a document to compile, written as one output file
+    | Document                  -- (document name body): a document to compile, written as one output file
+    | RetiredGraph              -- 'graph', the old name of document, read until the cleanup that ends 0.7.0
     -- Identifiers
     | Attr              !Text   -- ':id', ':type' (stores the string without the leading ':')
     | Binding           !Text   -- '$name' in a let (stores the name without the leading '$')
@@ -66,7 +67,8 @@ written = \case
     DefineProcedure     -> "define/procedure"
     DefineConstant      -> "define/constant"
     DefineRefinement    -> "define/refinement"
-    Graph               -> "graph"
+    Document            -> "document"
+    RetiredGraph        -> "graph"
     Attr k              -> ":" <> k
     Binding b           -> "$" <> b
     Symbol s            -> s

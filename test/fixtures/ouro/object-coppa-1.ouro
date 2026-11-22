@@ -9,7 +9,7 @@
   (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
 
 ;; An object by an unknown maker, known only as a group: an unidentified Italian workshop
-(graph object-coppa-1
+(document object-coppa-1
   (-> (object "coppa/1" "Coppa Amatoria")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :identified_by (array (base/name vocab/primary-name "Coppa Amatoria")))

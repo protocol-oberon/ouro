@@ -6,7 +6,7 @@
   (+ "https://linked.art/example/" path))
 
 ;; A signature, transcribed; linked.art gives this record no label
-(graph object-nightwatch-18
+(document object-nightwatch-18
   (:context        "https://linked.art/ns/v1/linked-art.json"
    :id             (example "object/nightwatch/18")
    :type           "HumanMadeObject"

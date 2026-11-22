@@ -11,7 +11,7 @@
   (:id (example (+ "provenance/" slug)) :type "Activity" :_label label :classified_as (array vocab/provenance-activity)))
 
 ;; A copyright established, for an association, in a painting
-(graph provenance-5
+(document provenance-5
   (-> (provenance "5" "Copyright acquisition by PCA")
       (with :context "https://linked.art/ns/v1/linked-art.json")
       (with :part    ((:type        "RightAcquisition"

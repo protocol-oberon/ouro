@@ -14,7 +14,7 @@
   (:id (example path) :type type :_label label))
 
 ;; A purchase known only by its change of title, in a year
-(graph provenance-durand-payne-1
+(document provenance-durand-payne-1
   (-> (provenance "durand_payne/1" "Purchase of Spring by Payne")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :identified_by (array (base/name vocab/primary-name "Purchase of Spring by Payne from Durand-Ruel")))

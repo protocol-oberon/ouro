@@ -5,7 +5,7 @@
 (define/procedure digital #record (#string slug #string label)
   (:id (example (+ "digital/" slug)) :type "DigitalObject" :_label label))
 
-(graph digital-spring-1
+(document digital-spring-1
   (-> (digital "spring/1" "Jeanne (Spring) (Digital)")
       (with :context         "https://linked.art/ns/v1/linked-art.json")
       (with :identified_by   ((:type "Name" :content "Jeanne (Spring)")))

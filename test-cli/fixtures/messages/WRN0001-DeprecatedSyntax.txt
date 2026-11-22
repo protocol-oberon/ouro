@@ -1,0 +1,11 @@
+Warning [WRN0001]: 'graph' is now called 'document'
+  ┌── │WRN0001-DeprecatedSyntax.ouro:1:2│
+  │
+1 │ (graph g (:r 1))
+  │  ^
+  │  Instead: document
+  │ 
+
+'graph' still works, as 'document' does, and will be an error in a later version.
+
+Perhaps write 'document' in its place.

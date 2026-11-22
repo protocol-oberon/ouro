@@ -7,7 +7,7 @@
 (define/procedure person #record (#string slug #string label)
   (:id (example (+ "person/" slug)) :type "Person" :_label label))
 
-(graph person-rembrandt-32
+(document person-rembrandt-32
   (-> (person "rembrandt/32" "Rembrandt")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as (array gender/male))))

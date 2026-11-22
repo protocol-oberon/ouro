@@ -1,7 +1,7 @@
 Error [SYN0001]: Unbalanced Delimiter
   ┌── │SYN0001-UnbalancedDelimiter.ouro:1:1│
   │
-1 │ (graph g (:a 1)
+1 │ (document g (:a 1)
   │ ^
   │ Expected: ')' to close this
   │ Got:      the end of the file

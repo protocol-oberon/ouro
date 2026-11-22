@@ -1,1 +1,1 @@
-(graph g (:context (:@vocabb "https://e.org/") :a 1))
+(document g (:context (:@vocabb "https://e.org/") :a 1))

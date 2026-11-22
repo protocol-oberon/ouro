@@ -8,7 +8,7 @@
   (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
 
 ;; Made in Amsterdam in 1642, by Rembrandt
-(graph object-nightwatch-5
+(document object-nightwatch-5
   (-> (object "nightwatch/5" "Night Watch by Rembrandt")
       (with :context     "https://linked.art/ns/v1/linked-art.json")
       (with :produced_by (:type           "Production"

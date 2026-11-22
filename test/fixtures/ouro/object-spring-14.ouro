@@ -9,7 +9,7 @@
   (:id (example (+ "place/" slug)) :type "Place" :_label label))
 
 ;; On show away from its usual gallery: where it belongs, and where it is now
-(graph object-spring-14
+(document object-spring-14
   (-> (object "spring/14" "Jeanne (Spring) by Manet")
       (with :context                    "https://linked.art/ns/v1/linked-art.json")
       (with :current_permanent_location (place "W204" "Gallery W204"))

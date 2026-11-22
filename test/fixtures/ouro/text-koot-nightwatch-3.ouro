@@ -7,7 +7,7 @@
 (define/procedure text #record (#string slug #string label)
   (:id (example (+ "text/" slug)) :type "LinguisticObject" :_label label))
 
-(graph text-koot-nightwatch-3
+(document text-koot-nightwatch-3
   (-> (text "koot_nightwatch/3" "Content of Koot's Night Watch")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as (array object-type/monograph))

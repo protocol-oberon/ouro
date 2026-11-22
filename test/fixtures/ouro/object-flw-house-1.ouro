@@ -9,7 +9,7 @@
 
 ;; A building is an object too, moved here to a museum's grounds. linked.art classifies it as
 ;; a plain Type, not a type of work, and gives its name no classification.
-(graph object-flw-house-1
+(document object-flw-house-1
   (-> (object "flw_house/1" "Frank Lloyd Wright House")
       (with :context          "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as    (array (base/aat "300004792" "Building")))

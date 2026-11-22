@@ -23,7 +23,7 @@
    :took_place_at (array (place where))))
 
 ;; A person's life: gender and nationality, birth and death, working life, home and address
-(graph person-0
+(document person-0
   (-> (person "0" "Rembrandt")
       (with :context        "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as  (array gender/male nationality/dutch))

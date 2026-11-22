@@ -7,7 +7,7 @@
 (define/procedure object #record (#string slug #string label)
   (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
 
-(graph object-spring-6
+(document object-spring-6
   (-> (object "spring/6" "Jeanne (Spring) by Manet")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :current_owner (array (base/ulan "500115988" "Group" "Getty Museum")))))

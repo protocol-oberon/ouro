@@ -9,7 +9,7 @@
 (define/constant museum   (:type "Group" :_label "Museum"))
 
 ;; Title passes to a museum, and with it the right of ownership it establishes
-(graph provenance-2
+(document provenance-2
   (:context       "https://linked.art/ns/v1/linked-art.json"
    :id            (example "provenance/2")
    :type          "Activity"

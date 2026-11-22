@@ -9,7 +9,7 @@
   (:id (example (+ "concept/" slug)) :type "Type" :_label label))
 
 ;; A local copy of a Getty term, placed in the AAT's own hierarchy
-(graph concept-painting-3
+(document concept-painting-3
   (-> (concept "painting/3" "Local Copy of Painting")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as (array vocab/type-of-work))

@@ -10,7 +10,7 @@
   (+ "https://linked.art/example/" path))
 
 ;; One venue of an exhibition: the exhibiting, at a museum in a city, of a set of objects, by an idea
-(graph activity-exha-1
+(document activity-exha-1
   (-> (exhibition/exhibiting (example "activity/exha/1") "Manet and Modern Beauty (Getty)")
       (with :context              "https://linked.art/ns/v1/linked-art.json")
       (with :identified_by        (array (base/name vocab/primary-name "Manet and Modern Beauty")))

@@ -11,7 +11,7 @@
 
 ;; An uncertain attribution: the painting is possibly by Corrodi, so his part of its making is
 ;; assigned by an attribution classified Possibly By, not stated as fact
-(graph object-forum-1
+(document object-forum-1
   (-> (object "forum/1" "Forum Romanum")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as (array object-type/painting))

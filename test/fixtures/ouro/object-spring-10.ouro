@@ -8,7 +8,7 @@
   (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
 
 ;; A IIIF manifest about the painting, which conforms to the presentation API
-(graph object-spring-10
+(document object-spring-10
   (-> (object "spring/10" "Jeanne (Spring) by Manet")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as (array object-type/painting))

@@ -26,7 +26,7 @@
 
 ;; A commission: two promises, the patron's to pay and the artist's to paint. linked.art's
 ;; second description is not classified Brief Text, so it is written out.
-(graph provenance-nuveen-commission-1
+(document provenance-nuveen-commission-1
   (-> (provenance "nuveen_commission/1" "Commission of Painting")
       (with :context "https://linked.art/ns/v1/linked-art.json")
       (adjoin :classified_as provenance-type/commissioning)

@@ -14,7 +14,7 @@
   (:id (example (+ "text/" slug)) :type "LinguisticObject" :_label label))
 
 ;; A book: what it is, what it is about, its language, who wrote it, and its publishing
-(graph text-0
+(document text-0
   (-> (text "0" "Gainsborough by Hayes")
       (with :context        "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as  (array object-type/monograph))

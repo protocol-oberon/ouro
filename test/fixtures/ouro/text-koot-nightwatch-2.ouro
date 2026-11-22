@@ -10,7 +10,7 @@
   (:id (example (+ "text/" slug)) :type "LinguisticObject" :_label label))
 
 ;; A book's writing and its publishing, each by someone else
-(graph text-koot-nightwatch-2
+(document text-koot-nightwatch-2
   (-> (text "koot_nightwatch/2" "Content of Koot's Night Watch")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as (array object-type/monograph))

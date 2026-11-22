@@ -10,7 +10,7 @@
   (:id (example (+ "visual/" slug)) :type "VisualItem" :_label label))
 
 ;; A painting's appearance: its style, what it shows, a place and a kind of thing, and who made it when
-(graph visual-0
+(document visual-0
   (-> (visual "0" "Appearance of Miro's The Farm")
       (with :context                     "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as               (array style/cubist))

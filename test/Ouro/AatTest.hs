@@ -38,58 +38,58 @@ aat number = "\"id\": \"http://vocab.getty.edu/aat/" <> number <> "\""
 -- scripts/aat/recommended.tsv. Each term is built with the std pattern for its kind.
 recommendedTerms :: Group
 recommendedTerms = Group "aat: Linked Art's recommended terms"
-    [ ("aat compiles without warnings",            compilesWithoutWarnings (withAat "(graph g (:r 1))"))
-    , ("a type of name is a plain Type",           aatToJSON "(graph g (name-type/given-name))"
+    [ ("aat compiles without warnings",            compilesWithoutWarnings (withAat "(document g (:r 1))"))
+    , ("a type of name is a plain Type",           aatToJSON "(document g (name-type/given-name))"
                                                              ("{" <> aat "300404651" <> ", \"type\": \"Type\", \"_label\": \"Given Name\"}"))
-    , ("an object type is a type of work",         aatToJSON "(graph g (object-type/painting))"
+    , ("an object type is a type of work",         aatToJSON "(document g (object-type/painting))"
                                                              ("{" <> aat "300033618" <> ", \"type\": \"Type\", \"_label\": \"Painting\", \"classified_as\": [{" <> aat "300435443" <> ", \"type\": \"Type\", \"_label\": \"Type of Work\"}]}"))
-    , ("a statement type is Brief Text",           aatToJSON "(graph g (statement-type/provenance-statement))"
+    , ("a statement type is Brief Text",           aatToJSON "(document g (statement-type/provenance-statement))"
                                                              ("{" <> aat "300435438" <> ", \"type\": \"Type\", \"_label\": \"Provenance Statement\", \"classified_as\": [{" <> aat "300418049" <> ", \"type\": \"Type\", \"_label\": \"Brief Text\"}]}"))
-    , ("a language is a Language",                 aatToJSON "(graph g (language/english))"
+    , ("a language is a Language",                 aatToJSON "(document g (language/english))"
                                                              ("{" <> aat "300388277" <> ", \"type\": \"Language\", \"_label\": \"English\"}"))
-    , ("a unit is a MeasurementUnit, labelled as the list writes it", aatToJSON "(graph g (unit/centimeters))"
+    , ("a unit is a MeasurementUnit, labelled as the list writes it", aatToJSON "(document g (unit/centimeters))"
                                                              ("{" <> aat "300379098" <> ", \"type\": \"MeasurementUnit\", \"_label\": \"centimeters\"}"))
-    , ("a material is a Material, labelled as the list writes it", aatToJSON "(graph g (material/oil-paint))"
+    , ("a material is a Material, labelled as the list writes it", aatToJSON "(document g (material/oil-paint))"
                                                              ("{" <> aat "300015050" <> ", \"type\": \"Material\", \"_label\": \"oil\"}"))
-    , ("a currency is a Currency",                 aatToJSON "(graph g (currency/us-dollars))"
+    , ("a currency is a Currency",                 aatToJSON "(document g (currency/us-dollars))"
                                                              ("{" <> aat "300411994" <> ", \"type\": \"Currency\", \"_label\": \"US Dollars\"}"))
-    , ("a nationality is classified Nationality",  aatToJSON "(graph g (nationality/dutch))"
+    , ("a nationality is classified Nationality",  aatToJSON "(document g (nationality/dutch))"
                                                              ("{" <> aat "300111175" <> ", \"type\": \"Type\", \"_label\": \"Dutch\", \"classified_as\": [{" <> aat "300379842" <> ", \"type\": \"Type\", \"_label\": \"Nationality\"}]}"))
-    , ("an occupation is classified Occupation",   aatToJSON "(graph g (occupation/collector))"
+    , ("an occupation is classified Occupation",   aatToJSON "(document g (occupation/collector))"
                                                              ("{" <> aat "300025234" <> ", \"type\": \"Type\", \"_label\": \"Art Collector\", \"classified_as\": [{" <> aat "300263369" <> ", \"type\": \"Type\", \"_label\": \"Occupation\"}]}"))
-    , ("a shape is classified Shape",              aatToJSON "(graph g (shape/oval))"
+    , ("a shape is classified Shape",              aatToJSON "(document g (shape/oval))"
                                                              ("{" <> aat "300263817" <> ", \"type\": \"Type\", \"_label\": \"Oval\", \"classified_as\": [{" <> aat "300056273" <> ", \"type\": \"Type\", \"_label\": \"Shape\"}]}"))
-    , ("a language and a nationality share a name", aatToJSON "(graph g (:l (language/dutch) :n (nationality/dutch)))"
+    , ("a language and a nationality share a name", aatToJSON "(document g (:l (language/dutch) :n (nationality/dutch)))"
                                                              ("{\"l\": {" <> aat "300388256" <> ", \"type\": \"Language\", \"_label\": \"Dutch\"}, \"n\": {" <> aat "300111175" <> ", \"type\": \"Type\", \"_label\": \"Dutch\", \"classified_as\": [{" <> aat "300379842" <> ", \"type\": \"Type\", \"_label\": \"Nationality\"}]}}"))
-    , ("a time unit is not its built-in",          aatToJSON "(graph g (unit/year-unit))"
+    , ("a time unit is not its built-in",          aatToJSON "(document g (unit/year-unit))"
                                                              ("{" <> aat "300379244" <> ", \"type\": \"MeasurementUnit\", \"_label\": \"years\"}"))
-    , ("Map is not the map special form",          aatToJSON "(graph g (object-type/map-object))"
+    , ("Map is not the map special form",          aatToJSON "(document g (object-type/map-object))"
                                                              ("{" <> aat "300028094" <> ", \"type\": \"Type\", \"_label\": \"Map\", \"classified_as\": [{" <> aat "300435443" <> ", \"type\": \"Type\", \"_label\": \"Type of Work\"}]}"))
-    , ("a museum as a place keeps its label",      aatToJSON "(graph g (place-type/museum))"
+    , ("a museum as a place keeps its label",      aatToJSON "(document g (place-type/museum))"
                                                              ("{" <> aat "300005768" <> ", \"type\": \"Type\", \"_label\": \"Museum (as Place)\"}"))
-    , ("aat is a folder of modules",               failsWith "'aat' is a folder of modules, not a module" "(import aat) (graph g (:r 1))")
+    , ("aat is a folder of modules",               failsWith "'aat' is a folder of modules, not a module" "(import aat) (document g (:r 1))")
     , ("every term of the table is generated",     everyTermGenerated)
-    , ("an iso language has its code as its notation", aatToJSON "(graph g (iso/english))"
+    , ("an iso language has its code as its notation", aatToJSON "(document g (iso/english))"
                                                              ("{" <> aat "300388277" <> ", \"type\": \"Language\", \"_label\": \"English\", \"notation\": \"en\"}"))
-    , ("Ancient Greek's code is ISO 639-3's",      aatToJSON "(graph g (iso/ancient-greek))"
+    , ("Ancient Greek's code is ISO 639-3's",      aatToJSON "(document g (iso/ancient-greek))"
                                                              ("{" <> aat "300387827" <> ", \"type\": \"Language\", \"_label\": \"Ancient Greek\", \"notation\": \"grc\"}"))
     , ("every language has an iso variant",        everyTermHasIso "aat/language" 31)
-    , ("an iso currency has its code as its notation", aatToJSON "(graph g (currency-iso/us-dollars))"
+    , ("an iso currency has its code as its notation", aatToJSON "(document g (currency-iso/us-dollars))"
                                                              ("{" <> aat "300411994" <> ", \"type\": \"Currency\", \"_label\": \"US Dollars\", \"notation\": \"USD\"}"))
     , ("every currency has an iso variant",        everyTermHasIso "aat/currency" 7)
-    , ("a style is classified Style",              aatToJSON "(graph g (style/baroque))"
+    , ("a style is classified Style",              aatToJSON "(document g (style/baroque))"
                                                              ("{" <> aat "300021147" <> ", \"type\": \"Type\", \"_label\": \"Baroque\", \"classified_as\": [{" <> aat "300015646" <> ", \"type\": \"Type\", \"_label\": \"Style\"}]}"))
-    , ("a gender is classified Gender",            aatToJSON "(graph g (gender/male))"
+    , ("a gender is classified Gender",            aatToJSON "(document g (gender/male))"
                                                              ("{" <> aat "300189559" <> ", \"type\": \"Type\", \"_label\": \"Male\", \"classified_as\": [{" <> aat "300055147" <> ", \"type\": \"Type\", \"_label\": \"Gender\"}]}"))
-    , ("a role type is a plain Type",              aatToJSON "(graph g (role-type/director))"
+    , ("a role type is a plain Type",              aatToJSON "(document g (role-type/director))"
                                                              ("{" <> aat "300025654" <> ", \"type\": \"Type\", \"_label\": \"Director\"}"))
-    , ("a price type is a plain Type",             aatToJSON "(graph g (price-type/starting-price))"
+    , ("a price type is a plain Type",             aatToJSON "(document g (price-type/starting-price))"
                                                              ("{" <> aat "300417242" <> ", \"type\": \"Type\", \"_label\": \"Starting Price\"}"))
-    , ("a term of the examples joins its section", aatToJSON "(graph g (group-type/society))"
+    , ("a term of the examples joins its section", aatToJSON "(document g (group-type/society))"
                                                              ("{" <> aat "300026009" <> ", \"type\": \"Type\", \"_label\": \"Society\"}"))
-    , ("an activity type is a plain Type",         aatToJSON "(graph g (activity-type/auction-event))"
+    , ("an activity type is a plain Type",         aatToJSON "(document g (activity-type/auction-event))"
                                                              ("{" <> aat "300054751" <> ", \"type\": \"Type\", \"_label\": \"Auction Event\"}"))
-    , ("a name's trailing parenthesis is dropped", aatToJSON "(graph g (:p (place-type/auction-house) :g (group-type/auction-house)))"
+    , ("a name's trailing parenthesis is dropped", aatToJSON "(document g (:p (place-type/auction-house) :g (group-type/auction-house)))"
                                                              ("{\"p\": {" <> aat "300005234" <> ", \"type\": \"Type\", \"_label\": \"Auction House (place)\"}, \"g\": {" <> aat "300417515" <> ", \"type\": \"Type\", \"_label\": \"Auction House (organization)\"}}"))
     ]
 

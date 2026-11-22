@@ -8,7 +8,7 @@
 
 ;; A description with its heading, its source, its language and its licence. linked.art gives
 ;; the object and the licence no label.
-(graph object-12
+(document object-12
   (:context        "https://linked.art/ns/v1/linked-art.json"
    :id             (example "object/12")
    :type           "HumanMadeObject"

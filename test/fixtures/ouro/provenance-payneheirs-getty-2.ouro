@@ -15,7 +15,7 @@
 (define/constant heirs  (node "group/payne_heirs" "Group" "Family of Oliver Payne"))
 
 ;; Title goes to the museum, custody to one of its departments
-(graph provenance-payneheirs-getty-2
+(document provenance-payneheirs-getty-2
   (-> (provenance "payneheirs_getty/2" "Purchase of Spring")
       (with :context "https://linked.art/ns/v1/linked-art.json")
       (with :part    (array (with (provenance/acquisition spring heirs (node "group/getty" "Group" "J. Paul Getty Museum"))

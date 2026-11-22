@@ -1,1 +1,1 @@
-(graph g (:r (+ 1 "a")))
+(document g (:r (+ 1 "a")))

@@ -1,2 +1,2 @@
 (define/procedure label-of ⊢ string (<r ⊢ (record)>) "a")
-(graph g (:r (label-of (make record))))
+(document g (:r (label-of (make record))))

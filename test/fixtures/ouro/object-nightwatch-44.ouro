@@ -7,7 +7,7 @@
 (define/procedure object #record (#string slug #string label)
   (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
 
-(graph object-nightwatch-44
+(document object-nightwatch-44
   (-> (object "nightwatch/44" "Night Watch by Rembrandt")
       (with :context        "https://linked.art/ns/v1/linked-art.json")
       (with :referred_to_by (array (object/material-statement "Oil on Canvas")))))

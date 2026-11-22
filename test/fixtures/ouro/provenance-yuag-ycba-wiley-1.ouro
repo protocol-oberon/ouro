@@ -12,7 +12,7 @@
   (:id (example path) :type type :_label label))
 
 ;; A joint purchase: title passes to two museums together
-(graph provenance-yuag-ycba-wiley-1
+(document provenance-yuag-ycba-wiley-1
   (-> (provenance "yuag_ycba_wiley/1" "Purchase of Painting")
       (with :context  "https://linked.art/ns/v1/linked-art.json")
       (with :timespan (time/year "2021"))

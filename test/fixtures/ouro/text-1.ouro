@@ -9,7 +9,7 @@
   (:id (example (+ "text/" slug)) :type "LinguisticObject" :_label label))
 
 ;; A text's rights: in the public domain, classified by Creative Commons' own term
-(graph text-1
+(document text-1
   (-> (text "1" "Example Text")
       (with :context    "https://linked.art/ns/v1/linked-art.json")
       (with :subject_to ((:type          "Right"

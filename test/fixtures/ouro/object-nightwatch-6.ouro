@@ -9,7 +9,7 @@
   (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
 
 ;; A painting's width and height
-(graph object-nightwatch-6
+(document object-nightwatch-6
   (-> (object "nightwatch/6" "Night Watch by Rembrandt")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as (array object-type/painting))

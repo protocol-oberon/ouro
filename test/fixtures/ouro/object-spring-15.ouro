@@ -19,7 +19,7 @@
    :transferred_title_from (array from)
    :transferred_title_to   (array to)))
 
-(graph object-spring-15
+(document object-spring-15
   (-> (object "spring/15" "Jeanne (Spring) by Manet")
       (with :context                   "https://linked.art/ns/v1/linked-art.json")
       (with :changed_ownership_through (array (owned "Ownership of Spring to Proust" (time/year-range "1881" "1883") "manet_proust"

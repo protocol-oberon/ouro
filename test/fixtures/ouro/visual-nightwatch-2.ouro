@@ -6,7 +6,7 @@
   (:id (example (+ "visual/" slug)) :type "VisualItem" :_label label))
 
 ;; An image's rights, as a Right, classified by Creative Commons' own term
-(graph visual-nightwatch-2
+(document visual-nightwatch-2
   (-> (visual "nightwatch/2" "Visual Content of Night Watch")
       (with :context    "https://linked.art/ns/v1/linked-art.json")
       (with :subject_to ((:type          "Right"

@@ -11,7 +11,7 @@
 
 ;; A working life as a painter: Painter classifies the activity, so it is a plain Type here,
 ;; not aat/occupation's, which is classified Occupation
-(graph person-rembrandt-7
+(document person-rembrandt-7
   (-> (person "rembrandt/7" "Rembrandt")
       (with :context     "https://linked.art/ns/v1/linked-art.json")
       (with :carried_out (array (adjoin (actor/active (time/day-range "1631-01-01" "1669-10-04"))

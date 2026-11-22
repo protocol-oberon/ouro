@@ -8,7 +8,7 @@
   (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
 
 ;; Painting as a plain Type, not yet classified a type of work
-(graph object-spring-30
+(document object-spring-30
   (-> (object "spring/30" "Jeanne (Spring) by Manet")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as (array (base/aat "300033618" "Painting")))))

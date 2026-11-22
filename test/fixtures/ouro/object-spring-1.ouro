@@ -5,6 +5,6 @@
 (define/procedure object #record (#string slug #string label)
   (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
 
-(graph object-spring-1
+(document object-spring-1
   (with (object "spring/1" "Jeanne (Spring) by Manet")
    :context "https://linked.art/ns/v1/linked-art.json"))

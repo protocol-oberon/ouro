@@ -1,1 +1,1 @@
-(graph g (:r (base/name "A")))
+(document g (:r (base/name "A")))

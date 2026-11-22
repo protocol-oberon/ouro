@@ -1,10 +1,10 @@
 Error [TYP0000]: Type Mismatch
-  ┌── │TYP0000-TypeMismatch.ouro:1:14│
+  ┌── │TYP0000-TypeMismatch.ouro:1:17│
   │
-1 │ (graph g (:r (+ 1 "a")))
-  │              ^
-  │              Expected: Matching numeric, string, or date/duration pairs
-  │              Got:      a Number + a String
+1 │ (document g (:r (+ 1 "a")))
+  │                 ^
+  │                 Expected: Matching numeric, string, or date/duration pairs
+  │                 Got:      a Number + a String
   │ 
 
 The provided operands a Number and a String do not support the requested operation. Verify that your input data

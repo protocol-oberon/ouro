@@ -22,7 +22,7 @@
 
 ;; Two dealers trade shares: each new share establishes a right and invalidates the old one.
 ;; linked.art gives the 60% share the value 70, kept here as it publishes it.
-(graph provenance-4
+(document provenance-4
   (-> (provenance "4" "Trading Shares of Painting between Two Dealers")
       (with :context "https://linked.art/ns/v1/linked-art.json")
       (with :part    ((:type        "RightAcquisition"

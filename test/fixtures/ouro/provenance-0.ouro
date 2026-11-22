@@ -8,6 +8,6 @@
 (define/procedure provenance #record (#string slug #string label)
   (:id (example (+ "provenance/" slug)) :type "Activity" :_label label :classified_as (array vocab/provenance-activity)))
 
-(graph provenance-0
+(document provenance-0
   (with (provenance "0" "Provenance Activity")
    :context "https://linked.art/ns/v1/linked-art.json"))

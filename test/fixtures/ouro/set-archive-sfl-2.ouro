@@ -10,7 +10,7 @@
   (:id (example (+ "set/" slug)) :type "Set" :_label label))
 
 ;; The box an archival grouping's members are kept in
-(graph set-archive-sfl-2
+(document set-archive-sfl-2
   (-> (set "archive_sfl/2" "Stieglitz Family Letters")
       (with :context              "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as        (array set-type/archival-sub-grouping))

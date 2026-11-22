@@ -19,7 +19,7 @@
 (define/constant proust (node "person/proust" "Person" "Proust"))
 
 ;; Proust buys Spring from Manet: title one way, three thousand francs the other
-(graph provenance-manet-proust-1
+(document provenance-manet-proust-1
   (-> (provenance "manet_proust/1" "Purchase of Spring by Proust")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :identified_by (array (base/name vocab/primary-name "Purchase of Spring by Proust from Manet")))

@@ -10,7 +10,7 @@
   (:id (example (+ "event/" slug)) :type "Activity" :_label label))
 
 ;; One lot of an auction, part of the auction as a whole
-(graph event-christies-24477-16-1
+(document event-christies-24477-16-1
   (-> (activity "christies_24477_16/1" "Auction of Lot 16")
       (with :context              "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as        (array activity-type/auction-of-lot))

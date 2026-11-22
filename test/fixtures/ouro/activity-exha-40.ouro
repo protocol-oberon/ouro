@@ -4,6 +4,6 @@
 (define/procedure example #uri (#string path)
   (+ "https://linked.art/example/" path))
 
-(graph activity-exha-40
+(document activity-exha-40
   (with (exhibition/exhibiting (example "activity/exha/40") "Manet and Modern Beauty (Getty)")
    :context "https://linked.art/ns/v1/linked-art.json"))

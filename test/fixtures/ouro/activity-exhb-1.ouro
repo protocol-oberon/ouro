@@ -10,7 +10,7 @@
   (+ "https://linked.art/example/" path))
 
 ;; The exhibition's second venue, part of the exhibition as a whole
-(graph activity-exhb-1
+(document activity-exhb-1
   (-> (exhibition/exhibiting (example "activity/exhb/1") "Manet and Modern Beauty (AIC)")
       (with :context              "https://linked.art/ns/v1/linked-art.json")
       (with :identified_by        (array (base/name vocab/primary-name "Manet and Modern Beauty")))

@@ -1,10 +1,10 @@
 Error [SCP0002]: Incorrect Arity
-  ┌── │SCP0002-IncorrectArity.ouro:2:14│
+  ┌── │SCP0002-IncorrectArity.ouro:2:17│
   │
-2 │ (graph g (:r (f 1 2)))
-  │              ^
-  │              Expected: 'f' takes 1 argument
-  │              Got:      2 arguments
+2 │ (document g (:r (f 1 2)))
+  │                 ^
+  │                 Expected: 'f' takes 1 argument
+  │                 Got:      2 arguments
   │ 
 
 It is called (f x).

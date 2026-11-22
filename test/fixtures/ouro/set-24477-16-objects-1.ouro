@@ -11,7 +11,7 @@
   (:id (example (+ "set/" slug)) :type "Set" :_label label))
 
 ;; An auction lot: the set of objects sold together, named and numbered
-(graph set-24477-16-objects-1
+(document set-24477-16-objects-1
   (-> (set "24477_16_objects/1" "Set of Objects for Lot 16")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as (array set-type/auction-lot))

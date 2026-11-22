@@ -6,7 +6,7 @@
   (:id (example (+ "text/" slug)) :type "LinguisticObject" :_label label))
 
 ;; The words of a poster, part of what it shows
-(graph text-harpers-1
+(document text-harpers-1
   (-> (text "harpers/1" "Textual component of Harpers")
       (with :context "https://linked.art/ns/v1/linked-art.json")
       (with :content "Harper's. January contains Roden's corner. A Novel by Henry Seton Merriman [...]")

@@ -16,7 +16,7 @@
 (define/constant thief (node "person/alter" "Person" "Jerry Alter"))
 
 ;; The sale of a stolen painting: custody passes, but no title does, and the thief is paid
-(graph provenance-sharp-sale-1
+(document provenance-sharp-sale-1
   (-> (provenance "sharp_sale/1" "Purchase of Stolen Painting")
       (with :context "https://linked.art/ns/v1/linked-art.json")
       (with :part    ((:type                     "TransferOfCustody"

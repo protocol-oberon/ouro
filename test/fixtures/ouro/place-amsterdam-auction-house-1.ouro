@@ -5,7 +5,7 @@
 (define/procedure place #record (#string slug #string label)
   (:id (example (+ "place/" slug)) :type "Place" :_label label))
 
-(graph place-amsterdam-auction-house-1
+(document place-amsterdam-auction-house-1
   (-> (place "amsterdam_auction_house/1" "Christie's AMS")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :identified_by ((:type "Name" :content "Christie's Amsterdam Location")))

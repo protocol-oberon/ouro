@@ -1,1 +1,1 @@
-(graph g (:a :b 1 :y 2))
+(document g (:a :b 1 :y 2))

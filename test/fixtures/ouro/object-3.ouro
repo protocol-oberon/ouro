@@ -7,7 +7,7 @@
   (+ "https://linked.art/example/" path))
 
 ;; A name as a record of its own, known by its id; linked.art gives the object no label
-(graph object-3
+(document object-3
   (:context       "https://linked.art/ns/v1/linked-art.json"
    :id            (example "object/3")
    :type          "HumanMadeObject"

@@ -7,7 +7,7 @@
 (define/procedure place #record (#string slug #string label)
   (:id (example (+ "place/" slug)) :type "Place" :_label label))
 
-(graph place-paris-1
+(document place-paris-1
   (-> (place "paris/1" "Paris")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as (array place-type/city))))

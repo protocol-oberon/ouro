@@ -5,7 +5,7 @@
   (+ "https://linked.art/example/" path))
 
 ;; A painting; linked.art gives it no label
-(graph object-13
+(document object-13
   (:context       "https://linked.art/ns/v1/linked-art.json"
    :id            (example "object/13")
    :type          "HumanMadeObject"

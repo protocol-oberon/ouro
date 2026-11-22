@@ -12,7 +12,7 @@
   (:id (example path) :type type :_label label))
 
 ;; A theft moves custody, never title
-(graph provenance-mona-lisa-theft-1
+(document provenance-mona-lisa-theft-1
   (-> (provenance "mona_lisa_theft/1" "Theft of Mona Lisa")
       (with :context "https://linked.art/ns/v1/linked-art.json")
       (with :part    ((:type                     "TransferOfCustody"

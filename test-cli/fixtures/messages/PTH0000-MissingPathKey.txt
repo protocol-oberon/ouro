@@ -1,10 +1,10 @@
 Error [PTH0000]: Missing Path Key
-  ┌── │PTH0000-MissingPathKey.ouro:1:26│
+  ┌── │PTH0000-MissingPathKey.ouro:1:29│
   │
-1 │ (graph g (:r (get (:a 1) b)))
-  │                          ^
-  │                          Missing:   b
-  │                          Available: ["a"]
+1 │ (document g (:r (get (:a 1) b)))
+  │                             ^
+  │                             Missing:   b
+  │                             Available: ["a"]
   │ 
 
 The Record has no attribute 'b'.

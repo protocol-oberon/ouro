@@ -6,4 +6,4 @@ Error [BLD0000]: Unknown Build Setting
   │ Setting: :sorces
   │ 
 
-package.ouro's settings are :sources, :outputs, :graphs, :ouro. Perhaps you meant ':sources'.
+package.ouro's settings are :sources, :outputs, :documents, :ouro. Perhaps you meant ':sources'.

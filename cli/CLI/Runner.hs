@@ -53,7 +53,7 @@ runBuild dir graphs = do
                    Left (file, problem)
                        -> do
                           hPutStrLn stderr $ "Could not write " <> file <> ": " <> displayException problem
-                          putStrLn "Build Failed: a graph could not be written, so none was."
+                          putStrLn "Build Failed: a document could not be written, so none was."
                           exitFailure
                    Right files
                        -> do
@@ -62,10 +62,10 @@ runBuild dir graphs = do
                               Left (file, problem, written)
                                   -> do
                                      hPutStrLn stderr $ "Could not move " <> file <> " into place: " <> displayException problem
-                                     putStrLn $ "Build Failed: " <> show written <> " of " <> show (length files) <> " graphs were written before it."
+                                     putStrLn $ "Build Failed: " <> show written <> " of " <> show (length files) <> " documents were written before it."
                                      exitFailure
                               Right ()
-                                  -> putStrLn $ "Build Success:       " <> show (length outputs) <> " graphs"
+                                  -> putStrLn $ "Build Success:       " <> show (length outputs) <> " documents"
 
         BuildFailure warnings errors
             -> do

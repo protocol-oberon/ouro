@@ -1,2 +1,2 @@
 (define/procedure len (x) x)
-(graph g (:r (len 1)))
+(document g (:r (len 1)))

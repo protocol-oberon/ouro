@@ -10,7 +10,7 @@
 
 ;; The destroyed painting of lepeintre/1, with the cause of its destruction: a plane crash, an
 ;; Event, not an Activity, as no one carried it out
-(graph object-lepeintre-2
+(document object-lepeintre-2
   (-> (object "lepeintre/2" "Le Peintre by Picasso")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as (array object-type/painting))

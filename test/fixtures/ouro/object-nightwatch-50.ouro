@@ -6,6 +6,6 @@
   (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
 
 ;; The least an object can be: an id, a type and a label
-(graph object-nightwatch-50
+(document object-nightwatch-50
   (with (object "nightwatch/50" "Night Watch by Rembrandt")
    :context "https://linked.art/ns/v1/linked-art.json"))

@@ -1,5 +1,5 @@
-(graph Hoard
+(document Hoard
   (:r 1))
 
-(graph hoard
+(document hoard
   (:r 2))

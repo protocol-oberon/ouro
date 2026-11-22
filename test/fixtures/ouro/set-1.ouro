@@ -10,7 +10,7 @@
   (:id (example (+ "set/" slug)) :type "Set" :_label label))
 
 ;; A museum's collection, made on the day the museum was founded
-(graph set-1
+(document set-1
   (-> (set "1" "Collection of the Met")
       (with :context        "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as  (array set-type/collection))

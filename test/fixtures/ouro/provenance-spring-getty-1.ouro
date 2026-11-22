@@ -12,7 +12,7 @@
   (:id (example path) :type type :_label label))
 
 ;; The loan's return: custody passes back
-(graph provenance-spring-getty-1
+(document provenance-spring-getty-1
   (-> (provenance "spring_getty/1" "Return of Spring to Getty")
       (with :context "https://linked.art/ns/v1/linked-art.json")
       (with :part    ((:type                     "TransferOfCustody"

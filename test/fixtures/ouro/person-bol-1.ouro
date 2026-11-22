@@ -9,7 +9,7 @@
   (:id (example (+ "person/" slug)) :type "Person" :_label label))
 
 ;; A relationship between two people, assigned and named: student of Rembrandt
-(graph person-bol-1
+(document person-bol-1
   (-> (person "bol/1" "Ferdinand Bol")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :identified_by (array (base/name vocab/primary-name "Ferdinand Bol")))

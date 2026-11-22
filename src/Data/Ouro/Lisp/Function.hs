@@ -256,16 +256,16 @@ graphBody name pos = \case
         | otherwise
         -> Right result
     []
-        -> lexicalError ("The graph '" <> name <> "' has no expression.")
-           & withBlurb "A graph is one expression, usually a Record: (graph name (:key value ...))."
+        -> lexicalError ("The document '" <> name <> "' has no expression.")
+           & withBlurb "A document is one expression, usually a Record: (document name (:key value ...))."
            & OuroError pos
            & Left
     _spliced
         -> spliced
     where
-    spliced = lexicalError ("The graph '" <> name <> "' must be one expression.")
-              & withBlurb ( "Perhaps wrap its attribute pairs in parentheses: (graph " <> name <> " (:key value ...)). "
-                         <> "Private values are bound around it with let: (graph " <> name <> " (let ($name value) (:key value ...)))."
+    spliced = lexicalError ("The document '" <> name <> "' must be one expression.")
+              & withBlurb ( "Perhaps wrap its attribute pairs in parentheses: (document " <> name <> " (:key value ...)). "
+                         <> "Private values are bound around it with let: (document " <> name <> " (let ($name value) (:key value ...)))."
                           )
               & OuroError pos
               & Left
@@ -402,7 +402,7 @@ checkFunctionName name pos
 -- whose kind is one.
 -- A binding of one of their names is never called by them.
 readBySyntax :: [Text]
-readBySyntax = ["define/procedure", "define/refinement", "define/constant", "graph", "doc", "->", "adjoin", "and", "or", "thru", "with", "assert", "in", "make"]
+readBySyntax = ["define/procedure", "define/refinement", "define/constant", "document", "graph", "doc", "->", "adjoin", "and", "or", "thru", "with", "assert", "in", "make"]
 
 
 -- A function can be defined once in each scope
@@ -417,7 +417,7 @@ duplicateFunction name pos =
 -- name, which shadows the form, as in Scheme (see 'Analysis.Forms.shadowsForm')
 specialForms :: [Text]
 specialForms = [ "->", "adjoin", "all", "and", "any", "array", "assert", "attr", "case", "context", "define/constant", "define/procedure", "define/refinement", "doc"
-               , "exists", "filter", "fn", "fold", "forall", "get", "get-or", "graph", "has", "image", "in", "inlay", "insert"
+               , "exists", "filter", "fn", "fold", "forall", "get", "get-or", "document", "graph", "has", "image", "in", "inlay", "insert"
                , "let", "make", "map", "nth", "omits", "or", "replace-at", "satisfies", "thru", "when", "with" ]
 
 

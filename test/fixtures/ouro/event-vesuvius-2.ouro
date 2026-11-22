@@ -8,7 +8,7 @@
 (define/procedure event #record (#string slug #string label)
   (:id (example (+ "event/" slug)) :type "Event" :_label label))
 
-(graph event-vesuvius-2
+(document event-vesuvius-2
   (-> (event "vesuvius/2" "Eruption of Vesuvius")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :identified_by (array (base/name vocab/primary-name "Eruption of Vesuvius")))

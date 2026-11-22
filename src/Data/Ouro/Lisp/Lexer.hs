@@ -84,7 +84,7 @@ pDelims = lexeme . withPos $ choice
 
 
 -- Core Operational Keywords & Symbols. A keyword that only begins a longer name
--- ('graphs', 'important') backtracks, so the name is read as a symbol. A definition is
+-- ('documents', 'important') backtracks, so the name is read as a symbol. A definition is
 -- define with the kind it defines, each tried on its own, since each begins with define.
 pCoreKeywords :: Parser Tkn.Token
 pCoreKeywords = lexeme . withPos . try $ choice
@@ -93,7 +93,8 @@ pCoreKeywords = lexeme . withPos . try $ choice
     , try (Tkn.DefineProcedure  <$ string "define/procedure"  <* endOfWord)
     , try (Tkn.DefineRefinement <$ string "define/refinement" <* endOfWord)
     , try (Tkn.DefineConstant   <$ string "define/constant"   <* endOfWord)
-    , Tkn.Graph    <$ string "graph"    <* endOfWord
+    , try (Tkn.Document <$ string "document" <* endOfWord)
+    , Tkn.RetiredGraph <$ string "graph" <* endOfWord
     ]
 
     where

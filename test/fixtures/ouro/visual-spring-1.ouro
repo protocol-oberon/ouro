@@ -6,7 +6,7 @@
   (:id (example (+ "visual/" slug)) :type "VisualItem" :_label label))
 
 ;; What a painting shows: a person, the sitter
-(graph visual-spring-1
+(document visual-spring-1
   (-> (visual "spring/1" "Visual Content of Spring")
       (with :context    "https://linked.art/ns/v1/linked-art.json")
       (with :represents ((:id (example "person/jeanne") :type "Person" :_label "Jeanne Demarsy")))))

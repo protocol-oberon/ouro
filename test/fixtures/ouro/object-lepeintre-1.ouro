@@ -9,7 +9,7 @@
   (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
 
 ;; A destroyed painting: its destruction, within twenty minutes on an evening in 1998
-(graph object-lepeintre-1
+(document object-lepeintre-1
   (-> (object "lepeintre/1" "Le Peintre by Picasso")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as (array object-type/painting))

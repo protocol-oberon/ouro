@@ -14,7 +14,7 @@
 (define/procedure at #record (#uri url)
   (:id url :type "DigitalObject"))
 
-(graph digital-0
+(document digital-0
   (-> (digital "0" "Digital Image of Self-Portrait of Van Gogh")
       (with :context                 "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as           (array digital-type/digital-image))

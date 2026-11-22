@@ -1,9 +1,9 @@
 Error [SCP0007]: Unknown Qualifier
-  ┌── │SCP0007-UnknownQualifier.ouro:1:15│
+  ┌── │SCP0007-UnknownQualifier.ouro:1:18│
   │
-1 │ (graph g (:r (base/name "A")))
-  │               ^
-  │               Qualifier: base
+1 │ (document g (:r (base/name "A")))
+  │                  ^
+  │                  Qualifier: base
   │ 
 
 A qualified name needs its module imported: perhaps add (import std/base) at the top of the file.

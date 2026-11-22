@@ -14,7 +14,7 @@
 (define/procedure shown #record (#record dimension #string as)
   (with dimension :identified_by (array (base/name vocab/display-name as))))
 
-(graph object-nightwatch-8
+(document object-nightwatch-8
   (-> (object "nightwatch/8" "Night Watch by Rembrandt")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as (array object-type/painting))

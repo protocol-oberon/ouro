@@ -6,7 +6,7 @@
   (:id (example (+ "person/" slug)) :type "Person" :_label label))
 
 ;; A name and where it comes from: assigned by a book that uses it
-(graph person-rembrandt-10
+(document person-rembrandt-10
   (-> (person "rembrandt/10" "Rembrandt")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :identified_by ((:type        "Name"

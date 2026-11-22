@@ -1,1 +1,1 @@
-(graph g (:r (get () 5)))
+(document g (:r (get () 5)))

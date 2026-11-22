@@ -8,7 +8,7 @@
   (+ "https://linked.art/example/" path))
 
 ;; The objects an exhibition shows, which std/exhibition builds as an Exhibition Collection
-(graph set-exhset-1
+(document set-exhset-1
   (-> (exhibition/set (example "set/exhset/1") "Exhibition objects")
       (with :context        "https://linked.art/ns/v1/linked-art.json")
       (with :identified_by  (array (base/name vocab/primary-name "Objects in Manet and Modern Beauty")))

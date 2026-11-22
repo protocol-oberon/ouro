@@ -7,7 +7,7 @@
 (define/procedure visual #record (#string slug #string label)
   (:id (example (+ "visual/" slug)) :type "VisualItem" :_label label))
 
-(graph visual-nightwatch-40
+(document visual-nightwatch-40
   (-> (visual "nightwatch/40" "Appearance of Night Watch")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as (array style/baroque))))

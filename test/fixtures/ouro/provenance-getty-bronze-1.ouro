@@ -14,7 +14,7 @@
 (define/constant finder (node "group/ferruccio" "Group" "Owners of Ferri Ferruccio"))
 
 ;; A find: the object is encountered, and its finders take title of it from no one
-(graph provenance-getty-bronze-1
+(document provenance-getty-bronze-1
   (-> (provenance "getty_bronze/1" "Discovery of Victorious Youth")
       (with :context "https://linked.art/ns/v1/linked-art.json")
       (with :part    ((:type "Encounter" :_label "Encounter of Sculpture" :carried_out_by (array finder) :encountered (array youth))

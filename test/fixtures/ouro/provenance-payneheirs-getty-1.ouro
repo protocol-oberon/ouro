@@ -12,7 +12,7 @@
   (:id (example path) :type type :_label label))
 
 ;; A purchase through an agent, who carries out the acquisition for the buyer
-(graph provenance-payneheirs-getty-1
+(document provenance-payneheirs-getty-1
   (-> (provenance "payneheirs_getty/1" "Purchase of Spring for Getty")
       (with :context "https://linked.art/ns/v1/linked-art.json")
       (with :part    (array (-> (provenance/acquisition (node "object/spring" "HumanMadeObject" "Spring")

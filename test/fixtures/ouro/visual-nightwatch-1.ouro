@@ -9,7 +9,7 @@
   (:id (example (+ "visual/" slug)) :type "VisualItem" :_label label))
 
 ;; An image's rights, as a statement
-(graph visual-nightwatch-1
+(document visual-nightwatch-1
   (-> (visual "nightwatch/1" "Visual Content of Night Watch")
       (with :context        "https://linked.art/ns/v1/linked-art.json")
       (with :referred_to_by (array (base/statement statement-type/rights-statement "Public Domain")))))

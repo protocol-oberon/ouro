@@ -10,7 +10,7 @@
 
 ;; A material, assigned in a year: which property was assigned, and its value. linked.art
 ;; gives the canvas no label.
-(graph object-spring-21
+(document object-spring-21
   (-> (object "spring/21" "Spring")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as (array object-type/painting))

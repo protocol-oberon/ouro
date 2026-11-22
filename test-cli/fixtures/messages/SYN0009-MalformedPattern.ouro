@@ -1,2 +1,2 @@
 (define/procedure f ((?a (g ?b))) a)
-(graph g (:r (f (1 2))))
+(document g (:r (f (1 2))))

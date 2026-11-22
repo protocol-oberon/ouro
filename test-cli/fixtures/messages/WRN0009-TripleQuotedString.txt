@@ -1,9 +1,9 @@
 Warning [WRN0009]: Ouro has no triple-quoted strings
-  ┌── │WRN0009-TripleQuotedString.ouro:1:15│
+  ┌── │WRN0009-TripleQuotedString.ouro:1:18│
   │
-1 │ (graph g (:r ("""Spring""")))
-  │               ^
-  │               Write: (prose | …)
+1 │ (document g (:r ("""Spring""")))
+  │                  ^
+  │                  Write: (prose | …)
   │ 
 
 Ouro has no triple-quoted strings: """Spring""" is read as three strings, "", "Spring" and "", which an array keeps

@@ -12,7 +12,7 @@
 ;; An unidentified group, known by what its members have in common: born in Italy in the
 ;; 14th century. linked.art ends the century at midnight, not at its last second, so the span
 ;; is written out; and its TGN id is https, so Italy is written out too.
-(graph group-14thc-italian-1
+(document group-14thc-italian-1
   (-> (group "14thc_italian/1" "14th c italians")
       (with :context                "https://linked.art/ns/v1/linked-art.json")
       (with :identified_by          (array (base/name vocab/primary-name "Unidentified 14th Century Italian")))

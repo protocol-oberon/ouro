@@ -8,7 +8,7 @@
   (:id (example (+ "group/" slug)) :type "Group" :_label label))
 
 ;; A museum's contact points, each an Identifier std/actor builds
-(graph group-rembrandthuis-1
+(document group-rembrandthuis-1
   (-> (group "rembrandthuis/1" "Rembrandt House Museum")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :contact_point (array (actor/street-address "Jodenbreestraat 4, 1011 NK Amsterdam")

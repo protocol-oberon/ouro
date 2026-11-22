@@ -9,7 +9,7 @@
   (:id (example (+ "person/" slug)) :type "Person" :_label label))
 
 ;; Born on a day, and died on a day in a place
-(graph person-rembrandt-13
+(document person-rembrandt-13
   (-> (person "rembrandt/13" "Rembrandt")
       (with :context "https://linked.art/ns/v1/linked-art.json")
       (with :born    (:type "Birth" :timespan (time/day "1606-07-15")))

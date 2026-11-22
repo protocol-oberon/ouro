@@ -9,7 +9,7 @@
   (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
 
 ;; A commissioned painting: its making was caused by the commission, an activity of its own
-(graph object-nuveen-1
+(document object-nuveen-1
   (-> (object "nuveen/1" "Nuveen Painting")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :identified_by (array (base/name vocab/primary-name "The Nuveen Painting")))

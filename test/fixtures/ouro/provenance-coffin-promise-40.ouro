@@ -8,7 +8,7 @@
 (define/procedure provenance #record (#string slug #string label)
   (:id (example (+ "provenance/" slug)) :type "Activity" :_label label :classified_as (array vocab/provenance-activity)))
 
-(graph provenance-coffin-promise-40
+(document provenance-coffin-promise-40
   (-> (provenance "coffin_promise/40" "Promised Gift of Painting")
       (with :context "https://linked.art/ns/v1/linked-art.json")
       (with :part    ((:type "Activity" :_label "Promise of Gift" :classified_as (array provenance-type/promise))))))

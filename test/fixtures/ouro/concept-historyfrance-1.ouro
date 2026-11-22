@@ -5,7 +5,7 @@
 (define/procedure concept #record (#string slug #string label)
   (:id (example (+ "concept/" slug)) :type "Type" :_label label))
 
-(graph concept-historyfrance-1
+(document concept-historyfrance-1
   (-> (concept "historyFrance/1" "History of France")
       (with :context    "https://linked.art/ns/v1/linked-art.json")
       (with :created_by (:type          "Creation"

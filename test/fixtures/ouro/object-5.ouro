@@ -9,7 +9,7 @@
   (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
 
 ;; A related object, recommended by a curator: the assignment classified by a local term
-(graph object-5
+(document object-5
   (-> (object "5" "Painting of a Fish")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :attributed_by ((:type           "AttributeAssignment"

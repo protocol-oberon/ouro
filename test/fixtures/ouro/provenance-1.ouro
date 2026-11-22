@@ -20,7 +20,7 @@
 (define/constant adams     (museum "person/1" "Person" "Adams"))
 
 ;; A purchase at auction: title from the seller to the buyer, money the other way
-(graph provenance-1
+(document provenance-1
   (-> (provenance "1" "St George from Simpson to Adams")
       (with :context              "https://linked.art/ns/v1/linked-art.json")
       (with :identified_by        ((:type "Name" :content "Purchase of Lot 0055a, Durer's St George and the Dragon")

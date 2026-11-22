@@ -1,1 +1,1 @@
-(graph person (:r 1))
+(document person (:r 1))

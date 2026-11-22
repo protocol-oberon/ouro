@@ -1,7 +1,7 @@
 Error [BLD0009]: Reserved Module
   ┌── │test-cli/fixtures/messages/BLD0009-ReservedModule/std/base.ouro:1:1│
   │
-1 │ (graph g (:r 1))
+1 │ (document g (:r 1))
   │ ^
   │ Module: std/base
   │ 

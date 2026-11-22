@@ -5,7 +5,7 @@
 (define/procedure person #record (#string slug #string label)
   (:id (example (+ "person/" slug)) :type "Person" :_label label))
 
-(graph person-rembrandt-2
+(document person-rembrandt-2
   (-> (person "rembrandt/2" "Rembrandt")
       (with :context   "https://linked.art/ns/v1/linked-art.json")
       (with :member_of ((:id (example "group/stluke") :type "Group" :_label "Guild of St Luke")))))

@@ -11,7 +11,7 @@
   (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
 
 ;; A painting and a part of it, each with its own material
-(graph object-2
+(document object-2
   (-> (object "2" "Example Painting")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as (array object-type/painting (base/aat "300133025" "Artwork")))

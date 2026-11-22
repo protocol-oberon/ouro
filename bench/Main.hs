@@ -129,5 +129,5 @@ hoardWith body coins = T.unlines $
     , "(define/constant coins #array"
     , "  (map (zip (1..(len weights)) weights) coin))"
     , ""
-    , "(graph hoard"
+    , "(document hoard"
     ] <> body

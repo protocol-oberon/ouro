@@ -10,7 +10,7 @@
   (:id (example (+ "text/" slug)) :type "LinguisticObject" :_label label))
 
 ;; A chapter, part of its book
-(graph text-koot-nightwatch-ch1-1
+(document text-koot-nightwatch-ch1-1
   (-> (text "koot_nightwatch_ch1/1" "Chapter 1 of Koot")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as (array object-type/chapter))

@@ -5,7 +5,7 @@
 (define/procedure concept #record (#string slug #string label)
   (:id (example (+ "concept/" slug)) :type "Type" :_label label))
 
-(graph concept-painting-4
+(document concept-painting-4
   (-> (concept "painting/4" "Local Copy of Painting")
       (with :context   "https://linked.art/ns/v1/linked-art.json")
       (with :member_of ((:id (example "set/conceptScheme") :type "Set" :_label "Local Concept Scheme")))))

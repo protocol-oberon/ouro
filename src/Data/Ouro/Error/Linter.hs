@@ -4,7 +4,7 @@ module Data.Ouro.Error.Linter where
 
 import           Data.Char                   (isDigit, isLower, isUpper, toLower)
 import qualified Data.Map.Strict             as Map
-import           Data.Ouro.Error.Diagnostics (emptyRecordType, notKebabCase,
+import           Data.Ouro.Error.Diagnostics (deprecatedSyntax, emptyRecordType, notKebabCase,
                                               parenthesisedResult,
                                               procedureOfNoParameters,
                                               shadowedBuiltin,
@@ -33,6 +33,10 @@ lintExpression =
      (Tkn.Token pos Tkn.OpenParen : Tkn.Token _ Tkn.DefineProcedure : Tkn.Token _ (Tkn.Symbol name) : rest)
          | Tkn.Token _ Tkn.OpenParen : Tkn.Token _ Tkn.CloseParen : _ <- afterReturnType rest
          -> OuroWarning pos (procedureOfNoParameters name) : lintExpression rest
+
+     -- graph, the old name of document: it still works, with a warning that names document
+     (Tkn.Token pos Tkn.RetiredGraph : rest)
+         -> OuroWarning pos (deprecatedSyntax "graph" "document") : lintExpression rest
 
      -- """Spring""": an empty string, then a string opening where it closed, two columns on,
      -- which only a triple quote writes; "" "x", written apart, is two strings
@@ -77,7 +81,7 @@ lintModule ouroModule =
     <> [ OuroWarning pos (notKebabCase (kindName f) name kebab)
        | f@(M.SomeFunction (M.Function _ pos name _ _ _ _)) <- Map.elems (ouroModule ^. M.functionRegistry)
        , Just kebab <- [kebabCase name] ]
-    <> [ OuroWarning pos (notKebabCase "graph" name kebab)
+    <> [ OuroWarning pos (notKebabCase "document" name kebab)
        | M.Graph pos name _ <- Map.elems (ouroModule ^. M.graphRegistry)
        , Just kebab <- [kebabCase name] ]
     <> [ OuroWarning pos (undocumentedRefinement name)

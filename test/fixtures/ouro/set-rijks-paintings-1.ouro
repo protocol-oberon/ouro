@@ -11,7 +11,7 @@
   (:id (example (+ "set/" slug)) :type "Set" :_label label))
 
 ;; A collection within a collection, curated by a department
-(graph set-rijks-paintings-1
+(document set-rijks-paintings-1
   (-> (set "rijks_paintings/1" "Paintings of the Rijksmuseum")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as (array set-type/collection))

@@ -9,7 +9,7 @@
   (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
 
 ;; A materials statement, in English
-(graph object-nightwatch-4
+(document object-nightwatch-4
   (-> (object "nightwatch/4" "Night Watch by Rembrandt")
       (with :context        "https://linked.art/ns/v1/linked-art.json")
       (with :referred_to_by (array (with (object/material-statement "Oil on Canvas") :language (array iso/english))))))

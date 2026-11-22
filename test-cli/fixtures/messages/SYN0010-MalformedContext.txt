@@ -1,10 +1,10 @@
 Error [SYN0010]: Malformed Context
-  ┌── │SYN0010-MalformedContext.ouro:1:20│
+  ┌── │SYN0010-MalformedContext.ouro:1:23│
   │
-1 │ (graph g (:context (:@vocabb "https://e.org/") :a 1))
-  │                    ^
-  │                    Context Rule: '@vocabb' is not a JSON-LD context keyword.
+1 │ (document g (:context (:@vocabb "https://e.org/") :a 1))
+  │                       ^
+  │                       Context Rule: '@vocabb' is not a JSON-LD context keyword.
   │ 
 
-A local context's keywords are @vocab, @base, @language, @direction, @version, @protected, @propagate, @import; any
-other key defines a term.
+A local context's keywords are @vocab, @base, @language, @direction, @version, @protected, @propagate, @import; any other
+key defines a term.

@@ -9,7 +9,7 @@
   (:id (example (+ "person/" slug)) :type "Person" :_label label))
 
 ;; A name to show, and a name to sort by
-(graph person-rembrandt-41
+(document person-rembrandt-41
   (-> (person "rembrandt/41" "Rembrandt")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :identified_by (array (base/name vocab/primary-name "Rembrandt van Rijn")

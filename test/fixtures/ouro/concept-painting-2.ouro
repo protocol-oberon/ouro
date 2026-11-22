@@ -9,7 +9,7 @@
   (:id (example (+ "concept/" slug)) :type "Type" :_label label))
 
 ;; A local copy of a Getty term, equivalent to it
-(graph concept-painting-2
+(document concept-painting-2
   (-> (concept "painting/2" "Local Copy of Painting")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :identified_by (array (base/name vocab/primary-name "Painting")))

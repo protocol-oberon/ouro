@@ -11,7 +11,7 @@
 
 ;; One of two prints of a photograph, made from the same negative and showing the same image;
 ;; okeeffe-gok/1 is the other
-(graph object-okeeffe-yuag-1
+(document object-okeeffe-yuag-1
   (-> (object "okeeffe-yuag/1" "GOK 1918, YUAG")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as (array object-type/photograph))

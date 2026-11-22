@@ -8,7 +8,7 @@
   (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
 
 ;; A page cut from a gradual: its removal diminished the book it was part of
-(graph object-gradualpage-1
+(document object-gradualpage-1
   (-> (object "gradualpage/1" "Page from a Gradual")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as (array object-type/page))

@@ -8,7 +8,7 @@
 (define/procedure period #record (#string slug #string label)
   (:id (example (+ "event/" slug)) :type "Period" :_label label))
 
-(graph event-early-roman-1
+(document event-early-roman-1
   (-> (period "early_roman/1" "Early Roman Empire (31 BCE - 193 CE)")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :identified_by (array (base/name vocab/primary-name "Early Roman Empire")))

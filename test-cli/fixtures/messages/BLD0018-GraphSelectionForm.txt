@@ -1,10 +1,10 @@
-Error [BLD0018]: Graph Selection Form
+Error [BLD0018]: Document Selection Form
   ┌── │test-cli/fixtures/messages/BLD0018-GraphSelectionForm/package.ouro:1:1│
   │
-1 │ (define/constant package (:graphs ("person")))
+1 │ (define/constant package (:documents ("person")))
   │ ^
   │ Written: person
   │ 
 
-A graph is chosen by its module and its name, as people/person for the graph person of the module
-people.
+A document is chosen by its module and its name, as people/person for the document person of the
+module people.

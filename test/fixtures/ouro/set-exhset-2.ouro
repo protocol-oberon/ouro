@@ -9,7 +9,7 @@
   (:id (example (+ "set/" slug)) :type "Set" :_label label))
 
 ;; A set described by what its members have in common: paintings by Manet
-(graph set-exhset-2
+(document set-exhset-2
   (-> (set "exhset/2" "Exhibition objects")
       (with :context                "https://linked.art/ns/v1/linked-art.json")
       (with :members_exemplified_by ((:type          "HumanMadeObject"

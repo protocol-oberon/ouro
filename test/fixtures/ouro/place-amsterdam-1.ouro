@@ -10,7 +10,7 @@
   (:id (example (+ "place/" slug)) :type "Place" :_label label))
 
 ;; -> threads the place through its steps; with sets each property, a set written as an array
-(graph place-amsterdam-1
+(document place-amsterdam-1
   (-> (place "amsterdam/1" "Amsterdam")
       (with :context        "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as  (array place-type/city))

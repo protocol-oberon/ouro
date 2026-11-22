@@ -10,7 +10,7 @@
 
 ;; An identifier with a history: named, annotated, and assigned by a museum in a year, which
 ;; linked.art ends at midnight, so the span is written out. linked.art gives the object no label.
-(graph object-9
+(document object-9
   (:context       "https://linked.art/ns/v1/linked-art.json"
    :id            (example "object/9")
    :type          "HumanMadeObject"

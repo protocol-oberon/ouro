@@ -225,7 +225,7 @@ validateAST' gPos path valueGraph = case valueGraph of
                       False -> path <> "." <> k
     indexPath i = path <> "[" <> T.pack (show i) <> "]"
     location    = case T.null path of
-                      True  -> "the root of the graph"
+                      True  -> "the root of the document"
                       False -> "'" <> path <> "'"
 
 

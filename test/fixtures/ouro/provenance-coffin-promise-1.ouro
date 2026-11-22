@@ -13,7 +13,7 @@
   (:id (example path) :type type :_label label))
 
 ;; A gift promised: the promise is the event, the gift still to come
-(graph provenance-coffin-promise-1
+(document provenance-coffin-promise-1
   (-> (provenance "coffin_promise/1" "Promised Gift of Coffin")
       (with :context "https://linked.art/ns/v1/linked-art.json")
       (with :part    ((:type                 "Activity"

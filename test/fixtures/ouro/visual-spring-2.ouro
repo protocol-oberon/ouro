@@ -8,7 +8,7 @@
   (:id (example (+ "visual/" slug)) :type "VisualItem" :_label label))
 
 ;; What a painting is about, rather than what it shows: spring, the season
-(graph visual-spring-2
+(document visual-spring-2
   (-> (visual "spring/2" "Visual Content of Spring")
       (with :context "https://linked.art/ns/v1/linked-art.json")
       (with :about   (array (base/aat "300133097" "Spring (season)")))))

@@ -11,7 +11,7 @@
   (:id (example (+ "person/" slug)) :type "Person" :_label label))
 
 ;; A name in its parts; the middle name is a record of its own, known by its id
-(graph person-rembrandt-4
+(document person-rembrandt-4
   (-> (person "rembrandt/4" "Rembrandt")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :identified_by (array (with (base/name vocab/primary-name "Rembrandt Harmenzoon van Rijn")

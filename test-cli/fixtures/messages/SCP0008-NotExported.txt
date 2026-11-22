@@ -1,9 +1,9 @@
 Error [SCP0008]: Not Exported
-  ┌── │SCP0008-NotExported.ouro:2:15│
+  ┌── │SCP0008-NotExported.ouro:2:18│
   │
-2 │ (graph g (:r (base/nam "A")))
-  │               ^
-  │               Function: base/nam
+2 │ (document g (:r (base/nam "A")))
+  │                  ^
+  │                  Function: base/nam
   │ 
 
 The module imported as 'base' exports: aat, core, description, identifier, language, name, nationality, occupation,

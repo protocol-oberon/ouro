@@ -9,7 +9,7 @@
 (define/procedure period #record (#string slug #string label)
   (:id (example (+ "event/" slug)) :type "Period" :_label label))
 
-(graph event-19c-1
+(document event-19c-1
   (-> (period "19c/1" "19th Century")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :identified_by (array (base/name vocab/primary-name "19th Century")))

@@ -7,7 +7,7 @@
 (define/procedure visual #record (#string slug #string label)
   (:id (example (+ "visual/" slug)) :type "VisualItem" :_label label))
 
-(graph visual-harpers-1
+(document visual-harpers-1
   (-> (visual "harpers/1" "Visual Content of Harpers")
       (with :context        "https://linked.art/ns/v1/linked-art.json")
       (with :referred_to_by (array (base/description "The text and image are primarily red and black")))

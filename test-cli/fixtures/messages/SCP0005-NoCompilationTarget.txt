@@ -3,5 +3,5 @@ Error [SCP0005]: No Compilation Target
   │
 1 │ (export f)
   │ ^
-  │ The module: SCP0005-NoCompilationTarget.ouro lacks a compilation target (Graph)
+  │ The module: SCP0005-NoCompilationTarget.ouro lacks a compilation target (Document)
   │ 

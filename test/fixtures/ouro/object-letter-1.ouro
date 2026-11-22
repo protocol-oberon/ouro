@@ -10,7 +10,7 @@
 
 ;; A letter in an archive: a member of the set of the family's letters. linked.art classifies
 ;; it as a plain Type, not a type of work.
-(graph object-letter-1
+(document object-letter-1
   (-> (object "letter/1" "Obermeyer 1920")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as (array (base/aat "300026879" "Letter")))

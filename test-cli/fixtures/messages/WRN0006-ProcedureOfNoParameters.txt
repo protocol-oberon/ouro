@@ -7,6 +7,6 @@ Warning [WRN0006]: The procedure 'museum' takes no parameters, so it is a consta
   │ 
 
 A function of no parameters is a constant: named as a value it is its result, worked out once per
-graph, whichever keyword defines it.
+document, whichever keyword defines it.
 
 Perhaps define it as one: (define/constant museum value).

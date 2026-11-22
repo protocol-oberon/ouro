@@ -10,7 +10,7 @@
   (:id (example (+ "person/" slug)) :type "Person" :_label label))
 
 ;; The idea behind Manet and Modern Beauty, which its venues are influenced_by
-(graph concept-exhidea-1
+(document concept-exhidea-1
   (-> (exhibition/concept (example "concept/exhidea/1") "Idea for Manet and Modern Beauty")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :identified_by (array (base/name vocab/primary-name "Manet and Modern Beauty")))

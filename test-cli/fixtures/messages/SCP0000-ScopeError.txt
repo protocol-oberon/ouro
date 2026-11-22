@@ -1,11 +1,11 @@
 Error [SCP0000]: Unbound Identifier
-  ┌── │SCP0000-ScopeError.ouro:1:14│
+  ┌── │SCP0000-ScopeError.ouro:1:17│
   │
-1 │ (graph g (:r nope))
-  │              ^
-  │              Expected: a defined symbol
-  │              Got:      nope
+1 │ (document g (:r nope))
+  │                 ^
+  │                 Expected: a defined symbol
+  │                 Got:      nope
   │ 
 
-'nope' is not bound here: no attribute pair, let binding or parameter around it, function of this module or
-built-in has that name.
+'nope' is not bound here: no attribute pair, let binding or parameter around it, function of this module or built-in
+has that name.

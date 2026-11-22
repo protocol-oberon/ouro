@@ -12,7 +12,7 @@
 
 ;; An object of many pieces, counted: 36 components. linked.art measures in the AAT's
 ;; Components, the part type, used here as a unit.
-(graph object-chess-1
+(document object-chess-1
   (-> (object "chess/1" "Miniature Chess")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :identified_by (array (base/name vocab/primary-name "Vessel with miniature chess set")))

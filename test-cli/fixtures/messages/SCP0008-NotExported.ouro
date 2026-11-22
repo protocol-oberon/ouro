@@ -1,2 +1,2 @@
 (import std/base)
-(graph g (:r (base/nam "A")))
+(document g (:r (base/nam "A")))

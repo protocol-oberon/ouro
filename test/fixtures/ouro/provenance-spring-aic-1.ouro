@@ -12,7 +12,7 @@
   (:id (example path) :type type :_label label))
 
 ;; A loan: custody passes to the borrower for a while
-(graph provenance-spring-aic-1
+(document provenance-spring-aic-1
   (-> (provenance "spring_aic/1" "Loan of Spring to AIC")
       (with :context "https://linked.art/ns/v1/linked-art.json")
       (with :part    ((:type                     "TransferOfCustody"
