@@ -396,7 +396,7 @@ evalFunction
     -> SourcePos                      -- Callsite position
     -> SourcePos                      -- Where the function's name, or what gives it, is written
     -> L.FunctionId                   -- The function's name and definition position
-    -> [S.Param]                      -- The function's formal parameters (e.g., (name #number year))
+    -> [S.Param]                      -- The function's formal parameters (e.g., (name <year ⊢ number>))
     -> Maybe (SourcePos, S.Type) -- The requirement on its result, its return type
     -> [S.Expr]                       -- The un-evaluated body expressions of the function
     -> [S.Expr]                       -- The actual arguments passed at the call site

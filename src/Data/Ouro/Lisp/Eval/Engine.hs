@@ -134,8 +134,8 @@ evalExpr expr = do
         S.Literal _ S.EmptyArr  -> pure $ Primitive I.EmptyArr
         S.Literal _ S.EmptyRec  -> pure $ Primitive I.EmptyRec
 
-        -- A refinement on its own, #string with nothing after it, is the subject-less form of
-        -- (satisfies #string), which only a case branch head fills in
+        -- A refinement on its own, with nothing to check, is the subject-less form of
+        -- (∈ string), which only a case branch head fills in
         S.Asserted pos _ (S.Hole _ "%subject")
             -> lexicalError "A refinement on its own has nothing to check: it is asserted of a value, <x ⊢ string>, or asked, <x ∈ string>."
                & withBlurb "In a case branch head, (∈ string) asks it of the case's target: (case x ((∈ string) \"text\") (otherwise \"other\"))."
@@ -494,8 +494,8 @@ evalExpr expr = do
                & EvalError
                & pure
 
-        -- (satisfies x #p): whether x has the refinement #p, as a Boolean, asked as x ∈ #p is,
-        -- the value first; #p x states it. Only the refinement's check failing is false: an
+        -- <x ∈ p>: whether x is in the refinement p, as a Boolean, the value first, as
+        -- <x ⊢ p> states it. Only the refinement's check failing is false: an
         -- error in x, or a refinement that is not one, stays an error. The refinement, written
         -- last, has nothing after it, so it is read as a refinement on its own.
         S.Form _ [S.Symbol _ (S.asks -> True), subject, S.Asserted typePos ty (S.Hole _ "%subject")]
@@ -822,7 +822,7 @@ checkDefined typePos pos name v = do
                case answer of
                    Primitive (I.Boolean True)  -> pure v
                    Primitive (I.Boolean False) -> pure (refinementFailure pos name ("a " <> refinementOf v <> " that is not " <> name) (rule doc))
-                   -- Its body is checked as #boolean, so anything else is an error
+                   -- Its body is checked as a boolean, so anything else is an error
                    other                       -> pure other
 
         Just (_, M.SomeFunction (M.Function M.ProcedureKind _ _ _ _ _ _))

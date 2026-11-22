@@ -166,9 +166,9 @@ pBarLines = lexeme . withPos
 
 
 -- The old hash forms, read until the cleanup that ends 0.7.0 makes them errors: the two old
--- empty values, and any other name that begins with a letter as a refinement in its old
--- spelling, built-in or defined in Ouro, #titled, or imported, #people/titled. Its name is
--- resolved as a binder's is.
+-- empty values, and any other name that begins with a letter after the hash mark as a
+-- refinement in its old spelling, built-in or defined in Ouro, titled, or imported,
+-- people/titled. Its name is resolved as a binder's is.
 pRetired :: Parser Tkn.Token
 pRetired = lexeme . withPos $ do
                                  -- Grab the absolute stream offset BEFORE we consume any characters

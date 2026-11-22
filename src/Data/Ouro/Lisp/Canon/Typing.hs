@@ -8,14 +8,14 @@ import qualified Data.Ouro.Lisp.Surface as S
 -- typing.
 --
 -- ⊢ asserts and ∈ asks, each of a value and a refinement written by its name, in a type
--- position: the name is never evaluated, so no binding changes what it names. ⊢ is the
--- assertion the evaluator already reads, and ∈ the question satisfies asked:
+-- position: the name is never evaluated, so no binding changes what it names. ⊢ becomes an
+-- Asserted node, the assertion the evaluator reads, and ∈ the question %in asks:
 --
---   (⊢ x string)         #string x                         the value, or a type error at x
---   <x ⊢ titled>         #titled x
---   (∈ x titled)         (%in x #titled)                   true or false
---   ((∈ titled) e)       ((%in #titled) e)                 a case branch's head
---   (fn ⊢ number (<n ⊢ number>) e)   (fn #number (#number n) e)   a fn's signature
+--   (⊢ x string)         Asserted string x                 the value, or a type error at x
+--   <x ⊢ titled>         Asserted titled x
+--   (∈ x titled)         (%in x titled)                    true or false
+--   ((∈ titled) e)       ((%in titled) e)                  a case branch's head
+--   (fn ⊢ number (<n ⊢ number>) e)   the fn with its return type and its parameters' asserted
 --
 -- %in is in, written so that no binding, of satisfies or any name, can capture it. Any other
 -- shape is left as it is, for the evaluator to report as a misplaced assert or in. Runs after
@@ -34,8 +34,8 @@ typing = \case
         | Right ty <- S.readType written
         -> S.Form pos [S.Symbol pos "%in", subjectless (S.exprPos written) ty]
 
-    -- A fn's return type, (fn ⊢ number (n) body), as the fn reads #number before its
-    -- parameters, (fn #number (n) body). Its parameters' binders are read as any (⊢ x p)
+    -- A fn's return type, (fn ⊢ number (n) body), becomes an Asserted node around its
+    -- parameters, which the fn reads as its return type. Its parameters' binders are read as any (⊢ x p)
     S.Form pos (fnHead@(S.Symbol _ (S.formName -> "fn")) : S.Symbol _ "assert" : written : params@(S.Form _ _) : body)
         | Right ty <- S.readType written
         -> typing (S.Form pos (fnHead : S.Asserted (S.exprPos written) ty params : body))
@@ -45,5 +45,5 @@ typing = \case
     leaf                     -> leaf
 
     where
-    -- A refinement on its own, as the parser reads #p at the end of a form
+    -- A refinement on its own, as the parser reads the old spelling at the end of a form
     subjectless tPos ty = S.Asserted tPos ty (S.Hole tPos "%subject")

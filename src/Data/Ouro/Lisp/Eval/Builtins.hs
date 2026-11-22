@@ -544,7 +544,7 @@ isNumber = \case
 --- Time Shifting & L.Duration Modifiers ---
 -- A date shifted by a duration. A date is a string that is in date, never converted, so it
 -- is read here, where it is used, and the date it becomes is written back as a string. A
--- string that is not a date is the refinement mismatch #date x would be.
+-- string that is not a date is the refinement mismatch <x ⊢ date> would be.
 shiftDate :: SourcePos -> Text -> PeriodUnit -> Int -> L.Expr
 shiftDate pos written unit amt =
     case parseISO8601 (T.unpack written) of

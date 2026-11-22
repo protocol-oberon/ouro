@@ -201,7 +201,7 @@ hasValidOtherwise branches =
         _noOtherwise                               -> False
 
 
--- The subject of a refinement written on its own, (satisfies #p), which a case fills in
+-- The subject of a refinement written on its own, (∈ p), which a case fills in
 isSubjectHole :: S.Expr -> Bool
 isSubjectHole = \case
     S.Hole _ "%subject" -> True

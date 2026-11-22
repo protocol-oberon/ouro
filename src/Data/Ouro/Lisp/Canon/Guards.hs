@@ -17,7 +17,7 @@ import           Data.Text                         (Text)
 --
 --   ((when (has book ntp46)) e)   ((%when (has book ntp46)) e)
 --   ((lt 10 20) e)                ((%when (lt %target 10 20)) e)
---   ((∈ uri) e)                   ((%when (%in %target #uri)) e)
+--   ((∈ uri) e)                   ((%when (%in %target uri)) e)
 --
 -- A guard is about the case's target, which it takes first, as a '->' step takes the value
 -- threaded into it: a comparison, or ∈, whose subject comes first. The case binds

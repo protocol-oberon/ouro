@@ -180,7 +180,7 @@ packageFunction file m =
 
 
 -- The package function's value against the settings' schema: a record of known settings,
--- none required, so #record-empty is every default. Every setting that is wrong is reported,
+-- none required, so (make record) is every default. Every setting that is wrong is reported,
 -- at the function.
 settings :: SourcePos -> L.Expr -> Either (NonEmpty OuroError) Package
 settings pos = \case

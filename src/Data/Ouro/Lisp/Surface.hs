@@ -11,15 +11,15 @@ import           Text.Megaparsec       (SourcePos)
 data Expr
     = Symbol      SourcePos Text            -- a name: a variable, a function, a special form's head
     | Literal     SourcePos LiteralValue    -- a string, number or boolean, or an empty array or record
-    | Asserted    SourcePos Type Expr       -- <x ⊢ p>, (⊢ x p), the old #p x: x, asserted to be in p
+    | Asserted    SourcePos Type Expr       -- <x ⊢ p>, (⊢ x p), and the old spelling: x, asserted to be in p
     | Required    SourcePos Type Role Expr  -- a signature's requirement in its role, made at a call, never written
     | Hole        SourcePos Text            -- ?, ?name or ?..name in a case pattern
     | Form        SourcePos [Expr]          -- (...): records, arrays, special forms and calls alike
     deriving (Show, Eq)
 
 
--- A literal as written: a scalar, or #array-empty and #record-empty until # retires for
--- (make array) and (make record)
+-- A literal as written: a scalar, or the old hash-marked empty array and record, until they
+-- retire for (make array) and (make record)
 data LiteralValue
     = Str  Text
     | Num  Double

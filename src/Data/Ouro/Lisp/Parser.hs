@@ -246,7 +246,7 @@ pDefn kind params pos = do
     -- A pattern parameter binds something, and each name is bound once
     lift (checkParams pos args)
 
-    -- A refinement's result is #boolean, and its one parameter has a contract
+    -- A refinement's result is a boolean, and its one parameter has a requirement
     retType <- case kind of
                    ProcedureKind  -> pure written
                    RefinementKind -> do
@@ -680,9 +680,9 @@ parseRetiredAssertion :: SourcePos -> S.Type -> Parser S.Expr
 parseRetiredAssertion typePos ty = do
                                  stream <- remainingTokens
                                  case stream of
-                                     -- A refinement on its own, at the end of a form: (satisfies x #string),
-                                     -- or a case head's (satisfies #string). Its subject is a hole that
-                                     -- cannot be written in Ouro: satisfies takes its value before it,
+                                     -- A refinement in its old spelling on its own, at the end of a form:
+                                     -- satisfies's, after its value, or a case head's. Its subject is a hole
+                                     -- that cannot be written in Ouro: satisfies takes its value before it,
                                      -- and anywhere else it is reported
                                      t : _ | Tkn.CloseParen <- Tkn.tokenType t
                                          -> pure $ S.Asserted typePos ty (S.Hole typePos "%subject")

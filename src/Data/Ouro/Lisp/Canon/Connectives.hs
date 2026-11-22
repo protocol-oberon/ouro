@@ -12,11 +12,11 @@ import           Text.Megaparsec        (SourcePos)
 -- (all (a b c)) is true when every element of an array is, and (any (a b c)) when one is:
 -- ⋀ and ⋁, the n-ary and and or, since many values are an array. Each becomes a chain of
 -- cases, so an operand is only evaluated when the ones before it have not already decided
--- the answer, and each operand is checked as a #boolean:
+-- the answer, and each operand is checked as a boolean:
 --
---   (and a b)        (case #boolean a (true #boolean b) (otherwise false))
---   (or a b)         (case #boolean a (true true) (otherwise #boolean b))
---   (all (a b c))    (case #boolean a (true (case #boolean b ...)) (otherwise false))
+--   (and a b)        (case <a ⊢ boolean> (true <b ⊢ boolean>) (otherwise false))
+--   (or a b)         (case <a ⊢ boolean> (true true) (otherwise <b ⊢ boolean>))
+--   (all (a b c))    (case <a ⊢ boolean> (true (case <b ⊢ boolean> ...)) (otherwise false))
 --   (all ())         true, and (any ()) is false
 --
 -- Only an array written in place is a chain, a literal one or a (list ...): it is what stops
@@ -81,7 +81,7 @@ chain pos isAll = \case
     asBool operand = S.Asserted (S.exprPos operand) (S.Named S.RBoolean) operand
 
 
--- The elements of an array written in place: (), #array-empty, an (array ...), or a form
+-- The elements of an array written in place: (), the empty array, an (array ...), or a form
 -- that is neither a call, with a name at its head, nor a record, with an attribute pair in it
 writtenArray :: S.Expr -> Maybe [S.Expr]
 writtenArray = \case

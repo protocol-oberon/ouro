@@ -197,7 +197,7 @@ functionBody name pos body
 -- A function is documented with a (doc "text") among the direct elements of its body,
 -- before or after its result:
 --
---   (define/procedure place #record (#string slug #string label)
+--   (define/procedure place ⊢ record (<slug ⊢ string> <label ⊢ string>)
 --     (doc "A Linked Art Place, identified under /place/.")
 --     (base/core (example (+ "place/" slug)) "Place" label))
 --

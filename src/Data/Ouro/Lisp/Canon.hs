@@ -41,13 +41,13 @@ import           Data.Text                         (Text)
 --                                hole is already a function (1), and a step is rewritten
 --                                before 'adjoin' (7) and 'with' (8) are, so (-> x (with :k v))
 --                                gives with x
---   2b. typing        top-down   (⊢ x p) becomes #p x, and (∈ x p) (%in x #p), the
+--   2b. typing        top-down   (⊢ x p) becomes an Asserted node, and (∈ x p) (%in x p), the
 --                                refinement p a name, never evaluated. After threading (2),
 --                                so a chain <x ⊢ p ⊢ q> threaded is read, and after
 --                                placeholders (1), so <? ∈ p> is a function whose body it reads
 --    3. connectives   top-down   (and a b) and (or a b), and (all (a b c)) and (any (a b c))
 --                                over an array written in place, become chains of cases on
---                                #boolean a, so an operand is only evaluated when it can
+--                                <a ⊢ boolean>, so an operand is only evaluated when it can
 --                                decide the answer
 --    4. bindings      top-down   '$name value' in a let becomes (%bind "name" value), before a
 --                                value can expand into several elements (9)
