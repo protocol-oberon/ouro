@@ -433,36 +433,36 @@ refinementResult :: SourcePos -> Maybe (SourcePos, S.Type) -> Either OuroError (
 refinementResult pos = \case
     Nothing           -> Right $ Just (pos, S.Named S.RBoolean)
     Just (typePos, _) -> lexicalError "A refinement always answers true or false, so it has no return type."
-                         & withBlurb "Write (define/refinement titled (#record r) ...): its result is checked as #boolean."
+                         & withBlurb "Write (define/refinement titled (<r ⊢ record>) ...): its result is checked as #boolean."
                          & OuroError typePos
                          & Left
 
 
--- A refinement is about one value, which it is given with a contract, never a function:
--- (define/refinement titled (#record r) ...). A parameter has no position of its own, so one
--- without a contract is reported at the refinement.
+-- A refinement is about one value, which it is given with a type, never a function:
+-- (define/refinement titled (<r ⊢ record>) ...). A parameter has no position of its own, so one
+-- without a type is reported at the refinement.
 refinementParams :: Text -> SourcePos -> [S.Param] -> Either OuroError ()
 refinementParams name pos = \case
     [S.Param _ (Just (typePos, S.Named S.RFunction)) _]
         -> lexicalError "A refinement is about data, so its parameter cannot be #function."
-           & withBlurb "Give it the value it is about, with a contract: (define/refinement titled (#record r) ...)."
+           & withBlurb "Give it the value it is about, with a type: (define/refinement titled (<r ⊢ record>) ...)."
            & OuroError typePos
            & Left
     [S.Param _ (Just _) _]
         -> Right ()
     -- A pattern's name cannot be written in Ouro, so it is not named
     [S.Param _ Nothing (Just _)]
-        -> lexicalError ("The pattern parameter of the refinement '" <> name <> "' has no contract.")
-           & withBlurb "Write the contract before the pattern: (define/refinement pair (#array (?a ?b)) ...)."
+        -> lexicalError ("The pattern parameter of the refinement '" <> name <> "' has no type.")
+           & withBlurb "Type the pattern in its binder: (define/refinement pair (<(?a ?b) ⊢ array>) ...)."
            & OuroError pos
            & Left
     [S.Param param Nothing Nothing]
-        -> lexicalError ("The parameter '" <> param <> "' of the refinement '" <> name <> "' has no contract.")
-           & withBlurb ("Every parameter of a refinement has one, so the refinement is checked on data: a contract such as (#record " <> param <> ").")
+        -> lexicalError ("The parameter '" <> param <> "' of the refinement '" <> name <> "' has no type.")
+           & withBlurb ("Every parameter of a refinement has one, so the refinement is checked on data: a binder such as <" <> param <> " ⊢ record>.")
            & OuroError pos
            & Left
     _otherCount
         -> lexicalError ("The refinement '" <> name <> "' takes one parameter, the value it is about.")
-           & withBlurb "A refinement is about one value, so it has one parameter: (define/refinement titled (#record r) ...)."
+           & withBlurb "A refinement is about one value, so it has one parameter: (define/refinement titled (<r ⊢ record>) ...)."
            & OuroError pos
            & Left

@@ -1249,7 +1249,7 @@ conditions = Group "Case: conditions"
                                                                 "{\"a\": true, \"b\": false}")
     , ("satisfies takes a hole for the value",   compilesToJSON "(graph g (:r (filter (1 \"x\" 2) (satisfies ? #number))))"
                                                                 "{\"r\": [1, 2]}")
-    , ("a subject-less satisfies needs a case",  failsWith "satisfies is written"
+    , ("a subject-less satisfies needs a case",  failsWith "satisfies is now "
                                                            "(graph g (:r (map (array 1) (satisfies #string))))")
     , ("a refinement on its own is misplaced",   failsWith "A refinement on its own"
                                                            "(graph g (:r (array #string)))")

@@ -432,9 +432,9 @@ pArgs = do
                                               collectArgs (patternParam (length acc + 1) (Just (Tkn.pos t, S.Named tag)) pattern : acc)
                                        _aName
                                            -> do
-                                              name <- expectSymbol "A parameter's type is written before its name, as in (#number n)"
+                                              name <- expectSymbol "A parameter's type is written in a binder, as in <n ⊢ number>"
                                               collectArgs (S.Param name (Just (Tkn.pos t, S.Named tag)) Nothing : acc)
-            _notAParameter      -> lexicalError "A parameter is a name, or a pattern in parentheses, each optionally typed: (#number n) or ((?a ?b))"
+            _notAParameter      -> lexicalError "A parameter is a name, or a pattern in parentheses, each optionally typed: <n ⊢ number> or <(?a ?b) ⊢ array>"
                                    F.& OuroError (Tkn.pos t)
                                    F.& Left
                                    F.& lift

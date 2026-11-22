@@ -121,7 +121,7 @@ pDefinitionWords = lexeme . withPos $ do
     retired = \case
         "defn"          -> "defn is now define/procedure: (define/procedure name (args) body)"
         "defn/const"    -> "defn/const is now define/constant: (define/constant name value)"
-        "defn/property" -> "defn/property is now define/refinement: (define/refinement name (#contract x) body)"
+        "defn/property" -> "defn/property is now define/refinement: (define/refinement name (<x ⊢ record>) body)"
         written         -> "'" <> written <> "' is not a definition: say what is defined, with define/procedure, define/refinement or define/constant"
 
 

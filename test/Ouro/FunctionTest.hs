@@ -146,7 +146,7 @@ signatures = Group "Functions: signatures are properties in the header"
                                                             "(graph g (let ($f (fn #string (n) n)) (:r (f 1))))")
     , ("a value that is not a function",          failsWith "expectedRefinement = \"#function\""
                                                             "(define/procedure apply (#function f x) (f x)) (graph g (:r (apply 1 2)))")
-    , ("a type needs a parameter after it",       failsWith "written before its name"
+    , ("a type needs a parameter after it",       failsWith "written in a binder"
                                                             "(define/procedure f (#number) 1) (graph g (:r (f)))")
 
     -- A return type says what the result is, so a typed one-value array is not a mistake
@@ -533,7 +533,7 @@ constants = Group "Functions: a function of no parameters, named, is its value"
                                                             "(defn f (x) x) (graph g (:r 1))")
     , ("defn/const is now define/constant",       failsWith "defn/const is now define/constant: (define/constant name value)"
                                                             "(defn/const c 1) (graph g (:r 1))")
-    , ("defn/property is now define/refinement",  failsWith "defn/property is now define/refinement: (define/refinement name (#contract x) body)"
+    , ("defn/property is now define/refinement",  failsWith "defn/property is now define/refinement: (define/refinement name (<x "
                                                             "(defn/property p (#record r) true) (graph g (:r 1))")
     , ("at the old word",                         failsWith "line 1, col 2"
                                                             "(defn f (x) x) (graph g (:r 1))")
@@ -639,9 +639,9 @@ properties = Group "Properties: define/refinement"
                                                             "(define/refinement p #boolean (#number n) true) (graph g (:r 1))")
 
       -- One parameter, with a contract that is not #function
-    , ("a parameter has a contract",              failsWith "The parameter 'n' of the refinement 'p' has no contract."
+    , ("a parameter has a type",                  failsWith "The parameter 'n' of the refinement 'p' has no type."
                                                             "(define/refinement p (n) true) (graph g (:r 1))")
-    , ("a pattern parameter too",                 failsWith "The pattern parameter of the refinement 'p' has no contract."
+    , ("a pattern parameter too",                 failsWith "The pattern parameter of the refinement 'p' has no type."
                                                             "(define/refinement p ((?a ?b)) true) (graph g (:r 1))")
     , ("which can be written before it",          compilesToJSON "(define/refinement same (#array (?a ?b)) (eq a b)) (graph g (:a (same (1 1)) :b (same (1 2))))"
                                                                  "{\"a\": true, \"b\": false}")

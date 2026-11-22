@@ -137,8 +137,8 @@ evalExpr expr = do
         -- A refinement on its own, #string with nothing after it, is the subject-less form of
         -- (satisfies #string), which only a case branch head fills in
         S.Asserted pos _ (S.Hole _ "%subject")
-            -> lexicalError "A refinement on its own has nothing to check: a refinement is written before the value it applies to, as in #string x."
-               & withBlurb "In a case branch head, (satisfies #string) asks it of the case's target: (case x ((satisfies #string) \"text\") (otherwise \"other\"))."
+            -> lexicalError "A refinement on its own has nothing to check: it is asserted of a value, <x ⊢ string>, or asked, <x ∈ string>."
+               & withBlurb "In a case branch head, (∈ string) asks it of the case's target: (case x ((∈ string) \"text\") (otherwise \"other\"))."
                & OuroError pos
                & EvalError
                & pure
@@ -524,8 +524,8 @@ evalExpr expr = do
                & pure
 
         S.Form pos (S.Symbol _ (S.formName -> "satisfies") : _)
-            -> lexicalError "satisfies is written (satisfies value #refinement), or as the head of a case branch, ((satisfies #refinement) result)."
-               & withBlurb "Perhaps write (satisfies x #string), or (case x ((satisfies #string) \"text\") (otherwise \"other\"))."
+            -> lexicalError "satisfies is now ∈: (∈ value refinement), <x ∈ string>, or a case head, ((∈ refinement) result)."
+               & withBlurb "Perhaps write <x ∈ string>, or (case x ((∈ string) \"text\") (otherwise \"other\"))."
                & OuroError pos
                & EvalError
                & pure
@@ -550,7 +550,7 @@ evalExpr expr = do
 
         S.Form pos (S.Symbol _ (S.formName -> "fn") : _)
             -> lexicalError "A fn is written (fn (args) expr): argument names or patterns, each with an optional type, then exactly one result expression."
-               & withBlurb "A signature's types are refinements: (fn #number (#number n) (* n 2))."
+               & withBlurb "A signature's types are refinements: (fn ⊢ number (<n ⊢ number>) (* n 2))."
                & OuroError pos
                & EvalError
                & pure
@@ -848,7 +848,7 @@ checkDefined typePos pos name v = do
     rule = \case
         Just text -> "#" <> name <> ": " <> text
         Nothing   -> "#" <> name <> " has no doc, so the rule it asserts cannot be shown. "
-                  <> "Perhaps write one: (define/refinement " <> name <> " (#record r) (doc \"...\") ...)."
+                  <> "Perhaps write one: (define/refinement " <> name <> " (<r ⊢ record>) (doc \"...\") ...)."
 
 
 -- A value outside the refinement it is checked against, at the value: what was expected,

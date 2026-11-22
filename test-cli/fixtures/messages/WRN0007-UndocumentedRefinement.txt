@@ -9,4 +9,4 @@ Warning [WRN0007]: The refinement 'titled' has no doc
 A refinement's doc is the rule it asserts: a value that fails it is reported with the doc as the rule
 it broke, as in '#titled: Has a label.'. Without one, a failure can only name the refinement.
 
-Perhaps write one: (define/refinement titled (#record r) (doc "...") ...).
+Perhaps write one: (define/refinement titled (<r ⊢ record>) (doc "...") ...).

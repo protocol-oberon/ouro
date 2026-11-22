@@ -149,7 +149,7 @@ unboundName name inScope =
 unknownRefinement :: Text -> [Text] -> ErrorContext
 unknownRefinement name refinements =
     withBlurb ( "No refinement of this module, and no built-in refinement, is named #" <> name <> ". "
-             <> "A refinement is defined with (define/refinement " <> name <> " (#record r) ...); an imported one, #people/titled, is not yet checked."
+             <> "A refinement is defined with (define/refinement " <> name <> " (<r ⊢ record>) ...); an imported one, #people/titled, is not yet checked."
              <> suggestion
               )
               (lexicalError ("Unknown refinement: #" <> name))
@@ -690,7 +690,7 @@ warningBlurb = \case
     Lint (UndocumentedRefinement name)
         -> "A refinement's doc is the rule it asserts: a value that fails it is reported with the doc as the rule it broke, "
         <> "as in '#" <> name <> ": Has a label.'. Without one, a failure can only name the refinement.\n\n"
-        <> "Perhaps write one: (define/refinement " <> name <> " (#record r) (doc \"...\") ...)."
+        <> "Perhaps write one: (define/refinement " <> name <> " (<r ⊢ record>) (doc \"...\") ...)."
 
     Semantic (ElidedPropertyAssign key construct)
         -> "The expression assigned to the property attribute '" <> key <> "' evaluates exclusively to a compile-time '"
