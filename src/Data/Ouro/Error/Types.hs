@@ -545,6 +545,14 @@ data LinterWarning
     --
     -- * Remediation: Issue warning. Suggest record.
     | EmptyRecordType
+
+    -- LINT WARNING: TRIPLE-QUOTED STRING
+    -- Occurs when a string is written """Spring""", as in Python or Kotlin. Ouro has no
+    -- triple-quoted strings, so it is read as three strings, "", "Spring" and "", which an
+    -- array keeps without complaint.
+    --
+    -- * Remediation: Issue warning. Suggest prose, (prose | …).
+    | TripleQuotedString
     deriving (Show, Eq, Ord, Generic)
 
 

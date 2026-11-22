@@ -662,6 +662,11 @@ splitWarningContext ctx =
                , [ labeled "Write: " (highlightDiagnostic "record") ]
                , Just blurb
                )
+        Lint TripleQuotedString
+            -> ( title
+               , [ labeled "Write: " (pretty ("(prose | …)" :: Text)) ]
+               , Just blurb
+               )
         Semantic (ElidedPropertyAssign key construct)
             -> ( title
                , [ labeled "Omitted Attribute: " (highlightDiagnostic key)

@@ -663,6 +663,14 @@ operators = Group "Operators: operands and desugaring"
     , ("a bar against text begins no bar line",     failsWith "|x"
                                                               "(graph g (:r |x))")
 
+      -- Ouro has no triple-quoted strings: """Spring""" is three strings, which a warning (WRN0009) points to prose
+    , ("\"\"\"text\"\"\" warns",                     warnsWith "Ouro has no triple-quoted strings"
+                                                              "(graph g (:r (\"\"\"Spring\"\"\")))")
+    , ("and is three strings",                      compilesToJSON "(graph g (:r (\"\"\"Spring\"\"\")))"
+                                                                   "{\"r\": [\"\", \"Spring\", \"\"]}")
+    , ("two strings written apart do not warn",     compilesWithoutWarnings "(graph g (:r (\"\" \"x\")))")
+    , ("nor does an empty string",                  compilesWithoutWarnings "(graph g (:r \"\"))")
+
       -- Comparisons are words. '<' and '>' delimit an infix expression, its '<' written
       -- against the first operand, so each old name is an error that names its word
     , ("< is now lt",                               failsWith "'<' is now 'lt': (lt a b)"

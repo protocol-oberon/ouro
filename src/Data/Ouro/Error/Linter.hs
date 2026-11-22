@@ -8,6 +8,7 @@ import           Data.Ouro.Error.Diagnostics (emptyRecordType, notKebabCase,
                                               parenthesisedResult,
                                               procedureOfNoParameters,
                                               shadowedBuiltin,
+                                              tripleQuotedString,
                                               undocumentedRefinement)
 import           Data.Ouro.Error.Types       (OuroWarning (..))
 import           Data.Ouro.Lisp.Eval.Builtins (builtinRegistry)
@@ -18,7 +19,7 @@ import qualified Data.Ouro.Lisp.Tokens       as Tkn
 import           Data.Text                   (Text)
 import qualified Data.Text                   as T
 import           Lens.Micro                  ((^.))
-import           Text.Megaparsec             (SourcePos)
+import           Text.Megaparsec             (SourcePos (sourceColumn, sourceLine), unPos)
 
 
 -- Checks the tokens, for what the parsed tree does not keep. (WRN0000, a string after
@@ -32,6 +33,15 @@ lintExpression =
      (Tkn.Token pos Tkn.OpenParen : Tkn.Token _ Tkn.DefineProcedure : Tkn.Token _ (Tkn.Symbol name) : rest)
          | Tkn.Token _ Tkn.OpenParen : Tkn.Token _ Tkn.CloseParen : _ <- afterReturnType rest
          -> OuroWarning pos (procedureOfNoParameters name) : lintExpression rest
+
+     -- """Spring""": an empty string, then a string opening where it closed, two columns on,
+     -- which only a triple quote writes; "" "x", written apart, is two strings
+     (Tkn.Token pos (Tkn.String "") : rest@(Tkn.Token next (Tkn.String _) : more))
+         | sourceLine next == sourceLine pos
+         , unPos (sourceColumn next) == unPos (sourceColumn pos) + 2
+         -> OuroWarning pos tripleQuotedString : lintExpression more
+         | otherwise
+         -> lintExpression rest
 
      -- Structural recursion to keep scanning down the token stream
      (_ : rest) -> lintExpression rest

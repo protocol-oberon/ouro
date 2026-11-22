@@ -605,6 +605,7 @@ These are never raised, and their codes are not reused:
 | Line comment  | =;; text=                                      | from =;= to the end of the line                    |
 | Block comment | ~#\vert … \vert#~                              | may span lines                                     |
 | String        | ="text"=                                       | Haskell-style character escapes                    |
+| Prose         | =(prose \vert text …)=                          | a string written as bar lines (see below)          |
 | Number        | =42=, =-3.5=, =1e3=                            | a Double: integers are exact up to 2^53            |
 | Boolean       | =true=, =false=                                | Ouro has no null (see below)                       |
 | Symbol        | =artist=, =type-node=, =+=, =∧=, =legacy!=     | see below                                          |
@@ -616,6 +617,38 @@ These are never raised, and their codes are not reused:
 | Delimiters    | =( )=                                          | =[= or =]= is an error: Ouro has no brackets       |
 | Range         | =(1..500)=, =(2 4 .. 10)=                      | see below                                          |
 | Keywords      | =define/procedure=, =define/constant=, =graph= | see below                                          |
+
+*** Prose: =(prose | …)=
+
+Long text is written as bar lines in a =prose= form, which is the string they make, a literal where it is written: what the prose looks like is what the string is.
+
+#+BEGIN_SRC clojure
+(:content (prose | Painted by Édouard Manet in 1881 and shown
+                 | at the Salon of 1882.
+                 |
+                 | Now in the J. Paul Getty Museum.
+                 ))
+#+END_SRC
+
+is ~(:content "Painted by Édouard Manet in 1881 and shown at the Salon of 1882.\n\nNow in the J. Paul Getty Museum.")~.
+
+- A bar followed by a space, or alone at the end of its line, begins a bar line. A following line whose first character, after its indentation, is such a bar continues it.
+
+  - A bar line is text to the end of its line, raw: =;= is no comment, ="= no string, =(= no form, and =\= escapes nothing.
+
+  - =|-=, the ASCII spelling of =⊢=, is not one, nor is a bar against text, =|x=: the bar must be followed by a space or the end of the line.
+
+  - A bar inside a string or a comment is part of it.
+
+- The lines of a paragraph are trimmed and joined with single spaces. Each bare bar is a paragraph break, =\n\n=, wherever it is written: two in a row are two breaks, and one at the start or the end is a break there.
+
+- The form's =)= goes on a line of its own: on a bar line it would be text.
+
+- =prose= is read by the parser into a string, so it stands wherever a string does, a =doc= among them: ~(doc (prose | …))~. It is never evaluated, and no binding can stand in for it.
+
+- Bar lines are written only in =prose=: anywhere else they are =SYN0000=, "Bar lines are written only in prose". =prose= takes nothing else, so =(prose "text")= is =SYN0000= too.
+
+- Ouro has no triple-quoted strings: ~"""Spring"""~ is read as three strings, =""=, ="Spring"= and =""=. It is a warning (=WRN0009=) that points to =prose=: an empty string followed, on its line, by a string that opens where it closed. Two strings written apart, ~"" "x"~, are two strings, with no warning.
 
 *** Booleans and null
 

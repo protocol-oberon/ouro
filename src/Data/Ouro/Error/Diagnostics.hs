@@ -621,6 +621,10 @@ undocumentedRefinement name = Lint $ UndocumentedRefinement { undocumentedName =
 emptyRecordType :: WarningContext
 emptyRecordType = Lint EmptyRecordType
 
+-- Create a warning for """text""", which Ouro reads as three strings
+tripleQuotedString :: WarningContext
+tripleQuotedString = Lint TripleQuotedString
+
 -- Create a compile-time elided property assignment semantic warning
 elidedPropertyAssign :: Text -> Text -> WarningContext
 elidedPropertyAssign key construct = Semantic $ ElidedPropertyAssign
@@ -701,6 +705,11 @@ warningBlurb = \case
         <> "so it is every record, which record already says.\n\n"
         <> "Perhaps write record: <r ⊢ record>."
 
+    Lint TripleQuotedString
+        -> "Ouro has no triple-quoted strings: \"\"\"Spring\"\"\" is read as three strings, \"\", \"Spring\" and \"\", "
+        <> "which an array keeps without complaint.\n\n"
+        <> "Perhaps write long text with prose: (prose | …), each line beginning with a bar, its ')' on a line of its own."
+
     Semantic (ElidedPropertyAssign key construct)
         -> "The expression assigned to the property attribute '" <> key <> "' evaluates exclusively to a compile-time '"
         <> construct <> "' block. Because elided control structures leave zero footprint in final binary payloads, "
@@ -724,6 +733,7 @@ warningSummary = \case
     Lint (ProcedureOfNoParameters name) -> "The procedure '" <> name <> "' takes no parameters, so it is a constant"
     Lint (UndocumentedRefinement name)  -> "The refinement '" <> name <> "' has no doc"
     Lint EmptyRecordType                -> "(record) is the type record"
+    Lint TripleQuotedString             -> "Ouro has no triple-quoted strings"
     Semantic (ElidedPropertyAssign k _) -> "Property assignment '" <> k <> "' binds to an elided value"
     Vocab (UnboundTypeReference t _)    -> "Unbound schema type reference '" <> t <> "'"
 
