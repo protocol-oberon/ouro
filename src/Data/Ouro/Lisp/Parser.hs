@@ -462,20 +462,12 @@ binderParam index pos = \case
                  F.& Left
 
 
--- The tags that name a type, in an expression or a signature. '#record-empty' and
--- '#array-empty' are values, not types.
+-- A refinement in its old spelling, a hash before its name, in an expression or a signature:
+-- its name resolved as a binder's is. The old empty values are values, not types.
 typeTag :: Tkn.TokenType -> Maybe S.Refinement
 typeTag = \case
-    Tkn.TagUri      -> Just S.RUri
-    Tkn.TagDate     -> Just S.RDate
-    Tkn.TagString   -> Just S.RString
-    Tkn.TagNumber   -> Just S.RNumber
-    Tkn.TagBoolean  -> Just S.RBoolean
-    Tkn.TagRecord   -> Just S.RRecord
-    Tkn.TagArray    -> Just S.RArray
-    Tkn.TagFunction -> Just S.RFunction
-    Tkn.TagRefinement name -> Just (S.RDefined name)
-    _notAType       -> Nothing
+    Tkn.RetiredRefinement name -> Just (S.refinementNamed name)
+    _notAType                  -> Nothing
 
 -- Recursive Expr Router
 pExpr :: Parser S.Expr
@@ -512,9 +504,9 @@ pExpr = do
                              tkn | Just tag <- typeTag tkn
                                                 -> consume ts >> parseTaggedNode (Tkn.pos t) (S.Named tag)
 
-                             -- Empty Collections instantiate as direct fallback values
-                             Tkn.TagRecordEmpty -> capture (S.Literal (Tkn.pos t) S.EmptyRec)
-                             Tkn.TagArrayEmpty  -> capture (S.Literal (Tkn.pos t) S.EmptyArr)
+                             -- The old empty values, read as (make record) and (make array) are
+                             Tkn.RetiredEmptyRecord -> capture (S.Literal (Tkn.pos t) S.EmptyRec)
+                             Tkn.RetiredEmptyArray  -> capture (S.Literal (Tkn.pos t) S.EmptyArr)
 
                              -- Hole Type
                              Tkn.Hole txt       -> capture (S.Hole (Tkn.pos t) txt)

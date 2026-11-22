@@ -139,9 +139,10 @@ pAttributes = lexeme . withPos $ do
     keyChar = alphaNumChar <|> oneOf ("-_" :: String)
 
 
--- Reader Macros starting with '#'. A name that is not a built-in refinement, but begins with a
--- letter, is a refinement defined in Ouro, #titled, or imported, #people/titled: it is read as
--- any name is.
+-- The old hash forms, read until the cleanup that ends 0.7.0 makes them errors: the two old
+-- empty values, and any other name that begins with a letter as a refinement in its old
+-- spelling, built-in or defined in Ouro, #titled, or imported, #people/titled. Its name is
+-- resolved as a binder's is.
 pReaderTags :: Parser Tkn.Token
 pReaderTags = lexeme . withPos $ do
                                  -- Grab the absolute stream offset BEFORE we consume any characters
@@ -150,19 +151,11 @@ pReaderTags = lexeme . withPos $ do
                                  _      <- try (char '#')
                                  rawTag <- some symbolChar
                                  case rawTag of
-                                     "uri"          -> pure Tkn.TagUri
-                                     "date"         -> pure Tkn.TagDate
-                                     "string"       -> pure Tkn.TagString
-                                     "number"       -> pure Tkn.TagNumber
-                                     "boolean"      -> pure Tkn.TagBoolean
-                                     "record"       -> pure Tkn.TagRecord
-                                     "array"        -> pure Tkn.TagArray
-                                     "function"     -> pure Tkn.TagFunction
-                                     "record-empty" -> pure Tkn.TagRecordEmpty
-                                     "array-empty"  -> pure Tkn.TagArrayEmpty
+                                     "record-empty" -> pure Tkn.RetiredEmptyRecord
+                                     "array-empty"  -> pure Tkn.RetiredEmptyArray
                                      name@(first : _)
                                          | isLetter first
-                                                    -> pure (Tkn.TagRefinement (T.pack name))
+                                                    -> pure (Tkn.RetiredRefinement (T.pack name))
                                      other          -> M.region (\err -> M.setErrorOffset startOffset err)
                                                              (fail ("Unknown refinement: #" ++ other))
 

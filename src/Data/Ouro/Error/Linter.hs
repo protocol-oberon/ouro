@@ -38,26 +38,13 @@ lintExpression =
      []         -> []
 
     where
-    -- The tokens after a definition's return type, ⊢ and a refinement's name or one refinement
-    -- tag, if it has one
+    -- The tokens after a definition's return type, ⊢ and a refinement's name, or a refinement in
+    -- its old spelling, if it has one
     afterReturnType = \case
         Tkn.Token _ (Tkn.Symbol "assert") : Tkn.Token _ (Tkn.Symbol _) : rest
-                               -> rest
-        Tkn.Token _ tag : rest
-            | isReturnType tag -> rest
-        tokens                 -> tokens
-
-    isReturnType = \case
-        Tkn.TagUri          -> True
-        Tkn.TagDate         -> True
-        Tkn.TagString       -> True
-        Tkn.TagNumber       -> True
-        Tkn.TagBoolean      -> True
-        Tkn.TagRecord       -> True
-        Tkn.TagArray        -> True
-        Tkn.TagFunction     -> True
-        Tkn.TagRefinement _ -> True
-        _notAType           -> False
+                                                   -> rest
+        Tkn.Token _ (Tkn.RetiredRefinement _) : rest -> rest
+        tokens                                     -> tokens
 
 
 -- lintModule.
