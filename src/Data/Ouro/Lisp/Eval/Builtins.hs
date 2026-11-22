@@ -458,7 +458,7 @@ handleNot pos =
          -> pure $ L.Primitive (I.Boolean (not b))
 
      [other]
-         -> Data.Ouro.Error.Diagnostics.refinementMismatch "#boolean" (L.refinementOf other)
+         -> Data.Ouro.Error.Diagnostics.refinementMismatch "boolean" (L.refinementOf other)
             & OuroError pos
             & L.EvalError
             & pure
@@ -494,7 +494,7 @@ handleShift pos =
             & pure
 
      [other, _]
-         -> Data.Ouro.Error.Diagnostics.refinementMismatch "#date" (L.refinementOf other)
+         -> Data.Ouro.Error.Diagnostics.refinementMismatch "date" (L.refinementOf other)
             & OuroError pos
             & L.EvalError
             & pure
@@ -549,8 +549,8 @@ shiftDate :: SourcePos -> Text -> PeriodUnit -> Int -> L.Expr
 shiftDate pos written unit amt =
     case parseISO8601 (T.unpack written) of
         Just utc -> L.Primitive (I.String (I.renderDate (applyDuration utc unit amt)))
-        Nothing  -> refinementMismatch "#date" "a #string that is not a date"
-                    & withBlurb "A #date is a #string in ISO-8601 form, YYYY-MM-DDTHH:mm:ssZ, such as \"1642-01-01T00:00:00Z\"."
+        Nothing  -> refinementMismatch "date" "a string that is not a date"
+                    & withBlurb "A date is a string in ISO-8601 form, YYYY-MM-DDTHH:mm:ssZ, such as \"1642-01-01T00:00:00Z\"."
                     & OuroError pos
                     & L.EvalError
 

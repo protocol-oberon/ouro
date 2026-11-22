@@ -145,28 +145,28 @@ unboundName name inScope =
 
 
 -- A refinement's name that names no refinement: with the nearest of the module's refinements and
--- the built-in names, if one is near. An imported refinement, #people/titled, is not yet read.
+-- the built-in names, if one is near. An imported refinement, people/titled, is not yet read.
 unknownRefinement :: Text -> [Text] -> ErrorContext
 unknownRefinement name refinements =
-    withBlurb ( "No refinement of this module, and no built-in refinement, is named #" <> name <> ". "
-             <> "A refinement is defined with (define/refinement " <> name <> " (<r ⊢ record>) ...); an imported one, #people/titled, is not yet checked."
+    withBlurb ( "No refinement of this module, and no built-in refinement, is named '" <> name <> "'. "
+             <> "A refinement is defined with (define/refinement " <> name <> " (<r ⊢ record>) ...); an imported one, people/titled, is not yet checked."
              <> suggestion
               )
-              (lexicalError ("Unknown refinement: #" <> name))
+              (lexicalError ("Unknown refinement: " <> name))
     where
     suggestion = case rankBySimilarity name (refinements <> builtinNames) of
-                     (bestMatch, score) : _ | score <= 3 -> "\n\nPerhaps you meant: '#" <> bestMatch <> "'?"
+                     (bestMatch, score) : _ | score <= 3 -> "\n\nPerhaps you meant: '" <> bestMatch <> "'?"
                      _noneNear                           -> ""
 
-    -- On a tie the earlier name is suggested, so the short names come last: #str is #string, not #uri
-    builtinNames = ["string", "number", "boolean", "record", "array", "function", "record-empty", "array-empty", "uri", "date"]
+    -- On a tie the earlier name is suggested, so the short names come last: str is string, not uri
+    builtinNames = ["string", "number", "boolean", "record", "array", "function", "uri", "date"]
 
 
 -- A refinement's name that names a function of the procedure kind: only a refinement is asserted
 notARefinement :: Text -> ErrorContext
 notARefinement name =
     withBlurb ("Perhaps call it, (" <> name <> " x), or define it with define/refinement.")
-              (lexicalError ("'" <> name <> "' is a function, not a refinement, so #" <> name <> " cannot assert it."))
+              (lexicalError ("'" <> name <> "' is a function, not a refinement, so it cannot be asserted."))
 
 
 cyclicDependency :: Text -> ErrorContext
@@ -540,12 +540,17 @@ instance GConstructorCount (C1 c a) where
 -- Type Error
 typeMismatchBlurb :: L.Expr -> Text
 typeMismatchBlurb value =
-    "Ouro's built-in refinements are #string, #number, #boolean, #uri, #date, #record, #array and #function."
+    "Ouro's built-in refinements are string, number, boolean, uri, date, record, array and function."
     <> case L.refinementOf value of
            refinement
-               | "#" `T.isPrefixOf` refinement -> ""
+               | refinement `elem` builtInNames -> ""
                | otherwise                     -> " This value is " <> refinement <> ", which has no built-in refinement."
     <> maybe "" (\call -> " This value is a function: perhaps call it, " <> call <> ".") (L.callOf value)
+
+
+-- The built-in refinements a value can have, by the names messages give them
+builtInNames :: [Text]
+builtInNames = ["string", "number", "boolean", "uri", "date", "record", "array", "function"]
 
 
 binaryOpMismatchBlurb :: L.Expr -> L.Expr -> Text
@@ -697,7 +702,7 @@ warningBlurb = \case
 
     Lint (UndocumentedRefinement name)
         -> "A refinement's doc is the rule it asserts: a value that fails it is reported with the doc as the rule it broke, "
-        <> "as in '#" <> name <> ": Has a label.'. Without one, a failure can only name the refinement.\n\n"
+        <> "as in '" <> name <> ": Has a label.'. Without one, a failure can only name the refinement.\n\n"
         <> "Perhaps write one: (define/refinement " <> name <> " (<r ⊢ record>) (doc \"...\") ...)."
 
     Lint EmptyRecordType

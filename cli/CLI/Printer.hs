@@ -654,7 +654,7 @@ splitWarningContext ctx =
                )
         Lint (UndocumentedRefinement name)
             -> ( title
-               , [ labeled "Undocumented: " (highlightDiagnostic ("#" <> name)) ]
+               , [ labeled "Undocumented: " (highlightDiagnostic name) ]
                , Just blurb
                )
         Lint EmptyRecordType

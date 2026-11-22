@@ -184,7 +184,7 @@ importedModules = Group "Modules: imported modules, in memory"
                                                                  "{\"r\": \"big\"}")
     , ("a wrong number of arguments",              failsWith "nameOfFunc = \"aat\""
                                                              "(import std/base) (document g (base/aat 1 2 3))")
-    , ("a bad argument is blamed at the call",     importsFailIn "inline-test" ["expectedRefinement = \"#string\""] []
+    , ("a bad argument is blamed at the call",     importsFailIn "inline-test" ["expectedRefinement = \"string\""] []
                                                                    "(import std/base) (document g (base/aat 5 \"A\"))")
     , ("an error in its body is in its module",    importsFailIn "broken-body.ouro" ["Index"] [("broken-body", "(export bad)\n(define/procedure bad () (get () 5))")]
                                                                    "(import broken-body) (document g (:r (broken-body/bad)))")

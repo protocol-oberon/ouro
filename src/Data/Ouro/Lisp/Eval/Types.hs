@@ -310,28 +310,28 @@ describePrimitive =
      I.Array     _    -> "Array"
 
 
--- The built-in refinement a value has, written as in Ouro, for messages: "#string", "#record". A
+-- The built-in refinement a value has, written as in Ouro, for messages: "string", "record". A
 -- value with no built-in refinement, such as null or a Duration, is described instead.
 refinementOf :: Expr -> Text
 refinementOf =
     \case
      Primitive p
          -> case p of
-                I.String    _    -> "#string"
-                I.Number    _    -> "#number"
-                I.Boolean   _    -> "#boolean"
-                I.URI       _    -> "#uri"
-                I.Date      _    -> "#date"
-                I.EmptyRec       -> "#record"
-                I.Record    _ _  -> "#record"
-                I.EmptyArr       -> "#array"
-                I.Array     _    -> "#array"
+                I.String    _    -> "string"
+                I.Number    _    -> "number"
+                I.Boolean   _    -> "boolean"
+                I.URI       _    -> "uri"
+                I.Date      _    -> "date"
+                I.EmptyRec       -> "record"
+                I.Record    _ _  -> "record"
+                I.EmptyArr       -> "array"
+                I.Array     _    -> "array"
                 I.Null           -> "null"
                 I.BlankNode _    -> "a blank node"
-     Record      _ _        -> "#record"
-     Array       _          -> "#array"
-     FunctionClosure {}     -> "#function"
-     PrimitiveOp _          -> "#function"
+     Record      _ _        -> "record"
+     Array       _          -> "array"
+     FunctionClosure {}     -> "function"
+     PrimitiveOp _          -> "function"
      Duration    _ _        -> "a Duration"
      Attr        _ _        -> "an attribute pair"
      EvalError   _          -> "an error"

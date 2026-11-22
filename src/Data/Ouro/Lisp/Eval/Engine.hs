@@ -348,7 +348,7 @@ evalExpr expr = do
                        | Just elems <- L.asArray arr
                        -> let answer = \case
                                   Primitive (I.Boolean b) -> pure (Right b)
-                                  other                   -> refinementMismatch "#boolean" (refinementOf other)
+                                  other                   -> refinementMismatch "boolean" (refinementOf other)
                                                              & withBlurb (form <> " reads an Array of Booleans: each element must be true or false.")
                                                              & OuroError (S.exprPos arrExpr)
                                                              & EvalError
@@ -821,7 +821,7 @@ checkDefined typePos pos name v = do
                              applyFunction typePos [S.Symbol typePos "%refinement", S.Symbol typePos "%refinement-value"]
                case answer of
                    Primitive (I.Boolean True)  -> pure v
-                   Primitive (I.Boolean False) -> pure (refinementFailure pos ("#" <> name) ("a " <> refinementOf v <> " that is not #" <> name) (rule doc))
+                   Primitive (I.Boolean False) -> pure (refinementFailure pos name ("a " <> refinementOf v <> " that is not " <> name) (rule doc))
                    -- Its body is checked as #boolean, so anything else is an error
                    other                       -> pure other
 
@@ -846,8 +846,8 @@ checkDefined typePos pos name v = do
     where
     -- The refinement's doc, stated as the rule it asserts
     rule = \case
-        Just text -> "#" <> name <> ": " <> text
-        Nothing   -> "#" <> name <> " has no doc, so the rule it asserts cannot be shown. "
+        Just text -> name <> ": " <> text
+        Nothing   -> name <> " has no doc, so the rule it asserts cannot be shown. "
                   <> "Perhaps write one: (define/refinement " <> name <> " (<r ⊢ record>) (doc \"...\") ...)."
 
 
@@ -883,10 +883,10 @@ builtInProblem :: S.Refinement -> L.Expr -> Maybe (Text, Text)
 builtInProblem refinement value = case (refinement, value) of
     (S.RUri, Primitive (I.String rawText))
         -> case mkUri rawText of
-               Left _    -> Just ("a #string that is not a URI", uriBlurb)
+               Left _    -> Just ("a string that is not a URI", uriBlurb)
                Right uri -> case URI.uriScheme (uriParsed uri) of
                                 Just _  -> Nothing
-                                Nothing -> Just ("a #string without a URI scheme", uriBlurb)
+                                Nothing -> Just ("a string without a URI scheme", uriBlurb)
 
     (S.RUri, _)
         -> Just (refinementOf value, uriBlurb)
@@ -894,7 +894,7 @@ builtInProblem refinement value = case (refinement, value) of
     (S.RDate, Primitive (I.String rawText))
         -> case parseISO8601 (T.unpack rawText) of
                Just _  -> Nothing
-               Nothing -> Just ("a #string that is not a date", dateBlurb)
+               Nothing -> Just ("a string that is not a date", dateBlurb)
 
     (S.RDate, _)
         -> Just (refinementOf value, dateBlurb)
@@ -905,8 +905,8 @@ builtInProblem refinement value = case (refinement, value) of
 
 
 uriBlurb, dateBlurb :: Text
-uriBlurb  = "A #uri is a #string with a scheme, such as \"https://linked.art/example/1\"."
-dateBlurb = "A #date is a #string in ISO-8601 form, YYYY-MM-DDTHH:mm:ssZ, such as \"1642-01-01T00:00:00Z\"."
+uriBlurb  = "A uri is a string with a scheme, such as \"https://linked.art/example/1\"."
+dateBlurb = "A date is a string in ISO-8601 form, YYYY-MM-DDTHH:mm:ssZ, such as \"1642-01-01T00:00:00Z\"."
 
 
 -- applyFunction.
@@ -994,7 +994,7 @@ evaluateGuards eval env pos target attempts branches =
                                Primitive (I.Boolean True)  -> eval body
                                Primitive (I.Boolean False) -> evaluateGuards eval env pos target (attempts + 1) rest
                                err@(EvalError _)           -> pure err
-                               other                       -> refinementMismatch "#boolean" (refinementOf other)
+                               other                       -> refinementMismatch "boolean" (refinementOf other)
                                                               & withBlurb "A case condition answers true or false: ((when cond) result), or a comparison such as ((< 10) result)."
                                                               & OuroError (S.exprPos cond)
                                                               & EvalError
@@ -1268,7 +1268,7 @@ predicateVerdict :: Text -> SourcePos -> L.Expr -> Either L.Expr Bool
 predicateVerdict form arrPos = \case
     Primitive (I.Boolean b) -> Right b
     err@(EvalError _)       -> Left err
-    other                   -> refinementMismatch "#boolean" (refinementOf other)
+    other                   -> refinementMismatch "boolean" (refinementOf other)
                                & withBlurb (form <> "'s function must answer true or false for each element.")
                                & OuroError arrPos
                                & EvalError

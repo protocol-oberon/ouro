@@ -130,7 +130,7 @@ readType = \case
             | otherwise       = ((key, ty) :) <$> go (key : seen) rest
 
 
--- A type as a message writes it, in the messages' own spelling until they are rewritten
+-- A type as a message writes it, as it is written in Ouro
 renderType :: Type -> Text
 renderType = \case
     Named refinement -> renderRefinement refinement
@@ -141,18 +141,18 @@ renderType = \case
     RecordOf pairs   -> "(record" <> foldMap (\(key, t) -> " :" <> key <> " " <> renderType t) pairs <> ")"
 
 
--- A refinement as a message writes it, # and all, until the messages are rewritten
+-- A refinement as a message writes it: by its name, as a type is written
 renderRefinement :: Refinement -> Text
 renderRefinement = \case
-    RUri          -> "#uri"
-    RDate         -> "#date"
-    RString       -> "#string"
-    RNumber       -> "#number"
-    RBoolean      -> "#boolean"
-    RRecord       -> "#record"
-    RArray        -> "#array"
-    RFunction     -> "#function"
-    RDefined name -> "#" <> name
+    RUri          -> "uri"
+    RDate         -> "date"
+    RString       -> "string"
+    RNumber       -> "number"
+    RBoolean      -> "boolean"
+    RRecord       -> "record"
+    RArray        -> "array"
+    RFunction     -> "function"
+    RDefined name -> name
 
 
 -- A function's parameter: its name, its type, if it has one, and the pattern it destructures

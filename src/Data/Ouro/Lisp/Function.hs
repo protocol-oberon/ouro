@@ -433,7 +433,7 @@ refinementResult :: SourcePos -> Maybe (SourcePos, S.Type) -> Either OuroError (
 refinementResult pos = \case
     Nothing           -> Right $ Just (pos, S.Named S.RBoolean)
     Just (typePos, _) -> lexicalError "A refinement always answers true or false, so it has no return type."
-                         & withBlurb "Write (define/refinement titled (<r ⊢ record>) ...): its result is checked as #boolean."
+                         & withBlurb "Write (define/refinement titled (<r ⊢ record>) ...): its result is checked as boolean."
                          & OuroError typePos
                          & Left
 
@@ -444,7 +444,7 @@ refinementResult pos = \case
 refinementParams :: Text -> SourcePos -> [S.Param] -> Either OuroError ()
 refinementParams name pos = \case
     [S.Param _ (Just (typePos, S.Named S.RFunction)) _]
-        -> lexicalError "A refinement is about data, so its parameter cannot be #function."
+        -> lexicalError "A refinement is about data, so its parameter cannot be function."
            & withBlurb "Give it the value it is about, with a type: (define/refinement titled (<r ⊢ record>) ...)."
            & OuroError typePos
            & Left

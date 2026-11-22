@@ -702,7 +702,7 @@ An attribute is letters, digits, =-= and =_=, after an optional =@=. It may hold
 
 - Any other name that begins with a letter, =#titled=, is read whole as a refinement defined in Ouro.
 - So is a qualified one, =#people/titled=.
-- One of the module is checked (see [[*Refinements: =define/refinement=][Refinements: =define/refinement=]]); an imported one is not yet read, so it is =Unknown refinement: #people/titled=.
+- One of the module is checked (see [[*Refinements: =define/refinement=][Refinements: =define/refinement=]]); an imported one is not yet read, so it is =Unknown refinement: people/titled=.
 
 *** Ranges
 
@@ -903,10 +903,10 @@ They must be consumed, added to a date or called, before they reach the output.
 - Assertions are how URIs and dates, which look like strings in JSON, keep their meaning inside Ouro.
 
 A value without the refinement it is typed with is reported with both refinements, as they are written:
-- "Expected data to have the refinement =#number=, got =#string= instead".
+- "Expected data to have the refinement =number=, got =string= instead".
 - For =#uri= and =#date=, the reason is given too, and the expected form is in the blurb:
-  - "got a =#string= without a URI scheme";
-  - "got a =#string= that is not a date".
+  - "got a =string= without a URI scheme";
+  - "got a =string= that is not a date".
 
 ** Records and arrays
 
@@ -1069,14 +1069,14 @@ The symbols of logic and sets are read the same way, as the names they stand for
 - ∪ ∩ ∖ are written prefix or infix, wherever a type is: ~<x ⊢ (∪ string number)>~, ~(∈ x <string ∖ uri>)~, in a binder or a return type too.
   - A union holds where either side does, an intersection where both do, a difference where the first does and the second does not.
   - Each takes two types; a chain folds left, ~<string ∪ number ∪ boolean>~, and nesting is written.
-  - The value is never changed. A value outside is a refinement mismatch against the whole type, written as messages write it, ~(∪ #string #number)~.
+  - The value is never changed. A value outside is a refinement mismatch against the whole type, written as it is in Ouro, ~(∪ string number)~.
   - Only a refinement mismatch means a value is outside a side: an error inside one, a refinement whose own body fails, stays that error, and is never taken for "not in" and tried against the other side.
   - Anything else in a type, ~(∪ string number boolean)~ or ~(∪ string 1)~, is =SYN0000=, "A type is a refinement's name, ∪ ∩ ∖ of two types, (array p) or (record :k p …)". An unknown refinement inside one is reported at the type.
   - The complement, ~(∖ value p)~, waits for =value= as the root.
 
 - ~(array p)~ is an array whose every element is in =p=: ~<xs ⊢ (array number)>~, ~(array (∪ string number))~, ~(array (array number))~.
   - The empty array is in every ~(array p)~.
-  - A value that is no array, or an array with an element outside =p=, is a refinement mismatch against the whole type; the first element outside is named, "an array whose element 3 is #string".
+  - A value that is no array, or an array with an element outside =p=, is a refinement mismatch against the whole type; the first element outside is named, "an array whose element 3 is string".
   - Its elements are checked in order, stopping at the first outside; an error inside an element's check stays that error.
   - It is read only where a type is written, so it never meets ~(array a b)~, the value.
   - Each element is a part of the array, so a refinement may assert itself on the elements of its own parts, and goes down into the value: ~(define/refinement tree (<n ⊢ record>) <(get-or n () part) ∈ (array tree)>)~ is accepted by the recursion check.
@@ -1086,7 +1086,7 @@ The symbols of logic and sets are read the same way, as the names they stand for
 
   - Other keys are left alone: ~(:label "a" :note 1)~ is in ~(record :label string)~.
 
-  - A value that is no record is a refinement mismatch against the whole type, ~(record :label #string)~. Its keys are checked in the order written, stopping at the first missing or outside, which is named: "a record without label", "a record whose label is #number". An error inside a key's check stays that error.
+  - A value that is no record is a refinement mismatch against the whole type, ~(record :label string)~. Its keys are checked in the order written, stopping at the first missing or outside, which is named: "a record without label", "a record whose label is number". An error inside a key's check stays that error.
 
   - Keys are matched as written: =:label= is the record's key ="label"=.
 
@@ -1110,7 +1110,7 @@ The symbols of logic and sets are read the same way, as the names they stand for
 
 - Any other shape, a refinement that is not a name, ~(⊢ 1 (array))~, or one operand outside a =case=, ~(∈ 1)~, is =SYN0000=, "⊢ is written (⊢ value refinement), or <value ⊢ refinement>, the refinement by its name."
 
-- Messages still name a refinement with its =#=, =#number=.
+- Messages name a refinement as it is written, by its name, =number=, =titled=.
 - A longer name that begins with a symbol, such as =∧x=, is an ordinary symbol.
 
 *** Local functions
@@ -1235,7 +1235,7 @@ A refinement is asserted with its tag, ~#titled x~, as a built-in one is.
 
 - The refinement is called on the value.
   - When it answers =true=, the value passes on unchanged.
-  - Otherwise it is a refinement mismatch (=TYP0001=) at the value, with the refinement's doc stated as the rule it broke, =#titled: Has a label.=; one without a doc says so.
+  - Otherwise it is a refinement mismatch (=TYP0001=) at the value, with the refinement's doc stated as the rule it broke, =titled: Has a label.=; one without a doc says so.
   - An error inside the refinement, its parameter's contract among them, stays that error.
 
 - The tag works wherever a built-in refinement does:
@@ -1245,7 +1245,7 @@ A refinement is asserted with its tag, ~#titled x~, as a built-in one is.
 - A tag names a refinement of the module, never a binding: ~(let ($titled 1) #titled r)~ still asserts the refinement.
 
 - The static analysis resolves every tag as written, in functions no document calls too, before anything is evaluated.
-  - One that names no refinement is =SYN0000= =Unknown refinement: #titeld= at the tag, with the nearest refinement or built-in name (=#str= suggests =#string=).
+  - One that names no refinement is =SYN0000= =Unknown refinement: titeld= at its name, with the nearest refinement or built-in name (=str= suggests =string=).
   - One that names a =define/procedure= is =SYN0000=, ='f' is a function, not a refinement=.
 
 - A tag is a call of its refinement, so recursion through tags must go down into the value, as any recursion must.

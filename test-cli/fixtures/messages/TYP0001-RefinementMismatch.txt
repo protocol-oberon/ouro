@@ -3,7 +3,7 @@ Error [TYP0001]: Refinement Mismatch
   │
 1 │ (document g (:a #string 1))
   │                         ^
-  │                         Expected data to have the refinement #string, got #number instead.
+  │                         Expected data to have the refinement string, got number instead.
   │ 
 
-Ouro's built-in refinements are #string, #number, #boolean, #uri, #date, #record, #array and #function.
+Ouro's built-in refinements are string, number, boolean, uri, date, record, array and function.

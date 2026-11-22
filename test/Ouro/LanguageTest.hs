@@ -190,7 +190,7 @@ formsAndBuiltins = Group "Special forms and built-ins"
                                                               "(document g (:r (max (1 \"2\"))))")
     , ("they are function values",                  compilesToJSON "(document g (:r (map ((1 2) (5 3)) max)))"
                                                                    "{\"r\": [2, 5]}")
-    , ("#string asserts a string",                  failsWith "expectedRefinement = \"#string\", actualRefinement = \"#number\""
+    , ("#string asserts a string",                  failsWith "expectedRefinement = \"string\", actualRefinement = \"number\""
                                                               "(document g (:a #string 1))")
     , ("recursion is an error",                     failsWith "a recursive function call"
                                                               "(define/procedure f (n) (f n)) (document g (:r (f 1)))")
@@ -243,9 +243,9 @@ formsAndBuiltins = Group "Special forms and built-ins"
                                                                    "{\"r\": false}")
     , ("an Array given another way is read whole",  compilesToJSON "(document g (let ($conds (true false)) (:a (all conds) :b (any conds) :c (any (map (1 2) (gt ? 1))))))"
                                                                    "{\"a\": false, \"b\": true, \"c\": true}")
-    , ("its elements must be Booleans",             failsWith "expectedRefinement = \"#boolean\", actualRefinement = \"#number\""
+    , ("its elements must be Booleans",             failsWith "expectedRefinement = \"boolean\", actualRefinement = \"number\""
                                                               "(document g (let ($conds (true 1)) (:r (all conds))))")
-    , ("and so must a written element",             failsWith "expectedRefinement = \"#boolean\", actualRefinement = \"#number\""
+    , ("and so must a written element",             failsWith "expectedRefinement = \"boolean\", actualRefinement = \"number\""
                                                               "(document g (:r (all (1))))")
     , ("all takes one Array",                       failsWith "all is written (all array): one Array of Booleans."
                                                               "(document g (:r (all true false)))")
@@ -255,9 +255,9 @@ formsAndBuiltins = Group "Special forms and built-ins"
                                                                    "{\"r\": false, \"s\": false}")
     , ("or stops at the first true",                compilesToJSON "(document g (:r (or true (get () 5))))"
                                                                    "{\"r\": true}")
-    , ("an operand must be a #boolean",             failsWith "expectedRefinement = \"#boolean\", actualRefinement = \"#number\""
+    , ("an operand must be a #boolean",             failsWith "expectedRefinement = \"boolean\", actualRefinement = \"number\""
                                                               "(document g (:r (and true 1)))")
-    , ("or checks its operands too",                failsWith "expectedRefinement = \"#boolean\", actualRefinement = \"#number\""
+    , ("or checks its operands too",                failsWith "expectedRefinement = \"boolean\", actualRefinement = \"number\""
                                                               "(document g (:r (or 1 true)))")
     , ("and and or combine comparisons",            compilesToJSON "(document g (:r (and (gt 2 1) (or (eq \"a\" \"b\") (eq \"a\" \"a\")))))"
                                                                    "{\"r\": true}")
@@ -375,12 +375,12 @@ types = Group "Types: the rules as they are"
     [ -- The built-in properties, by their full names
       ("every built-in property, by its full name", compilesToJSON "(define/procedure twice #number (#function f #number n) (f (f n))) (document g (:s #string \"a\" :n (twice (fn (#number x) (* x 2)) 1) :b #boolean true :r #record (:a 1) :a #array (1) :e #array-empty :o #record-empty))"
                                                                    "{\"s\": \"a\", \"n\": 4, \"b\": true, \"r\": {\"a\": 1}, \"a\": [1], \"e\": [], \"o\": {}}")
-    , ("#str is not a refinement: #string is",      failsWith "Unknown refinement: #str"       "(document g (:r #str \"a\"))")
-    , ("#num is not a refinement: #number is",      failsWith "Unknown refinement: #num"       "(document g (:r #num 1))")
-    , ("#bool is not a refinement: #boolean is",    failsWith "Unknown refinement: #bool"      "(document g (:r #bool true))")
-    , ("#rec is not a refinement: #record is",      failsWith "Unknown refinement: #rec"       "(document g (:r #rec (:a 1)))")
-    , ("#arr is not a refinement: #array is",       failsWith "Unknown refinement: #arr"       "(document g (:r #arr (1)))")
-    , ("#fn is not a refinement: #function is",     failsWith "Unknown refinement: #fn"        "(document g (:r #fn 1))")
+    , ("#str is not a refinement: #string is",      failsWith "Unknown refinement: str"       "(document g (:r #str \"a\"))")
+    , ("#num is not a refinement: #number is",      failsWith "Unknown refinement: num"       "(document g (:r #num 1))")
+    , ("#bool is not a refinement: #boolean is",    failsWith "Unknown refinement: bool"      "(document g (:r #bool true))")
+    , ("#rec is not a refinement: #record is",      failsWith "Unknown refinement: rec"       "(document g (:r #rec (:a 1)))")
+    , ("#arr is not a refinement: #array is",       failsWith "Unknown refinement: arr"       "(document g (:r #arr (1)))")
+    , ("#fn is not a refinement: #function is",     failsWith "Unknown refinement: fn"        "(document g (:r #fn 1))")
       -- Ouro has no null: absence is a key left out, or a statement of why
     , ("Ouro has no null",                          failsWith "Ouro has no null: leave the attribute out, or state why the value is absent"
                                                               "(document g (:r null))")
@@ -390,12 +390,12 @@ types = Group "Types: the rules as they are"
                                                               "(document g (:r (1 null)))")
     , ("and null is no name",                       failsWith "Ouro has no null"
                                                               "(define/procedure null (x) x) (document g (:r 1))")
-    , ("#rec-empty is not a value: #record-empty is", failsWith "Unknown refinement: #rec-empty" "(document g (:r #rec-empty))")
-    , ("#arr-empty is not a value: #array-empty is", failsWith "Unknown refinement: #arr-empty" "(document g (:r #arr-empty))")
+    , ("#rec-empty is not a value: #record-empty is", failsWith "Unknown refinement: rec-empty" "(document g (:r #rec-empty))")
+    , ("#arr-empty is not a value: #array-empty is", failsWith "Unknown refinement: arr-empty" "(document g (:r #arr-empty))")
       -- A property defined in Ouro is read by its whole name, qualified or not; one the module does not define is unknown, at its tag
-    , ("a refinement the module does not define is unknown", importsFailAt "SYN0000" ("inline-test", 1, 17) ["Unknown refinement: #titled"] []
+    , ("a refinement the module does not define is unknown", importsFailAt "SYN0000" ("inline-test", 1, 17) ["Unknown refinement: titled"] []
                                                                      "(document g (:r #titled (:_label \"A\")))")
-    , ("as is an imported one, not yet read", importsFailAt "SYN0000" ("inline-test", 1, 17) ["Unknown refinement: #people/titled"] []
+    , ("as is an imported one, not yet read", importsFailAt "SYN0000" ("inline-test", 1, 17) ["Unknown refinement: people/titled"] []
                                                                      "(document g (:r #people/titled (:_label \"A\")))")
     , ("a name that does not begin with a letter is no refinement", failsWith "Unknown refinement: #1st" "(document g (:r #1st 1))")
       -- Arrays
@@ -441,15 +441,15 @@ types = Group "Types: the rules as they are"
                                                               "(document g (:r (+ (days 1) (days 2))))")
 
       -- Assertions check, and only #uri and #date convert a String
-    , ("#number does not convert a string",         failsWith "expectedRefinement = \"#number\", actualRefinement = \"#string\""
+    , ("#number does not convert a string",         failsWith "expectedRefinement = \"number\", actualRefinement = \"string\""
                                                               "(document g (:r #number \"5\"))")
-    , ("#uri does not accept a date",               failsWith "expectedRefinement = \"#uri\", actualRefinement = \"a #string"
+    , ("#uri does not accept a date",               failsWith "expectedRefinement = \"uri\", actualRefinement = \"a string"
                                                               ("(document g (:r #uri " <> date <> "))"))
 
       -- A failed property names both properties, and says why when the value's own is not enough
-    , ("a URI needs a scheme",                      failsWith "actualRefinement = \"a #string without a URI scheme\""
+    , ("a URI needs a scheme",                      failsWith "actualRefinement = \"a string without a URI scheme\""
                                                               "(document g (:r #uri \"nope\"))")
-    , ("a date needs ISO-8601 form",                failsWith "actualRefinement = \"a #string that is not a date\""
+    , ("a date needs ISO-8601 form",                failsWith "actualRefinement = \"a string that is not a date\""
                                                               "(document g (:r #date \"1642\"))")
 
       -- A URI is written as it was written: every slash of its path is kept
@@ -509,13 +509,13 @@ operators = Group "Operators: operands and desugaring"
                                                                    "{\"r\": 1}")
     , ("|- infix, and in a signature",              compilesToJSON "(define/procedure twice |- number (<x |- number>) (+ x x)) (document g (:a <1 |- number> :b (twice 2)))"
                                                                    "{\"a\": 1, \"b\": 4}")
-    , ("a value without it is a type error",        failsWith "expectedRefinement = \"#number\", actualRefinement = \"#string\""
+    , ("a value without it is a type error",        failsWith "expectedRefinement = \"number\", actualRefinement = \"string\""
                                                               "(document g (:r <\"a\" ⊢ number>))")
     , ("∈ asks",                                    compilesToJSON "(document g (:r (∈ 1 number) :s <\"a\" ∈ number>))"
                                                                    "{\"r\": true, \"s\": false}")
     , ("a refinement of the module",                compilesToJSON (titled <> "(document g (:r <(:_label \"A\") ⊢ titled> :s <(:x 1) ∈ titled>))")
                                                                    "{\"r\": {\"_label\": \"A\"}, \"s\": false}")
-    , ("which a value without it fails",            failsWith "expectedRefinement = \"#titled\""
+    , ("which a value without it fails",            failsWith "expectedRefinement = \"titled\""
                                                               (titled <> "(document g (:r <(:x 1) ⊢ titled>))"))
     , ("∈ heads a case branch",                     compilesToJSON "(document g (:r (case 1 ((∈ string) \"text\") (otherwise \"other\"))))"
                                                                    "{\"r\": \"other\"}")
@@ -537,7 +537,7 @@ operators = Group "Operators: operands and desugaring"
       -- ∪ ∩ ∖ of types, prefix or infix, wherever a type is written; the value never changes
     , ("⊢ a union, through either side",            compilesToJSON "(document g (:a <1 ⊢ (∪ string number)> :b <\"x\" ⊢ <string ∪ number>>))"
                                                                    "{\"a\": 1, \"b\": \"x\"}")
-    , ("outside both is a type error",              failsWith "expectedRefinement = \"(\\8746 #string #number)\""
+    , ("outside both is a type error",              failsWith "expectedRefinement = \"(\\8746 string number)\""
                                                               "(document g (:r <true ⊢ (∪ string number)>))")
     , ("an intersection holds both",                compilesToJSON "(document g (:r <\"https://a.org\" ⊢ (∩ string uri)>))"
                                                                    "{\"r\": \"https://a.org\"}")
@@ -555,17 +555,17 @@ operators = Group "Operators: operands and desugaring"
                                                               "(define/procedure f (<x ⊢ (∪ string number boolean)>) x) (document g (:r 1))")
     , ("each of them a type",                       failsWith "A type is a refinement's name"
                                                               "(define/procedure f (<x ⊢ (∪ string 1)>) x) (document g (:r 1))")
-    , ("an unknown refinement inside is reported",  failsWith "Unknown refinement: #titeld"
+    , ("an unknown refinement inside is reported",  failsWith "Unknown refinement: titeld"
                                                               "(document g (:r <1 ⊢ (∪ number titeld)>))")
-    , ("an error inside a side stays that error",   failsWith "expectedRefinement = \"#record\""
+    , ("an error inside a side stays that error",   failsWith "expectedRefinement = \"record\""
                                                               (titled <> "(define/refinement broken (<x ⊢ number>) <x ∈ titled>) (document g (:r <1 ⊢ (∪ broken number)>))"))
 
       -- (array p): an array whose every element is in p
     , ("every element in p",                        compilesToJSON "(document g (:a <(1 2 3) ⊢ (array number)> :b <(make array) ⊢ (array string)>))"
                                                                    "{\"a\": [1, 2, 3], \"b\": []}")
-    , ("a value that is no array is refused",       failsWith "expectedRefinement = \"(array #number)\""
+    , ("a value that is no array is refused",       failsWith "expectedRefinement = \"(array number)\""
                                                               "(document g (:r <\"x\" ⊢ (array number)>))")
-    , ("an element outside is named",               failsWith "an array whose element 3 is #string"
+    , ("an element outside is named",               failsWith "an array whose element 3 is string"
                                                               "(document g (:r <(1 2 \"x\") ⊢ (array number)>))")
     , ("nested, and over a union",                  compilesToJSON "(document g (:a <((1) (2 3)) ⊢ (array (array number))> :b <(1 \"a\") ∈ (array (∪ string number))>))"
                                                                    "{\"a\": [[1], [2, 3]], \"b\": true}")
@@ -577,7 +577,7 @@ operators = Group "Operators: operands and desugaring"
                                                               "(define/procedure f (<x ⊢ (array)>) x) (document g (:r 1))")
     , ("nor is (array a b)",                        failsWith "A type is a refinement's name"
                                                               "(define/procedure f (<x ⊢ (array string number)>) x) (document g (:r 1))")
-    , ("an error inside an element's check stays",  failsWith "expectedRefinement = \"#record\""
+    , ("an error inside an element's check stays",  failsWith "expectedRefinement = \"record\""
                                                               (titled <> "(define/refinement broken (<x ⊢ number>) <x ∈ titled>) (document g (:r <(1) ⊢ (array broken)>))"))
     , ("a refinement over its own parts descends",  compilesToJSON "(define/refinement tree (<n ⊢ record>) (doc \"Its parts are trees.\") <(get-or n () part) ∈ (array tree)>) (document g (:r <(:part ((:part ()))) ∈ tree>))"
                                                                    "{\"r\": true}")
@@ -587,11 +587,11 @@ operators = Group "Operators: operands and desugaring"
                                                                    "{\"r\": {\"label\": \"a\", \"part\": []}}")
     , ("other keys are left alone",                 compilesToJSON "(document g (:r <(:label \"a\" :note 1) ⊢ (record :label string)>))"
                                                                    "{\"r\": {\"label\": \"a\", \"note\": 1}}")
-    , ("a value that is no record is refused",      failsWith "expectedRefinement = \"(record :label #string)\""
+    , ("a value that is no record is refused",      failsWith "expectedRefinement = \"(record :label string)\""
                                                               "(document g (:r <\"x\" ⊢ (record :label string)>))")
     , ("a missing key is named",                    failsWith "a record without label"
                                                               "(document g (:r <(:note 1) ⊢ (record :label string)>))")
-    , ("a value outside its key's type is named",   failsWith "a record whose label is #number"
+    , ("a value outside its key's type is named",   failsWith "a record whose label is number"
                                                               "(document g (:r <(:label 1) ⊢ (record :label string)>))")
     , ("the keys are asked in the order written",   failsWith "a record without label"
                                                               "(document g (:r <(:part 1) ⊢ (record :label string :part array)>))")
@@ -603,7 +603,7 @@ operators = Group "Operators: operands and desugaring"
                                                                    "{\"r\": \"a\"}")
     , ("as a case head",                            compilesToJSON "(document g (:r (case (:part ()) ((∈ (record :part array)) \"node\") (otherwise \"leaf\"))))"
                                                                    "{\"r\": \"node\"}")
-    , ("an error inside a key's check stays",       failsWith "expectedRefinement = \"#record\""
+    , ("an error inside a key's check stays",       failsWith "expectedRefinement = \"record\""
                                                               (titled <> "(define/refinement broken (<x ⊢ number>) <x ∈ titled>) (document g (:r <(:k 1) ⊢ (record :k broken)>))"))
     , ("a refinement through its own keys descends", compilesToJSON "(define/refinement tree (<n ⊢ record>) (doc \"A leaf, or parts that are trees.\") <n ∈ (∪ (record :leaf string) (record :part (array tree)))>) (document g (:r <(:part ((:leaf \"a\"))) ∈ tree>))"
                                                                    "{\"r\": true}")
@@ -810,9 +810,9 @@ dates = Group "Dates: calendar arithmetic"
                                                                    "{\"d\": \"0079-08-24T12:00:00Z\"}")
     , ("as its arithmetic and to-string do",        compilesToJSON "(document g (:d (+ #date \"0079-08-24T12:00:00Z\" (days 2)) :s (to-string #date \"0079-08-24T12:00:00Z\")))"
                                                                    "{\"d\": \"0079-08-26T12:00:00Z\", \"s\": \"0079-08-24T12:00:00Z\"}")
-    , ("a year of fewer than four digits is not a date", failsWith "a #string that is not a date"
+    , ("a year of fewer than four digits is not a date", failsWith "a string that is not a date"
                                                                    "(document g (:d #date \"81-01-01T00:00:00Z\"))")
-    , ("nor through std/time",                      failsWith "a #string that is not a date"
+    , ("nor through std/time",                      failsWith "a string that is not a date"
                                                                    "(import std/time) (document g (:d (time/year \"81\")))")
     , ("thru a year ends that year",                compilesToJSON ("(document g (:r (+ " <> date "2020-02-29" <> " (thru (years 1)))))")
                                                                    "{\"r\": \"2021-12-31T23:59:59Z\"}")
@@ -842,7 +842,7 @@ dates = Group "Dates: calendar arithmetic"
                                                                    "{\"r\": \"2020-02-01T23:59:59Z\"}")
     , ("on a string, unasserted",                   compilesToJSON "(document g (:r (shift \"2020-01-31T00:00:00Z\" (days 1))))"
                                                                    "{\"r\": \"2020-02-01T00:00:00Z\"}")
-    , ("a string that is no date is refused",       failsWith "actualRefinement = \"a #string that is not a date\""
+    , ("a string that is no date is refused",       failsWith "actualRefinement = \"a string that is not a date\""
                                                               "(document g (:r (shift \"tomorrow\" (days 1))))")
     , ("as is a value that is no duration",         failsWith "a duration to shift the date by"
                                                               ("(document g (:r (shift " <> date "2020-01-31" <> " 1)))"))
@@ -1092,7 +1092,7 @@ logicAndCollections :: Group
 logicAndCollections = Group "Built-ins: logic, arrays and records"
     [ ("not negates",                            compilesToJSON "(document g (:a (not true) :b (not false)))"
                                                                 "{\"a\": false, \"b\": true}")
-    , ("not needs a Boolean",                    failsWith "expectedRefinement = \"#boolean\""
+    , ("not needs a Boolean",                    failsWith "expectedRefinement = \"boolean\""
                                                            "(document g (:r (not 1)))")
     , ("not takes one operand",                  failsWith "nameOfFunc = \"not\""
                                                            "(document g (:r (not true false)))")
@@ -1130,7 +1130,7 @@ logicAndCollections = Group "Built-ins: logic, arrays and records"
                                                                 "{\"r\": [{\"name\": \"a\"}]}")
     , ("a hole for the array",                   compilesToJSON "(document g (let ($big (exists ? (gt ? 2))) (:r (big (1 5)))))"
                                                                 "{\"r\": true}")
-    , ("the answer must be a Boolean",           failsWith "expectedRefinement = \"#boolean\""
+    , ("the answer must be a Boolean",           failsWith "expectedRefinement = \"boolean\""
                                                            "(document g (:r (exists (1 2) (+ ? 1))))")
     , ("exists needs a function",                failsWith "a function for exists to call"
                                                            "(document g (:r (exists (1 2) 1)))")
@@ -1281,7 +1281,7 @@ conditions = Group "Case: conditions"
                                                                 "{\"r\": \"in\"}")
     , ("when sits beside patterns and literals", compilesToJSON "(document g (:r (case (:k 1) (2 \"two\") ((when false) \"no\") ((:k ?v) v) (otherwise \"other\"))))"
                                                                 "{\"r\": 1}")
-    , ("a condition must be a Boolean",          failsWith "expectedRefinement = \"#boolean\""
+    , ("a condition must be a Boolean",          failsWith "expectedRefinement = \"boolean\""
                                                            "(document g (:r (case 5 ((when 1) \"a\") (otherwise \"b\"))))")
     , ("when outside a case is an error",        failsWith "when is written as the head of a case branch"
                                                            "(document g (:r (when true)))")
@@ -1552,7 +1552,7 @@ knownGaps = Group "Known gaps: current and fixed"
                                                                      "(document g (:ex:a.b 1 :y 2))")
     , ("gap 31: a '/' ends a key",                   importsFailAt "SCP0000" ("inline-test", 1, 19) ["variableName = \"/b\""] []
                                                                      "(document g (:ex:a/b 1 :y 2))")
-    , ("gap 31: a '#' ends a key",                   importsFailAt "SYN0000" ("inline-test", 1, 19) ["Unknown refinement: #b"] []
+    , ("gap 31: a '#' ends a key",                   importsFailAt "SYN0000" ("inline-test", 1, 19) ["Unknown refinement: b"] []
                                                                      "(document g (:ex:a#b 1 :y 2))")
     , ("gap 39 (fixed): insert floors a fractional index", fixedGap $ compilesToJSON "(document g (:r (insert (1 2) 1.5 \"x\")))"
                                                                    "{\"r\": [1, \"x\", 2]}")

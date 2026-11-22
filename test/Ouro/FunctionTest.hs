@@ -132,19 +132,19 @@ signatures = Group "Functions: signatures are properties in the header"
                                                                  "{\"r\": {\"a\": 1}, \"s\": [1, 2]}")
 
     -- Mismatches, checked by message and by where they are reported
-    , ("an argument of the wrong type",           failsWith "expectedRefinement = \"#number\", actualRefinement = \"#string\""
+    , ("an argument of the wrong type",           failsWith "expectedRefinement = \"number\", actualRefinement = \"string\""
                                                             "(define/procedure double (#number n) (* n 2)) (document g (:r (double \"x\")))")
     , ("it is reported at the argument",          failsWith "line 1, col 71"
                                                             "(define/procedure double (#number n) (* n 2)) (document g (:r (double \"x\")))")
-    , ("an unused argument is still checked",     failsWith "expectedRefinement = \"#number\""
+    , ("an unused argument is still checked",     failsWith "expectedRefinement = \"number\""
                                                             "(define/procedure second (#number a b) b) (document g (:r (second \"x\" 2)))")
-    , ("a result of the wrong type",              failsWith "expectedRefinement = \"#number\", actualRefinement = \"#string\""
+    , ("a result of the wrong type",              failsWith "expectedRefinement = \"number\", actualRefinement = \"string\""
                                                             "(define/procedure label #number (who) (+ who \"!\")) (document g (:r (label \"a\")))")
     , ("it is reported at the body",              failsWith "line 1, col 39"
                                                             "(define/procedure label #number (who) (+ who \"!\")) (document g (:r (label \"a\")))")
-    , ("a fn result of the wrong type",           failsWith "expectedRefinement = \"#string\""
+    , ("a fn result of the wrong type",           failsWith "expectedRefinement = \"string\""
                                                             "(document g (let ($f (fn #string (n) n)) (:r (f 1))))")
-    , ("a value that is not a function",          failsWith "expectedRefinement = \"#function\""
+    , ("a value that is not a function",          failsWith "expectedRefinement = \"function\""
                                                             "(define/procedure apply (#function f x) (f x)) (document g (:r (apply 1 2)))")
     , ("a type needs a parameter after it",       failsWith "written in a binder"
                                                             "(define/procedure f (#number) 1) (document g (:r (f)))")
@@ -166,13 +166,13 @@ signatures = Group "Functions: signatures are properties in the header"
                                                                  "{\"r\": \"a\"}")
     , ("old and new together",                    compilesToJSON "(define/procedure pair (#number a <b ⊢ string>) (array a b)) (document g (:r (pair 1 \"two\")))"
                                                                  "{\"r\": [1, \"two\"]}")
-    , ("a binder's argument is checked",          failsWith "expectedRefinement = \"#number\", actualRefinement = \"#string\""
+    , ("a binder's argument is checked",          failsWith "expectedRefinement = \"number\", actualRefinement = \"string\""
                                                             "(define/procedure double (<n ⊢ number>) (* n 2)) (document g (:r (double \"x\")))")
     , ("at the argument",                         failsWith "line 1, col 74"
                                                             "(define/procedure double (<n ⊢ number>) (* n 2)) (document g (:r (double \"x\")))")
-    , ("and ⊢'s result",                          failsWith "expectedRefinement = \"#number\", actualRefinement = \"#string\""
+    , ("and ⊢'s result",                          failsWith "expectedRefinement = \"number\", actualRefinement = \"string\""
                                                             "(define/procedure label ⊢ number (who) (+ who \"!\")) (document g (:r (label \"a\")))")
-    , ("a fn's ⊢ result",                         failsWith "expectedRefinement = \"#string\""
+    , ("a fn's ⊢ result",                         failsWith "expectedRefinement = \"string\""
                                                             "(document g (let ($f (fn ⊢ string (n) n)) (:r (f 1))))")
     , ("a binder asserts, so ∈ is no binder",     failsWith "A parameter's binder is a name or a pattern, then"
                                                             "(define/procedure f (<n ∈ number>) n) (document g (:r (f 1)))")
@@ -261,11 +261,11 @@ mapping = Group "Functions: map calls a function on each element"
                                                                  "{\"map\": 5, \"r\": 5}")
 
     -- Each element is checked by the function's signature, and reported at the Array
-    , ("a typed parameter checks each element",   failsWith "expectedRefinement = \"#number\", actualRefinement = \"#string\""
+    , ("a typed parameter checks each element",   failsWith "expectedRefinement = \"number\", actualRefinement = \"string\""
                                                             "(define/procedure double (#number n) (* n 2)) (document g (:r (map (1 \"x\" 3) double)))")
     , ("it is reported at the array",             failsWith "line 1, col 68"
                                                             "(define/procedure double (#number n) (* n 2)) (document g (:r (map (1 \"x\" 3) double)))")
-    , ("a result is checked by the return type",  failsWith "expectedRefinement = \"#number\""
+    , ("a result is checked by the return type",  failsWith "expectedRefinement = \"number\""
                                                             "(document g (:r (map (\"a\") (fn #number (n) (+ n \"!\")))))")
 
     -- Errors
@@ -334,7 +334,7 @@ destructuring = Group "Functions: a parameter can be a pattern"
                                                             "(document g (let ($f (fn ((?a ?b)) 1)) (:r (f 5))))")
     , ("in map it is reported at the array",      failsWith "line 1, col 22"
                                                             "(document g (:r (map ((1 2) (3)) (fn ((?a ?b)) a))))")
-    , ("the refinement is checked before the pattern", failsWith "expectedRefinement = \"#record\""
+    , ("the refinement is checked before the pattern", failsWith "expectedRefinement = \"record\""
                                                             "(document g (let ($f (fn (#record (?a ?b)) a)) (:r (f (1 2)))))")
 
     -- Errors, reported where the function is defined
@@ -514,7 +514,7 @@ constants = Group "Functions: a function of no parameters, named, is its value"
                                                                  "{\"a\": {\"n\": 1}, \"b\": {\"n\": 1}}")
     , ("with a return type and a doc",            compilesToJSON "(define/constant c #string (doc \"A name.\") \"a\") (document g (:r c))"
                                                                  "{\"r\": \"a\"}")
-    , ("whose return type is checked",            failsWith "expectedRefinement = \"#string\""
+    , ("whose return type is checked",            failsWith "expectedRefinement = \"string\""
                                                             "(define/constant c #string 1) (document g (:r c))")
     , ("a define/procedure of no parameters warns", warnsWith "The procedure 'c' takes no parameters, so it is a constant"
                                                             "(define/procedure c () 1) (document g (:r c))")
@@ -553,7 +553,7 @@ constants = Group "Functions: a function of no parameters, named, is its value"
                                                                      "(document g (:r (case 1 (otherwise (fn () 3)))))")
 
       -- It is called as (c) is
-    , ("its return type is checked",              failsWith "expectedRefinement = \"#string\""
+    , ("its return type is checked",              failsWith "expectedRefinement = \"string\""
                                                             "(define/procedure c #string () 1) (document g (:r c))")
     , ("an error in its body is reported there",  importsFailAt "TYP0000" ("inline-test", 1, 24) ["a Number + a String"] []
                                                                  "(define/procedure c () (+ 1 \"a\")) (document g (:r c))")
@@ -629,7 +629,7 @@ properties = Group "Properties: define/refinement"
                                                       === Right (Just "property", Just "procedure"))
 
       -- Its result is #boolean, never written
-    , ("its body must be Boolean",                failsWith "expectedRefinement = \"#boolean\", actualRefinement = \"#number\""
+    , ("its body must be Boolean",                failsWith "expectedRefinement = \"boolean\", actualRefinement = \"number\""
                                                             "(define/refinement p (#number n) n) (document g (:r (p 1)))")
     , ("it is reported at the body",              failsWith "line 1, col 34"
                                                             "(define/refinement p (#number n) n) (document g (:r (p 1)))")
@@ -638,14 +638,14 @@ properties = Group "Properties: define/refinement"
     , ("which is reported at the type",           failsWith "line 1, col 22"
                                                             "(define/refinement p #boolean (#number n) true) (document g (:r 1))")
 
-      -- One parameter, with a contract that is not #function
+      -- One parameter, with a contract that is not function
     , ("a parameter has a type",                  failsWith "The parameter 'n' of the refinement 'p' has no type."
                                                             "(define/refinement p (n) true) (document g (:r 1))")
     , ("a pattern parameter too",                 failsWith "The pattern parameter of the refinement 'p' has no type."
                                                             "(define/refinement p ((?a ?b)) true) (document g (:r 1))")
     , ("which can be written before it",          compilesToJSON "(define/refinement same (#array (?a ?b)) (eq a b)) (document g (:a (same (1 1)) :b (same (1 2))))"
                                                                  "{\"a\": true, \"b\": false}")
-    , ("the contract is never #function",         failsWith "A refinement is about data, so its parameter cannot be #function."
+    , ("the contract is never #function",         failsWith "A refinement is about data, so its parameter cannot be function."
                                                             "(define/refinement p (#function f) true) (document g (:r 1))")
     , ("which is reported at the contract",       failsWith "line 1, col 23"
                                                             "(define/refinement p (#function f) true) (document g (:r 1))")
@@ -675,7 +675,7 @@ properties = Group "Properties: define/refinement"
                                                                  "{\"a\": true, \"b\": false}")
     , ("⊢ gives it no return type",               failsWith "A refinement always answers true or false, so it has no return type."
                                                             "(define/refinement p ⊢ boolean (<n ⊢ number>) true) (document g (:r 1))")
-    , ("and a binder of function is refused",     failsWith "A refinement is about data, so its parameter cannot be #function."
+    , ("and a binder of function is refused",     failsWith "A refinement is about data, so its parameter cannot be function."
                                                             "(define/refinement p (<f ⊢ function>) true) (document g (:r 1))")
     ]
     where
@@ -699,15 +699,15 @@ assertions :: Group
 assertions = Group "Properties: assertions, #titled x"
     [ ("a value with it passes on",               compilesToJSON (titled <> "(document g (:r #titled (:_label \"A\")))")
                                                                  "{\"r\": {\"_label\": \"A\"}}")
-    , ("a value without it fails",                failsWith "expectedRefinement = \"#titled\", actualRefinement = \"a #record that is not #titled\""
+    , ("a value without it fails",                failsWith "expectedRefinement = \"titled\", actualRefinement = \"a record that is not titled\""
                                                             (titled <> "(document g (:r #titled (:x 1)))"))
     , ("at the value",                            failsWith "line 1, col 79"
                                                             (titled <> "(document g (:r #titled (:x 1)))"))
-    , ("with its doc as the rule it broke",       failsWith "#titled: Has a label."
+    , ("with its doc as the rule it broke",       failsWith "titled: Has a label."
                                                             "(define/refinement titled (#record r) (doc \"Has a label.\") (has r _label)) (document g (:r #titled (:x 1)))")
-    , ("or saying it has none",                   failsWith "#titled has no doc, so the rule it asserts cannot be shown."
+    , ("or saying it has none",                   failsWith "titled has no doc, so the rule it asserts cannot be shown."
                                                             (titled <> "(document g (:r #titled (:x 1)))"))
-    , ("an error inside it stays that error",     failsWith "expectedRefinement = \"#record\", actualRefinement = \"#string\""
+    , ("an error inside it stays that error",     failsWith "expectedRefinement = \"record\", actualRefinement = \"string\""
                                                             (titled <> "(document g (:r #titled \"a\"))"))
     , ("at the tag, where it is called",          failsWith "line 1, col 71"
                                                             (titled <> "(document g (:r #titled \"a\"))"))
@@ -717,7 +717,7 @@ assertions = Group "Properties: assertions, #titled x"
                                                                  "{\"a\": true, \"b\": false}")
     , ("as a case branch's head",                 compilesToJSON (titled <> "(document g (:r (case (:x 1) ((satisfies #titled) \"titled\") (otherwise \"untitled\"))))")
                                                                  "{\"r\": \"untitled\"}")
-    , ("satisfies keeps its parameter's contract an error", failsWith "expectedRefinement = \"#record\", actualRefinement = \"#string\""
+    , ("satisfies keeps its parameter's contract an error", failsWith "expectedRefinement = \"record\", actualRefinement = \"string\""
                                                             (titled <> "(document g (:r (satisfies \"a\" #titled)))"))
     , ("a parameter's contract",                 compilesToJSON (titled <> "(define/procedure name-of (#titled r) (get r _label)) (document g (:r (name-of (:_label \"A\"))))")
                                                                  "{\"r\": \"A\"}")
@@ -731,15 +731,15 @@ assertions = Group "Properties: assertions, #titled x"
       -- Every tag is resolved as written, before anything is evaluated
     , ("an unknown one is reported at the tag",   failsWith "line 1, col 71"
                                                             (titled <> "(document g (:r #titeld (:_label \"A\")))"))
-    , ("with the nearest property",               failsWith "Perhaps you meant: '#titled'?"
+    , ("with the nearest property",               failsWith "Perhaps you meant: 'titled'?"
                                                             (titled <> "(document g (:r #titeld (:_label \"A\")))"))
-    , ("or built-in name",                        failsWith "Perhaps you meant: '#string'?"
+    , ("or built-in name",                        failsWith "Perhaps you meant: 'string'?"
                                                             "(document g (:r #str \"a\"))")
-    , ("in a function no graph calls",            failsWith "Unknown refinement: #titeld"
+    , ("in a function no graph calls",            failsWith "Unknown refinement: titeld"
                                                             (titled <> "(define/procedure unused (r) #titeld r) (document g (:r 1))"))
-    , ("and in a parameter's contract",           failsWith "Unknown refinement: #titeld"
+    , ("and in a parameter's contract",           failsWith "Unknown refinement: titeld"
                                                             "(define/procedure f (#titeld r) r) (document g (:r 1))")
-    , ("a function is not a refinement",          failsWith "'f' is a function, not a refinement, so #f cannot assert it."
+    , ("a function is not a refinement",          failsWith "'f' is a function, not a refinement, so it cannot be asserted."
                                                             "(define/procedure f (x) x) (document g (:r #f 1))")
 
       -- A tag is a call of its property, so recursion through it must go down

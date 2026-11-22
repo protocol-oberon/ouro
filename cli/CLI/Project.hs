@@ -207,7 +207,7 @@ settings pos = \case
 
     text key = \case
         L.Primitive (I.String t) -> Right t
-        other                    -> Left (pure (mismatch "#string" other ("The package setting :" <> key <> " is a String.")))
+        other                    -> Left (pure (mismatch "string" other ("The package setting :" <> key <> " is a String.")))
 
     -- :documents is an Array of documents, each written module/document, even when it names one
     graphNames = \case
@@ -218,7 +218,7 @@ settings pos = \case
                       Just errs -> Left errs
                       Nothing   -> sequence checked
         other
-            -> Left (pure (mismatch "an Array of #string" other
+            -> Left (pure (mismatch "an Array of string" other
                              "The package setting :documents is an Array of documents, as in (\"people/person\"), even when it names one."))
 
     -- :ouro is the version of Ouro the project needs: no newer than this compiler

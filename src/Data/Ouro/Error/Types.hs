@@ -176,7 +176,7 @@ data TypeError
     -- * Remediation: Name both refinements as they are written in Ouro, and say why when the
     --   value's own refinement is not reason enough (a String that is not a URI).
     | RefinementMismatch
-      { expectedRefinement :: Text  -- The refinement the value is typed with, as written: "#number"
+      { expectedRefinement :: Text  -- The refinement the value is typed with, as written: "number"
       , actualRefinement   :: Text  -- The refinement the value has, with a reason where needed
       }
     deriving (Show, Eq, Ord, Generic)
