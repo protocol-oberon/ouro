@@ -988,12 +988,12 @@ handleAdjoin pos = pure . \case
 
 -- Shared helper for duration modifiers to ensure consistent error handling.
 mkDurationHandler :: Text -> PeriodUnit -> SourcePos -> [L.Expr] -> Reader Env L.Expr
-mkDurationHandler tagName unit pos args =
+mkDurationHandler unitName unit pos args =
     case args of
         [L.Primitive (I.Number n)] -> pure $ L.Duration unit (floor n)
-        [badArg]                   -> Data.Ouro.Error.Diagnostics.typeMismatch ("A Number representing the amount of " <> tagName)
+        [badArg]                   -> Data.Ouro.Error.Diagnostics.typeMismatch ("A Number representing the amount of " <> unitName)
                                                    (humanReadableType badArg)
-                                      & Data.Ouro.Error.Diagnostics.withBlurb ( "The (" <> tagName <> ") modifier expects a single numeric argument "
+                                      & Data.Ouro.Error.Diagnostics.withBlurb ( "The (" <> unitName <> ") modifier expects a single numeric argument "
                                                  <> "representing the duration period."
                                                   )
                                       & OuroError pos
@@ -1001,9 +1001,9 @@ mkDurationHandler tagName unit pos args =
                                       & pure
 
         _ ->
-            pure $ L.EvalError $ OuroError pos $ Syntax $ MalformedTagPayload
-                { activeTag      = tagName
-                , foundNodeShape = "The (" <> tagName <> ") modifier expects exactly one numeric argument."
+            pure $ L.EvalError $ OuroError pos $ Syntax $ MalformedUnitArgument
+                { activeUnit     = unitName
+                , foundNodeShape = "The (" <> unitName <> ") modifier expects exactly one numeric argument."
                 }
 
 

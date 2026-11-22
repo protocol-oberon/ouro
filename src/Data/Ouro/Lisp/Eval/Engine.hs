@@ -118,7 +118,7 @@ constant closureEnv pos fnId resultType bodyExprs =
 --
 --   * Literal Normalization: Translates raw, un-indexed syntax leaf tokens directly into their matching
 --     type-safe internal GADT representations, mapping primitives (Strings, Numbers, Booleans) and empty collections.
---   * Type Assertion Redirection: Flags tagged nodes and offloads validation logic directly to 'assertTag'
+--   * Type Assertion Redirection: Hands asserted nodes to 'checkRefinement', which checks the value
 --     to preserve clean separation between AST routing layers and deep textual serialization checks.
 --   * Intercepting Special Forms: Catches explicit keyword structures (like contextual schemas or metadata lookups)
 --     to compute lazy properties or isolated navigation coordinates before evaluation loops spin up.

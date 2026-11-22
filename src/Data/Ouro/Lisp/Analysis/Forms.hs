@@ -169,7 +169,7 @@ bindableAttr = \case
 
 
 -- A function parameter is a name or a pattern, optionally typed: n, <n ⊢ number>, (?a ?b)
--- or <(?a ?b) ⊢ array>, or by the old tag before it, #number n. A pattern is named by its position among the parameters.
+-- or <(?a ?b) ⊢ array>, or by a refinement in its old hash spelling before it. A pattern is named by its position among the parameters.
 -- A '$name' is read as (%binder "name"), which is a binding, not a pattern.
 param :: (Int, S.Expr) -> Maybe S.Param
 param (index, expr) = case expr of

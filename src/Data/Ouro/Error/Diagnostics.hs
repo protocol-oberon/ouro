@@ -44,9 +44,9 @@ unbalancedDelimiter expected actual = Syntax $ UnbalancedDelimiter
     }
 
 
-malformedTag :: Text -> Text -> ErrorContext
-malformedTag tag shape = Syntax $ MalformedTagPayload
-    { activeTag      = tag
+malformedUnitArgument :: Text -> Text -> ErrorContext
+malformedUnitArgument unit shape = Syntax $ MalformedUnitArgument
+    { activeUnit     = unit
     , foundNodeShape = shape
     }
 
@@ -656,9 +656,9 @@ formatSmartLiteral t
 --- Warnings Messages ---
 warningBlurb :: WarningContext -> Text
 warningBlurb = \case
-    Lint (UnanchoredLiteral tag val)
+    Lint (UnanchoredLiteral sibling val)
         -> "Ouro evaluates floating values inside array and record layers as unanchored literals. "
-        <> "Because this value is positioned directly next to " <> tag <> ", it has no semantic binding key "
+        <> "Because this value is positioned directly next to " <> sibling <> ", it has no semantic binding key "
         <> "and will be completely erased from properties at compile time.\n\n"
         <> "Perhaps assign it to a property attribute key (e.g., :label " <> formatSmartLiteral val <> "), if it is intended to be saved."
 

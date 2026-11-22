@@ -262,7 +262,7 @@ pDefn kind params pos = do
 
 
 -- A function's return type, between its name and its parameters: ⊢ and its refinement,
--- (define/procedure f ⊢ string (x) ...), or a type tag, (define/procedure f #string (x) ...)
+-- (define/procedure f ⊢ string (x) ...), or a refinement in its old hash spelling
 pReturnType :: Parser (Maybe (SourcePos, S.Type))
 pReturnType = do
     stream <- remainingTokens
@@ -272,8 +272,8 @@ pReturnType = do
                consume ts
                written <- pExpr
                Just <$> lift (requirementOf written)
-        t : ts | Just tag <- typeTag (Tkn.tokenType t)
-            -> consume ts >> pure (Just (Tkn.pos t, S.Named tag))
+        t : ts | Just refinement <- retiredType (Tkn.tokenType t)
+            -> consume ts >> pure (Just (Tkn.pos t, S.Named refinement))
         _noReturnType
             -> pure Nothing
 
@@ -396,8 +396,8 @@ expectCloseParen = do
                           F.& lift
 
 
--- A parameter list: names or patterns, each optionally typed by a binder or by the old tag
--- before it, (<id ⊢ uri> type), (#uri id type) or ((?slug ?label))
+-- A parameter list: names or patterns, each optionally typed by a binder or by a refinement
+-- in its old hash spelling before it, (<id ⊢ uri> type) or ((?slug ?label))
 pArgs :: Parser [S.Param]
 pArgs = do
     t <- popToken
@@ -421,7 +421,7 @@ pArgs = do
                                    binder <- parseInfix (Tkn.pos t)
                                    param  <- lift (binderParam (length acc + 1) (Tkn.pos t) binder)
                                    collectArgs (param : acc)
-            tkn | Just tag <- typeTag tkn
+            tkn | Just refinement <- retiredType tkn
                                 -> do
                                    stream <- remainingTokens
                                    case stream of
@@ -429,11 +429,11 @@ pArgs = do
                                            -> do
                                               consume rest
                                               pattern <- parseFormContainer (Tkn.pos next)
-                                              collectArgs (patternParam (length acc + 1) (Just (Tkn.pos t, S.Named tag)) pattern : acc)
+                                              collectArgs (patternParam (length acc + 1) (Just (Tkn.pos t, S.Named refinement)) pattern : acc)
                                        _aName
                                            -> do
                                               name <- expectSymbol "A parameter's type is written in a binder, as in <n ⊢ number>"
-                                              collectArgs (S.Param name (Just (Tkn.pos t, S.Named tag)) Nothing : acc)
+                                              collectArgs (S.Param name (Just (Tkn.pos t, S.Named refinement)) Nothing : acc)
             _notAParameter      -> lexicalError "A parameter is a name, or a pattern in parentheses, each optionally typed: <n ⊢ number> or <(?a ?b) ⊢ array>"
                                    F.& OuroError (Tkn.pos t)
                                    F.& Left
@@ -464,8 +464,8 @@ binderParam index pos = \case
 
 -- A refinement in its old spelling, a hash before its name, in an expression or a signature:
 -- its name resolved as a binder's is. The old empty values are values, not types.
-typeTag :: Tkn.TokenType -> Maybe S.Refinement
-typeTag = \case
+retiredType :: Tkn.TokenType -> Maybe S.Refinement
+retiredType = \case
     Tkn.RetiredRefinement name -> Just (S.refinementNamed name)
     _notAType                  -> Nothing
 
@@ -500,9 +500,9 @@ pExpr = do
                              Tkn.Boolean b      -> capture (S.Literal (Tkn.pos t) (S.Bool b))
 
                              -- Reader Macros & Type Assertions
-                             -- Note: We intentionally pop 'ts' here to advance past the macro tag
-                             tkn | Just tag <- typeTag tkn
-                                                -> consume ts >> parseTaggedNode (Tkn.pos t) (S.Named tag)
+                             -- Note: We intentionally pop 'ts' here to advance past the old refinement
+                             tkn | Just refinement <- retiredType tkn
+                                                -> consume ts >> parseRetiredAssertion (Tkn.pos t) (S.Named refinement)
 
                              -- The old empty values, read as (make record) and (make array) are
                              Tkn.RetiredEmptyRecord -> capture (S.Literal (Tkn.pos t) S.EmptyRec)
@@ -637,9 +637,10 @@ misplacedRange pos =
     F.& OuroError pos
 
 
--- Reader Tag Helper: Verifies that the evaluated expression is a raw string payload
-parseTaggedNode :: SourcePos -> S.Type -> Parser S.Expr
-parseTaggedNode tagPos tagType = do
+-- A refinement in its old hash spelling, asserted of the expression after it, or alone at
+-- the end of a form
+parseRetiredAssertion :: SourcePos -> S.Type -> Parser S.Expr
+parseRetiredAssertion typePos ty = do
                                  stream <- remainingTokens
                                  case stream of
                                      -- A refinement on its own, at the end of a form: (satisfies x #string),
@@ -647,11 +648,11 @@ parseTaggedNode tagPos tagType = do
                                      -- cannot be written in Ouro: satisfies takes its value before it,
                                      -- and anywhere else it is reported
                                      t : _ | Tkn.CloseParen <- Tkn.tokenType t
-                                         -> pure $ S.Asserted tagPos tagType (S.Hole tagPos "%subject")
+                                         -> pure $ S.Asserted typePos ty (S.Hole typePos "%subject")
 
                                      -- Otherwise the refinement applies to the expression after it
                                      _anExpression
-                                         -> S.Asserted tagPos tagType <$> pExpr
+                                         -> S.Asserted typePos ty <$> pExpr
 
 
 -- Reader Macro Helper: Desugars attributes into `(%attr "name" expr)`. '%' cannot be

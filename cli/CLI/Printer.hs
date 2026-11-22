@@ -225,9 +225,9 @@ splitErrorContext = \case
            , Nothing
            )
 
-    Syntax (MalformedTagPayload tag shape)
+    Syntax (MalformedUnitArgument unit shape)
         -> ( "Malformed Payload"
-           , [ labeled "Context:     " (pretty tag)
+           , [ labeled "Context:     " (pretty unit)
              , labeled "Got Shape:   " (pretty shape)
              ]
            , Nothing
@@ -561,7 +561,7 @@ arguments = \case
 data DiagnosticToken
     = PlainText Text
     | TypeKeyword Text  -- For capitalized types like "String", "Number"
-    | TagKeyword  Text  -- For "#string", "#date", etc.
+    | SyntaxWord  Text  -- A quoted piece of syntax, 'target, or a refinement named with its hash, as messages still write it
 
 
 -- Strips characters chunk-by-chunk using simple guards and recursion.
@@ -581,12 +581,12 @@ tokenizeErrorString t = map classify (T.words t)
                                    -> PlainText w
 
                              -- Otherwise, it's a syntax quote like "(')" or "'target". Color it!
-                             | otherwise -> TagKeyword w
+                             | otherwise -> SyntaxWord w
 
-                         -- Two quotes found, safely reconstruct and tag it.
-                         (body, after) -> TagKeyword (before <> "'" <> body <> "'" <> T.drop 1 after)
+                         -- Two quotes found, safely reconstruct and mark it.
+                         (body, after) -> SyntaxWord (before <> "'" <> body <> "'" <> T.drop 1 after)
 
-        | "#" `T.isPrefixOf` w = TagKeyword w
+        | "#" `T.isPrefixOf` w = SyntaxWord w
         | otherwise            = PlainText w
 
 -- Post-processes a flat text string and applies dynamic type color highlighting
@@ -608,7 +608,7 @@ highlightDiagnostic txt =
     renderToken token = case token of
                             PlainText t   -> annotate NoteBody (pretty t)
                             TypeKeyword t -> annotate Type (pretty t)
-                            TagKeyword t  -> annotate Type (pretty t)
+                            SyntaxWord t  -> annotate Type (pretty t)
 
 
 -- Separates the warning label from its structural inner field strings

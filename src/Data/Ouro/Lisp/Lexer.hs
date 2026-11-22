@@ -143,14 +143,14 @@ pAttributes = lexeme . withPos $ do
 -- empty values, and any other name that begins with a letter as a refinement in its old
 -- spelling, built-in or defined in Ouro, #titled, or imported, #people/titled. Its name is
 -- resolved as a binder's is.
-pReaderTags :: Parser Tkn.Token
-pReaderTags = lexeme . withPos $ do
+pRetired :: Parser Tkn.Token
+pRetired = lexeme . withPos $ do
                                  -- Grab the absolute stream offset BEFORE we consume any characters
                                  startOffset <- M.getOffset
 
                                  _      <- try (char '#')
-                                 rawTag <- some symbolChar
-                                 case rawTag of
+                                 afterHash <- some symbolChar
+                                 case afterHash of
                                      "record-empty" -> pure Tkn.RetiredEmptyRecord
                                      "array-empty"  -> pure Tkn.RetiredEmptyArray
                                      name@(first : _)
@@ -307,7 +307,7 @@ pSingleToken =  pDelims
             <|> pDefinitionWords
             <|> pAttributes
             <|> pBinding
-            <|> pReaderTags
+            <|> pRetired
             <|> pHole
             <|> pArrow
             <|> pLiterals

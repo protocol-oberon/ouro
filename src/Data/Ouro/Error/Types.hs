@@ -72,15 +72,13 @@ data SyntaxError
       , actualDelim   :: Text -- The token actually found, or a marker indicating EOF (End of File)
       }
 
-    -- SYNTAX VIOLATION: MALFORMED TAG MODIFIER METADATA
-    -- Occurs when a type tag macro modifier (e.g., #uri, #date) is immediately
-    -- followed by an invalid expression sequence instead of its required string literal
-    -- target or resolvable payload node.
+    -- SYNTAX VIOLATION: MALFORMED UNIT ARGUMENT
+    -- Occurs when a duration unit, such as (days n), is given other than the one number it
+    -- takes.
     --
-    -- * Remediation: Flag the malformed tag binding block and remind the developer
-    --   of the strict primitive typing requirements tied to that specific tag specification.
-    | MalformedTagPayload
-      { activeTag      :: Text -- The name of the semantic modifier tag that triggered the error
+    -- * Remediation: Name the unit, and say that it takes exactly one number.
+    | MalformedUnitArgument
+      { activeUnit     :: Text -- The unit that was given the wrong arguments, such as days
       , foundNodeShape :: Text -- A descriptive text string detailing the structural shape of the invalid AST node
       }
 
@@ -160,7 +158,7 @@ data SyntaxError
 --- TYPE VIOLATIONS ---
 data TypeError
     -- TYPE VIOLATION: VALUE DOMAIN MISMATCH
-    -- Occurs during the explicit tag modification evaluation phase (e.g., @#uri@, @#date@, @#string@)
+    -- Occurs when a value is checked against a refinement (e.g., uri, date, string)
     -- or during backend GADT conversion when an expression resolves to a primitive literal
     -- or structure that contradicts the declared domain constraint.
     --
@@ -463,7 +461,7 @@ data LinterWarning
     -- discarded. It never was: in an array the string is kept, and in a record it is an error.
     -- Kept so that its code, WRN0000, is never given to another warning (gap 41).
     = UnanchoredLiteral
-      { tagAttempted :: Text -- The sibling tag or layout position where the leak occurred
+      { siblingForm  :: Text -- The old empty value or layout position where the leak occurred
       , erasedValue  :: Text -- The literal value string layout bound for compile-time erasure
       }
 
@@ -569,7 +567,7 @@ data SemanticWarning
 --- VOCABULARY WARNINGS ---
 data VocabularyWarning
     -- VOCABULARY WARNING: UNBOUND TYPE REFERENCE
-    -- Occurs when a type signature identifier or model tag reference string fails to resolve
+    -- Occurs when a type signature identifier or model type reference string fails to resolve
     -- against active Linked-Art schema definitions or imported vocabulary contexts. The compiler
     -- continues assembly under the assumption of an unvalidated, arbitrary context extension.
     --
