@@ -6,10 +6,10 @@
 (import aat/price-type)
 (import aat/statement-type)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
-(define/procedure set #record (#string slug #string label)
+(define/procedure set ⊢ record (<slug ⊢ string> <label ⊢ string>)
   (:id (example (+ "set/" slug)) :type "Set" :_label label))
 
 ;; A lot's starting price: an amount of money, with how it is shown and where it was learnt

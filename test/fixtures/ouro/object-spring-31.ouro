@@ -1,17 +1,17 @@
 ;; linked.art's example, written in Ouro: https://linked.art/example/object/spring/31
 (import std/base)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
-(define/procedure object #record (#string slug #string label)
+(define/procedure object ⊢ record (<slug ⊢ string> <label ⊢ string>)
   (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
 
 ;; Classified by a term of linked.art's own vocabulary, equivalent to the AAT's
 (document object-spring-31
   (-> (object "spring/31" "Jeanne (Spring) by Manet")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as ((:id         #uri "https://linked.art/vocab/terms/painting"
+      (with :classified_as ((:id         <"https://linked.art/vocab/terms/painting" ⊢ uri>
                              :type       "Type"
                              :_label     "Painting"
                              :equivalent (array (base/aat "300033618" "Painting")))))))

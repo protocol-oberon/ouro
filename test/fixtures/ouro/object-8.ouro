@@ -4,7 +4,7 @@
 (import std/vocab)
 (import aat/activity-type)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
 ;; An uncertain height: a value with an upper and a lower limit, how it is shown, and who

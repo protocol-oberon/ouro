@@ -3,7 +3,7 @@
 (import std/vocab)
 (import aat/language/iso)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
 ;; A name as a record of its own, known by its id; linked.art gives the object no label

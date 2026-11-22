@@ -3,10 +3,10 @@
 (import std/time)
 (import std/vocab)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
-(define/procedure period #record (#string slug #string label)
+(define/procedure period ⊢ record (<slug ⊢ string> <label ⊢ string>)
   (:id (example (+ "event/" slug)) :type "Period" :_label label))
 
 (document event-19c-1

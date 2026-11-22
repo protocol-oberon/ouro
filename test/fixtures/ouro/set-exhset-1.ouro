@@ -4,7 +4,7 @@
 (import std/time)
 (import std/vocab)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
 ;; The objects an exhibition shows, which std/exhibition builds as an Exhibition Collection

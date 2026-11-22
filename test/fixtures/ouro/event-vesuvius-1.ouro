@@ -3,10 +3,10 @@
 (import std/time)
 (import std/vocab)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
-(define/procedure event #record (#string slug #string label)
+(define/procedure event ⊢ record (<slug ⊢ string> <label ⊢ string>)
   (:id (example (+ "event/" slug)) :type "Event" :_label label))
 
 ;; An event that is no one's activity: from noon on 24 August 79 to the end of the 26th
@@ -14,5 +14,5 @@
   (-> (event "vesuvius/1" "Eruption of Vesuvius")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :identified_by (array (base/name vocab/primary-name "Eruption of Vesuvius")))
-      (with :timespan      (time/span #date "0079-08-24T12:00:00Z" #date "0079-08-26T23:59:59Z"))
+      (with :timespan      (time/span <"0079-08-24T12:00:00Z" ⊢ date> <"0079-08-26T23:59:59Z" ⊢ date>))
       (with :took_place_at ((:id (example "place/vesuvius") :type "Place" :_label "Mount Vesuvius")))))

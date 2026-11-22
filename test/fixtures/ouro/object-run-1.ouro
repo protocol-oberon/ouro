@@ -2,16 +2,16 @@
 (import aat/object-type)
 (import aat/technique)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
-(define/procedure object #record (#string slug #string label)
+(define/procedure object ⊢ record (<slug ⊢ string> <label ⊢ string>)
   (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
 
-(define/procedure person #record (#string slug #string label)
+(define/procedure person ⊢ record (<slug ⊢ string> <label ⊢ string>)
   (:id (example (+ "person/" slug)) :type "Person" :_label label))
 
-(define/procedure part #record (#record technique #record artist)
+(define/procedure part ⊢ record (<technique ⊢ record> <artist ⊢ record>)
   (:type "Production" :technique (array technique) :carried_out_by (array artist)))
 
 ;; A work of two artists, each with a technique of their own: the making has a part for each

@@ -4,10 +4,10 @@
 (import std/vocab)
 (import aat/activity-type)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
-(define/procedure activity #record (#string slug #string label)
+(define/procedure activity ⊢ record (<slug ⊢ string> <label ⊢ string>)
   (:id (example (+ "event/" slug)) :type "Activity" :_label label))
 
 ;; An exhibition as a whole, over both its venues

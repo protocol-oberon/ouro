@@ -4,10 +4,10 @@
 (import aat/object-type)
 (import aat/right-type)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
-(define/procedure provenance #record (#string slug #string label)
+(define/procedure provenance ⊢ record (<slug ⊢ string> <label ⊢ string>)
   (:id (example (+ "provenance/" slug)) :type "Activity" :_label label :classified_as (array vocab/provenance-activity)))
 
 ;; A copyright established, for an association, in a painting

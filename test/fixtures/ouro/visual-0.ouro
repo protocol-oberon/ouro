@@ -3,10 +3,10 @@
 (import std/time)
 (import aat/style)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
-(define/procedure visual #record (#string slug #string label)
+(define/procedure visual ⊢ record (<slug ⊢ string> <label ⊢ string>)
   (:id (example (+ "visual/" slug)) :type "VisualItem" :_label label))
 
 ;; A painting's appearance: its style, what it shows, a place and a kind of thing, and who made it when
@@ -18,7 +18,7 @@
       (with :referred_to_by              (array (base/description "A brilliant amalgamation of an intense, even primitive, realism with the formal vocabulary of cubism.")))
       (with :represents                  (array (base/tgn "7300934" "Mont-roig del Camp")))
       (with :represents_instance_of_type (array (base/aat "300132410" "Tree")))
-      (with :shown_by                    ((:id #uri "https://www.nga.gov/collection/art-object-69660" :type "HumanMadeObject" :_label "The Farm")))
+      (with :shown_by                    ((:id <"https://www.nga.gov/collection/art-object-69660" ⊢ uri> :type "HumanMadeObject" :_label "The Farm")))
       (with :created_by                  (:type           "Creation"
                                           :timespan       (with (time/year-range "1921" "1922") :_label "1921-1922")
                                           :carried_out_by (array (base/ulan "500014094" "Person" "Miro"))))))

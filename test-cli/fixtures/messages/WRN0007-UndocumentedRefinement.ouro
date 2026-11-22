@@ -1,2 +1,2 @@
-(define/refinement titled (#record r) (has r _label))
+(define/refinement titled (<r ⊢ record>) (has r _label))
 (document g (:r (titled (:_label "A"))))

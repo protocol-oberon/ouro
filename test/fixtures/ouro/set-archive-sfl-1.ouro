@@ -3,10 +3,10 @@
 (import std/vocab)
 (import aat/set-type)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
-(define/procedure set #record (#string slug #string label)
+(define/procedure set ⊢ record (<slug ⊢ string> <label ⊢ string>)
   (:id (example (+ "set/" slug)) :type "Set" :_label label))
 
 ;; A grouping within an archival grouping, a member of it

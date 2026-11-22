@@ -4,10 +4,10 @@
 (import aat/digital-type)
 (import aat/dimension-type)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
-(define/procedure digital #record (#string slug #string label)
+(define/procedure digital ⊢ record (<slug ⊢ string> <label ⊢ string>)
   (:id (example (+ "digital/" slug)) :type "DigitalObject" :_label label))
 
 ;; A web page, published over two days, from midnight to midnight
@@ -17,11 +17,11 @@
       (with :classified_as     (array digital-type/web-page))
       (with :identified_by     ((:type "Name" :content "Operation Night Watch")))
       (with :dimension         (array (with (object/dimension dimension-type/file-size 220 object/kilobytes) :_label "220 kb")))
-      (with :access_point      ((:id #uri "https://www.rijksmuseum.nl/en/stories/operation-night-watch" :type "DigitalObject")))
+      (with :access_point      ((:id <"https://www.rijksmuseum.nl/en/stories/operation-night-watch" ⊢ uri> :type "DigitalObject")))
       (with :format            "text/html")
-      (with :conforms_to       ((:id #uri "http://w3.org/TR/html" :type "InformationObject")))
+      (with :conforms_to       ((:id <"http://w3.org/TR/html" ⊢ uri> :type "InformationObject")))
       (with :created_by        (:type           "Creation"
-                                :timespan       (let ($published #date "2019-07-19T00:00:00Z")
+                                :timespan       (let ($published <"2019-07-19T00:00:00Z" ⊢ date>)
                                                   (time/span published (+ published (days 2))))
                                 :carried_out_by ((:id (example "group/rijksmuseum") :type "Group" :_label "Rijksmuseum"))))
       (with :digitally_carries ((:id (example "text/operation_nw_en") :type "LinguisticObject" :_label "Operation Night Watch in English")))))

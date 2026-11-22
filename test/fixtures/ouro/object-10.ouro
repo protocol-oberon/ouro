@@ -6,7 +6,7 @@
 (import aat/name-type)
 (import aat/statement-type)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
 ;; A title in two languages, with its subtitle as a part; linked.art writes English without its

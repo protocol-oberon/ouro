@@ -1,10 +1,10 @@
 ;; linked.art's example, written in Ouro: https://linked.art/example/object/spring/10
 (import aat/object-type)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
-(define/procedure object #record (#string slug #string label)
+(define/procedure object ⊢ record (<slug ⊢ string> <label ⊢ string>)
   (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
 
 ;; A IIIF manifest about the painting, which conforms to the presentation API
@@ -15,6 +15,6 @@
       (with :identified_by ((:type "Name" :content "Jeanne (Spring)")))
       (with :subject_of    ((:type                 "LinguisticObject"
                              :digitally_carried_by ((:type         "DigitalObject"
-                                                     :access_point ((:id #uri "https://media.getty.edu/iiif/manifest/db379bba-801c-4650-bc31-3ff2f712eb21" :type "DigitalObject"))
-                                                     :conforms_to  ((:id #uri "http://iiif.io/api/presentation/" :type "InformationObject"))
+                                                     :access_point ((:id <"https://media.getty.edu/iiif/manifest/db379bba-801c-4650-bc31-3ff2f712eb21" ⊢ uri> :type "DigitalObject"))
+                                                     :conforms_to  ((:id <"http://iiif.io/api/presentation/" ⊢ uri> :type "InformationObject"))
                                                      :format       "application/ld+json;profile='http://iiif.io/api/presentation/3/context.json'")))))))

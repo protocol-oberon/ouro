@@ -3,7 +3,7 @@
 (import std/vocab)
 (import aat/language/iso)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
 ;; A description with its heading, its source, its language and its licence. linked.art gives
@@ -17,5 +17,5 @@
                              (with :referred_to_by ((:type "LinguisticObject" :content "Description provided by the artist")))
                              (with :language       (array iso/english))
                              (with :subject_to     ((:type          "Right"
-                                                     :classified_as ((:id #uri "https://creativecommons.org/licenses/by/4.0/" :type "Type"))
+                                                     :classified_as ((:id <"https://creativecommons.org/licenses/by/4.0/" ⊢ uri> :type "Type"))
                                                      :identified_by (array (base/name vocab/display-name "CC BY 4.0")))))))))

@@ -2,17 +2,17 @@
 (import std/time)
 (import aat/role-type)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
-(define/procedure text #record (#string slug #string label)
+(define/procedure text ⊢ record (<slug ⊢ string> <label ⊢ string>)
   (:id (example (+ "text/" slug)) :type "LinguisticObject" :_label label))
 
-(define/procedure person #record (#string slug #string label)
+(define/procedure person ⊢ record (<slug ⊢ string> <label ⊢ string>)
   (:id (example (+ "person/" slug)) :type "Person" :_label label))
 
 ;; A part of a creation, by the role of who carried it out
-(define/procedure role #record (#record kind #record who)
+(define/procedure role ⊢ record (<kind ⊢ record> <who ⊢ record>)
   (:type "Creation" :classified_as (array kind) :carried_out_by (array who)))
 
 ;; A film's creation, in its parts: directed by one person, produced by another

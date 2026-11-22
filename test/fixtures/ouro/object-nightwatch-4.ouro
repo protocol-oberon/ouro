@@ -2,10 +2,10 @@
 (import std/object)
 (import aat/language/iso)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
-(define/procedure object #record (#string slug #string label)
+(define/procedure object ⊢ record (<slug ⊢ string> <label ⊢ string>)
   (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
 
 ;; A materials statement, in English

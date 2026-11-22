@@ -1,12 +1,12 @@
 ;; linked.art's example, written in Ouro: https://linked.art/example/object/nightwatch/3
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
-(define/procedure object #record (#string slug #string label)
+(define/procedure object ⊢ record (<slug ⊢ string> <label ⊢ string>)
   (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
 
 ;; The same object in Wikidata
 (document object-nightwatch-3
   (-> (object "nightwatch/3" "Night Watch by Rembrandt")
       (with :context    "https://linked.art/ns/v1/linked-art.json")
-      (with :equivalent ((:id #uri "https://www.wikidata.org/entity/Q219831" :type "HumanMadeObject" :_label "Night Watch")))))
+      (with :equivalent ((:id <"https://www.wikidata.org/entity/Q219831" ⊢ uri> :type "HumanMadeObject" :_label "Night Watch")))))

@@ -4,7 +4,7 @@
 (import std/vocab)
 (import aat/statement-type)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
 ;; An exhibition as an idea, about an artist, conceived by a curator

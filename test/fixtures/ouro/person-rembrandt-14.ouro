@@ -2,10 +2,10 @@
 (import std/time)
 (import aat/activity-type)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
-(define/procedure person #record (#string slug #string label)
+(define/procedure person ⊢ record (<slug ⊢ string> <label ⊢ string>)
   (:id (example (+ "person/" slug)) :type "Person" :_label label))
 
 ;; An activity a person took part in without carrying it out: their own burial

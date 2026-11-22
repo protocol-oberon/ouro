@@ -23,9 +23,9 @@
         artwork)
 
 ;; A term of the Getty AAT, by its number
-(define/procedure term #record (#string id #string label)
+(define/procedure term ⊢ record (<id ⊢ string> <label ⊢ string>)
   (doc "A Getty AAT term: a Type identified by its AAT number.")
-  (:id #uri (+ "http://vocab.getty.edu/aat/" id) :type "Type" :_label label))
+  (:id <(+ "http://vocab.getty.edu/aat/" id) ⊢ uri> :type "Type" :_label label))
 
 ;; Names and sorting
 (define/constant primary-name (doc "Classifies the Name that is a record's main name: every record has one.") (term "300404670" "Primary Name"))

@@ -4,10 +4,10 @@
 (import std/vocab)
 (import aat/name-type)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
-(define/procedure person #record (#string slug #string label)
+(define/procedure person ⊢ record (<slug ⊢ string> <label ⊢ string>)
   (:id (example (+ "person/" slug)) :type "Person" :_label label))
 
 ;; A name in its parts; the middle name is a record of its own, known by its id

@@ -3,14 +3,14 @@
 (import std/vocab)
 (import aat/language/iso)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
-(define/procedure object #record (#string slug #string label)
+(define/procedure object ⊢ record (<slug ⊢ string> <label ⊢ string>)
   (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
 
 ;; A primary name in each of two languages
-(define/procedure named #record (#string content #record language)
+(define/procedure named ⊢ record (<content ⊢ string> <language ⊢ record>)
   (with (base/name vocab/primary-name content) :language (array language)))
 
 (document object-nightwatch-1

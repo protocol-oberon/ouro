@@ -4,13 +4,13 @@
 (import aat/identifier-type)
 (import aat/object-type)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
-(define/procedure object #record (#string slug #string label)
+(define/procedure object ⊢ record (<slug ⊢ string> <label ⊢ string>)
   (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
 
-(define/procedure accession #record (#string number #string museum #string label)
+(define/procedure accession ⊢ record (<number ⊢ string> <museum ⊢ string> <label ⊢ string>)
   (with (base/identifier identifier-type/accession-number number)
     :assigned_by ((:type           "AttributeAssignment"
                    :carried_out_by ((:id            (example (+ "group/" museum))

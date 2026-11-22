@@ -4,14 +4,14 @@
 (import std/vocab)
 (import aat/object-type)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
-(define/procedure object #record (#string slug #string label)
+(define/procedure object ⊢ record (<slug ⊢ string> <label ⊢ string>)
   (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
 
 ;; A dimension with the words it is shown in
-(define/procedure shown #record (#record dimension #string as)
+(define/procedure shown ⊢ record (<dimension ⊢ record> <as ⊢ string>)
   (with dimension :identified_by (array (base/name vocab/display-name as))))
 
 (document object-nightwatch-8

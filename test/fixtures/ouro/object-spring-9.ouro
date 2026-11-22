@@ -2,10 +2,10 @@
 (import aat/digital-type)
 (import aat/object-type)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
-(define/procedure object #record (#string slug #string label)
+(define/procedure object ⊢ record (<slug ⊢ string> <label ⊢ string>)
   (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
 
 ;; The museum's web page about the painting: a text, carried by a digital object at a URL
@@ -18,4 +18,4 @@
                              :digitally_carried_by ((:type          "DigitalObject"
                                                      :classified_as (array digital-type/web-page)
                                                      :format        "text/html"
-                                                     :access_point  ((:id #uri "https://www.getty.edu/art/collection/object/103QTZ" :type "DigitalObject")))))))))
+                                                     :access_point  ((:id <"https://www.getty.edu/art/collection/object/103QTZ" ⊢ uri> :type "DigitalObject")))))))))

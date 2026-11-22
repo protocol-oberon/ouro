@@ -2,7 +2,7 @@
 (import std/vocab)
 (import aat/right-type)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
 (define/constant painting (:type "HumanMadeObject" :_label "Painting"))

@@ -3,7 +3,7 @@
 (import std/exhibition)
 (import std/vocab)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
 (document concept-exhidea-2

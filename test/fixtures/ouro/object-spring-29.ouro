@@ -2,14 +2,14 @@
 (import std/object)
 (import aat/object-type)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
-(define/procedure object #record (#string slug #string label)
+(define/procedure object ⊢ record (<slug ⊢ string> <label ⊢ string>)
   (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
 
 ;; Measured unframed: each dimension with the technique of its measuring
-(define/procedure unframed #record (#record dimension)
+(define/procedure unframed ⊢ record (<dimension ⊢ record>)
   (with dimension
    :assigned_by ((:type      "AttributeAssignment"
                   :_label    "Unframed Measuring"

@@ -4,14 +4,14 @@
 (import aat/digital-type)
 (import aat/identifier-type)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
-(define/procedure digital #record (#string slug #string label)
+(define/procedure digital ⊢ record (<slug ⊢ string> <label ⊢ string>)
   (:id (example (+ "digital/" slug)) :type "DigitalObject" :_label label))
 
 ;; Something the digital object points at, known by its URL alone
-(define/procedure at #record (#uri url)
+(define/procedure at ⊢ record (<url ⊢ uri>)
   (:id url :type "DigitalObject"))
 
 (document digital-0
@@ -22,18 +22,18 @@
                                       (base/identifier identifier-type/local-number "47174896")))
       (with :dimension               (array (object/height 2550 object/pixels)
                                             (object/width 2087 object/pixels)))
-      (with :part_of                 (array (with (at #uri "https://iiif.harvardartmuseums.org/manifests/object/299843")
+      (with :part_of                 (array (with (at <"https://iiif.harvardartmuseums.org/manifests/object/299843" ⊢ uri>)
                                                  :_label "IIIF Manifest")))
       (with :member_of               ((:id (example "set/0") :type "Set" :_label "Images of Self-Portraits of Van Gogh")))
-      (with :access_point            (array (at #uri "https://ids.lib.harvard.edu/ids/iiif/47174896/full/full/0/default.jpg")))
+      (with :access_point            (array (at <"https://ids.lib.harvard.edu/ids/iiif/47174896/full/full/0/default.jpg" ⊢ uri>)))
       (with :digitally_shows         ((:type "VisualItem" :_label "Visual Content of Self-Portrait of Van Gogh")))
       (with :format                  "image/jpeg")
       (with :digitally_available_via ((:type         "DigitalService"
                                        :_label       "IIIF Service"
-                                       :access_point (array (at #uri "https://ids.lib.harvard.edu/ids/iiif/47174896"))
-                                       :conforms_to  ((:id #uri "https://iiif.io/api/image/2/context.json" :type "InformationObject")))))
+                                       :access_point (array (at <"https://ids.lib.harvard.edu/ids/iiif/47174896" ⊢ uri>))
+                                       :conforms_to  ((:id <"https://iiif.io/api/image/2/context.json" ⊢ uri> :type "InformationObject")))))
       (with :created_by              (:type                 "Creation"
                                       :carried_out_by       ((:id (example "group/harvardartmuseums.org") :type "Group" :_label "Harvard Art Museums"))
-                                      :used_specific_object ((:id     #uri "https://harvardartmuseums.org/collections/object/299843"
+                                      :used_specific_object ((:id     <"https://harvardartmuseums.org/collections/object/299843" ⊢ uri>
                                                               :type   "HumanMadeObject"
                                                               :_label "Self-Portrait of Van Gogh"))))))

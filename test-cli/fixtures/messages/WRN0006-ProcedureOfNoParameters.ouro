@@ -1,2 +1,2 @@
-(define/procedure museum #string () "Rijksmuseum")
+(define/procedure museum ⊢ string () "Rijksmuseum")
 (document g (:r museum))

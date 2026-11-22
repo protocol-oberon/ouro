@@ -6,17 +6,17 @@
 (import aat/nationality)
 (import aat/statement-type)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
-(define/procedure person #record (#string slug #string label)
+(define/procedure person ⊢ record (<slug ⊢ string> <label ⊢ string>)
   (:id (example (+ "person/" slug)) :type "Person" :_label label))
 
-(define/procedure place #record (#string label)
+(define/procedure place ⊢ record (<label ⊢ string>)
   (:type "Place" :_label label))
 
 ;; Born and died over a day, from midnight to midnight, at a place
-(define/procedure life-event #record (#string type #string label #date day #string where)
+(define/procedure life-event ⊢ record (<type ⊢ string> <label ⊢ string> <day ⊢ date> <where ⊢ string>)
   (:type          type
    :_label        label
    :timespan      (time/span day (+ day (days 1)))
@@ -29,9 +29,9 @@
       (with :classified_as  (array gender/male nationality/dutch))
       (with :identified_by  ((:type "Name" :content "Rembrandt Harmenszoon van Rijn")))
       (with :referred_to_by (array (base/statement statement-type/biography-statement "Rembrandt was a Dutch draughtsman, painter and printmaker.")))
-      (with :born           (life-event "Birth" "Birth of Rembrandt" #date "1606-07-15T00:00:00Z" "Leiden"))
-      (with :died           (life-event "Death" "Death of Rembrandt" #date "1669-10-04T00:00:00Z" "Amsterdam"))
-      (with :carried_out    (array (-> (actor/active (time/span #date "1631-01-01T00:00:00Z" #date "1669-10-05T00:00:00Z"))
+      (with :born           (life-event "Birth" "Birth of Rembrandt" <"1606-07-15T00:00:00Z" ⊢ date> "Leiden"))
+      (with :died           (life-event "Death" "Death of Rembrandt" <"1669-10-04T00:00:00Z" ⊢ date> "Amsterdam"))
+      (with :carried_out    (array (-> (actor/active (time/span <"1631-01-01T00:00:00Z" ⊢ date> <"1669-10-05T00:00:00Z" ⊢ date>))
                                       (with :_label        "Active Dates")
                                       (with :took_place_at (array (place "Amsterdam"))))))
       (with :residence      (array (place "Nieuwe Doelenstraat")))

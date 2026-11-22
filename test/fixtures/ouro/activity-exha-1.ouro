@@ -6,7 +6,7 @@
 (import aat/group-type)
 (import aat/place-type)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
 ;; One venue of an exhibition: the exhibiting, at a museum in a city, of a set of objects, by an idea

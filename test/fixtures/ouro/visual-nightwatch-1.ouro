@@ -2,10 +2,10 @@
 (import std/base)
 (import aat/statement-type)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
-(define/procedure visual #record (#string slug #string label)
+(define/procedure visual ⊢ record (<slug ⊢ string> <label ⊢ string>)
   (:id (example (+ "visual/" slug)) :type "VisualItem" :_label label))
 
 ;; An image's rights, as a statement

@@ -2,10 +2,10 @@
 (import std/base)
 (import aat/object-type)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
-(define/procedure set #record (#string slug #string label)
+(define/procedure set ⊢ record (<slug ⊢ string> <label ⊢ string>)
   (:id (example (+ "set/" slug)) :type "Set" :_label label))
 
 ;; A set described by what its members have in common: paintings by Manet

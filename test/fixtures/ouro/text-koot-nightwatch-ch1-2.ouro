@@ -7,10 +7,10 @@
 (import aat/statement-type)
 (import aat/unit)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
-(define/procedure text #record (#string slug #string label)
+(define/procedure text ⊢ record (<slug ⊢ string> <label ⊢ string>)
   (:id (example (+ "text/" slug)) :type "LinguisticObject" :_label label))
 
 ;; A chapter's pages, both as a statement and counted

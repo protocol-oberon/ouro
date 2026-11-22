@@ -2,10 +2,10 @@
 (import std/base)
 (import std/time)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
-(define/procedure object #record (#string slug #string label)
+(define/procedure object ⊢ record (<slug ⊢ string> <label ⊢ string>)
   (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
 
 ;; A generated description: classified as generated, made at one instant by a technique, and
@@ -14,10 +14,10 @@
   (-> (object "nightwatch/70" "Night Watch")
       (with :context        "https://linked.art/ns/v1/linked-art.json")
       (with :referred_to_by (array (-> (base/description "Rembrandt's The Night Watch is a dynamic 17th-century group portrait of an Amsterdam militia company ...")
-                                      (adjoin :classified_as (:id #uri "http://vocab.getty.edu/aat/300456841" :type "Type"))
+                                      (adjoin :classified_as (:id <"http://vocab.getty.edu/aat/300456841" ⊢ uri> :type "Type"))
                                       (with :created_by (:type      "Creation"
-                                                         :technique ((:id #uri "http://vocab.getty.edu/aat/300456842" :type "Type"))
-                                                         :timespan  (let ($made #date "2024-11-07T20:50:00Z") (time/span made made))))
+                                                         :technique ((:id <"http://vocab.getty.edu/aat/300456842" ⊢ uri> :type "Type"))
+                                                         :timespan  (let ($made <"2024-11-07T20:50:00Z" ⊢ date>) (time/span made made))))
                                       (with :subject_to ((:type          "Right"
-                                                          :classified_as ((:id #uri "https://creativecommons.org/licenses/by/4.0/" :type "Type" :_label "CC-BY"))
+                                                          :classified_as ((:id <"https://creativecommons.org/licenses/by/4.0/" ⊢ uri> :type "Type" :_label "CC-BY"))
                                                           :identified_by ((:type "Name" :content "CC-BY 4.0"))))))))))

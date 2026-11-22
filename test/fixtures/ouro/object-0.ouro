@@ -8,13 +8,13 @@
 (import aat/material)
 (import aat/object-type)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
-(define/procedure object #record (#string slug #string label)
+(define/procedure object ⊢ record (<slug ⊢ string> <label ⊢ string>)
   (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
 
-(define/procedure named #record (#string content #record language)
+(define/procedure named ⊢ record (<content ⊢ string> <language ⊢ record>)
   (with (base/name vocab/primary-name content) :language (array language)))
 
 ;; Linked Art's fullest object: names in three languages, an accession number, a description,
@@ -33,11 +33,11 @@
                                      (object/width 0.53 object/meters)))
       (with :made_of          (array material/poplar material/oil-paint))
       (with :member_of        ((:type "Set" :_label "Most expensive paintings in the world")
-                               (:id #uri "http://data.louvre.example/all_holdings" :type "Set" :_label "Holdings of the Louvre")))
-      (with :shows            ((:id #uri "http://data.louvre.example/visual/mona_lisa" :type "VisualItem" :_label "Visual Work of the Mona Lisa")))
-      (with :equivalent       ((:id #uri "http://wikidata.org/entity/Q12418" :type "HumanMadeObject" :_label "Mona Lisa")))
-      (with :current_owner    ((:id #uri "http://louvre.fr/" :type "Group" :_label "The Louvre")))
-      (with :current_location (:id #uri "http://galleries.example/louvre/711" :type "Place" :_label "Room 711, Denon Wing, The Louvre, Paris"))
+                               (:id <"http://data.louvre.example/all_holdings" ⊢ uri> :type "Set" :_label "Holdings of the Louvre")))
+      (with :shows            ((:id <"http://data.louvre.example/visual/mona_lisa" ⊢ uri> :type "VisualItem" :_label "Visual Work of the Mona Lisa")))
+      (with :equivalent       ((:id <"http://wikidata.org/entity/Q12418" ⊢ uri> :type "HumanMadeObject" :_label "Mona Lisa")))
+      (with :current_owner    ((:id <"http://louvre.fr/" ⊢ uri> :type "Group" :_label "The Louvre")))
+      (with :current_location (:id <"http://galleries.example/louvre/711" ⊢ uri> :type "Place" :_label "Room 711, Denon Wing, The Louvre, Paris"))
       (with :produced_by      (:type           "Production"
                                :timespan       (with (time/year-range "1503" "1506")
                                                 :identified_by (array (base/name vocab/display-name "1503-1506")))

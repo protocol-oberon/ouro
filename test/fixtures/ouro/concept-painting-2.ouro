@@ -2,10 +2,10 @@
 (import std/base)
 (import std/vocab)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
-(define/procedure concept #record (#string slug #string label)
+(define/procedure concept ⊢ record (<slug ⊢ string> <label ⊢ string>)
   (:id (example (+ "concept/" slug)) :type "Type" :_label label))
 
 ;; A local copy of a Getty term, equivalent to it

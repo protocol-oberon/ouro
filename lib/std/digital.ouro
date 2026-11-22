@@ -7,7 +7,7 @@
 (export picture
         web-page)
 
-(define/procedure picture #record (#uri url #string format)
+(define/procedure picture ⊢ record (<url ⊢ uri> <format ⊢ string>)
   (doc "An image of an object, at a URL in a media type, for representation: (picture \"https://a.org/spring.jpg\" \"image/jpeg\").")
   (:type               "VisualItem"
    :digitally_shown_by (array (:type          "DigitalObject"
@@ -15,7 +15,7 @@
                                :format        format
                                :access_point  (array (:id url :type "DigitalObject"))))))
 
-(define/procedure web-page #record (#uri url)
+(define/procedure web-page ⊢ record (<url ⊢ uri>)
   (doc "A web page about an object, at a URL, for subject_of: (web-page \"https://a.org/spring\").")
   (:type                 "LinguisticObject"
    :digitally_carried_by (array (:type          "DigitalObject"

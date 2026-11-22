@@ -6,7 +6,7 @@
 (import aat/group-type)
 (import aat/place-type)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
 ;; The exhibition's second venue, part of the exhibition as a whole

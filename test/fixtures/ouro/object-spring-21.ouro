@@ -2,10 +2,10 @@
 (import std/time)
 (import aat/object-type)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
-(define/procedure object #record (#string slug #string label)
+(define/procedure object ⊢ record (<slug ⊢ string> <label ⊢ string>)
   (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
 
 ;; A material, assigned in a year: which property was assigned, and its value. linked.art
@@ -17,4 +17,4 @@
       (with :attributed_by ((:type              "AttributeAssignment"
                              :timespan          (time/year "2015")
                              :assigned_property "made_of"
-                             :assigned          ((:id #uri "http://vocab.getty.edu/aat/300014078" :type "Material")))))))
+                             :assigned          ((:id <"http://vocab.getty.edu/aat/300014078" ⊢ uri> :type "Material")))))))

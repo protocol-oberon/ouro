@@ -470,7 +470,7 @@ sourceFrames = Group "Modules: each diagnostic is shown in its own file"
                                                        -- core's line is found, not written, so reformatting base.ouro keeps the test
                                                        source <- maybe (fail "std/base is not bundled") pure (bundledFile "lib/std/base.ouro")
                                                        line   <- maybe (fail "std/base has no core") (pure . (+ 1)) (findIndex ("(define/procedure core " `T.isPrefixOf`) (T.lines source))
-                                                       sourceFrame bundledFile (at "lib/std/base.ouro" line 1) === SourceFrame "lib/std/base.ouro" line 1 "(define/procedure core #record (#uri id #string type #string label)")
+                                                       sourceFrame bundledFile (at "lib/std/base.ouro" line 1) === SourceFrame "lib/std/base.ouro" line 1 "(define/procedure core ⊢ record (<id ⊢ uri> <type ⊢ string> <label ⊢ string>)")
     , ("a line past the end is empty",             withTests 1 . property $
                                                        sourceFrame (const (Just "one line")) (at "f.ouro" 3 1) === SourceFrame "f.ouro" 3 1 "")
     , ("an unknown file is empty",                 withTests 1 . property $

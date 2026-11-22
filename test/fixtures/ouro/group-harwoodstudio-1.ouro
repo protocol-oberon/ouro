@@ -2,10 +2,10 @@
 (import std/base)
 (import aat/group-type)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
-(define/procedure group #record (#string slug #string label)
+(define/procedure group ⊢ record (<slug ⊢ string> <label ⊢ string>)
   (:id (example (+ "group/" slug)) :type "Group" :_label label))
 
 ;; A studio, formed under the influence of its master

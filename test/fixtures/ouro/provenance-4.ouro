@@ -3,19 +3,19 @@
 (import aat/object-type)
 (import aat/right-type)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
-(define/procedure provenance #record (#string slug #string label)
+(define/procedure provenance ⊢ record (<slug ⊢ string> <label ⊢ string>)
   (:id (example (+ "provenance/" slug)) :type "Activity" :_label label :classified_as (array vocab/provenance-activity)))
 
-(define/constant percent (:id #uri "http://qudt.org/3.0.0/vocab/unit/Percent" :type "MeasurementUnit" :_label "Percent"))
+(define/constant percent (:id <"http://qudt.org/3.0.0/vocab/unit/Percent" ⊢ uri> :type "MeasurementUnit" :_label "Percent"))
 
-(define/procedure ownership #record (#string label)
+(define/procedure ownership ⊢ record (<label ⊢ string>)
   (:type "Right" :_label label :classified_as (array right-type/ownership-right)))
 
 ;; A share of ownership: a Right measured in percent, possessed by its owner
-(define/procedure share #record (#string label #number part #string owner)
+(define/procedure share ⊢ record (<label ⊢ string> <part ⊢ number> <owner ⊢ string>)
   (-> (ownership label)
       (with :dimension    ((:type "Dimension" :value part :unit percent)))
       (with :possessed_by ((:type "Group" :_label owner)))))

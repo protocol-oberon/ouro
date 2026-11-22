@@ -1,15 +1,15 @@
 ;; linked.art's example, written in Ouro: https://linked.art/example/person/wiley/1
 (import std/base)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
-(define/procedure person #record (#string slug #string label)
+(define/procedure person ⊢ record (<slug ⊢ string> <label ⊢ string>)
   (:id (example (+ "person/" slug)) :type "Person" :_label label))
 
 ;; A term from outside the Getty vocabularies, Wikidata's, classified by an AAT meta-type
 (document person-wiley-1
   (-> (person "wiley/1" "Kehinde Wiley")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
-      (with :classified_as (array (adjoin (:id #uri "http://www.wikidata.org/entity/Q3007177" :type "Type" :_label "African-American")
+      (with :classified_as (array (adjoin (:id <"http://www.wikidata.org/entity/Q3007177" ⊢ uri> :type "Type" :_label "African-American")
                                   :classified_as (base/aat "300250435" "Ethnicity"))))))

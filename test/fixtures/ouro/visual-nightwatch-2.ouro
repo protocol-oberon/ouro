@@ -1,8 +1,8 @@
 ;; linked.art's example, written in Ouro: https://linked.art/example/visual/nightwatch/2
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
-(define/procedure visual #record (#string slug #string label)
+(define/procedure visual ⊢ record (<slug ⊢ string> <label ⊢ string>)
   (:id (example (+ "visual/" slug)) :type "VisualItem" :_label label))
 
 ;; An image's rights, as a Right, classified by Creative Commons' own term
@@ -11,5 +11,5 @@
       (with :context    "https://linked.art/ns/v1/linked-art.json")
       (with :subject_to ((:type          "Right"
                           :_label        "Night Watch's Public Domain status"
-                          :classified_as ((:id #uri "https://creativecommons.org/publicdomain/zero/1.0/" :type "Type" :_label "Public Domain"))
+                          :classified_as ((:id <"https://creativecommons.org/publicdomain/zero/1.0/" ⊢ uri> :type "Type" :_label "Public Domain"))
                           :identified_by ((:type "Name" :content "Public Domain")))))))

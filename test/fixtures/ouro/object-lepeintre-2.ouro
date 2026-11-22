@@ -2,10 +2,10 @@
 (import std/time)
 (import aat/object-type)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
-(define/procedure object #record (#string slug #string label)
+(define/procedure object ⊢ record (<slug ⊢ string> <label ⊢ string>)
   (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
 
 ;; The destroyed painting of lepeintre/1, with the cause of its destruction: a plane crash, an
@@ -16,6 +16,6 @@
       (with :classified_as (array object-type/painting))
       (with :destroyed_by  (:type      "Destruction"
                             :_label    "Destruction of Le Peintre"
-                            :timespan  (let ($struck #date "1998-09-02T22:20:00Z")
+                            :timespan  (let ($struck <"1998-09-02T22:20:00Z" ⊢ date>)
                                          (time/span struck (+ struck (minutes 20))))
                             :caused_by ((:id (example "event/sr111crash") :type "Event" :_label "Crash of Swiss Air 111"))))))

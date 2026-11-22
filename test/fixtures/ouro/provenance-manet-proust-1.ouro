@@ -5,13 +5,13 @@
 (import std/vocab)
 (import aat/currency)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
-(define/procedure provenance #record (#string slug #string label)
+(define/procedure provenance ⊢ record (<slug ⊢ string> <label ⊢ string>)
   (:id (example (+ "provenance/" slug)) :type "Activity" :_label label :classified_as (array vocab/provenance-activity)))
 
-(define/procedure node #record (#string path #string type #string label)
+(define/procedure node ⊢ record (<path ⊢ string> <type ⊢ string> <label ⊢ string>)
   (:id (example path) :type type :_label label))
 
 (define/constant spring (node "object/spring" "HumanMadeObject" "Spring"))

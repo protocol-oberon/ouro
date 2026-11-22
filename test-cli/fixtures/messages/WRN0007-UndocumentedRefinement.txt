@@ -1,7 +1,7 @@
 Warning [WRN0007]: The refinement 'titled' has no doc
   ┌── │WRN0007-UndocumentedRefinement.ouro:1:1│
   │
-1 │ (define/refinement titled (#record r) (has r _label))
+1 │ (define/refinement titled (<r ⊢ record>) (has r _label))
   │ ^
   │ Undocumented: titled
   │ 

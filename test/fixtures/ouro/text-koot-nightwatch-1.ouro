@@ -2,10 +2,10 @@
 (import std/base)
 (import std/vocab)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
-(define/procedure text #record (#string slug #string label)
+(define/procedure text ⊢ record (<slug ⊢ string> <label ⊢ string>)
   (:id (example (+ "text/" slug)) :type "LinguisticObject" :_label label))
 
 ;; A book's content, part of its author's idea of it

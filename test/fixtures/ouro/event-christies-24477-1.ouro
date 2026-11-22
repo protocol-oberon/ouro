@@ -6,10 +6,10 @@
 (import aat/group-type)
 (import aat/place-type)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
-(define/procedure activity #record (#string slug #string label)
+(define/procedure activity ⊢ record (<slug ⊢ string> <label ⊢ string>)
   (:id (example (+ "event/" slug)) :type "Activity" :_label label))
 
 ;; An evening sale: it begins at five, so its span is written out
@@ -18,7 +18,7 @@
       (with :context        "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as  (array activity-type/auction-event))
       (with :identified_by  (array (base/name vocab/primary-name "Impressionist & Modern Evening Sale")))
-      (with :timespan       (with (time/span #date "2014-11-05T17:00:00Z" #date "2014-11-05T23:59:59Z") :_label "Nov 5, 2014"))
+      (with :timespan       (with (time/span <"2014-11-05T17:00:00Z" ⊢ date> <"2014-11-05T23:59:59Z" ⊢ date>) :_label "Nov 5, 2014"))
       (with :took_place_at  ((:id            (example "place/christies_nyc")
                               :type          "Place"
                               :_label        "Christie's, New York"

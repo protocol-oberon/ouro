@@ -3,10 +3,10 @@
 (import std/time)
 (import std/vocab)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
-(define/procedure group #record (#string slug #string label)
+(define/procedure group ⊢ record (<slug ⊢ string> <label ⊢ string>)
   (:id (example (+ "group/" slug)) :type "Group" :_label label))
 
 ;; An unidentified group, known by what its members have in common: born in Italy in the
@@ -18,7 +18,7 @@
       (with :identified_by          (array (base/name vocab/primary-name "Unidentified 14th Century Italian")))
       (with :members_exemplified_by ((:type "Person"
                                       :born (:type          "Birth"
-                                             :timespan      (time/span #date "1300-01-01T00:00:00Z" #date "1399-12-31T00:00:00Z")
-                                             :took_place_at ((:id     #uri "https://vocab.getty.edu/tgn/1000080"
+                                             :timespan      (time/span <"1300-01-01T00:00:00Z" ⊢ date> <"1399-12-31T00:00:00Z" ⊢ date>)
+                                             :took_place_at ((:id     <"https://vocab.getty.edu/tgn/1000080" ⊢ uri>
                                                               :type   "Place"
                                                               :_label "Italy"))))))))

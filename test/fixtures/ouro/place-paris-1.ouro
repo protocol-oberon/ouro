@@ -1,10 +1,10 @@
 ;; linked.art's example, written in Ouro: https://linked.art/example/place/paris/1
 (import aat/place-type)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
-(define/procedure place #record (#string slug #string label)
+(define/procedure place ⊢ record (<slug ⊢ string> <label ⊢ string>)
   (:id (example (+ "place/" slug)) :type "Place" :_label label))
 
 (document place-paris-1

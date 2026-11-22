@@ -1,8 +1,8 @@
 ;; linked.art's example, written in Ouro: https://linked.art/example/concept/painting/1
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
-(define/procedure concept #record (#string slug #string label)
+(define/procedure concept ⊢ record (<slug ⊢ string> <label ⊢ string>)
   (:id (example (+ "concept/" slug)) :type "Type" :_label label))
 
 (document concept-painting-1

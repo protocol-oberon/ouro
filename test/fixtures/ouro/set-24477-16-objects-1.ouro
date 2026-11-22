@@ -4,10 +4,10 @@
 (import aat/identifier-type)
 (import aat/set-type)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
-(define/procedure set #record (#string slug #string label)
+(define/procedure set ⊢ record (<slug ⊢ string> <label ⊢ string>)
   (:id (example (+ "set/" slug)) :type "Set" :_label label))
 
 ;; An auction lot: the set of objects sold together, named and numbered

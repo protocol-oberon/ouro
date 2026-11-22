@@ -2,10 +2,10 @@
 (import aat/digital-type)
 (import aat/object-type)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
-(define/procedure object #record (#string slug #string label)
+(define/procedure object ⊢ record (<slug ⊢ string> <label ⊢ string>)
   (:id (example (+ "object/" slug)) :type "HumanMadeObject" :_label label))
 
 ;; An image of the painting, and the IIIF image service it is available through
@@ -17,8 +17,8 @@
       (with :representation ((:type               "VisualItem"
                               :digitally_shown_by ((:type                    "DigitalObject"
                                                     :classified_as           (array digital-type/digital-image)
-                                                    :access_point            ((:id #uri "https://media.getty.edu/iiif/image/8094f61e-e458-42bd-90cf-a0ed0dcc90b9/full/full/0/default.jpg" :type "DigitalObject"))
+                                                    :access_point            ((:id <"https://media.getty.edu/iiif/image/8094f61e-e458-42bd-90cf-a0ed0dcc90b9/full/full/0/default.jpg" ⊢ uri> :type "DigitalObject"))
                                                     :digitally_available_via ((:type         "DigitalService"
-                                                                               :access_point ((:id #uri "https://media.getty.edu/iiif/image/8094f61e-e458-42bd-90cf-a0ed0dcc90b9" :type "DigitalObject"))
-                                                                               :conforms_to  ((:id #uri "http://iiif.io/api/image" :type "InformationObject"))
+                                                                               :access_point ((:id <"https://media.getty.edu/iiif/image/8094f61e-e458-42bd-90cf-a0ed0dcc90b9" ⊢ uri> :type "DigitalObject"))
+                                                                               :conforms_to  ((:id <"http://iiif.io/api/image" ⊢ uri> :type "InformationObject"))
                                                                                :format       "application/ld+json;profile='http://iiif.io/api/image/3/context.json'")))))))))

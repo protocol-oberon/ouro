@@ -3,7 +3,7 @@
 (import std/object)
 (import std/time)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
 ;; One day, some time around 1750: begun within one span and ended within another, with its
@@ -12,8 +12,8 @@
   (:context "https://linked.art/ns/v1/linked-art.json"
    :id       (example "event/1")
    :type     "Activity"
-   :timespan (with (time/between (time/span #date "1720-01-01T00:00:00Z" #date "1751-01-01T00:00:00Z")
-                                 (time/span #date "1749-01-01T00:00:00Z" #date "1780-01-01T00:00:00Z"))
+   :timespan (with (time/between (time/span <"1720-01-01T00:00:00Z" ⊢ date> <"1751-01-01T00:00:00Z" ⊢ date>)
+                                 (time/span <"1749-01-01T00:00:00Z" ⊢ date> <"1780-01-01T00:00:00Z" ⊢ date>))
               :_label         "1 day, c. 1750"
               :identified_by  ((:type "Name" :content "1 day, during circa 1750"))
               :referred_to_by (array (base/description "About 1750, as estimated by C. U. Rata"))

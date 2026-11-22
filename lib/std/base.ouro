@@ -26,72 +26,72 @@
 
 ;; Entities from the Getty vocabularies, by their numbers
 
-(define/procedure core #record (#uri id #string type #string label)
-  (doc "An entity's core properties, which every node with an id begins with: (core #uri \"https://linked.art/example/object/1\" \"HumanMadeObject\" \"Spring\").")
+(define/procedure core ⊢ record (<id ⊢ uri> <type ⊢ string> <label ⊢ string>)
+  (doc "An entity's core properties, which every node with an id begins with: (core \"https://linked.art/example/object/1\" \"HumanMadeObject\" \"Spring\").")
   (:id id :type type :_label label))
 
-(define/procedure aat #record (#string id #string label)
+(define/procedure aat ⊢ record (<id ⊢ string> <label ⊢ string>)
   (doc "A Type from the Getty AAT, by its number: (aat \"300033618\" \"Painting\").")
-  (core #uri (+ "http://vocab.getty.edu/aat/" id) "Type" label))
+  (core <(+ "http://vocab.getty.edu/aat/" id) ⊢ uri> "Type" label))
 
-(define/procedure tgn #record (#string id #string label)
+(define/procedure tgn ⊢ record (<id ⊢ string> <label ⊢ string>)
   (doc "A Place from the Getty TGN, by its number: (tgn \"7006952\" \"Amsterdam\").")
-  (core #uri (+ "http://vocab.getty.edu/tgn/" id) "Place" label))
+  (core <(+ "http://vocab.getty.edu/tgn/" id) ⊢ uri> "Place" label))
 
-(define/procedure ulan #record (#string id #string type #string label)
+(define/procedure ulan ⊢ record (<id ⊢ string> <type ⊢ string> <label ⊢ string>)
   (doc "A Person or Group from the Getty ULAN, by its number: (ulan \"500010363\" \"Person\" \"Manet\").")
-  (core #uri (+ "http://vocab.getty.edu/ulan/" id) type label))
+  (core <(+ "http://vocab.getty.edu/ulan/" id) ⊢ uri> type label))
 
-(define/procedure language #record (#string id #string label)
+(define/procedure language ⊢ record (<id ⊢ string> <label ⊢ string>)
   (doc "A Language from the Getty AAT, by its number: (language \"300388277\" \"English\").")
-  (core #uri (+ "http://vocab.getty.edu/aat/" id) "Language" label))
+  (core <(+ "http://vocab.getty.edu/aat/" id) ⊢ uri> "Language" label))
 
 ;; Types classified by their meta-type, which Linked Art requires
 
-(define/procedure meta-typed #record (#record meta #string id #string label)
+(define/procedure meta-typed ⊢ record (<meta ⊢ record> <id ⊢ string> <label ⊢ string>)
   (doc "A Type from the Getty AAT, classified by its meta-type.")
   (adjoin (aat id label) :classified_as meta))
 
-(define/procedure work-type #record (#string id #string label)
+(define/procedure work-type ⊢ record (<id ⊢ string> <label ⊢ string>)
   (doc "A type of work, classified as Type of Work: (work-type \"300033618\" \"Painting\").")
   (meta-typed vocab/type-of-work id label))
 
-(define/procedure style #record (#string id #string label)
+(define/procedure style ⊢ record (<id ⊢ string> <label ⊢ string>)
   (doc "A style, classified as Style: (style \"300021503\" \"Impressionist\").")
   (meta-typed vocab/style id label))
 
-(define/procedure shape #record (#string id #string label)
+(define/procedure shape ⊢ record (<id ⊢ string> <label ⊢ string>)
   (doc "A shape, classified as Shape: (shape \"300311843\" \"Oblong\").")
   (meta-typed vocab/shape id label))
 
-(define/procedure nationality #record (#string id #string label)
+(define/procedure nationality ⊢ record (<id ⊢ string> <label ⊢ string>)
   (doc "A nationality, classified as Nationality: (nationality \"300111188\" \"French\").")
   (meta-typed vocab/nationality id label))
 
-(define/procedure occupation #record (#string id #string label)
+(define/procedure occupation ⊢ record (<id ⊢ string> <label ⊢ string>)
   (doc "An occupation, classified as Occupation: (occupation \"300025136\" \"Painter\").")
   (meta-typed vocab/occupation id label))
 
-(define/procedure statement-kind #record (#string id #string label)
+(define/procedure statement-kind ⊢ record (<id ⊢ string> <label ⊢ string>)
   (doc "A kind of statement, classified as Brief Text: (statement-kind \"300435429\" \"Materials Statement\").")
   (meta-typed vocab/brief-text id label))
 
 ;; Embedded nodes: they have no id, and exist only inside the record holding them
 
-(define/procedure name #record (#record kind #string content)
+(define/procedure name ⊢ record (<kind ⊢ record> <content ⊢ string>)
   (doc "A Name of a kind, as (name vocab/primary-name \"Spring\"). A Name with no kind is a literal, (:type \"Name\" :content \"Spring\").")
   (:type "Name" :classified_as (array kind) :content content))
 
-(define/procedure identifier #record (#record kind #string content)
+(define/procedure identifier ⊢ record (<kind ⊢ record> <content ⊢ string>)
   (doc "An Identifier of a kind, as an accession number: (identifier (aat \"300312355\" \"Accession Number\") \"2014.62\").")
   (:type "Identifier" :classified_as (array kind) :content content))
 
-(define/procedure statement #record (#record kind #string content)
+(define/procedure statement ⊢ record (<kind ⊢ record> <content ⊢ string>)
   (doc "A statement: a LinguisticObject of a kind, which is classified as Brief Text whether or not it was built by statement-kind.")
   (:type          "LinguisticObject"
    :classified_as (array (adjoin kind :classified_as vocab/brief-text))
    :content       content))
 
-(define/procedure description #record (#string content)
+(define/procedure description ⊢ record (<content ⊢ string>)
   (doc "The commonest statement: a Description of a record.")
   (statement (statement-kind "300435416" "Description") content))

@@ -6,10 +6,10 @@
 (import aat/group-type)
 (import aat/provenance-type)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
-(define/procedure provenance #record (#string slug #string label)
+(define/procedure provenance ⊢ record (<slug ⊢ string> <label ⊢ string>)
   (:id (example (+ "provenance/" slug)) :type "Activity" :_label label :classified_as (array vocab/provenance-activity)))
 
 (define/constant buyer (:type "Person" :_label "Buyer"))

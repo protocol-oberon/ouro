@@ -17,7 +17,7 @@
         swiss-francs
         us-dollars)
 
-(define/procedure purchase #record (#record object #record seller #record buyer #record amount #record span)
+(define/procedure purchase ⊢ record (<object ⊢ record> <seller ⊢ record> <buyer ⊢ record> <amount ⊢ record> <span ⊢ record>)
   (doc "A purchase of an object from a seller by a buyer, for an amount, over a span: its Acquisition and its Payment.")
   (:type          "Activity"
    :classified_as (array vocab/provenance-activity)
@@ -25,29 +25,29 @@
    :part          (array (acquisition object seller buyer)
                          (payment amount buyer seller))))
 
-(define/procedure acquisition #record (#record object #record from #record to)
+(define/procedure acquisition ⊢ record (<object ⊢ record> <from ⊢ record> <to ⊢ record>)
   (doc "An Acquisition: the title of an object passes from one owner to another.")
   (:type                   "Acquisition"
    :transferred_title_of   (array object)
    :transferred_title_from (array from)
    :transferred_title_to   (array to)))
 
-(define/procedure payment #record (#record amount #record from #record to)
+(define/procedure payment ⊢ record (<amount ⊢ record> <from ⊢ record> <to ⊢ record>)
   (doc "A Payment of an amount from one party to another.")
   (:type        "Payment"
    :paid_amount amount
    :paid_from   (array from)
    :paid_to     (array to)))
 
-(define/procedure money #record (#number value #record currency)
+(define/procedure money ⊢ record (<value ⊢ number> <currency ⊢ record>)
   (doc "A MonetaryAmount: (money 3000 euros).")
   (:type "MonetaryAmount" :value value :currency currency))
 
 ;; Currencies
 
-(define/procedure currency #record (#string id #string label)
+(define/procedure currency ⊢ record (<id ⊢ string> <label ⊢ string>)
   (doc "A Currency from the Getty AAT, by its number: (currency \"300412016\" \"French Francs\").")
-  (:id #uri (+ "http://vocab.getty.edu/aat/" id) :type "Currency" :_label label))
+  (:id <(+ "http://vocab.getty.edu/aat/" id) ⊢ uri> :type "Currency" :_label label))
 
 (define/constant british-pounds   (doc "British pounds.")   (currency "300411998" "British Pounds"))
 (define/constant canadian-dollars (doc "Canadian dollars.") (currency "300412000" "Canadian Dollars"))

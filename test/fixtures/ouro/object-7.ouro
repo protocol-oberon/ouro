@@ -4,7 +4,7 @@
 (import aat/digital-type)
 (import aat/language/iso)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
 ;; A home page about the object: an English text, carried by a named web page at a URL.
@@ -19,4 +19,4 @@
                     :digitally_carried_by ((:type          "DigitalObject"
                                             :classified_as (array digital-type/web-page)
                                             :identified_by (array (base/name vocab/primary-name "Home page for Object"))
-                                            :access_point  ((:id #uri "https://example.org/objects/1" :type "DigitalObject"))))))))
+                                            :access_point  ((:id <"https://example.org/objects/1" ⊢ uri> :type "DigitalObject"))))))))

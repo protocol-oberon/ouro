@@ -5,10 +5,10 @@
 (import aat/activity-type)
 (import aat/identifier-type)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
-(define/procedure activity #record (#string slug #string label)
+(define/procedure activity ⊢ record (<slug ⊢ string> <label ⊢ string>)
   (:id (example (+ "event/" slug)) :type "Activity" :_label label))
 
 ;; An auction: its day, with a display title, its auctioneer, and the set of lots it sold
@@ -23,6 +23,6 @@
                                    :identified_by (array (base/name vocab/display-name "1820 Mar 09"))))
       (with :took_place_at        (array (base/tgn "7011781" "London")))
       (with :carried_out_by       (array (base/ulan "500451765" "Group" "Edward Foster & Son")))
-      (with :used_specific_object ((:id #uri "http://example.org/sets/Br1908" :type "Set" :_label "All Auction Lots of Br1908")))
-      (with :equivalent           ((:id #uri "http://example.auction/past/foster/1820/03/1" :type "Activity")))
-      (with :subject_of           ((:id #uri "http://example.org/catalog/Br1908" :type "LinguisticObject" :_label "Sales Catalog of Br-1908")))))
+      (with :used_specific_object ((:id <"http://example.org/sets/Br1908" ⊢ uri> :type "Set" :_label "All Auction Lots of Br1908")))
+      (with :equivalent           ((:id <"http://example.auction/past/foster/1820/03/1" ⊢ uri> :type "Activity")))
+      (with :subject_of           ((:id <"http://example.org/catalog/Br1908" ⊢ uri> :type "LinguisticObject" :_label "Sales Catalog of Br-1908")))))

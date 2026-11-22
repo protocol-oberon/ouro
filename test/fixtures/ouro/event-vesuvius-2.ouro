@@ -2,10 +2,10 @@
 (import std/base)
 (import std/vocab)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
-(define/procedure event #record (#string slug #string label)
+(define/procedure event ⊢ record (<slug ⊢ string> <label ⊢ string>)
   (:id (example (+ "event/" slug)) :type "Event" :_label label))
 
 (document event-vesuvius-2

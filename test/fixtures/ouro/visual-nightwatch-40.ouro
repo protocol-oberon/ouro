@@ -1,10 +1,10 @@
 ;; linked.art's example, written in Ouro: https://linked.art/example/visual/nightwatch/40
 (import aat/style)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
-(define/procedure visual #record (#string slug #string label)
+(define/procedure visual ⊢ record (<slug ⊢ string> <label ⊢ string>)
   (:id (example (+ "visual/" slug)) :type "VisualItem" :_label label))
 
 (document visual-nightwatch-40

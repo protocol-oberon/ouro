@@ -5,7 +5,7 @@
 (import aat/identifier-type)
 (import aat/statement-type)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
 ;; An identifier with a history: named, annotated, and assigned by a museum in a year, which
@@ -20,5 +20,5 @@
                             (with :referred_to_by (array (base/statement statement-type/note "This is the original accession number from 1997")))
                             (with :assigned_by    ((:type           "AttributeAssignment"
                                                     :_label         "Assignment of 1997-A1752"
-                                                    :timespan       (with (time/span #date "1997-01-01T00:00:00Z" #date "1997-12-31T00:00:00Z") :_label "1997")
+                                                    :timespan       (with (time/span <"1997-01-01T00:00:00Z" ⊢ date> <"1997-12-31T00:00:00Z" ⊢ date>) :_label "1997")
                                                     :carried_out_by ((:type "Group" :_label "Example Museum")))))))))
