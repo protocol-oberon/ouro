@@ -540,6 +540,13 @@ data LinterWarning
     | UndocumentedRefinement
       { undocumentedName :: Text -- The refinement's name
       }
+
+    -- LINT WARNING: EMPTY RECORD TYPE
+    -- Occurs when a type is written (record), a record type with no keys. It requires none,
+    -- so it is every record, which the type record already says.
+    --
+    -- * Remediation: Issue warning. Suggest record.
+    | EmptyRecordType
     deriving (Show, Eq, Ord, Generic)
 
 

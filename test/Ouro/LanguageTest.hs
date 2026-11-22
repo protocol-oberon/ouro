@@ -620,6 +620,19 @@ operators = Group "Operators: operands and desugaring"
     , ("and every item is a pair",                  failsWith "A type is a refinement's name"
                                                               "(define/procedure f (<r ⊢ (record :k string number)>) r) (graph g (:ok 1))")
 
+      -- (record) is every record, so it is a warning (WRN0008) that suggests record
+    , ("(record) in a binder warns",                warnsWith "(record) is the type record"
+                                                              "(define/procedure f (<r ⊢ (record)>) r) (graph g (:ok 1))")
+    , ("and as a return type",                      warnsWith "(record) is the type record"
+                                                              "(define/procedure f ⊢ (record) () (make record)) (graph g (:ok 1))")
+    , ("and in an assertion",                       warnsWith "(record) is the type record"
+                                                              "(graph g (:r <(make record) ⊢ (record)>))")
+    , ("and in a fn's binder",                      warnsWith "(record) is the type record"
+                                                              "(graph g (:r (map ((:k 1)) (fn (<r ⊢ (record)>) r))))")
+    , ("and nested in a type",                      warnsWith "(record) is the type record"
+                                                              "(define/procedure f (<xs ⊢ (array (record))>) xs) (graph g (:ok 1))")
+    , ("a record type with keys does not",          compilesWithoutWarnings "(define/procedure f (<r ⊢ (record :k string)>) r) (graph g (:ok 1))")
+
       -- Comparisons are words. '<' and '>' delimit an infix expression, its '<' written
       -- against the first operand, so each old name is an error that names its word
     , ("< is now lt",                               failsWith "'<' is now 'lt': (lt a b)"

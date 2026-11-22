@@ -1,0 +1,12 @@
+Warning [WRN0008]: (record) is the type record
+  ┌── │WRN0008-EmptyRecordType.ouro:1:43│
+  │
+1 │ (define/procedure label-of ⊢ string (<r ⊢ (record)>) "a")
+  │                                           ^
+  │                                           Write: record
+  │ 
+
+A record type lists the keys a record must have, each with its type. With none it requires nothing, so it is every record, which record already
+says.
+
+Perhaps write record: <r ⊢ record>.

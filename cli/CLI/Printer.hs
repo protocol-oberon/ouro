@@ -657,6 +657,11 @@ splitWarningContext ctx =
                , [ labeled "Undocumented: " (highlightDiagnostic ("#" <> name)) ]
                , Just blurb
                )
+        Lint EmptyRecordType
+            -> ( title
+               , [ labeled "Write: " (highlightDiagnostic "record") ]
+               , Just blurb
+               )
         Semantic (ElidedPropertyAssign key construct)
             -> ( title
                , [ labeled "Omitted Attribute: " (highlightDiagnostic key)

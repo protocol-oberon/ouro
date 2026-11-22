@@ -617,6 +617,10 @@ procedureOfNoParameters name = Lint $ ProcedureOfNoParameters { constantName = n
 undocumentedRefinement :: Text -> WarningContext
 undocumentedRefinement name = Lint $ UndocumentedRefinement { undocumentedName = name }
 
+-- Create a warning for (record), a record type with no keys, which is the type record
+emptyRecordType :: WarningContext
+emptyRecordType = Lint EmptyRecordType
+
 -- Create a compile-time elided property assignment semantic warning
 elidedPropertyAssign :: Text -> Text -> WarningContext
 elidedPropertyAssign key construct = Semantic $ ElidedPropertyAssign
@@ -692,6 +696,11 @@ warningBlurb = \case
         <> "as in '#" <> name <> ": Has a label.'. Without one, a failure can only name the refinement.\n\n"
         <> "Perhaps write one: (define/refinement " <> name <> " (<r ⊢ record>) (doc \"...\") ...)."
 
+    Lint EmptyRecordType
+        -> "A record type lists the keys a record must have, each with its type. With none it requires nothing, "
+        <> "so it is every record, which record already says.\n\n"
+        <> "Perhaps write record: <r ⊢ record>."
+
     Semantic (ElidedPropertyAssign key construct)
         -> "The expression assigned to the property attribute '" <> key <> "' evaluates exclusively to a compile-time '"
         <> construct <> "' block. Because elided control structures leave zero footprint in final binary payloads, "
@@ -714,6 +723,7 @@ warningSummary = \case
     Lint (ShadowedBundledModule name _) -> "The project's module '" <> name <> "' replaces the bundled '" <> name <> "'"
     Lint (ProcedureOfNoParameters name) -> "The procedure '" <> name <> "' takes no parameters, so it is a constant"
     Lint (UndocumentedRefinement name)  -> "The refinement '" <> name <> "' has no doc"
+    Lint EmptyRecordType                -> "(record) is the type record"
     Semantic (ElidedPropertyAssign k _) -> "Property assignment '" <> k <> "' binds to an elided value"
     Vocab (UnboundTypeReference t _)    -> "Unbound schema type reference '" <> t <> "'"
 

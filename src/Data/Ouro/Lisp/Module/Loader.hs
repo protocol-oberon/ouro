@@ -224,6 +224,7 @@ loadKey pos path key = gets (Map.lookup key) >>= \case
                    parsed <- either (refute . pure) pure (LP.parseModule tokens)
                    tell (LN.lintModule parsed)
                    let canonical = Canon.canonicalModule parsed
+                   tell (LN.lintTypes canonical)
                    dependencies <- local (\env -> env { importStack = key : importStack env })
                                          (loadImports canonical)
                    let (problems, accepted) = analyseModule dependencies canonical

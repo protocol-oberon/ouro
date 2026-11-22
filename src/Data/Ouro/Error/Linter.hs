@@ -4,7 +4,8 @@ module Data.Ouro.Error.Linter where
 
 import           Data.Char                   (isDigit, isLower, isUpper, toLower)
 import qualified Data.Map.Strict             as Map
-import           Data.Ouro.Error.Diagnostics (notKebabCase, parenthesisedResult,
+import           Data.Ouro.Error.Diagnostics (emptyRecordType, notKebabCase,
+                                              parenthesisedResult,
                                               procedureOfNoParameters,
                                               shadowedBuiltin,
                                               undocumentedRefinement)
@@ -17,6 +18,7 @@ import qualified Data.Ouro.Lisp.Tokens       as Tkn
 import           Data.Text                   (Text)
 import qualified Data.Text                   as T
 import           Lens.Micro                  ((^.))
+import           Text.Megaparsec             (SourcePos)
 
 
 -- Checks the tokens, for what the parsed tree does not keep. (WRN0000, a string after
@@ -83,6 +85,49 @@ lintModule ouroModule =
        , Just kebab <- [kebabCase name] ]
     <> [ OuroWarning pos (undocumentedRefinement name)
        | M.SomeFunction (M.Function M.RefinementKind pos name Nothing _ _ _) <- Map.elems (ouroModule ^. M.functionRegistry) ]
+
+
+-- lintTypes.
+--
+-- Checks the types written in the module after Canon, when an assertion in an expression,
+-- <x ⊢ (record)>, and a fn's binder are typed nodes too: every parameter's and result's type,
+-- and every assertion in a function's or a graph's body. (record), a record type with no
+-- keys, is every record, which record already says.
+lintTypes :: M.Module -> [OuroWarning]
+lintTypes ouroModule =
+       concat [ concatMap paramType params <> resultType result <> assertedTypes body
+              | M.SomeFunction (M.Function _ _ _ _ params result body) <- Map.elems (ouroModule ^. M.functionRegistry) ]
+    <> concat [ assertedTypes expr
+              | M.Graph _ _ expr <- Map.elems (ouroModule ^. M.graphRegistry) ]
+    where
+    paramType = \case
+        S.Param _ (Just (pos, ty)) _ -> emptyRecords pos ty
+        _untyped                     -> []
+
+    resultType = \case
+        Just (pos, ty) -> emptyRecords pos ty
+        Nothing        -> []
+
+
+-- Every assertion in an expression, however deep: a fn's binders are among them after Canon
+assertedTypes :: S.Expr -> [OuroWarning]
+assertedTypes = \case
+    S.Asserted pos ty inner -> emptyRecords pos ty <> assertedTypes inner
+    S.Form     _ items      -> concatMap assertedTypes items
+    _leaf                   -> []
+
+
+-- (record) wherever a type holds it: on its own, in ∪ ∩ ∖, in an array, or at another
+-- record type's key
+emptyRecords :: SourcePos -> S.Type -> [OuroWarning]
+emptyRecords pos = \case
+    S.RecordOf []    -> [OuroWarning pos emptyRecordType]
+    S.RecordOf pairs -> concatMap (emptyRecords pos . snd) pairs
+    S.ArrayOf  t     -> emptyRecords pos t
+    S.Union    a b   -> emptyRecords pos a <> emptyRecords pos b
+    S.Inter    a b   -> emptyRecords pos a <> emptyRecords pos b
+    S.Minus    a b   -> emptyRecords pos a <> emptyRecords pos b
+    S.Named    _     -> []
 
 
 -- The kebab-case spelling of a name with capitals or underscores, or Nothing when it has

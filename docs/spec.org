@@ -1027,7 +1027,7 @@ The symbols of logic and sets are read the same way, as the names they stand for
 
 ~(⊢ x p)~, or ~<x ⊢ p>~, asserts that =x= has the refinement =p=; ~(∈ x p)~, or ~<x ∈ p>~, asks whether it has.
 
-- =p= is a type, in a type position, never evaluated: a refinement's name, ∪ ∩ ∖ of two types, or =(array p)=.
+- =p= is a type, in a type position, never evaluated: a refinement's name, ∪ ∩ ∖ of two types, =(array p)= or =(record :k p …)=.
   - A name is a built-in, =string=, =number=, =boolean=, =record=, =array=, =function=, =uri= or =date=, or one defined in Ouro, =titled=; an imported one, =people/titled=, is not yet read.
   - A binding of the name changes nothing: ~(let ($string 1) <"a" ⊢ string>)~ is ="a"=.
 
@@ -1046,6 +1046,22 @@ The symbols of logic and sets are read the same way, as the names they stand for
   - It is read only where a type is written, so it never meets ~(array a b)~, the value.
   - Each element is a part of the array, so a refinement may assert itself on the elements of its own parts, and goes down into the value: ~(define/refinement tree (<n ⊢ record>) <(get-or n () part) ∈ (array tree)>)~ is accepted by the recursion check.
   - It is checked on every call that asserts it, in time linear in the array's length.
+
+- ~(record :k p …)~ is a record with at least these keys, each value in its type: ~<r ⊢ (record :label string)>~, ~(record :label string :part (array record))~, ~(∪ (record :s string) (record :n number))~.
+
+  - Other keys are left alone: ~(:label "a" :note 1)~ is in ~(record :label string)~.
+
+  - A value that is no record is a refinement mismatch against the whole type, ~(record :label #string)~. Its keys are checked in the order written, stopping at the first missing or outside, which is named: "a record without label", "a record whose label is #number". An error inside a key's check stays that error.
+
+  - Keys are matched as written: =:label= is the record's key ="label"=.
+
+  - A key written twice is =SYN0000= at its second pair, as is an item that is no pair, ~(record :k string number)~, and a key whose type is no type, ~(record :k 1)~.
+
+  - ~(record)~ requires no key, so it is every record, the set =record= is. It is a warning (=WRN0008=) that suggests =record=, wherever a type holds it: a binder, a return type, an assertion, or inside another type.
+
+  - It is read only where a type is written, so it never meets a record, the value.
+
+  - The value at each key is a part of the record, so a refinement may assert itself through a record type's keys, and goes down into the value: ~(define/refinement tree (<n ⊢ record>) <n ∈ (∪ (record :leaf string) (record :part (array tree)))>)~ is accepted by the recursion check.
 
 - =⊢= is the assertion =#p x= is, written another way: the value passes on as it is, never converted, or it is a refinement mismatch (=TYP0001=) at the value. A chain asserts each, ~<r ⊢ record ⊢ titled>~.
 

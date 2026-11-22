@@ -137,6 +137,9 @@ compileUsing loader filename trgt content = compilationResult <$> runWriterT (ru
                -- Pass 3.1 Desugar all ASTs, running Canon's passes in order (see 'Canon.passes')
                let desugaredModule = Canon.canonicalModule ouroModule
 
+               -- Pass 3.1.1: Linting the types it writes, assertions in expressions among them
+               tell $ LN.lintTypes desugaredModule
+
                -- Pass 3.2: Load the modules it imports, each linked into its own root frame.
                -- They are read through the loader: from memory, or from disk.
                imported <- runLoader loader (loadImports desugaredModule)

@@ -143,6 +143,7 @@ readPackage file source = swap (runIdentity (runWriterT (runValidateT readIt)))
              parsed <- either (refute . pure) pure (LP.parseModule tokens)
              tell (LN.lintModule parsed)
              let canonical = Canon.canonicalModule parsed
+             tell (LN.lintTypes canonical)
              pos      <- either refute pure (packageFunction file canonical)
              imported <- runLoader bundledOnly (loadImports canonical)
              -- Its value is a call of it, (package), evaluated as a graph is
