@@ -65,7 +65,7 @@ runBuild dir graphs = do
                                      putStrLn $ "Build Failed: " <> show written <> " of " <> show (length files) <> " documents were written before it."
                                      exitFailure
                               Right ()
-                                  -> putStrLn $ "Build Success:       " <> show (length outputs) <> " documents"
+                                  -> putStrLn $ "Build Success:       " <> counted (length outputs)
 
         BuildFailure warnings errors
             -> do
@@ -74,6 +74,13 @@ runBuild dir graphs = do
                mapM_ (pintDiagnostic sourceOf . Right) errors
                putStrLn "Build Failed: nothing was written, due to compiler errors."
                exitFailure
+
+
+-- A number of documents, singular for one: "1 document", "3 documents"
+counted :: Int -> String
+counted = \case
+    1 -> "1 document"
+    n -> show n <> " documents"
 
 
 runValidate :: ValidateCommand -> IO ()

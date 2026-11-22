@@ -29,7 +29,7 @@ builds = Group "CLI: ouro build"
                                                         dir <- evalIO (writeFolder "build-success" [ ("main.ouro", "(document g (:r 1))") ])
                                                         run <- evalIO (ouro dir ["build"])
                                                         exitCode run === ExitSuccess
-                                                        assert ("Build Success:       1 documents" `T.isInfixOf` plain (out run))
+                                                        assert ("Build Success:       1 document" `T.isInfixOf` plain (out run))
                                                         json <- evalIO (readText (dir </> "out" </> "main" </> "g.json"))
                                                         squash json === "{\"r\":1}")
     , ("a failure writes nothing, its errors on stderr", withTests 1 . property $ do
@@ -58,7 +58,7 @@ builds = Group "CLI: ouro build"
                                                         dir <- evalIO (writeFolder "build-chosen" [ ("a.ouro", "(document x (:r 1))\n(document y (:r 2))"), ("b.ouro", "(document g (:r (get () 5)))") ])
                                                         run <- evalIO (ouro dir ["build", "-t", "a/y"])
                                                         exitCode run === ExitSuccess
-                                                        assert ("Build Success:       1 documents" `T.isInfixOf` plain (out run))
+                                                        assert ("Build Success:       1 document" `T.isInfixOf` plain (out run))
                                                         written <- evalIO (traverse doesFileExist [dir </> "out" </> "a" </> "y.json", dir </> "out" </> "a" </> "x.json"])
                                                         written === [True, False])
     , ("-t with a graph that does not exist suggests the closest", withTests 1 . property $ do
