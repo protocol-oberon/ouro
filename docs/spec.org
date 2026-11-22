@@ -198,9 +198,9 @@ Every body is exactly one expression.
 (define/constant getty-aat
   "http://vocab.getty.edu/aat/")
 
-(define/procedure type-node #record (#string aat-id label)
+(define/procedure type-node ⊢ record (<aat-id ⊢ string> label)
   (let ($prefix "Type: ")
-    (:id     #uri (+ (getty-aat) aat-id)
+    (:id     <(+ (getty-aat) aat-id) ⊢ uri>
      :type   "Type"
      :_label (+ prefix label))))
 
@@ -468,7 +468,7 @@ A folder that does not exist is a message, "No folder typo", not the build of a 
 
 *** Settings
 
-None is required, so ~(define/constant package #record-empty)~ is every default.
+None is required, so ~(define/constant package (make record))~ is every default.
 
 | Setting    | Type             | Meaning                                    | When not given      |
 |------------+------------------+--------------------------------------------+---------------------|
@@ -611,8 +611,7 @@ These are never raised, and their codes are not reused:
 | Symbol        | =artist=, =type-node=, =+=, =∧=, =legacy!=     | see below                                          |
 | Attribute     | =:key=, =:@vocab=, =:crm:P2_has_type=          | a pair's key (see below)                           |
 | Binding       | =$name=                                        | any symbol; a private binding, only inside a =let= |
-| Refinement      | =#uri=, =#date=, =#string=, =#titled=          | a refinement of what follows (see below)             |
-| Empty values  | =#record-empty=, =#array-empty=, =()=          | ={}=, =[]= and =[]=                                |
+| Empty array   | =()=                                           | =[]=; =(make array)= and =(make record)= are forms |
 | Hole          | =?=, =?name=, =?..name=                        | a placeholder in a call, or part of a pattern      |
 | Delimiters    | =( )=                                          | =[= or =]= is an error: Ouro has no brackets       |
 | Range         | =(1..500)=, =(2 4 .. 10)=                      | see below                                          |
@@ -696,12 +695,13 @@ An attribute is letters, digits, =-= and =_=, after an optional =@=. It may hold
 
 *** Refinements
 
-=#uri=, =#date=, =#string=, =#number=, =#boolean=, =#record=, =#array= and =#function= are the built-in refinements.
+A refinement is written by its name, in a type position (see [[*Asserting and asking: =⊢= and =∈=][asserting and asking]]). =string=, =number=, =boolean=, =record=, =array=, =function=, =uri= and =date= are the built-in refinements.
 
 - A refinement is what earlier versions called a property, a set of values within its domain. "Property" means only what it does in JSON-LD and Linked Art: a key of a record, such as =classified_as=.
 
-- Any other name that begins with a letter, =#titled=, is read whole as a refinement defined in Ouro.
-- So is a qualified one, =#people/titled=.
+- Any other name, =titled=, is a refinement defined in Ouro.
+- So is a qualified one, =people/titled=.
+- The old spelling, a hash mark before a refinement's name, is still read as the same refinement, and the hash-marked empty values as =(make record)= and =(make array)=, until 0.7.0 makes each an error that names its replacement.
 - One of the module is checked (see [[*Refinements: =define/refinement=][Refinements: =define/refinement=]]); an imported one is not yet read, so it is =Unknown refinement: people/titled=.
 
 *** Ranges
@@ -786,25 +786,45 @@ import       = "(" , "import" , module-path , [ "as" , symbol ] , ")" ;
 module-path  = symbol ;
 (* at most one, naming the module's own functions *)
 export       = "(" , "export" , symbol , { symbol } , ")" ;
-declaration  = procedure | constant | document ;
-procedure    = "(" , "define/procedure" , symbol , [ property ] , params , [ doc ] , expression , [ doc ] , ")" ;
+declaration  = procedure | constant | refinement | document ;
+procedure    = "(" , "define/procedure" , symbol , [ return-type ] , params , [ doc ] , expression , [ doc ] , ")" ;
 (* a procedure of no parameters *)
-constant     = "(" , "define/constant" , symbol , [ property ] , [ doc ] , expression , [ doc ] , ")" ;
+constant     = "(" , "define/constant" , symbol , [ return-type ] , [ doc ] , expression , [ doc ] , ")" ;
+(* one typed parameter, and no return type: the result is always a Boolean *)
+refinement   = "(" , "define/refinement" , symbol , "(" , binder , ")" , [ doc ] , expression , [ doc ] , ")" ;
 (* at most one, before or after the result *)
-doc          = "(" , "doc" , string , ")" ;
-document        = "(" , "document" , symbol , expression , ")" ;
-(* a property types the parameter after it *)
-params       = "(" , { [ property ] , ( symbol | param-pattern ) } , ")" ;
+doc          = "(" , "doc" , ( string | prose ) , ")" ;
+document     = "(" , "document" , symbol , expression , ")" ;
+(* the old keyword, graph, is still read, with a warning *)
+return-type  = assert , type ;
+(* a binder types the parameter or pattern inside it *)
+params       = "(" , { symbol | param-pattern | binder } , ")" ;
+binder       = "<" , ( symbol | param-pattern ) , assert , type , ">" ;
 (* binds the parts of one argument *)
 param-pattern = record-pattern | array-pattern ;
 
 (* ---------- Expressions ---------- *)
-expression   = literal | asserted | symbol | record | array | call | special-form ;
+expression   = literal | prose | asserted | asked | infix | symbol | record | array | make | call | special-form ;
 
-literal      = string | number | "true" | "false"
-             | "#record-empty" | "#array-empty" | "(" , ")" ;
-asserted     = property , expression ;
-property     = "#uri" | "#date" | "#string" | "#number" | "#boolean" | "#record" | "#array" | "#function" ;
+literal      = string | number | "true" | "false" | "(" , ")" ;
+(* bar lines: each runs to the end of its line, and a bar alone is a paragraph break *)
+prose        = "(" , "prose" , bar-line , { bar-line } , ")" ;
+bar-line     = "|" , [ " " , text ] , newline ;
+asserted     = "(" , assert , expression , type , ")" ;
+asked        = "(" , in , expression , type , ")" ;
+assert       = "⊢" | "|-" | "assert" ;
+in           = "∈" | "in" ;
+(* any form written infix: <a op b> is (op a b), and a chain threads, <x ⊢ p ⊢ q> *)
+infix        = "<" , expression , symbol , expression , { symbol , expression } , ">" ;
+(* in a type position, never evaluated *)
+type         = symbol
+             | "(" , ( "∪" | "∩" | "∖" ) , type , type , ")" | "<" , type , ( "∪" | "∩" | "∖" ) , type , ">"
+             | "(" , "array" , type , ")"
+             | "(" , "record" , attribute , type , { attribute , type } , ")" ;
+(* a record or an array, whatever the shape of what follows *)
+make         = "(" , "make" , ( "record" | "array" ) , { expression | record-item } , ")" ;
+(* The old hash-marked spellings of a refinement and of the empty values are still read, as
+   the forms above, until 0.7.0; they are not shown *)
 
 (* A record: at least one attribute pair or context *)
 record       = "(" , { record-item } , ")" ;
@@ -813,24 +833,27 @@ attribute-pair = attribute , expression ;
 (* "@" makes a JSON-LD keyword, :@id *)
 attribute    = ":" , [ "@" ] , key ;
 
-(* An array: a form whose first element is not a symbol, or an explicit list *)
+(* An array: a form whose first element is not a symbol, or an explicit array *)
 array        = "(" , [ non-symbol-expr , { expression } ] , ")"
-             | "(" , "list" , { expression } , ")" ;
+             | "(" , "array" , { expression } , ")" ;
 
 (* A call: a form headed by an expression that evaluates to a function *)
 call         = "(" , symbol , { expression | placeholder } , ")" ;
 (* a call with placeholders is a function of them *)
-placeholder  = [ property ] , hole ;
+placeholder  = hole ;
 
 (* ---------- Special forms ---------- *)
 special-form = let | fn | case | get | has | get-or | image | map | filter | quantifier | fold
-             | insert | replace-at | inlay | with | adjoin | thread | connective | all-any | satisfies | thru ;
+             | insert | replace-at | inlay | with | adjoin | thread | connective | all-any | thru ;
 let          = "(" , "let" , "(" , { binding } , ")" , expression , ")" ;
 binding      = "$" , symbol , expression ;
-fn           = "(" , "fn" , [ property ] , params , expression , ")" ;
+fn           = "(" , "fn" , [ return-type ] , params , expression , ")" ;
 case         = "(" , "case" , expression , { branch } , "(" , "otherwise" , expression , ")" , ")" ;
-branch       = "(" , ( pattern | guard | alternatives ) , expression , ")" ;
+branch       = "(" , ( pattern | guard | condition | membership | alternatives ) , expression , ")" ;
 guard        = "(" , comparison , expression , ")" ;
+condition    = "(" , "when" , expression , ")" ;
+(* the case's target is the value *)
+membership   = "(" , in , type , ")" ;
 alternatives = "(" , literal , { literal } , ")" ;
 get          = "(" , "get" , expression , path-step , { path-step } , ")" ;
 (* a key into a record, or a whole number indexing an array *)
@@ -850,8 +873,6 @@ fold         = "(" , "fold" , expression , expression , expression , ")" ;
 connective   = "(" , ( "and" | "or" ) , expression , expression , ")" ;
 (* one array of Booleans *)
 all-any      = "(" , ( "all" | "any" ) , expression , ")" ;
-(* the value, then the property; at the head of a case branch, the property alone *)
-satisfies    = "(" , "satisfies" , [ expression ] , property , ")" ;
 (* a duration *)
 thru         = "(" , "thru" , expression , ")" ;
 with         = "(" , "with" , expression , { record-item | expression } , ")" ;
@@ -880,31 +901,31 @@ sub-pattern  = hole | record-pattern | array-pattern | expression ;
 
 | Value    | Written as                                     | JSON    |
 |----------+------------------------------------------------+---------|
-| String   | ="Manet"=, =#string expr=                      | string  |
-| Number   | =3000=, =#number expr=                         | number  |
-| Boolean  | =true=, =#boolean expr=                        | boolean |
-| URI      | =#uri "https://..."=                           | string  |
-| Date     | =#date "1881-01-01T00:00:00Z"=                 | string  |
-| Record   | =(:key value ...)=, =#record expr=             | object  |
-| Array    | =(a b c)=, =(array a b c)=, =#array expr=      | array   |
+| String   | ="Manet"=                                      | string  |
+| Number   | =3000=                                         | number  |
+| Boolean  | =true=                                         | boolean |
+| URI      | =<"https://..." ⊢ uri>=                        | string  |
+| Date     | =<"1881-01-01T00:00:00Z" ⊢ date>=              | string  |
+| Record   | =(:key value ...)=, =(make record)=            | object  |
+| Array    | =(a b c)=, =(array a b c)=                     | array   |
 | Duration | =(years 2)=, =(days 19)=                       | none    |
-| Function | =(fn (x) ...)=, a procedure's name, =+=, =#function expr= | none    |
+| Function | =(fn (x) ...)=, a procedure's name, =+=        | none    |
 
 Durations and functions are values during compilation, but have no JSON form.
 They must be consumed, added to a date or called, before they reach the output.
 
 *** Built-in refinements
 
-- =#uri= checks that a string is a URI with a scheme.
-- =#date= checks that a string is an ISO-8601 timestamp, =YYYY-MM-DDTHH:mm:ssZ=.
-- =#string=, =#number=, =#boolean=, =#record=, =#array= and =#function= check the type of any expression.
-  - =#function= accepts a =fn=, a =define/procedure= name or a built-in.
+- =uri= holds the strings that are a URI with a scheme.
+- =date= holds the strings that are an ISO-8601 timestamp, =YYYY-MM-DDTHH:mm:ssZ=.
+- =string=, =number=, =boolean=, =record=, =array= and =function= hold the values of their kind.
+  - =function= holds a =fn=, a =define/procedure= name or a built-in.
 - An assertion on a value that is already a URI or a Date passes it through.
 - Assertions are how URIs and dates, which look like strings in JSON, keep their meaning inside Ouro.
 
 A value without the refinement it is typed with is reported with both refinements, as they are written:
 - "Expected data to have the refinement =number=, got =string= instead".
-- For =#uri= and =#date=, the reason is given too, and the expected form is in the blurb:
+- For =uri= and =date=, the reason is given too, and the expected form is in the blurb:
   - "got a =string= without a URI scheme";
   - "got a =string= that is not a date".
 
@@ -922,8 +943,8 @@ A record is a form containing =:key value= attribute pairs, or a context.
 - A key can be a compact IRI, ~(:crm:P2_has_type ...)~, and a path names one the same way, ~(get r crm:P2_has_type)~.
 
 #+BEGIN_SRC clojure
-(:begin_of_the_begin #date "1848-08-01T00:00:00Z"
- :end_of_the_begin   (+ begin_of_the_begin (thru (days 19))))
+(:begin_of_the_begin <"1848-08-01T00:00:00Z" ⊢ date>
+ :end_of_the_begin   (shift begin_of_the_begin (thru (days 19))))
 #+END_SRC
 
 *** Arrays
@@ -1033,8 +1054,8 @@ A =let= binds private values with =$name value= pairs.
 | =(f a b)=                            | a call: =f= is any expression that evaluates to a function          |
 
 Both kinds of function take an optional signature:
-- =(define/procedure name #type (#type x y) expr)=;
-- =(fn #type (#type x) expr)=.
+- =(define/procedure name ⊢ p (<x ⊢ p> y) expr)=;
+- =(fn ⊢ p (<x ⊢ p>) expr)=.
 
 *** =λ= and the symbols of logic and sets
 
@@ -1098,9 +1119,9 @@ The symbols of logic and sets are read the same way, as the names they stand for
 
   - The value at each key is a part of the record, so a refinement may assert itself through a record type's keys, and goes down into the value: ~(define/refinement tree (<n ⊢ record>) <n ∈ (∪ (record :leaf string) (record :part (array tree)))>)~ is accepted by the recursion check.
 
-- =⊢= is the assertion =#p x= is, written another way: the value passes on as it is, never converted, or it is a refinement mismatch (=TYP0001=) at the value. A chain asserts each, ~<r ⊢ record ⊢ titled>~.
+- =⊢= asserts: the value passes on as it is, never converted, or it is a refinement mismatch (=TYP0001=) at the value. A chain asserts each, ~<r ⊢ record ⊢ titled>~.
 
-- =∈= is the question ~(satisfies x #p)~ is: =true= or =false=, an error inside it staying that error. As the head of a =case= branch it is about the case's target, ~((∈ string) "text")~.
+- =∈= asks: =true= or =false=, an error inside it staying that error. As the head of a =case= branch it is about the case's target, ~((∈ string) "text")~.
 
 - With a hole each is a function: ~(filter xs <? ∈ string>)~.
 
@@ -1128,7 +1149,7 @@ A function's body is one expression, written exactly as it would be anywhere els
 
 - Parentheses around values make an array, so ~(fn () ("hello"))~ returns ~["hello"]~.
   - The compiler warns (=WRN0002=) when a result is a single plain value in parentheses.
-  - A return type of =#array= says the array is intended, and silences it.
+  - A return type of =array= says the array is intended, and silences it.
 
 - A =define/procedure= body is checked when the file is parsed.
   - Apart from its =doc=, it must be one expression.
@@ -1139,7 +1160,7 @@ A function's body is one expression, written exactly as it would be anywhere els
 
 A =define/procedure= is documented with a =(doc "...")= among the direct elements of its body.
 
-- It goes before or after the result: ~(define/procedure place #record (#string slug #string label) (doc "A Linked Art Place.") (base/tgn ...))~.
+- It goes before or after the result: ~(define/procedure place ⊢ record (<slug ⊢ string> <label ⊢ string>) (doc "A Linked Art Place.") (base/tgn ...))~.
 
 - The parser takes it out of the body and keeps it with the function.
   - It is never evaluated, and it is not part of the result.
@@ -1195,7 +1216,7 @@ At the head of a call, a name is the function itself.
 
 A function of no parameters cannot be passed as a function.
 
-- =(map xs c)= receives its value, and =(satisfies c #function)= is =false=.
+- =(map xs c)= receives its value, and =<c ∈ function>= is =false=.
 
 - An expression that evaluates to such a function without naming it is not called.
   - As a =case= that returns =(fn () 3)=.
@@ -1214,13 +1235,13 @@ When it is evaluated:
 
 *** Refinements: =define/refinement=
 
-A refinement is a function of the refinement kind, written ~(define/refinement name (#contract x) body)~, as ~(define/refinement titled (#record r) (has r _label))~.
+A refinement is a function of the refinement kind, written ~(define/refinement name (<x ⊢ p>) body)~, as ~(define/refinement titled (<r ⊢ record>) (has r _label))~.
 
-- It is about one value: it has exactly one parameter, which has a contract.
-  - A pattern's contract goes before it, =(#array (?a ?b))=.
-  - The contract is never =#function=, so a refinement is first-order.
+- It is about one value: it has exactly one parameter, which has a requirement.
+  - A pattern's requirement is written in its binder, =<(?a ?b) ⊢ array>=.
+  - The requirement is never =function=, so a refinement is first-order.
 
-- Its result is always =#boolean=.
+- Its result is always =boolean=.
   - No return type is written: one is an error at the type.
   - A body that is not a Boolean is a refinement mismatch at the body.
 
@@ -1231,28 +1252,28 @@ A refinement is a function of the refinement kind, written ~(define/refinement n
   - it is exported and imported as a function is, ~(people/titled x)~;
   - warnings name it a refinement.
 
-A refinement is asserted with its tag, ~#titled x~, as a built-in one is.
+A refinement is asserted by its name, ~<x ⊢ titled>~, as a built-in one is.
 
 - The refinement is called on the value.
   - When it answers =true=, the value passes on unchanged.
   - Otherwise it is a refinement mismatch (=TYP0001=) at the value, with the refinement's doc stated as the rule it broke, =titled: Has a label.=; one without a doc says so.
-  - An error inside the refinement, its parameter's contract among them, stays that error.
+  - An error inside the refinement, its parameter's requirement among them, stays that error.
 
-- The tag works wherever a built-in refinement does:
-  - ~(satisfies x #titled)~ and a =case= branch's ~(satisfies #titled)~ answer =false= where the assertion fails;
-  - a parameter's contract, ~(define/procedure name-of (#titled r) …)~, and a return type, ~(define/procedure mint #titled () …)~, assert it, as yet without blame.
+- Its name works wherever a built-in refinement's does:
+  - ~<x ∈ titled>~ and a =case= branch's ~((∈ titled) e)~ answer =false= where the assertion fails;
+  - a parameter's requirement, ~(define/procedure name-of (<r ⊢ titled>) …)~, and a return type, ~(define/procedure mint ⊢ titled () …)~, assert it, as yet without blame.
 
-- A tag names a refinement of the module, never a binding: ~(let ($titled 1) #titled r)~ still asserts the refinement.
+- A name in a type position names a refinement of the module, never a binding: ~(let ($titled 1) <r ⊢ titled>)~ still asserts the refinement.
 
-- The static analysis resolves every tag as written, in functions no document calls too, before anything is evaluated.
+- The static analysis resolves every refinement named in a type as written, in functions no document calls too, before anything is evaluated.
   - One that names no refinement is =SYN0000= =Unknown refinement: titeld= at its name, with the nearest refinement or built-in name (=str= suggests =string=).
   - One that names a =define/procedure= is =SYN0000=, ='f' is a function, not a refinement=.
 
-- A tag is a call of its refinement, so recursion through tags must go down into the value, as any recursion must.
-  - ~(define/refinement labelled (#record r) (and (has r _label) (forall (get-or r () part) (fn (#record p) (satisfies p #labelled)))))~ is accepted.
-  - A refinement that is its own parameter's contract, ~(define/refinement p (#p x) true)~, is recursion.
+- Asserting a refinement is a call of it, so recursion through types must go down into the value, as any recursion must.
+  - ~(define/refinement labelled (<r ⊢ record>) (and (has r _label) (forall (get-or r () part) (fn (<p ⊢ record>) <p ∈ labelled>))))~ is accepted.
+  - A refinement that is its own parameter's requirement, ~(define/refinement p (<x ⊢ p>) true)~, is recursion.
 
-- An imported refinement, ~#people/titled~, is not yet read: it is an unknown property.
+- An imported refinement, =people/titled=, is not yet read: it is =Unknown refinement: people/titled=.
 
 - A refinement without a doc is a warning (=WRN0007=), since a failure could only name it.
 
@@ -1388,7 +1409,7 @@ A function's types are refinements in its header, each written by its name. =⊢
 
 - Scope: a signature's names are recorded by the parser, not resolved, since a return type is written before the parameters. A parameter's requirement may name only earlier parameters, a result's any of them, once requirements are more than names.
 
-- The old spelling, a tag, still reads the same: =#record= after the name, =#uri id= for a parameter, =#array (?a ?b)= for a pattern. The two may be mixed, =(#number a <b ⊢ string>)=, until the old one is an error.
+- The old spelling, a hash mark before a refinement's name, still reads the same, after the name, before a parameter or before a pattern, and may be mixed with binders, until 0.7.0 makes it an error.
 
 - A refinement in a signature behaves exactly as it would anywhere else.
   - It checks the value, and passes it on unchanged: =uri= and =date= are refinements of =string=, not conversions.
@@ -1437,10 +1458,7 @@ A call with =?= holes among its arguments is not called.
   - ~(- ? ?)~ takes two arguments, the first to subtract from.
 - *A named hole is one parameter*, however often it is written: ~(* ?n ?n)~ takes one.
   - Parameters follow the order in which each hole is first written, so ~(+ ?a ?b ?a)~ takes =a= then =b=.
-- *A typed hole is a typed parameter*.
-  - ~(node #uri ? "Painting")~ checks its argument as a signature would.
-  - A mismatch is reported at the argument where the placeholder is called.
-  - An untyped hole passed to a typed parameter of the function is checked by that function.
+- *A hole passed to a typed parameter* is checked by the function, as any argument is: ~(node ? "Painting")~ checks its argument as =node='s signature says, and a mismatch is reported at the argument where the placeholder is called.
   - A mismatch is then reported at the hole.
 - *A hole belongs to the call it is an argument of*.
   - So ~(* 2 (+ ? 1))~ multiplies 2 by a function (an error), and ~(f (g ?))~ passes =f= a function.
@@ -1489,7 +1507,7 @@ A parameter can be a pattern, written as a =case= pattern is. It takes one argum
 
 - *A mismatch is the caller's*: it is reported at the argument in the call, or at the array in =map=.
 
-- *A refinement before a pattern* checks the argument first: ~(fn (#array (?a ?b)) ...)~.
+- *A typed pattern* checks the argument first: ~(fn (<(?a ?b) ⊢ array>) ...)~.
 
 - *Each name is bound once*: two parameters, two holes, or a hole and a parameter with the same name are an error.
   - It is reported where the function is defined.
@@ -1521,7 +1539,7 @@ Their names are bound like any other, as in Scheme, which has no reserved words.
 The exception is the forms Canon rewrites by their syntax, before any name is bound:
 
 - =and=, =or=, =->=, =with=, =adjoin= and =thru=;
-- a =case= branch's =(when c)= and =(satisfies #p)= heads.
+- a =case= branch's =(when c)= and =(∈ p)= heads.
 
 A binding of one of their names is ignored where Canon reads the form (gap 45). A =define/procedure= cannot take their names, since it could never be called by them (=SYN0008=), nor the declarations' names: =define/procedure=, =document=, =doc=.
 
@@ -1534,9 +1552,9 @@ Every form and built-in takes the value it works on first:
 - the collection of =insert=;
 - the value =satisfies= asks about.
 
-So =->=, which threads a value in as the first argument, threads through every one of them without a hole, and a =case= guard, which inserts its target first, is a comparison or =satisfies= alike.
+So =->=, which threads a value in as the first argument, threads through every one of them without a hole, and a =case= guard, which inserts its target first, is a comparison or =∈= alike.
 
-A question is written as membership is, the element or the domain first: ~(satisfies x #p)~ is x ∈ #p, and ~(forall xs f)~ is ∀x ∈ xs. f(x). The statement =#p x= puts the refinement first, as P(x) does.
+A question is written as membership is, the element or the domain first: ~<x ∈ p>~ is x ∈ p, and ~(forall xs f)~ is ∀x ∈ xs. f(x). An assertion, ~<x ⊢ p>~, puts the value first too.
 
 *** The forms
 
@@ -1549,7 +1567,7 @@ A question is written as membership is, the element or the domain first: ~(satis
 | =(has record key ...)=                   | =true= when the path of keys reaches a value                           |
 | =(get-or record default key ...)=        | the value at the path, or =default= when a key on the way is missing   |
 | =(image record key ...)=                 | every value the path reaches, as a set, through Arrays                 |
-| =(satisfies x #p)=                       | =true= when =x= has the refinement =#p=; =false= when it does not        |
+| =<x ∈ p>=, =(∈ x p)=                     | =true= when =x= is in the refinement =p=; =false= when it is not       |
 | =(map array f)=                          | an array of =f= called on each element                                 |
 | =(exists array f)=                       | =true= when =f= answers =true= for some element; stops at the first    |
 | =(forall array f)=                       | =true= when =f= answers =true= for every element; stops at a =false=   |
@@ -1600,7 +1618,7 @@ Path components are bare symbols or whole numbers: =(get p q r)=, not =(get p :q
 
 ~(map array f)~ evaluates =array= and =f=. The array comes first, as every form takes what it works on first, so =->= threads through =map=. The result is an array of =f= called on each element, in order.
 
-- =array= must be an array: =()= and =#array-empty= are empty arrays.
+- =array= must be an array: =()= and =(make array)= are empty arrays.
 - =f= must be a function: a =fn=, a =define/procedure= name, a built-in or a placeholder.
 
 Each element is passed as an ordinary call, made in a frame that binds the function and the element to names that cannot be written in Ouro. So arity, signatures and the recursion check apply as they do to any call:
@@ -1617,7 +1635,7 @@ With placeholders, ~(map xs (+ ? 1))~ needs no =fn=, and ~(map ? f)~ is a functi
 
 Each calls =f= on the elements of an array exactly as =map= does, with the same arity, signature and recursion rules. The array is the domain, written first as in ∀x ∈ xs. f(x). They take holes: ~(exists ? (gt ? 2))~.
 
-- =f= must answer =#boolean=; an answer that is not a Boolean is reported at the array.
+- =f= must answer a =boolean=; an answer that is not a Boolean is reported at the array.
 
 - =exists=, =forall= and =omits= stop at the element that decides the answer, as =or= and =and= stop at an operand. So ~(exists (1 "x") (gt ? 0))~ is =true= without calling =f= on ="x"=.
 
@@ -1665,11 +1683,11 @@ The result is always an Array with no repeats. Values are compared as =eq= compa
 
 Use =get= where the data has one value by construction, and =image= for anything JSON-LD reads as a set. A missing key gives =()= rather than an error, so a misspelt key gives an empty set.
 
-*** =satisfies=
+*** =∈=
 
-~(satisfies x #p)~ is a question, where =#p x= is a requirement. It answers =false= when =x= does not have the refinement, where =#p x= is an error. Only the refinement's own check gives =false=: an error inside =x= stays an error.
+~<x ∈ p>~ is a question, where ~<x ⊢ p>~ is a requirement. It answers =false= when =x= is not in the refinement, where the assertion is an error. Only the refinement's own check gives =false=: an error inside =x= stays an error.
 
-A refinement written on its own, with nothing after it, is meaningful only at the head of a =case= branch. There, in ~(satisfies #p)~, the case's target fills it in; anywhere else it is an error. There the head is read by its syntax; elsewhere a binding or a =define/procedure= of =satisfies= shadows it.
+=∈= with only a refinement, ~(∈ p)~, is meaningful only at the head of a =case= branch, where the case's target fills it in; anywhere else it is an error (gap 57). =satisfies=, its old name, is an error that names =∈=, except before the old hash-marked refinement, which still reads until 0.7.0.
 
 *** =with= and =->=
 
@@ -1743,9 +1761,9 @@ The target is evaluated once; the branches are tried in order and the first matc
 
 - *A guard*, a form headed by a comparison: =gt=, =geq=, =lt=, =leq=, =eq=, =neq=. The target is inserted as the comparison's first argument, so ~((lt 10) e)~ tests ~(lt target 10)~. A comparison takes two operands, so a guard takes one: ~((lt 10 20) e)~ is an arity error, and two bounds are a =when= over =all=, ~((when (all ((gt x 1) (lt x 10)))) e)~.
 
-- *A condition*, ~(when cond)~: =cond= must have the refinement =#boolean=; =true= takes the branch and =false= tries the next. It can use any value in scope, not only the target, but not the names a pattern binds. =when= is only a branch head, where it is read by its syntax; elsewhere a binding or a =define/procedure= of =when= shadows it.
+- *A condition*, ~(when cond)~: =cond= must be a =boolean=; =true= takes the branch and =false= tries the next. It can use any value in scope, not only the target, but not the names a pattern binds. =when= is only a branch head, where it is read by its syntax; elsewhere a binding or a =define/procedure= of =when= shadows it.
 
-- *A refinement*, ~(satisfies #p)~ or ~(⊨ #p)~: the target satisfies the refinement =#p=, as ~(satisfies target #p)~ asks. The target is inserted first, as for a comparison.
+- *A refinement*, ~(∈ p)~: the target is in the refinement =p=, as ~<target ∈ p>~ asks. The target is inserted first, as for a comparison.
 
 - *A pattern*, a record form or a form containing a =?= hole (described below).
 
@@ -1871,7 +1889,7 @@ Arrays of different lengths are an error, rather than the longer one's last elem
 
 Each evaluates in order, and stops at the operand that decides the answer, so ~(and false (get () 5))~ is =false=.
 
-- Each operand it reaches must have the refinement =#boolean=. Unlike other Lisps, Ouro has no truthiness, and the result is always =true= or =false=.
+- Each operand it reaches must be a =boolean=. Unlike other Lisps, Ouro has no truthiness, and the result is always =true= or =false=.
 
 - =all= and =any= stop only over an array written in place, a literal one or an =(array ...)=. That keeps the guard ~(all ((has r year) (gt (get r year) 1600)))~ from reading a year =r= does not have. An array given any other way, a binding or a =map='s result, is evaluated whole, then read in order.
 
@@ -1900,7 +1918,7 @@ All four:
 
 =len= takes exactly one argument. It is an ordinary built-in, so ~(map xs len)~ works.
 
-- An array's elements are counted whatever their types, so ~(len (1 (2 3) (:k 4)))~ is 3. =()= and =#array-empty= have length 0.
+- An array's elements are counted whatever their types, so ~(len (1 (2 3) (:k 4)))~ is 3. =()= and =(make array)= have length 0.
 
 - A string is counted in characters (Unicode code points), not bytes, so ~(len "Málaga")~ is 6. A string cannot be taken apart in Ouro, so its length cannot be written in Ouro itself.
 
@@ -1914,7 +1932,7 @@ All four:
 
 - An array holding a function is a type error for both, since functions cannot be compared.
 
-- =not= takes one =#boolean=.
+- =not= takes one =boolean=.
 
 *** Sets
 
@@ -1943,7 +1961,7 @@ A date is a string that is in =date=: =uri= and =date= are refinements of =strin
 =thru= exists for Linked Art timespans, whose =end_of_the_end= is the last moment of a period: ~(thru (days 1))~ is 1 day 23:59:59, and ~(thru (years 0))~ is to the end of the current year:
 
 #+BEGIN_SRC clojure
-:begin_of_the_begin #date "1642-01-01T00:00:00Z"
+:begin_of_the_begin <"1642-01-01T00:00:00Z" ⊢ date>
 :end_of_the_end     (shift begin_of_the_begin (thru (years 0)))   ; 1642-12-31T23:59:59Z
 #+END_SRC
 
@@ -1962,7 +1980,7 @@ A record's JSON-LD context is written =:context value=. The value is an ordinary
 
 *** A context is a value
 
-A context is a remote context's URL (a String or a =#uri=), a local context record, or an array of them. Ouro has no null, so a context cannot clear another (=@context: null=), and no keyword or term is set to null.
+A context is a remote context's URL (a String, whether asserted a =uri= or not), a local context record, or an array of them. Ouro has no null, so a context cannot clear another (=@context: null=), and no keyword or term is set to null.
 
 It is evaluated like any other value, so a function can build one:
 
@@ -2032,7 +2050,7 @@ data Expr
     = Symbol      SourcePos Text            -- names, functions and special-form heads
     | DefunSymbol SourcePos Text            -- function identifiers (unused by the parser)
     | Literal     SourcePos LiteralValue    -- String, Number, Boolean, empty Array/Record
-    | Asserted    SourcePos Type Expr       -- (⊢ x p), <x ⊢ p>, and the old #p x
+    | Asserted    SourcePos Type Expr       -- (⊢ x p) and <x ⊢ p>
     | Required    SourcePos Type Role Expr  -- a signature's requirement, made by the evaluator at a call
     | Hole        SourcePos Text            -- ?, ?name or ?..name: a placeholder, or in a case pattern
     | Form        SourcePos [Expr]          -- (...)
@@ -2076,7 +2094,7 @@ data HigherExpression (t :: Declaration) where
     Graph    :: SourcePos -> Text -> Expr            -> HigherExpression 'GraphExpr
 #+END_SRC
 
-A signature is a declaration kept with its function, not written into its body: a =define/procedure='s return type is stored beside its parameters, each with its own refinement, and both are checked when the function is called (see [[*Calling a function][calling a function]]). A =fn= is an ordinary form until it is evaluated, where a return refinement is read from its parameter list, ~(fn #number (n) ...)~, and kept with the closure in the same way.
+A signature is a declaration kept with its function, not written into its body: a =define/procedure='s return type is stored beside its parameters, each with its own refinement, and both are checked when the function is called (see [[*Calling a function][calling a function]]). A =fn= is an ordinary form until it is evaluated, where a return refinement is read before its parameter list, ~(fn ⊢ number (n) ...)~, and kept with the closure in the same way.
 
 The parser also enforces the module-level rules:
 
@@ -2101,7 +2119,7 @@ Before evaluation, ~Canon.canonicalModule~ rewrites every function body and docu
 | 0. infix         | top-down  | ~<a op b>~ into ~(op a b)~, and a chain into ~(-> a (op b) ...)~             |
 | 1. placeholders  | top-down  | a call with =?= holes into a function of them                                |
 | 2. threading     | top-down  | ~(-> x step ...)~ into nested calls                                          |
-| 2b. typing       | top-down  | ~(⊢ x p)~ into =#p x=, and ~(∈ x p)~ into ~(%in x #p)~                       |
+| 2b. typing       | top-down  | ~(⊢ x p)~ into an =Asserted= node, and ~(∈ x p)~ into ~(%in x p)~            |
 | 3. connectives   | top-down  | ~(and a b)~, =or=, and =all= and =any= written in place into a =%case= chain |
 | 4. bindings      | top-down  | =$name value= in a =let='s bindings into ~(%bind "name" value)~              |
 | 5. guards        | top-down  | a condition, =(when c)=, or a guard ~((lt 10) e)~ into a ~(%when c)~ head     |
@@ -2117,7 +2135,7 @@ In more detail:
 
 - in threading, a step with a hole is already a function, by pass 1;
 
-- connectives rewrite ~(and a b)~ into ~(%case #boolean a (true #boolean b) (otherwise false))~, =or= alike, and =all= and =any= over an array written in place into the same chain;
+- connectives rewrite ~(and a b)~ into ~(%case <a ⊢ boolean> (true <b ⊢ boolean>) (otherwise false))~, =or= alike, and =all= and =any= over an array written in place into the same chain;
 
 - in guards, a guard names the target, bound once;
 
@@ -2170,7 +2188,7 @@ Each pass is a module of its own under =Lisp/Canon/=, with the walks in =Travers
 
 | Sugar                                   | Core                                                                |
 |-----------------------------------------+---------------------------------------------------------------------|
-| a placeholder ~(f ? x ?n #number ?)~    | ~(%fn (%1 ?n #number %2) (f %1 x ?n %2))~                           |
+| a placeholder ~(f ? x ?n ?)~            | ~(%fn (%1 ?n %2) (f %1 x ?n %2))~                                   |
 | ~(-> x (f a) g)~                        | ~(g (f x a))~                                                       |
 | a function step ~(-> x (h b ?))~        | ~(%apply (%fn (%1) (h b %1)) x)~                                    |
 | ~(with base item ...)~                  | ~((%inlay base) item ...)~; ~(with base)~ is ~base~                 |
@@ -2183,7 +2201,7 @@ Each pass is a module of its own under =Lisp/Canon/=, with the walks in =Travers
 | =case= alternatives ~(("a" "b") e)~     | one branch per literal                                              |
 | a =case= guard ~((lt 10) e)~             | ~((%when (lt %target 10)) e)~, the case bound as below               |
 | a condition ~((when c) e)~              | ~((%when c) e)~                                                     |
-| a refinement ~((satisfies #p) e)~         | ~((%when (satisfies %target #p)) e)~, the case bound as for a guard |
+| a refinement ~((∈ p) e)~                | ~((%when (%in %target p)) e)~, the case bound as for a guard        |
 | =$name value= in a =let='s bindings     | ~(%bind "name" value)~                                              |
 
 A guard's case, and a refinement's, is bound as ~(let ((%bind "%target" x)) (case %target ...))~.
@@ -2239,15 +2257,15 @@ Special forms are matched by =evalExpr= before classification, so =let=, =case= 
 :timespan (:type               "TimeSpan"
            :identified_by      ((:type    "Name"
                                  :content "40 days in August and September, 1848"))
-           :begin_of_the_begin #date "1848-08-01T00:00:00Z"
-           :end_of_the_begin   (+ begin_of_the_begin (thru (days 19))))
+           :begin_of_the_begin <"1848-08-01T00:00:00Z" ⊢ date>
+           :end_of_the_begin   (shift begin_of_the_begin (thru (days 19))))
 #+END_SRC
 
 - =:timespan (...)= opens a nested record: its parentheses are the JSON object's braces.
 
 - =:identified_by ((...))= is an array holding one record: the outer parentheses are the array, the inner ones the record.
 
-- =#date= asserts that the string is a timestamp. The value stays a Date inside Ouro, so it can be shifted with =+=, and is written back as an ISO-8601 string.
+- =⊢ date= asserts that the string is a timestamp, and passes it on as it is; =shift= reads it as a date where it is used, and writes the date it becomes back as a string.
 
 - =end_of_the_begin= refers to its sibling =begin_of_the_begin=, a binding in the record's own frame. Order does not matter.
 
@@ -2504,10 +2522,10 @@ data Expr (t :: JLD.Type) where
 | number                  | =42=                | ~Number~                | ~Double~       | Primitive |
 | boolean                 | =true=              | ~Boolean~               | ~Bool~         | Primitive |
 | null                    | none: an error      | ~Null~, read by =validate= only | none     | Primitive |
-| IRI                     | =#uri "..."=        | ~URI~                   | ~Uri~, its text | Primitive |
-| xsd:dateTime            | =#date "..."=       | ~Date~                  | ~UTCTime~      | Primitive |
+| IRI                     | =<"..." ⊢ uri>=     | ~URI~                   | ~Uri~, its text | Primitive |
+| xsd:dateTime            | =<"..." ⊢ date>=    | ~Date~                  | ~UTCTime~      | Primitive |
 | blank node              | not yet written     | ~BlankNode~             | ~Text~         | Primitive |
-| ={}= / =[]=             | =#record-empty= / =()= | ~EmptyRec~ / ~EmptyArr~ | none           | Primitive |
+| ={}= / =[]=             | =(make record)= / =()= | ~EmptyRec~ / ~EmptyArr~ | none           | Primitive |
 | node object             | =(:k v ...)=        | ~Record~                | meta + a list of pairs | Primitive |
 | array                   | =(a b ...)=         | ~Array~                 | a list of values | Primitive |
 | =@context=              | =:context ...=      | ~Context~ / ~EmptyMeta~ | ~Schema~       | Meta      |
@@ -2829,7 +2847,7 @@ The messages were:
 - =get='s missing-key blurb mentioned =define=;
 - subtraction's type error named an internal type, "a Date minus a L.Duration";
 - a =$= binding named after a special form (=$get=) was rightly rejected, but called an attribute key, "Shadowed Attribute", with "primative" misspelt;
-- =WRN0000='s hint named =#record-empty= by its old name, =#obj-empty=, and misspelt "intended";
+- =WRN0000='s hint named the empty record by a name older still, and misspelt "intended";
 - =SCP0001= wrote "Expected :an independent expression", its colon misplaced.
 
 A reserved name is now =SYN0004= "Reserved Name", which says it cannot name an attribute key or a =let= binding, and the rest read as Ouro is today.
@@ -2912,9 +2930,9 @@ This gave misleading arity or parenthesis errors. =$name= is now read on its own
 :FOUND:    2026-10-12
 :FIXED_IN: 0.6.1.0
 :END:
-~#uri "https://a.org/"~ serialised as ="https://a.org"=, which changes the IRI's text. URIs with a path (Getty's, Linked Art's) were unaffected. It came from how the URI library renders an empty path.
+~<"https://a.org/" ⊢ uri>~ serialised as ="https://a.org"=, which changes the IRI's text. URIs with a path (Getty's, Linked Art's) were unaffected. It came from how the URI library renders an empty path.
 
-/Fixed/ (2026-11-16), with gap 22: a URI is kept as the text it was written as, checked by the URI library but never rendered by it (=Data.Ouro.Internal.Uri=), so ~#uri "https://a.org/"~ is written ="https://a.org/"=, in a value, a remote context and =ouro validate='s output alike. linked.art's =object/0= writes the Louvre's id, ="http://louvre.fr/"=, as a =#uri= again.
+/Fixed/ (2026-11-16), with gap 22: a URI is kept as the text it was written as, checked by the URI library but never rendered by it (=Data.Ouro.Internal.Uri=), so ~<"https://a.org/" ⊢ uri>~ is written ="https://a.org/"=, in a value, a remote context and =ouro validate='s output alike. linked.art's =object/0= writes the Louvre's id, ="http://louvre.fr/"=, as a =uri= again.
 
 ** OPEN [#C] An attribute pair among array values has no hint
 :PROPERTIES:
@@ -2955,7 +2973,7 @@ It rejects the valid JSON escapes =\u00e9= and =\/=, and accepts the invalid =\x
 :FOUND:    2026-10-12
 :FIXED_IN: 0.6.1.0
 :END:
-~#uri "https://a.org/x//y"~ serialised as ="https://a.org/x/y"=, and ~#uri "https://a.org//x"~ as ="https://a.org/x"=, which changes the IRI's text. A plain string kept its slashes, and so did a URI's trailing slash. It was found through a stray leading slash, ~(example "/place/...")~, whose =#uri= return type hid the doubled slash. Like gap 17, it came from how the URI library renders a path.
+~<"https://a.org/x//y" ⊢ uri>~ serialised as ="https://a.org/x/y"=, and ~<"https://a.org//x" ⊢ uri>~ as ="https://a.org/x"=, which changes the IRI's text. A plain string kept its slashes, and so did a URI's trailing slash. It was found through a stray leading slash, ~(example "/place/...")~, whose =uri= return type hid the doubled slash. Like gap 17, it came from how the URI library renders a path.
 
 /Fixed/ (2026-11-16) with gap 17: a URI is written as it was written, every slash kept.
 
@@ -2969,14 +2987,14 @@ It rejects the valid JSON escapes =\u00e9= and =\/=, and accepts the invalid =\x
 
 /Fixed/ (2026-11-17): it is =SYN0000= at the opening quote, "This string is never closed: the file ends before its closing '\"'". The lexer looks at each character rather than trying the closing quote as an alternative, since Megaparsec keeps the error furthest into the input, which was the quote's, at the end.
 
-** FIXED =#date= accepted a year of fewer than four digits
+** FIXED A =date= accepted a year of fewer than four digits
 :PROPERTIES:
 :ID:       24
 :FIXED_IN: 0.6.1.0
 :END:
-~#date "81-01-01T00:00:00Z"~ was taken as the year 81 and written out as given, =81-01-01T00:00:00Z=, which is not ISO-8601 or =xsd:dateTime= (both need at least four digits; more are allowed). The parser's =%Y= reads any number of digits. Through =std/time=, =(time/year "81")= got through too.
+~<"81-01-01T00:00:00Z" ⊢ date>~ was taken as the year 81 and written out as given, =81-01-01T00:00:00Z=, which is not ISO-8601 or =xsd:dateTime= (both need at least four digits; more are allowed). The parser's =%Y= reads any number of digits. Through =std/time=, =(time/year "81")= got through too.
 
-/Fixed/ (2026-11-16), with gap 53: a date's year has at least four digits, or the string is not a date ("a #string that is not a date"), through =std/time= as well. One function, =parseDate=, reads every date, and =renderDate= writes every one.
+/Fixed/ (2026-11-16), with gap 53: a date's year has at least four digits, or the string is not a date ("a string that is not a date"), through =std/time= as well. One function, =parseDate=, reads every date, and =renderDate= writes every one.
 
 ** PENDING Warning codes collide across categories
 :PROPERTIES:
@@ -3038,7 +3056,7 @@ Each is an error, but not one that says so:
 
 - =.= is =SYN0000= "Unexpected token";
 - =/= ends the key, and is read as the symbol =/b= (=SCP0000=, unbound);
-- =#= is read as a refinement, =#b= (=SYN0000=, "Unknown refinement").
+- a hash mark begins the old spelling of a refinement, so =b= is read as one (=SYN0000=, "Unknown refinement").
 
 Found while fixing gap 28 (2026-10-26). Waits on a design of how such a key is written, as a quoted key perhaps.
 
@@ -3125,9 +3143,9 @@ Invalid JSON ("Compilation Error:") and the unimplemented =merge= are written to
 :FOUND:    2026-10-29
 :FIXED_IN: 0.6.1.0
 :END:
-~(insert (1 2) 1.5 "x")~ was ~(1 "x" 2)~, the index rounded down without a word, while =get= rejects one, "Expected: a whole number to index an Array with". Found while weighing an =#integer= refinement (2026-10-29).
+~(insert (1 2) 1.5 "x")~ was ~(1 "x" 2)~, the index rounded down without a word, while =get= rejects one, "Expected: a whole number to index an Array with". Found while weighing an =integer= refinement (2026-10-29).
 
-/Fixed/ (2026-11-16): =insert= and =replace-at= reject a fractional index as =get= does, =SYN0003= at the index, with a hint that an index counts the elements. A whole number written with a point, =1.0=, is still an index. The number tower will state the same rule as a requirement, =#natural=, once built-ins have them.
+/Fixed/ (2026-11-16): =insert= and =replace-at= reject a fractional index as =get= does, =SYN0003= at the index, with a hint that an index counts the elements. A whole number written with a point, =1.0=, is still an index. The number tower will state the same rule as a requirement, =natural=, once built-ins have them.
 
 ** FIXED A failure was reported once for each route to it
 :PROPERTIES:
@@ -3145,13 +3163,13 @@ The loader now keeps a failed module with its errors, so each is reported once h
 :FOUND:    2026-11-07
 :FIXED_IN: 0.6.2.0
 :END:
-It says a string written after =#record-empty= or =#array-empty= is discarded:
+It said that a string written after the empty record or array value, in their old hash-marked spelling, is discarded:
 
 #+begin_example
 will be completely erased from properties at compile time
 #+end_example
 
-But in an array the string is kept, ~(:r (#record-empty "x"))~ being ={"r": [{}, "x"]}=, and in a record it is an error, =TYP0000=, which the warning only precedes. The linter reads tokens, not forms, so it cannot tell the two apart. Found while fixing gap 10 (2026-11-07).
+But in an array the string was kept, ~(:r ((make record) "x"))~ being ={"r": [{}, "x"]}=, and in a record it is an error, =TYP0000=, which the warning only precedes. The linter reads tokens, not forms, so it cannot tell the two apart. Found while fixing gap 10 (2026-11-07).
 
 /Fixed/ (2026-11-17): the warning is retired, as =WRN0005= was, and its code is not reused. What it meant to catch is caught already: a loose value in a record is an error, and in an array a value is an element.
 
@@ -3208,7 +3226,7 @@ A library's broken function is found by whoever first calls it. Found while weig
 Canon rewrites some forms by their syntax, before any name is bound:
 
 - =and=, =or=, =->=, =with=, =adjoin= and =thru=;
-- a =case= branch's =(when c)= and =(satisfies #p)= heads.
+- a =case= branch's =(when c)= and =(∈ p)= heads.
 
 So a binding of one of their names never shadows them, as a binding shadows every other special form: ~(let ($and (fn (a b) 1)) (:r (and true false)))~ is ={"r": false}=. Their names cannot name a =define/procedure= (=SYN0008=), but a key, a =let= binding or a parameter of the name is accepted and ignored at the call.
 
@@ -3283,11 +3301,11 @@ A definition can only appear at the top level of a file.
 :ID:       50
 :FOUND:    2026-11-14
 :END:
-~(satisfies x #p)~ is false only when =#p='s check fails, and an error stays an error, but the check is told from an error by the error's kind alone, a refinement mismatch, wherever it was raised.
+~<x ∈ p>~ is false only when =p='s check fails, and an error stays an error, but the check is told from an error by the error's kind alone, a refinement mismatch, wherever it was raised.
 
-- So a failed assertion in the refinement's body, ~(define/refinement labelled (#record r) (eq #string (get r label) "x"))~ asked of ~(:label 1)~, is =false=: the refinement's own mistake read as the value's.
+- So a failed assertion in the refinement's body, ~(define/refinement labelled (<r ⊢ record>) (eq <(get r label) ⊢ string> "x"))~ asked of ~(:label 1)~, is =false=: the refinement's own mistake read as the value's.
 
-- Its parameter's contract failing, ~(satisfies "a" #titled)~, does stay an error.
+- Its parameter's requirement failing, ~<"a" ∈ titled>~, does stay an error.
 
 Found while designing the requirement error (2026-11-14).
 
@@ -3298,7 +3316,7 @@ Found while designing the requirement error (2026-11-14).
 :END:
 A Number is a Double, so a decimal written in source, such as =0.1=, has no exact form, and arithmetic on decimals carries rounding error into the output: ~(+ 0.1 0.2)~ is =0.30000000000000004= and ~(* 3 1.1)~ is =3.3000000000000003=, written as JavaScript would write them.
 
-Curators' numbers are mostly decimal measurements, so a summary worked out from them can show such digits: summing the 500 weights of =test.ouro='s hoard, ~(fold weights 0 +)~, gives =1798.6400000000008=. The number tower (=#integer=, =#natural=) does not touch it; exact decimals would, as a change of representation (an open design). Found while updating =test.ouro= to 0.6 (2026-11-15).
+Curators' numbers are mostly decimal measurements, so a summary worked out from them can show such digits: summing the 500 weights of =test.ouro='s hoard, ~(fold weights 0 +)~, gives =1798.6400000000008=. The number tower (=integer=, =natural=) does not touch it; exact decimals would, as a change of representation (an open design). Found while updating =test.ouro= to 0.6 (2026-11-15).
 
 ** FIXED Compiling many records costs more than linear time
 :PROPERTIES:
@@ -3323,13 +3341,13 @@ Five times the coins cost 7.3 times as much, and four times 12.5 times, about n^
 
 Four times the coins cost 4.6 times as much, about n^1.1, and 2000 coins ten times less than before.
 
-** FIXED A =#date= before the year 1000 was written without its leading zeros
+** FIXED A =date= before the year 1000 was written without its leading zeros
 :PROPERTIES:
 :ID:       53
 :FOUND:    2026-11-15
 :FIXED_IN: 0.6.1.0
 :END:
-~(:d #date "0079-08-24T12:00:00Z")~ was written ={"d": "79-08-24T12:00:00Z"}=, which is not ISO 8601 or =xsd:dateTime=, both needing at least four digits of year. It is the output side of gap 24, which accepted such a year in a =#date=. Found while writing linked.art's examples in Ouro (2026-11-15).
+~(:d <"0079-08-24T12:00:00Z" ⊢ date>)~ was written ={"d": "79-08-24T12:00:00Z"}=, which is not ISO 8601 or =xsd:dateTime=, both needing at least four digits of year. It is the output side of gap 24, which accepted such a year in a =date=. Found while writing linked.art's examples in Ouro (2026-11-15).
 
 /Fixed/ (2026-11-16) with gap 24: a year is written with at least four digits, =0079-08-24T12:00:00Z=, in the output, with =to-string= and in =ouro validate='s output. linked.art's =event/vesuvius/1= writes its span with =time/span= and dates again.
 
@@ -3351,7 +3369,7 @@ Limits: the error's caret is at the end of the string, not its start. An =id= th
 :FOUND:    2026-11-16
 :FIXED_IN: 0.6.1.0
 :END:
-An Array is built with ~(list 1 2)~, the name Lisps give their lists, though the value is an Array everywhere else: in this spec, in =#array=, in messages, and in JSON. ~(array 1 2)~ is unbound, =SCP0000=. Found while designing the type syntax of 0.7 (2026-11-16), where =array= also names the refinement of every array.
+An Array is built with ~(list 1 2)~, the name Lisps give their lists, though the value is an Array everywhere else: in this spec, in the =array= refinement, in messages, and in JSON. ~(array 1 2)~ is unbound, =SCP0000=. Found while designing the type syntax of 0.7 (2026-11-16), where =array= also names the refinement of every array.
 
 The fix, in two steps so that no release breaks a program that the one before it compiled:
 
@@ -3382,6 +3400,14 @@ Four times the coins cost 12.3 times as much, about n^1.8. For comparison, =fora
 The fix: an order on values, structural, as =eq= compares them, so each operation sorts or keeps a set of the values seen, $O(n \log n)$, still keeping the first of each value in the order it was written. Functions have no equality, and are never in an Array a set operation reaches. A fix shows in the benchmark: 2000 coins near four times the cost of 500. Found while benchmarking arrays for the homogeneous refinements of 0.7 (2026-11-17).
 
 /Fixed/ (2026-11-17): rather than a full order, which a record's context does not have, each value has a key that equal values always share: its primitive, or its structure, a record's attribute pairs in key order. Values are kept in a map from key to the values of that key, and only those are compared with =eq=. Results and their order are as before. =union=, =intersect=, =setminus=, =subset=, =distinct=, =unions=, =intersections=, =image= and =adjoin= all use it. The benchmark: 32.7 ms, 121 ms and 520 ms, ×4.3.
+
+** OPEN [#C] A misplaced =(∈ p)= is an unbound =%in=
+:PROPERTIES:
+:ID:       57
+:FOUND:    2026-11-22
+:PINNED:   =gap 57= in =knownGaps=
+:END:
+~(∈ p)~ with no value is meaningful only at the head of a =case= branch. Written anywhere else, ~(:a (∈ number))~, it is =SCP0000=, "Unbound Identifier", with =%in= as the name, which is Canon's internal spelling of =∈= and cannot be written in Ouro. The error is right; it should say that =∈= takes a value, or is a branch head, as the old =satisfies= message did. Found while updating the spec to the current syntax (2026-11-22).
 
 * Appendix C: Benchmarks
 :PROPERTIES:

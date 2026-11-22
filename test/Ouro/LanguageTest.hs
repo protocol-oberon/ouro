@@ -1623,4 +1623,6 @@ knownGaps = Group "Known gaps: current and fixed"
                                                     === Right True)
     , ("gap 55 (fixed): array is unbound",          fixedGap $ importsFailAt "SCP0000" ("inline-test", 1, 15) ["array"] []
                                                                    "(document g (:r (array 1 2)))")
+    , ("gap 57: a misplaced (∈ p) is an unbound %in", importsFailAt "SCP0000" ("inline-test", 1, 17) ["%in"] []
+                                                                   "(document g (:a (∈ number)))")
     ]
