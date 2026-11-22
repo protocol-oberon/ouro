@@ -2,7 +2,7 @@
 
 Ouro is a domain-specific language for writing JSON-LD knowledge graphs, such as CIDOC-CRM's in Linked Art. Its source has the shape of the JSON it produces, so a record reads like the record it compiles to, and its standard library, `std`, holds Linked Art's own patterns: the required terms, time spans, provenance, and more.
 
-Compiled Ouro is always well-formed JSON. A graph compiles only when every value in it has a JSON form and no error is left anywhere in it. URIs and dates are checked wherever they are marked, and a record's `@context` is read as a JSON-LD context. The same source always compiles to the same output. Ouro does not check a record's terms against a vocabulary; that is for properties. `std`'s functions write Linked Art's terms for you, and because a compile is deterministic, a record that is right once stays right.
+Compiled Ouro is always well-formed JSON. A document compiles only when every value in it has a JSON form and no error is left anywhere in it. URIs and dates are checked wherever they are asserted, and a record's `@context` is read as a JSON-LD context. The same source always compiles to the same output. Ouro does not check a record's terms against a vocabulary; that is for refinements. `std`'s functions write Linked Art's terms for you, and because a compile is deterministic, a record that is right once stays right.
 
 # Syntax
 
@@ -11,7 +11,7 @@ Ouro, like any other Lisp, is anchored around the opening parenthesis of an expr
 An Ouro file consists of a collection of top-level, _higher expressions_. There are three types of higher expressions:
 
 1. `(import path)` and `(export name ...)`: the modules a file uses and the functions it offers, written first in the file (see [Modules](#modules)).
-2. `(graph name expr)`: Expressions that encode JSON-LD graphs. A graph is one expression, usually a record.
+2. `(document name expr)`: Expressions that encode JSON-LD documents. A document is one expression, usually a record, and is written as one output file. `document`, its old name, still works, with a warning.
 3. `(define/procedure name (args) expr)`: Ouro supports _higher order functions_: `define/procedure` names a function, and `(fn (x y) expr)` is a lambda function. The older `defn`, `defn/const` and `defn/property` are errors that name their replacement.
 
 The target structure of Ouro code is determined by a few simple rules, which only look at an expression's direct elements, never at their types:
@@ -34,31 +34,64 @@ Ouro has no `null`. Absence is never a value: a key is left out, by how the reco
 
 Source files are UTF-8 on every platform, so strings, names and keys can hold any text: `(:_label "Édouard Manet")` compiles to `"_label": "Édouard Manet"` on Windows as well as Linux. A file saved in another encoding is reported, not garbled.
 
-## Built-in properties
+## Refinements
 
-In JSON-LD, there are many datatypes which can look similar to a compiler. To ensure that the compiled JSON from Ouro code is always well formed, we can give an expression a property, which tells the compiler how to treat it. A property is written before the expression, as in `#string (expr)`.
+A type in Ouro is a set of values, a **refinement**. `⊢` (spelled `assert`, or `|-` in ASCII) asserts that a value is in one, passing the value on unchanged or stopping the compile with a type error; `∈` (`in`) asks, answering `true` or `false`. Each is written prefix, `(⊢ x string)`, or infix between angle brackets, `<x ⊢ string>`:
 
-There are 8 built-in properties:
+``` clojure
+(document checked
+  (:id    <"https://linked.art/example/object/1" ⊢ uri>
+   :year  <1642 ⊢ number>
+   :texty <"Spring" ∈ string>))     ; true
+```
 
-| Property        | Description                                                                              |
-|:----------------|:-----------------------------------------------------------------------------------------|
-| `#uri`          | Ensures that any expression that evaluates to a URI is properly formed.                  |
-| `#date`         | Ensures valid ISO 8601 date-time formats and enables temporal desugaring (e.g., `thru`). |
-| `#number`       | Asserts that the evaluated result is a numeric primitive.                                |
-| `#string`       | Asserts that the evaluated result is a string.                                           |
-| `#boolean`      | Asserts that the evaluated result is a boolean primitive.                                |
-| `#record`       | Asserts that the evaluated result is a Record.                                           |
-| `#array`        | Asserts that the evaluated result is an Array.                                           |
-| `#function`     | Asserts that the evaluated result is a function (a `fn`, a `define/procedure` name or a built-in).   |
+There are 8 built-in refinements:
 
-A value without the property it is given is an error, such as `Expected data to have the property #number, got #string instead.` The same properties type a function's parameters and result (see [Functions](#functions)).
+| Refinement | The values in it                                                                  |
+|:-----------|:----------------------------------------------------------------------------------|
+| `string`   | Strings.                                                                          |
+| `number`   | Numbers.                                                                          |
+| `boolean`  | `true` and `false`.                                                               |
+| `record`   | Records, the empty one included.                                                  |
+| `array`    | Arrays, the empty one included.                                                   |
+| `function` | Functions: a `fn`, a `define/procedure` name or a built-in.                       |
+| `uri`      | Strings that parse as a URI with a scheme. The string passes on as it is.         |
+| `date`     | Strings in ISO 8601 date-time form. The string passes on as it is.                |
 
-Two further `#` forms are values rather than properties, written in place of an empty collection:
+A value outside the refinement it is asserted in is an error, such as `Expected data to have the refinement number, got string instead.`
 
-| Value           | Description                                                                              |
-|:----------------|:-----------------------------------------------------------------------------------------|
-| `#array-empty`  | An empty Array, `[]` (the same as `()`).                                                 |
-| `#record-empty` | An empty Record, `{}`.                                                                   |
+Types combine as sets do, prefix or infix:
+
+| Type                     | The values in it                                                |
+|:-------------------------|:----------------------------------------------------------------|
+| `(∪ a b)`, `<a ∪ b>`     | in `a`, or in `b`                                               |
+| `(∩ a b)`, `<a ∩ b>`     | in both                                                         |
+| `(∖ a b)`, `<a ∖ b>`     | in `a` and not in `b`                                           |
+| `(array p)`              | arrays whose every element is in `p`                            |
+| `(record :k p …)`        | records with at least these keys, the value at each in its type |
+
+A failure inside one names what failed: `an array whose element 3 is string`, `a record without label`, `a record whose label is number`.
+
+A refinement of your own is defined with `define/refinement`: one parameter, the value it is about, typed, and a body that answers `true` or `false`. Its `doc` is the rule a failure reports:
+
+``` clojure
+(define/refinement titled (<r ⊢ record>)
+  (doc "Has a label.")
+  (has r _label))
+
+(document spring <(:_label "Spring") ⊢ titled>)
+```
+
+A refinement can go down into the parts of its value, so a tree is checked at every depth:
+
+``` clojure
+(define/refinement name-tree (<n ⊢ record>)
+  (doc "A Name, whose parts are Names at any depth.")
+  <n ∈ (∪ (record :type string :content string)
+           (record :type string :part (array name-tree)))>)
+```
+
+Values are made with `make`: `(make array 1 2 3)`, and the empty array and record, `(make array)` and `(make record)`. `array` and `record` alone are types, never values.
 
 ## Special forms
 
@@ -105,7 +138,7 @@ A record's JSON-LD context is written `:context value`. The value is an ordinary
 A project that extends Linked Art adds its own terms after it, as an array:
 
 ```clojure
-(graph extended
+(document extended
   (:context ("https://linked.art/ns/v1/linked-art.json"
              (:ex        "https://example.org/ns/"
               :condition (:@id "ex:condition" :@type "@id")))
@@ -143,8 +176,8 @@ A project that extends Linked Art adds its own terms after it, as an array:
 The `(get)` special form evaluates its target and walks the resulting records, so it works through function results, such as `(inlay)`, `(case)` and `(let)`. Only a record's attribute pairs can be reached, `(let)` bindings are private. Path components are bare symbols (`(get p q r)`, not `(get p :q)`) or whole numbers, which index an Array from 0: `(get p classified_as 0 _label)` is the label of the first classification, and a negative index counts from the end, so `(get xs -1)` is the last element. An index only indexes Arrays, since a record's attribute pairs have no order in JSON-LD and are reached by key. A hole can stand for the target, `(get ? 0)`, but never for a key or an index: a path is always written. 
 
 ``` clojure
-(:nested_manifest (:id       #uri (+ api-root "dataset")
-                   :created  #date "2026-05-28T12:00:00Z"
+(:nested_manifest (:id       <(+ api-root "dataset") ⊢ uri>
+                   :created  <"2026-05-28T12:00:00Z" ⊢ date>
                    ;; Deep structural nesting
                    :meta     (:version       "v2.1.0"
                               :release_code  905
@@ -170,7 +203,7 @@ The `(get)` special form evaluates its target and walks the resulting records, s
 `(image record key ...)` reads a path the way JSON-LD reads properties: as a set of values. It goes through Arrays, so it follows a key from every element it reaches, a record without the key adds nothing, and the result is always an Array with no repeats, kept in the order they are first reached:
 
 ``` clojure
-(graph kinds
+(document kinds
   (let ($book (:part ((:classified_as ((:id "aat:leaf-marker" :_label "Leaf marker")))
                       (:classified_as ((:id "aat:leaf-marker" :_label "Leaf markers")))
                       (:_label "An unclassified part"))))
@@ -246,30 +279,30 @@ Is de-sugared to:
 
 A list of literals without holes, like `("Manet" "Proust")` above, is always this alternatives sugar rather than a pattern.
 
-A branch can also test a condition instead of a shape. `(when cond)` takes the branch when `cond` is `true`, and tries the next branch when it is `false`; a condition that isn't a Boolean is an error. `(satisfies #p)`, also written `(⊨ #p)`, takes the branch when the target has the property `#p`:
+A branch can also test a condition instead of a shape. `(when cond)` takes the branch when `cond` is `true`, and tries the next branch when it is `false`; a condition that isn't a Boolean is an error. `(∈ p)` takes the branch when the target is in the refinement `p`:
 
 ``` clojure
 (map (0 7 "x" true)
      (fn (v) (case v
                ((when (eq v 0))     "zero")
-               ((satisfies #number) "a number")
-               ((⊨ #string)         "a string")
+               ((∈ number)          "a number")
+               ((∈ string)          "a string")
                (otherwise           "other"))))
 ```
 
-...is `["zero", "a number", "a string", "other"]`. Outside a branch, `(satisfies x #p)` is a question with a Boolean answer, x ∈ #p, while `#p x` is an assertion that fails. The value comes first in the question and the property first in the assertion, so the two never look alike; in a branch head the case's target is put first, as it is for a guard.
+...is `["zero", "a number", "a string", "other"]`. Outside a branch, `<x ∈ p>` is a question with a Boolean answer, while `<x ⊢ p>` is an assertion that fails; in a branch head the case's target is put first, as it is for a guard.
 
 Array patterns match by position. The following:
 
  ``` clojure
- (graph case-statements
+ (document case-statements
    (:trgt (1 2 3)
     :res  (case trgt
                 ((?head ?..rest) rest)
                 (otherwise       trgt))))
  ```
  
-... binds the first element to `head` and the remaining elements to `rest`, which is returned. A `?..rest` hole must come last in an Array pattern. This graph compiles to:
+... binds the first element to `head` and the remaining elements to `rest`, which is returned. A `?..rest` hole must come last in an Array pattern. This document compiles to:
 
 ``` json
 {
@@ -285,10 +318,10 @@ Array patterns match by position. The following:
 }
 ```
 
-Record patterns match by key, in any order, and attribute pairs the pattern doesn't mention are allowed, so `((:type "Person") ...)` matches any Person record. The following Ouro graph matches the `name` attribute pair without binding it, and returns the other attribute pairs:
+Record patterns match by key, in any order, and attribute pairs the pattern doesn't mention are allowed, so `((:type "Person") ...)` matches any Person record. The following Ouro document matches the `name` attribute pair without binding it, and returns the other attribute pairs:
 
 ``` clojure
- (graph case-statements
+ (document case-statements
    (:trgt (:name "Manet"
            :id   "https://linked.art/example/person/manet"
            :type "Person")
@@ -344,9 +377,9 @@ This form simply tells the compiler to evaluation every expression after an `arr
 
 ``` clojure
 (define/procedure aat-type (id label)
-  (:id #uri (+ "http://vocab.getty.edu/aat/" id) :type "Type" :_label label))
+  (:id <(+ "http://vocab.getty.edu/aat/" id) ⊢ uri> :type "Type" :_label label))
 
-(graph mapped
+(document mapped
   (:classified_as (map ("300033618" "300177435") (aat-type ? "Painting"))
    :counts        (map (1 2 3) (+ ? 1))))
 ```
@@ -394,11 +427,11 @@ current record. For example the following Ouro code:
 
 ``` clojure
 (:context "https://linked.art/ns/v1/linked-art.json"
- :id      #uri "https://linked.art/example/provenance/manet_proust/1"
+ :id      <"https://linked.art/example/provenance/manet_proust/1" ⊢ uri>
  :type    "Activity"
  :_label  "Purchase of Spring by Proust"
- (inlay (:begin_of_the_begin #date "1881-01-01T00:00:00Z"
-         :end_of_the_end     #date (+ begin_of_the_begin (thru (years 2))))))
+ (inlay (:begin_of_the_begin <"1881-01-01T00:00:00Z" ⊢ date>
+         :end_of_the_end     <(+ begin_of_the_begin (thru (years 2))) ⊢ date>)))
 ```
 
 ...is complied to the following JSON.
@@ -419,7 +452,7 @@ Inlays are layers. Since each key can appear once in a record, when an inlaid re
 ``` clojure
 (define/constant base (:type "Type" :_label "Painting"))
 
-(graph overridden
+(document overridden
   (:_label "Spring"
    (inlay (base))))
 ```
@@ -469,8 +502,8 @@ An inlaid record's `@context` is layered in too. The record ends up with the inl
 ```clojure
 (import std/base)
 
-(graph amsterdam
-  (-> (:id #uri "https://linked.art/example/place/amsterdam/1" :type "Place" :_label "Amsterdam")
+(document amsterdam
+  (-> (:id <"https://linked.art/example/place/amsterdam/1" ⊢ uri> :type "Place" :_label "Amsterdam")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as (array (base/aat "300008389" "City")))
       (with :identified_by ((:type "Name" :content "Amsterdam")))))
@@ -513,7 +546,7 @@ An inlaid record's `@context` is layered in too. The record ends up with the inl
 (import std/base)
 (import std/vocab)
 
-(graph spring
+(document spring
   (-> (:type "HumanMadeObject" :classified_as (array vocab/artwork))
       (adjoin :classified_as (base/work-type "300033618" "Painting"))
       (adjoin :classified_as vocab/artwork)))
@@ -588,18 +621,18 @@ A record can't end up with a key twice, so inserting an attribute pair whose key
 `(and a b)` is `true` when both operands are, and `(or a b)` when at least one is. For more than two, `(all (a b c))` is `true` when every condition is, and `(any (a b c))` when one is: like every built-in, `and` and `or` take a fixed number of arguments, and many values are an Array. All four stop at the operand that decides the answer, so later operands are never evaluated:
 
 ``` clojure
-(graph tags
+(document tags
   (let ($tags ())
     (:featured (and (gt (len tags) 0) (eq (get tags 0) "featured"))    ; false: get is never reached
      :listed   (or  (eq (len tags) 0) (eq (get tags 0) "listed")))))  ; true
 
-(define/property labelled (#record r)
+(define/refinement labelled (<r ⊢ record>)
   (doc "It and every part, at any depth, have a label.")
-  (all ((has r _label)                                  ; a property's rules, as a list
+  (all ((has r _label)                                  ; a refinement's rules, as a list
         (forall (get-or r () part) labelled))))
 ```
 
-- Each operand that is reached must be a Boolean: `(and true 1)` is an error, `Expected data to have the property #boolean, got #number instead.` Ouro has no truthiness.
+- Each operand that is reached must be a Boolean: `(and true 1)` is an error, `Expected data to have the refinement boolean, got number instead.` Ouro has no truthiness.
 - `all` and `any` stop early over an Array written in place, a literal or an `(array ...)`; an Array given another way, a binding or a `map`'s result, is evaluated whole and then read. `(all ())` is `true`, and `(any ())` is `false`.
 - `(and a)` or `(and a b c)` is an error that suggests `all`.
 - They take holes like a call, `(map (true false) (or ? false))`, and are threading steps, `(-> true (and false))`.
@@ -629,10 +662,10 @@ The connectives, the quantifiers and the set operations can be written with the 
 | `⋁`    | `any`          | `⋃`    | `unions`        |
 | `∀`    | `forall`       | `⋂`    | `intersections` |
 | `∃`    | `exists`       | `λ`    | `fn`            |
-| `∄`    | `omits`        | `⊨`    | `satisfies`     |
+| `∄`    | `omits`        | `∈`    | `in`            |
 
 ``` clojure
-(define/procedure consistent #boolean (#record book)
+(define/procedure consistent ⊢ boolean (<book ⊢ record>)
   (∄ (present book) (contains (absent book) ?)))
 ```
 
@@ -640,16 +673,16 @@ The connectives, the quantifiers and the set operations can be written with the 
 
 Ouro has the following built in functions:
 
-**Arithmetic & Temporal Shifting:** The arithmetic functions take two operands, as every built-in takes a fixed number of arguments, and handle both standard mathematical computations and strict #date temporal adjustments. Many values are an Array, folded: `(fold (2 2 6) 0 +)` is `10`.
+**Arithmetic & Temporal Shifting:** The arithmetic functions take two operands, as every built-in takes a fixed number of arguments, and handle numbers, strings and arrays; a date is moved with `shift`. Many values are an Array, folded: `(fold (2 2 6) 0 +)` is `10`.
 
 | Function | Syntax Example                         | Behaviour / Domain Rules                                          |
 |:---------|:---------------------------------------|:------------------------------------------------------------------|
 | **`+`**  | `(+ 2 6)` -> `8`                       | Adds two numbers.                                                 |
-|          | `(+ #date "2026-06-14..." (years 1))`  | When provided a `#date` head, applies time windows forward.       |
+|          | `(shift "2026-06-14..." (years 1))`    | `shift` moves a date forward by a time window.                    |
 |          | `(+ "Type: " label)`                   | Joins strings.                                                    |
 |          | `(+ (1 2) (3))` -> `(1 2 3)`           | Concatenates arrays.                                              |
 | **`-`**  | `(- 20 5)` -> `15`                     | Subtracts the second from the first.                              |
-|          | `(- #date "2026-06-14..." (months 2))` | When provided a `#date` head, rolls time windows backward.        |
+|          | `(shift "2026-06-14..." (months -2))`  | A negative time window moves it back.                             |
 | **`*`**  | `(* 3 4)` -> `12`                      | Multiplies two numbers.                                           |
 | **`/`**  | `(/ 100 4)` -> `25`                    | Divides the first by the second.                                  |
 
@@ -684,7 +717,7 @@ Time windows are made with `(years n)`, `(months n)`, `(days n)`, `(hours n)`, `
 | **`len`** | `(len (1 (2 3)))` -> `2` | Counts elements; `()` has length `0`. |
 |           | `(len "Málaga")` -> `6`  | Counts characters, not bytes.         |
 
-Any other value, such as a record or a `#uri`, is a type error.
+Any other value, such as a record or a number, is a type error.
 
 **Collections and sets:** JSON-LD reads a property's values as a set, and so do these. Values are compared as `eq` compares them, and a result keeps the first of each value, in the order it is first written, so the output is always the same.
 
@@ -747,10 +780,10 @@ Every String built-in takes its String first, so a value is built and cleaned in
 Together they number a list without writing the numbers, and a summary comes from the same data:
 
 ```clojure
-(define/constant weights #array
+(define/constant weights ⊢ array
   (3.72 3.36 4.19))
 
-(graph coins
+(document coins
   (:coins (map (zip (1..(len weights)) weights)
                (fn ((?n ?grams))
                  (:id    (+ "https://example.org/coin/C-" (pad-start (to-string n) 4 "0"))
@@ -781,12 +814,12 @@ A local function is a `let`-bound `fn`:
   (:attributed (attribute (attribute "Manet"))))
 ```
 
-A function binds its own private values with `let`, just as a graph does:
+A function binds its own private values with `let`, just as a document does:
 
 ``` clojure
 (define/procedure type-node (aat-id label)
   (let ($prefix "Type: ")
-    (:id     #uri (+ "http://vocab.getty.edu/aat/" aat-id)
+    (:id     <(+ "http://vocab.getty.edu/aat/" aat-id) ⊢ uri>
      :type   "Type"
      :_label (+ prefix label))))
 ```
@@ -795,7 +828,7 @@ Because parentheses around values make an Array, `(fn () ("hello"))` returns `["
 
 Semantics of a call:
 
-- *Arity* is checked: a call with the wrong number of arguments is an error. A call written with a function's name is checked where it is written, before anything is evaluated, so in a function no graph calls too; a call through a value is checked when it is made. Functions are not curried.
+- *Arity* is checked: a call with the wrong number of arguments is an error. A call written with a function's name is checked where it is written, before anything is evaluated, so in a function no document calls too; a call through a value is checked when it is made. Functions are not curried.
 
 - *Arguments are call-by-need:* each argument becomes a promise over the caller's scope. It is evaluated at most once, when the function first uses it, and always means what it meant at the call site, so a function's own bindings can never capture it. An argument the function never uses is still checked for errors.
 
@@ -809,7 +842,7 @@ Semantics of a call:
      :parts (map (get-or n () part) outline)))
   ```
 
-  A recursion that might not finish is an error wherever it is written, whether or not a graph calls it: `(define/procedure f (n) (f n))` is reported as `'f' calls itself, and might never finish`. The check is size-change termination (Lee, Jones and Ben-Amram, 2001), and it errs on the safe side: a number counting down is not a part, and neither is `(get-or n () part)` passed straight on, which may be its fallback each time. Finishing is not speed: a function that calls itself twice on the same part finishes, but in time exponential in the value's depth.
+  A recursion that might not finish is an error wherever it is written, whether or not a document calls it: `(define/procedure f (n) (f n))` is reported as `'f' calls itself, and might never finish`. The check is size-change termination (Lee, Jones and Ben-Amram, 2001), and it errs on the safe side: a number counting down is not a part, and neither is `(get-or n () part)` passed straight on, which may be its fallback each time. Finishing is not speed: a function that calls itself twice on the same part finishes, but in time exponential in the value's depth.
 
   A function reached through a value, as in `(w w)`, is checked when it is called: calling it while it is already being called is an error. Nesting a call, `(f (f x))`, is two calls, not recursion.
 
@@ -820,7 +853,7 @@ Semantics of a call:
   ``` clojure
   (define/procedure adder (n) (fn (x) (+ n x)))
 
-  (graph partial
+  (document partial
     (let ($inc (adder 1))
       (:r (inc 2))))
   ```
@@ -832,46 +865,46 @@ A `define/procedure` body is checked when the file is parsed: it must be one exp
 A function is documented with a `(doc "...")` among the direct elements of its body, before or after its result. It is never evaluated and is not part of the result:
 
 ``` clojure
-(define/procedure place #record (#string slug #string label)
+(define/procedure place ⊢ record (<slug ⊢ string> <label ⊢ string>)
   (doc "A Linked Art Place, under the example namespace.")
   (:id (example (+ "place/" slug)) :type "Place" :_label label))
 ```
 
-A function of no parameters is a constant: named as a value, it is its result, so `vocab/artwork` is `(vocab/artwork)`. Ouro has no effects, so such a function cannot be told from its value; `(c)` still calls it. A constant cannot be passed on as a function, and an error in it is reported where it is defined. A constant's value is worked out the first time a graph names it, and reused after that.
+A function of no parameters is a constant: named as a value, it is its result, so `vocab/artwork` is `(vocab/artwork)`. Ouro has no effects, so such a function cannot be told from its value; `(c)` still calls it. A constant cannot be passed on as a function, and an error in it is reported where it is defined. A constant's value is worked out the first time a document names it, and reused after that.
 
 `define/constant` writes a constant without the empty parameter list, and takes a return type and a `doc` as `define/procedure` does:
 
 ``` clojure
-(define/constant museum-label #string
+(define/constant museum-label ⊢ string
   (doc "How the museum is named in every record.")
   "Rijksmuseum")
 ```
 
 Names:
 
-- Functions and graphs are named in kebab-case, `make-place`. A name with a capital or an underscore is a warning (`WRN0004`) that suggests the kebab-case spelling. Attribute keys and local bindings are exempt, since keys follow the data's vocabulary (`:_label`).
-- A `define/procedure` may take the name of a built-in or a special form, as in Scheme, and replaces it throughout the file, with a warning (`WRN0003`). The names read before any name is bound cannot be taken (`SYN0008`), since such a function could never be called: `define/procedure`, `define/property`, `define/constant`, `graph`, `doc`, `and`, `or`, `->`, `with`, `adjoin` and `thru`.
+- Functions and documents are named in kebab-case, `make-place`. A name with a capital or an underscore is a warning (`WRN0004`) that suggests the kebab-case spelling. Attribute keys and local bindings are exempt, since keys follow the data's vocabulary (`:_label`).
+- A `define/procedure` may take the name of a built-in or a special form, as in Scheme, and replaces it throughout the file, with a warning (`WRN0003`). The names read before any name is bound cannot be taken (`SYN0008`), since such a function could never be called: `define/procedure`, `define/refinement`, `define/constant`, `document`, `doc`, `and`, `or`, `->`, `with`, `adjoin` and `thru`.
 - A `/` qualifies an imported name, `base/aat`, so no function, parameter or `let` binding can have one. The operator `/` is a name like any other.
 
 ### Signatures
 
-A function's types are written as built-in properties in its header. One between the name and the parameters is the return type, and one before a parameter is that parameter's type. Any of them can be left out.
+A function's types are written in its header. `⊢` and a type between the name and the parameters is the return type, and a parameter written as a binder, `<id ⊢ uri>`, has that type. Any of them can be left out. A type is any refinement or combination of them (see [Refinements](#refinements)), `<works ⊢ (array (record :_label string))>` as much as `<id ⊢ uri>`.
 
 ``` clojure
-(define/procedure node #record (#uri id type)
+(define/procedure node ⊢ record (<id ⊢ uri> type)
   (:id id :type type))
 
-(graph typed
-  (let ($double (fn #number (#number n) (* n 2)))
+(document typed
+  (let ($double (fn ⊢ number (<n ⊢ number>) (* n 2)))
     (:r (double 21)
      :n (node "https://linked.art/example/object/spring" "HumanMadeObject"))))
 ```
 
-- A property in a signature behaves exactly as it would anywhere else: it checks the value, and `#uri` and `#date` convert a string. In `node` above, `id` arrives as a URI.
+- A type in a signature behaves exactly as an assertion does: it checks the value and passes it on unchanged. In `node` above, `id` must be a string that is a URI.
 - Each argument is checked where the call is written, so a mismatch is reported at the argument, in the call. The result is checked where the body is.
 - An argument is checked even if the function never uses it.
 - Nothing is inferred: an untyped parameter or result is not checked.
-- A return type of `#array` says that a one-value Array is intended, so `(define/constant f #array ("x"))` does not warn.
+- A return type of `array` says that a one-value Array is intended, so `(define/constant f ⊢ array ("x"))` does not warn.
 - A `define/procedure` of no parameters is a constant, so it warns (`WRN0006`) and suggests `define/constant`.
 
 ### When signatures are checked
@@ -880,17 +913,15 @@ A signature is checked when a value crosses it, not before evaluation as a stati
 
 Since Ouro evaluates everything at compile time, the checks cost nothing in the output: every one has already run before the JSON-LD is written.
 
-User-defined properties are described under [Planned](#planned).
-
 ### Placeholders
 
 A call with `?` holes among its arguments is not called: it is a function of its holes. This fixes some arguments now and leaves the rest for later, without writing a `fn` that returns a `fn`:
 
 ``` clojure
 (define/procedure node (base type id label)
-  (:id #uri (+ base id) :type type :_label label))
+  (:id <(+ base id) ⊢ uri> :type type :_label label))
 
-(graph placeholders
+(document placeholders
   (let ($aat-type (node "http://vocab.getty.edu/aat/" "Type" ? ?)
         $inc      (+ ? 1)
         $square   (* ?n ?n))
@@ -917,7 +948,6 @@ A call with `?` holes among its arguments is not called: it is a function of its
 
 - Each `?` is a parameter, in the order the holes are written: `(- ? ?)` takes two arguments.
 - A named hole is one parameter, however often it is written: `(* ?n ?n)` takes one.
-- A typed hole is a typed parameter: `(node #uri ? "Type")` checks and converts its argument, as a signature would.
 - A hole belongs to the call it is an argument of, so `(f (g ?))` passes `f` a function.
 - Any call takes holes: a `define/procedure`, a `fn`, a builtin, an imported function, and the special forms that evaluate their arguments (`get`, `image`, `insert`, `replace-at`, `array`, `map`). In `get` and `image` a hole stands for the target, never a key or an index.
 - A placeholder is an ordinary `fn` value. It is called with exactly as many arguments as it has holes, and functions themselves stay uncurried.
@@ -929,11 +959,11 @@ A parameter can be a pattern, written as a `case` pattern is. It takes one argum
 
 ``` clojure
 (define/procedure person (slug label)
-  (:id #uri (+ "https://linked.art/example/person/" slug) :type "Person" :_label label))
+  (:id <(+ "https://linked.art/example/person/" slug) ⊢ uri> :type "Person" :_label label))
 
 (define/procedure label-of ((:_label ?l)) l)
 
-(graph destructured
+(document destructured
   (:carried_out_by (map (("allan" "Scott Allan") ("beeny" "Emily Beeny"))
                         (fn ((?slug ?label)) (person slug label)))
    :label          (label-of (:type "Type" :_label "Beauty"))))
@@ -962,7 +992,7 @@ A parameter can be a pattern, written as a `case` pattern is. It takes one argum
 - A pattern is one parameter: `(fn ((?a ?b)) ...)` takes one argument. Names and patterns can be mixed, as in `(define/procedure sum (base (?a ?b)) ...)`.
 - Any `case` pattern can be written: Array and Record patterns, `?..rest` holes, and values compared by value, as in `(fn (("Person" ?l)) l)`. A pattern must bind something.
 - The argument is matched when the function is called, even if the body uses none of its holes. An argument that does not match is reported at the argument, or at the Array in `map`.
-- A property before a pattern checks the argument first: `(fn (#array (?a ?b)) ...)`.
+- A binder types a pattern, checking the argument before it is taken apart: `(fn (<(?a ?b) ⊢ array>) ...)`.
 - Each name is bound once: two parameters, two holes, or a hole and a parameter with the same name are an error.
 
 ## Syntax Sugar
@@ -971,11 +1001,29 @@ Ouro offers some syntax sugar to make common Linked Art JSON-LD patterns a bit m
 
 ```clojure
 
- (graph syntax-sugar
+ (document syntax-sugar
    (:timespan (:type               "TimeSpan"
-               :begin_of_the_begin #date "1881-01-01T00:00:00Z"
-               :end_of_the_end     #date (+ begin_of_the_begin (thru (years 2))))))
+               :begin_of_the_begin <"1881-01-01T00:00:00Z" ⊢ date>
+               :end_of_the_end     (shift begin_of_the_begin (thru (years 2))))))
 ```
+
+`shift` moves a date by a time window; `(shift d (months -1))` moves it back.
+
+## Prose
+
+Long text is written as bar lines in a `prose` form, which is the string they make: what the prose looks like is what the string is. Each line begins with a bar and a space, and is raw to the end of the line, so quotes, semicolons and parentheses need no escape. The lines of a paragraph are joined with single spaces, and a bar on its own is a paragraph break. The closing parenthesis goes on a line of its own:
+
+``` clojure
+(base/statement statement-type/biography-statement
+  (prose | A group of British painters formed in 1911; although it only lasted two years,
+         | its name is used in a broader sense to characterize a particular strain of British
+         | painting from about 1905 to 1920.
+         |
+         | A second paragraph.
+         ))
+```
+
+`prose` is a string where it is written, so it can be used wherever a string can, a `doc` included. Bar lines are written only in `prose`. Ouro has no triple-quoted strings: `"""text"""` is read as three strings, with a warning (`WRN0009`) that points to `prose`.
 
 ## Time spans
 
@@ -984,7 +1032,7 @@ Ouro offers some syntax sugar to make common Linked Art JSON-LD patterns a bit m
 ```clojure
 (import std/time)
 
-(graph time-spans
+(document time-spans
   (:year      (time/year "1881")
    :years     (time/year-range "1881" "1883")
    :day       (time/day "1832-01-23")
@@ -1006,12 +1054,12 @@ Ouro uses Scheme style lexical scoping, this means that scope is defined by the 
 (define/procedure person (slug who)
   (let ($name "a name private to person"
         $base (+ (linked-art) "person/"))
-    (:id     #uri (+ base slug)
+    (:id     <(+ base slug) ⊢ uri>
      :type   "Person"
      :_label who)))
 ```
 
-Every name is resolved as it is written, before anything is evaluated, so an unbound name is an error even in a function no graph calls or a `case` branch that is not taken. Its "Perhaps you meant" suggestion is ranked over every name in scope where it is written, local bindings included.
+Every name is resolved as it is written, before anything is evaluated, so an unbound name is an error even in a function no document calls or a `case` branch that is not taken. Its "Perhaps you meant" suggestion is ranked over every name in scope where it is written, local bindings included.
 
 # Modules
 
@@ -1024,7 +1072,7 @@ A file uses another's functions by importing it, and offers its own by exporting
 ```
 
 - An imported function is always written with a qualifier, `qualifier/name`: the path's last part (`base`, `people`), or the name given after `as`. A file's own functions are written without one, so a local `name` and `base/name` are different functions. No import is qualified `define` or `defn`, since its functions would read as the definition keywords, `define/constant`, or their retired forms, `defn/const`: name such a module with `as`.
-- A file has one `(export f g ...)`, naming its own functions. Only functions cross files, never graphs or values, so modules hold no state.
+- A file has one `(export f g ...)`, naming its own functions. Only functions cross files, never documents or values, so modules hold no state.
 - `(import a/b)` reads `a/b.ouro` under the project's source folder (see [Builds](#builds)), or, when `a` names a library in `vendor/`, `b.ouro` from that library (see [Libraries](#libraries)). Each module is read, checked and desugared on its own, loaded once however often it is imported, and its functions close over its own module, never the importer.
 
 - Modules cannot import each other in a circle (`SCP0009`): imports go one way, so a module is checked before the modules that import it.
@@ -1067,14 +1115,14 @@ Module paths are written with `/` on every platform, Windows included.
 (import std/vocab)
 (import std/exhibition)
 
-(define/procedure example #uri (#string path)
+(define/procedure example ⊢ uri (<path ⊢ string>)
   (+ "https://linked.art/example/" path))
 
-(define/procedure person #record (#string slug #string label)
+(define/procedure person ⊢ record (<slug ⊢ string> <label ⊢ string>)
   (:id (example (+ "person/" slug)) :type "Person" :_label label))
 
 ;; std/exhibition builds the concept, classified as an Exhibition; the steps add the rest
-(graph idea-for-manet-and-modern-beauty
+(document idea-for-manet-and-modern-beauty
   (-> (exhibition/concept (example "concept/exhidea/1") "Idea for Manet and Modern Beauty")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :identified_by (array (base/name vocab/primary-name "Manet and Modern Beauty")))
@@ -1207,23 +1255,24 @@ Available options:
   -v,--version             Show Ouro version
 
 Available commands:
-  build                    Build the graphs of the project in a folder, with the
-                           settings of its package.ouro, if it has one
+  build                    Build the documents of the project in a folder, with
+                           the settings of its package.ouro, if it has one
   validate                 Validate JSON-LD
 ```
 
 The options of each command are shown with the `-h` flag once more (`ouro build -h`):
 
 ``` bash
-Usage: ouro build [DIR] [-g|--graph MODULE/GRAPH]
+Usage: ouro build [DIR] [-t|--target MODULE/DOCUMENT]
 
-  Build the graphs of the project in a folder, with the settings of its
+  Build the documents of the project in a folder, with the settings of its
   package.ouro, if it has one
 
 Available options:
   DIR                      The project's folder, the current one when not given
-  -g,--graph MODULE/GRAPH  A graph to build, as people/person; may be given more
-                           than once, and replaces :graphs
+  -t,--target MODULE/DOCUMENT
+                           A document to build, as people/person; may be given
+                           more than once, and replaces :documents
   -h,--help                Show this help text
 ```
 
@@ -1231,15 +1280,15 @@ Available options:
 
 Ouro's build system, or lack thereof, is heavily inspired by the programming language *Odin*.
 
-Like Odin, `ouro build` is how Ouro is compiled. A folder of `.ouro` files is a project as it is, with no file to describe it: `ouro build` builds every graph of every module in the current folder, or in the folder given, `ouro build christies`, to `out/<module>/<graph>.json`. A module is named by its path, written with `/`: the graph `purchase-of-spring` in `provenance/spring.ouro` is written to `out/provenance/spring/purchase-of-spring.json`. If any graph fails, nothing is written, and every error is reported.
+Like Odin, `ouro build` is how Ouro is compiled. A folder of `.ouro` files is a project as it is, with no file to describe it: `ouro build` builds every document of every module in the current folder, or in the folder given, `ouro build christies`, to `out/<module>/<document>.json`. A module is named by its path, written with `/`: the document `purchase-of-spring` in `provenance/spring.ouro` is written to `out/provenance/spring/purchase-of-spring.json`. If any document fails, nothing is written, and every error is reported.
 
-`-g` builds only the graphs it names, by module and name, and may be given more than once:
+`-t` builds only the documents it names, by module and name, and may be given more than once:
 
 ``` bash
-ouro build -g provenance/spring/purchase-of-spring
+ouro build -t provenance/spring/purchase-of-spring
 ```
 
-Only the modules of the graphs named, and what they import, are compiled, so a module not chosen cannot fail the build. A graph its module does not have is an error that suggests the module's closest graph.
+Only the modules of the documents named, and what they import, are compiled, so a module not chosen cannot fail the build. A document its module does not have is an error that suggests the module's closest document.
 
 A `package.ouro` in the project's folder changes the defaults. It holds one function, `package`, whose value is the project's settings, none of them required:
 
@@ -1247,13 +1296,13 @@ A `package.ouro` in the project's folder changes the defaults. It holds one func
 (define/constant package
   (:sources "src"
    :outputs "dist"
-   :graphs  ("provenance/spring/purchase-of-spring")
+   :documents  ("provenance/spring/purchase-of-spring")
    :ouro    "0.6"))
 ```
 
-- `:sources` is the folder the modules are in, `"."` when not given; `:outputs` is where the graphs are written, `"out"` when not given.
+- `:sources` is the folder the modules are in, `"."` when not given; `:outputs` is where the documents are written, `"out"` when not given.
 
-- `:graphs` chooses the graphs built, as `-g` does, every one when not given; `-g` replaces it.
+- `:documents` chooses the documents built, as `-t` does, every one when not given; `-t` replaces it.
 
 - `:ouro` is the version of Ouro the project needs: a newer one than the compiler's is an error that names both.
 
@@ -1269,7 +1318,7 @@ A library is used by copying it into `vendor/`, in the project's folder, beside 
 
 - A library's own imports are read from the library, so it works unchanged once copied in: its `people` and the project's `people` are different modules.
 - A library that needs another imports it by the other's name, so the libraries a library needs are vendored beside it, in the project's `vendor/`; a library with a `vendor/` of its own is an error.
-- A library's modules are compiled only when imported, and its graphs are never written.
+- A library's modules are compiled only when imported, and its documents are never written.
 - A library cannot be named `std` or `aat`, nor share its name with a folder or module of the project, so `(import tate/…)` never has two meanings.
 - An import spelt in another case than its file, `(import People)` for `people.ouro`, is an error everywhere, since a file system that ignores case would find it and one that does not would not.
 
@@ -1277,44 +1326,13 @@ A library is used by copying it into `vendor/`, in the project's folder, beside 
 
 These are agreed directions for Ouro, roughly in the order they will be built. None of them is implemented yet.
 
-- **Properties:** user-defined properties, with the same standing as `#string`. A property is a function written with `define/property`, whose body is any Boolean expression. Called, it answers `true` or `false`; written before a value, `#titled x`, it asserts; and in a signature it is a requirement, whose failure is reported with blame, naming who broke it, as Racket's contracts do:
-
-  ``` clojure
-  (define/property titled (#record r)
-    (has r _label))
-
-  (define/procedure exhibit #record (#titled r) ...)
-  ```
-
-- **Types written as sets** (0.7): every type, `string` as much as `titled`, is a set in one tree of refinements rooted at `data`, and a refinement has one name with no `#`. Properties are renamed refinements, defined with `define/refinement`, so that "property" keeps the meaning it has in RDF and Linked Art, a key of a record. `⊢` (`assert`) asserts that a value is in a set, a type error with blame when it is not; `∈` (`in`) asks, answering `true` or `false`, in place of `satisfies`. Types combine as sets do: `(∪ string uri)`, `(∖ record titled)`, `(array titled)` for an array of titled records, `(record :label string)` for a record shape. Angle brackets write any form infix, `<a op b>` being `(op a b)`, so a signature reads as its sets:
-
-  ``` clojure
-  (define/procedure person-name ⊢ name-tree (<given ⊢ string> <family ⊢ string>)
-    (:type "Name"
-     :part ((:type "Name" :content given)
-            (:type "Name" :content family))))
-  ```
-
-  ``` clojure
-  (define/refinement titled <r ⊢ record>
-    (has r _label))
-  ```
-
-  With it, `(list …)` becomes `(array …)`, as the value is an Array everywhere else, and comparisons become words, `lt`, `leq`, `gt` and `geq`, freeing `<` and `>`. Each old spelling becomes an error that names its replacement.
-
-- **The rest of the static analysis:** names, arity and recursion are already checked as written (see [Functions](#functions) and [Lexical Scoping](#lexical-scoping)). Still to come: warnings for unused bindings, imports and functions, once the error codes are redesigned; with properties, property names checked as written too, a recursive property under the same rule as any function; and whether an expression is a call, a record or an array decided there, once, for the evaluator to follow, by the same rules as now.
+- **The end of the old spellings** (0.7.0): `#string x`, `#record-empty`, `#array-empty`, `satisfies` and `graph` are still read, as the forms they became, until 0.7.0 is released; then each is an error that names its replacement.
+- **Type errors with a trail:** a failed requirement reported as one shape everywhere, naming the value, the refinement, the rule it broke (its `doc`), and the path down to the part that failed, with blame at the boundary that was crossed.
+- **Relations and dependent signatures** (0.7.1): a refinement that relates values rather than describing one, such as a size or an order, so that a signature can say what holds between its parameters and its result. A type variable is written as a single letter, or as `~word~`, and says what a function keeps: what goes in comes out in the same set.
+- **Singletons** (0.7.1): a written string or number in a type is the set of that one value, `<type ⊢ "Person">`. Booleans are refused in types, as a Boolean says less than a refinement named for what it means.
+- **Procedure types** (0.7.1): the type of a function argument read off the function given, by arity and argument order, so a higher-order function of your own checks what it is passed.
+- **The rest of the static analysis:** names, arity and recursion are already checked as written (see [Functions](#functions) and [Lexical Scoping](#lexical-scoping)). Still to come: warnings for unused bindings, imports and functions, once the error codes are redesigned; and whether an expression is a call, a record or an array decided there, once, for the evaluator to follow, by the same rules as now.
 - **A REPL and a language server,** bundled with the compiler, as `std` is, so that they run the same parser and evaluator as `build`. The language server is where spelling belongs: a key or class that is not a term of the record's context can be underlined as it is written, with the nearest term offered, without ever stopping a compile.
 - **Search:** an Ouro Hoogle, finding functions by name, by signature and by their documentation.
-- **Geometry** (on hold): a `#wkt` property for the WKT string of a place's `defined_by`, and functions that build it from numbers, `(place/point 4.9 52.37)`, with `to-string`.
+- **Geometry** (on hold): a `wkt` refinement for the WKT string of a place's `defined_by`, and functions that build it from numbers, `(place/point 4.9 52.37)`, with `to-string`.
 - **Error codes:** codes generated from what each error is, so that a code alone says what happened, and the same mistake is always worded the same way.
-- **Prose:** a long string written over several lines, as a statement's text often is. `(prose lines)` takes an Array of Strings, trims each, and joins them with single spaces, so the text is written at any width and output as the one paragraph it is:
-
-  ``` clojure
-  (base/statement statement-type/biography-statement
-    (prose ("A group of British painters formed in 1911; although it only lasted two years,"
-            "its name is used in a broader sense to characterize a particular strain of British"
-            "painting from about 1905 to 1920.")))
-  ```
-
-  A `prose` of written strings is the string it joins, so it can be written wherever a string can, a function's `doc` included: `(doc (prose (...)))`.
-
