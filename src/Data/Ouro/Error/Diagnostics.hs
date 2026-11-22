@@ -730,7 +730,7 @@ warningBlurb = \case
 warningSummary :: WarningContext -> Text
 warningSummary = \case
     Lint (UnanchoredLiteral _ val)      -> "Unanchored primitive literal " <> val <> " detected"
-    Lint (DeprecatedSyntax feature new) -> "'" <> feature <> "' is now called '" <> new <> "'"
+    Lint (DeprecatedSyntax feature new) -> "'" <> feature <> "' is now written '" <> new <> "'"
     Lint (ParenthesisedResult owner _)  -> "The result of '" <> owner <> "' is an array of one value"
     Lint (ShadowedBuiltin kind name)    -> "The " <> kind <> " '" <> name <> "' replaces the built-in '" <> name <> "'"
     Lint (NotKebabCase kind name _)     -> "The " <> kind <> " '" <> name <> "' is not named in kebab-case"

@@ -170,7 +170,7 @@ data TypeError
       }
 
     -- TYPE VIOLATION: A VALUE WITHOUT THE REFINEMENT IT IS TYPED WITH
-    -- Occurs when a signature, (#number n), or an assertion, #string x, names a refinement
+    -- Occurs when a signature, (<n ⊢ number>), or an assertion, <x ⊢ string>, names a refinement
     -- the value does not have.
     --
     -- * Remediation: Name both refinements as they are written in Ouro, and say why when the
@@ -189,7 +189,7 @@ data TypeError
 data Role
     = ArgumentOf Callee Int  -- The nth argument of a call, counted from 1
     | ResultOf   Callee      -- What a function returns, under its return type
-    | Assertion              -- #p x, a statement written in Ouro
+    | Assertion              -- <x ⊢ p>, a statement written in Ouro
     deriving (Show, Eq, Ord, Generic)
 
 
@@ -457,7 +457,7 @@ data WarningContext
 --- LINTER WARNINGS ---
 data LinterWarning
     -- LINT WARNING: UNANCHORED LITERAL (RETIRED, never raised)
-    -- Was raised for a string written after #record-empty or #array-empty, saying it would be
+    -- Was raised for a string written after the old hash-marked empty record or array, saying it would be
     -- discarded. It never was: in an array the string is kept, and in a record it is an error.
     -- Kept so that its code, WRN0000, is never given to another warning (gap 41).
     = UnanchoredLiteral
@@ -466,13 +466,14 @@ data LinterWarning
       }
 
     -- LINT WARNING: DEPRECATED SYNTAX FEATURE
-    -- Occurs when a program uses a form that still works but has a new name, and will be an
-    -- error in a later version: (list 1 2), which is now (array 1 2).
+    -- Occurs when a program uses a form that still works but is now written another way, and
+    -- will be an error in a later version: graph, which is now document, or an old hash-marked
+    -- refinement, which is now <x ⊢ p>.
     --
     -- * Remediation: Issue warning. Name the form that replaces it.
     | DeprecatedSyntax
-      { structuralFeature :: Text -- The old form, as written: list
-      , replacement       :: Text -- The form to write in its place: array
+      { structuralFeature :: Text -- The old form, as written: graph
+      , replacement       :: Text -- The form to write in its place: document
       }
 
     -- LINT WARNING: PARENTHESISED RESULT

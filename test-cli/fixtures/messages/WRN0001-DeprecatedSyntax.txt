@@ -1,4 +1,4 @@
-Warning [WRN0001]: 'graph' is now called 'document'
+Warning [WRN0001]: 'graph' is now written 'document'
   ┌── │WRN0001-DeprecatedSyntax.ouro:1:2│
   │
 1 │ (graph g (:r 1))

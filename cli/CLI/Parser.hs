@@ -9,7 +9,7 @@ import           Data.Char           (toLower)
 import           Data.Version        (showVersion)
 import           Options.Applicative (Parser, argument, auto, command,
                                       customExecParser, eitherReader, fullDesc,
-                                      header, help, helper, info, infoOption,
+                                      header, help, helper, info, infoOption, internal,
                                       long, many, metavar, option, optional,
                                       prefs, progDesc, short, showHelpOnEmpty,
                                       showHelpOnError, str, strOption,
@@ -26,7 +26,7 @@ pCommand = subparser
          )
 
 
--- The project's folder, the current one when not given, and the graphs chosen, every one when
+-- The project's folder, the current one when not given, and the documents chosen, every one when
 -- none is: -t people/person, as often as needed
 pBuild :: Parser Command
 pBuild =  Build
@@ -38,6 +38,12 @@ pBuild =  Build
                          <> short 't'
                          <> metavar "MODULE/DOCUMENT"
                          <> help "A document to build, as people/person; may be given more than once, and replaces :documents"
+                          ))
+      -- -g, the old spelling of -t, still works with a warning until 0.8.0.0, and is left out of the help
+      <*> many (strOption ( long "graph"
+                         <> short 'g'
+                         <> metavar "MODULE/DOCUMENT"
+                         <> internal
                           ))
 
 

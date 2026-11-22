@@ -61,6 +61,18 @@ builds = Group "CLI: ouro build"
                                                         assert ("Build Success:       1 document" `T.isInfixOf` plain (out run))
                                                         written <- evalIO (traverse doesFileExist [dir </> "out" </> "a" </> "y.json", dir </> "out" </> "a" </> "x.json"])
                                                         written === [True, False])
+    , ("-g, the old -t, still chooses, with a warning", withTests 1 . property $ do
+                                                        dir <- evalIO (writeFolder "build-chosen-old" [ ("a.ouro", "(document x (:r 1))\n(document y (:r 2))") ])
+                                                        run <- evalIO (ouro dir ["build", "-g", "a/y"])
+                                                        exitCode run === ExitSuccess
+                                                        assert ("'-g' is now written '-t'" `T.isInfixOf` plain (err run))
+                                                        written <- evalIO (traverse doesFileExist [dir </> "out" </> "a" </> "y.json", dir </> "out" </> "a" </> "x.json"])
+                                                        written === [True, False])
+    , ("-g is not in the help",                     withTests 1 . property $ do
+                                                        dir <- evalIO (writeFolder "build-help" [])
+                                                        run <- evalIO (ouro dir ["build", "-h"])
+                                                        assert ("--target" `T.isInfixOf` plain (out run))
+                                                        assert (not ("--graph" `T.isInfixOf` plain (out run))))
     , ("-t with a graph that does not exist suggests the closest", withTests 1 . property $ do
                                                         dir <- evalIO (writeFolder "build-chosen-graph" [ ("a.ouro", "(document person (:r 1))") ])
                                                         run <- evalIO (ouro dir ["build", "-t", "a/persn"])

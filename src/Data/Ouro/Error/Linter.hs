@@ -22,21 +22,46 @@ import           Lens.Micro                  ((^.))
 import           Text.Megaparsec             (SourcePos (sourceColumn, sourceLine), unPos)
 
 
--- Checks the tokens, for what the parsed tree does not keep. (WRN0000, a string after
--- #record-empty or #array-empty, was read here, and retired: gap 41.)
+-- Checks the tokens, for what the parsed tree does not keep. (WRN0000, a string after the old
+-- hash-marked empty record or array, was read here, and retired: gap 41.)
 lintExpression :: [Tkn.Token] -> [OuroWarning]
 lintExpression =
     \case
      -- A define/procedure of no parameters, (define/procedure c () value) or with a return
-     -- type, (define/procedure c #string () value), is a constant: define/constant says so.
+     -- type, (define/procedure c ⊢ string () value), is a constant: define/constant says so.
      -- The parsed tree does not keep which keyword was written, so it is found in the tokens.
-     (Tkn.Token pos Tkn.OpenParen : Tkn.Token _ Tkn.DefineProcedure : Tkn.Token _ (Tkn.Symbol name) : rest)
+     (Tkn.Token pos Tkn.OpenParen : more@(Tkn.Token _ Tkn.DefineProcedure : Tkn.Token _ (Tkn.Symbol name) : rest))
          | Tkn.Token _ Tkn.OpenParen : Tkn.Token _ Tkn.CloseParen : _ <- afterReturnType rest
-         -> OuroWarning pos (procedureOfNoParameters name) : lintExpression rest
+         -> OuroWarning pos (procedureOfNoParameters name) : lintExpression more
 
      -- graph, the old name of document: it still works, with a warning that names document
      (Tkn.Token pos Tkn.RetiredGraph : rest)
          -> OuroWarning pos (deprecatedSyntax "graph" "document") : lintExpression rest
+
+     -- The old hash-marked spellings still work until 0.8.0.0, each with a warning that names
+     -- what replaces it. A refinement's, written as a definition's return type, is now ⊢ p
+     (Tkn.Token _ definer : Tkn.Token _ (Tkn.Symbol _) : Tkn.Token pos (Tkn.RetiredRefinement p) : rest)
+         | definer `elem` [Tkn.DefineProcedure, Tkn.DefineConstant]
+         -> OuroWarning pos (deprecatedSyntax ("#" <> p) ("⊢ " <> p)) : lintExpression rest
+     (Tkn.Token _ (Tkn.Symbol "fn") : Tkn.Token pos (Tkn.RetiredRefinement p) : rest)
+         -> OuroWarning pos (deprecatedSyntax ("#" <> p) ("⊢ " <> p)) : lintExpression rest
+
+     -- A refinement at the end of a form is satisfies's, which asks: a case head's
+     -- (satisfies #p) is now (∈ p), and (satisfies x #p) is <x ∈ p>
+     (Tkn.Token pos Tkn.OpenParen : Tkn.Token _ (Tkn.Symbol "satisfies") : Tkn.Token _ (Tkn.RetiredRefinement p)
+        : rest@(Tkn.Token _ Tkn.CloseParen : _))
+         -> OuroWarning pos (deprecatedSyntax ("(satisfies #" <> p <> ")") ("(∈ " <> p <> ")")) : lintExpression rest
+     (Tkn.Token pos (Tkn.RetiredRefinement p) : rest@(Tkn.Token _ Tkn.CloseParen : _))
+         -> OuroWarning pos (deprecatedSyntax ("(satisfies x #" <> p <> ")") ("<x ∈ " <> p <> ">")) : lintExpression rest
+
+     -- Anywhere else it asserts, as <x ⊢ p> does, of a value or a parameter
+     (Tkn.Token pos (Tkn.RetiredRefinement p) : rest)
+         -> OuroWarning pos (deprecatedSyntax ("#" <> p) ("<x ⊢ " <> p <> ">")) : lintExpression rest
+
+     (Tkn.Token pos Tkn.RetiredEmptyRecord : rest)
+         -> OuroWarning pos (deprecatedSyntax "#record-empty" "(make record)") : lintExpression rest
+     (Tkn.Token pos Tkn.RetiredEmptyArray : rest)
+         -> OuroWarning pos (deprecatedSyntax "#array-empty" "(make array)") : lintExpression rest
 
      -- """Spring""": an empty string, then a string opening where it closed, two columns on,
      -- which only a triple quote writes; "" "x", written apart, is two strings

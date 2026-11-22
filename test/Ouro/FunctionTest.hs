@@ -150,7 +150,7 @@ signatures = Group "Functions: signatures are properties in the header"
                                                             "(define/procedure f (#number) 1) (document g (:r (f)))")
 
     -- A return type says what the result is, so a typed one-value array is not a mistake
-    , ("#array silences the one-value warning",   compilesWithoutWarnings "(define/constant f #array (\"x\")) (document g (:r (f) :s (let ($h (fn #array () (\"y\"))) (h))))")
+    , ("⊢ array silences the one-value warning",  compilesWithoutWarnings "(define/constant f ⊢ array (\"x\")) (document g (:r (f) :s (let ($h (fn ⊢ array () (\"y\"))) (h))))")
 
       -- A binder, <n ⊢ number>, types a parameter, and ⊢ after the name the result: the same
       -- signatures, the requirement a refinement's name
@@ -666,7 +666,7 @@ properties = Group "Properties: define/refinement"
                                                             "(define/refinement len (#array xs) true) (document g (:r 1))")
     , ("one without a doc is a warning",          warnsWith "The refinement 'titled' has no doc"
                                                             "(define/refinement titled (#record r) (has r _label)) (document g (:r 1))")
-    , ("one with a doc is not",                   compilesWithoutWarnings "(define/refinement titled (#record r) (doc \"Has a label.\") (has r _label)) (document g (:r 1))")
+    , ("one with a doc is not",                   compilesWithoutWarnings "(define/refinement titled (<r ⊢ record>) (doc \"Has a label.\") (has r _label)) (document g (:r 1))")
 
       -- Written with a binder, a refinement keeps every rule
     , ("a binder gives it its contract",          compilesToJSON "(define/refinement titled (<r ⊢ record>) (has r _label)) (document g (:a (titled (:_label \"A\")) :b (titled (:x 1))))"

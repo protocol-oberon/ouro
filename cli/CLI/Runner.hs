@@ -32,7 +32,12 @@ import           Text.Megaparsec   (SourcePos, sourceName)
 
 runCommand :: Command -> IO ()
 runCommand = \case
-              Build    dir graphs -> runBuild    dir graphs
+              Build    dir targets old -> do
+                                          -- -g, the old spelling of -t, chooses documents as -t does
+                                          case old of
+                                              []     -> pure ()
+                                              _given -> hPutStrLn stderr "Warning:             '-g' is now written '-t'; it still works, and will be an error in a later version."
+                                          runBuild dir (targets <> old)
               Validate c          -> runValidate c
 
 

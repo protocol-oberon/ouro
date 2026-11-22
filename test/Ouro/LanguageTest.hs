@@ -666,9 +666,33 @@ operators = Group "Operators: operands and desugaring"
       -- graph, the old name of document, still works, with a warning (WRN0001) that names document
     , ("graph still writes a document",            compilesToJSON "(graph g (:r 1))"
                                                                    "{\"r\": 1}")
-    , ("with a warning that names document",        warnsWith "'graph' is now called 'document'"
+    , ("with a warning that names document",        warnsWith "'graph' is now written 'document'"
                                                               "(graph g (:r 1))")
     , ("document does not warn",                    compilesWithoutWarnings "(document g (:r 1))")
+
+      -- The old hash-marked spellings still work until 0.8.0.0, each with a warning (WRN0001)
+      -- that names what replaces it where it is written
+    , ("an old assertion warns",                    warnsWith "'#string' is now written '<x ⊢ string>'"
+                                                              "(document g (:r #string \"a\"))")
+    , ("and still asserts",                         compilesToJSON "(document g (:r #string \"a\"))"
+                                                                   "{\"r\": \"a\"}")
+    , ("an old parameter type warns",               warnsWith "'#number' is now written '<x ⊢ number>'"
+                                                              "(define/procedure f (#number n) n) (document g (:r (f 1)))")
+    , ("an old return type is now ⊢ p",             warnsWith "'#record' is now written '⊢ record'"
+                                                              "(define/procedure f #record () (:a 1)) (document g (:r (f)))")
+    , ("and a constant's",                          warnsWith "'#array' is now written '⊢ array'"
+                                                              "(define/constant c #array (1 2)) (document g (:r c))")
+    , ("and a fn's",                                warnsWith "'#number' is now written '⊢ number'"
+                                                              "(document g (:r (let ($f (fn #number (n) n)) (f 1))))")
+    , ("an old question is now ∈",                  warnsWith "'(satisfies x #number)' is now written '<x ∈ number>'"
+                                                              "(document g (:r (satisfies 1 #number)))")
+    , ("and an old case head (∈ p)",                warnsWith "'(satisfies #number)' is now written '(∈ number)'"
+                                                              "(document g (:r (case 1 ((satisfies #number) \"n\") (otherwise \"o\"))))")
+    , ("the old empty record is now (make record)", warnsWith "'#record-empty' is now written '(make record)'"
+                                                              "(document g (:r #record-empty))")
+    , ("and the old empty array (make array)",      warnsWith "'#array-empty' is now written '(make array)'"
+                                                              "(document g (:r #array-empty))")
+    , ("the current spellings do not warn",         compilesWithoutWarnings "(define/procedure f ⊢ record (<n ⊢ number>) (:n n)) (document g (:r (f 1) :q <1 ∈ number> :e (make record)))")
 
       -- Ouro has no triple-quoted strings: """Spring""" is three strings, which a warning (WRN0009) points to prose
     , ("\"\"\"text\"\"\" warns",                     warnsWith "Ouro has no triple-quoted strings"
@@ -1558,8 +1582,8 @@ knownGaps = Group "Known gaps: current and fixed"
                                                                    "{\"r\": [1, \"x\", 2]}")
     , ("gap 41 (fixed): WRN0000 says a value is erased", fixedGap $ warnsWith "will be completely erased"
                                                                "(document g (:r (#record-empty \"x\")))")
-    , ("a string after #record-empty is kept, without a warning", compilesWithoutWarnings "(document g (:r (#record-empty \"x\")))")
-    , ("and is the array's second value",            compilesToJSON "(document g (:r (#record-empty \"x\")))"
+    , ("a string after (make record) is kept, without a warning", compilesWithoutWarnings "(document g (:r ((make record) \"x\")))")
+    , ("and is the array's second value",            compilesToJSON "(document g (:r ((make record) \"x\")))"
                                                                    "{\"r\": [{}, \"x\"]}")
     , ("gap 42 (fixed): a removed form's name is reserved as a key", fixedGap $ failsWith "ShadowedVariableError"
                                                                    "(document g (:a (:attr 1)))")

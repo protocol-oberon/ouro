@@ -1326,7 +1326,7 @@ A library is used by copying it into `vendor/`, in the project's folder, beside 
 
 These are agreed directions for Ouro, roughly in the order they will be built. None of them is implemented yet.
 
-- **The end of the old spellings** (0.7.0): `#string x`, `#record-empty`, `#array-empty`, `satisfies` and `graph` are still read, as the forms they became, until 0.7.0 is released; then each is an error that names its replacement.
+- **The end of the old spellings** (0.8.0.0): the old hash-marked refinements and empty values, `satisfies` before them, `graph` and `-g` still work in 0.7, each with a warning that names what replaces it; in 0.8.0.0 each is an error that names its replacement.
 - **Type errors with a trail:** a failed requirement reported as one shape everywhere, naming the value, the refinement, the rule it broke (its `doc`), and the path down to the part that failed, with blame at the boundary that was crossed.
 - **Relations and dependent signatures** (0.7.1): a refinement that relates values rather than describing one, such as a size or an order, so that a signature can say what holds between its parameters and its result. A type variable is written as a single letter, or as `~word~`, and says what a function keeps: what goes in comes out in the same set.
 - **Singletons** (0.7.1): a written string or number in a type is the set of that one value, `<type ⊢ "Person">`. Booleans are refused in types, as a Boolean says less than a refinement named for what it means.
