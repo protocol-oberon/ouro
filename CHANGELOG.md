@@ -9,6 +9,74 @@ version is 0.x, a new minor version may break programs, and each change that doe
 
 ## [Unreleased]
 
+## [0.7.0.0] - 2026-11-23
+
+Types are written as sets. A refinement is a set of values, built in or defined in Ouro, and is
+written by its name: `⊢` asserts that a value is in one, and `∈` asks. The old spellings still
+work, each with a warning that names what replaces it, until 0.8.0.0.
+
+### Added
+- `⊢` (also `assert` or `|-`) asserts that a value is in a refinement, passing it on unchanged
+  or stopping with a type error; `∈` (also `in`) asks, answering `true` or `false`. Each is
+  written prefix, `(⊢ x string)`, or infix, `<x ⊢ string>`, and a `case` branch's head
+  `(∈ p)` asks it of the case's target. <!-- wxqrryxu --> <!-- rvuoxopr -->
+- Any form can be written infix between angle brackets, `<a op b>` being `(op a b)`, and a
+  chain threads, `<x ⊢ record ⊢ titled>`. <!-- qkuqkmun -->
+- Signatures are written with binders, `(<id ⊢ uri> <label ⊢ string>)`, a pattern's too,
+  `<(?a ?b) ⊢ array>`, and a return type after the name, `(define/procedure f ⊢ record (...)
+  ...)`. A signature is kept with its function, and checked when it is called.
+  <!-- wxllmopn --> <!-- yzrvmoom -->
+- Refinements defined in Ouro, with `define/refinement`: one typed parameter, a body that
+  answers `true` or `false`, and a `doc` that a failure reports as the rule it broke,
+  `titled: Has a label.` A refinement is asserted by its name, `<r ⊢ titled>`, in a signature
+  as anywhere, and may go down into its value, so a tree is checked at every depth. One
+  without a doc warns (`WRN0007`). <!-- oxoyksmm --> <!-- unrtrxkt --> <!-- mluzqpsw -->
+  <!-- psqvvozz -->
+- Types combine as sets: `(∪ a b)`, `(∩ a b)`, `(∖ a b)`, `(array p)` for an array whose every
+  element is in `p`, and `(record :k p ...)` for a record with at least these keys, each value
+  in its type. A failure names the part that failed, `an array whose element 3 is string`, `a
+  record without label`. `(record)`, with no keys, warns that it is every record (`WRN0008`).
+  <!-- sxrnqpmz --> <!-- xyktslwp --> <!-- ymmopvqn --> <!-- yrlksppl -->
+- `(make record ...)` and `(make array ...)` build a record or an array whatever the shape of
+  what follows, and `(make record)` and `(make array)` are the empty ones: a record of only
+  inlays can now be written (gap 14). <!-- nvryylvq -->
+- `(shift date duration)` moves a date, back with a negative duration. <!-- kxrwylzv -->
+- `prose` writes long text as bar lines, each raw to the end of its line, joined into one
+  string, a bar alone being a paragraph break. A triple-quoted string warns that it is three
+  strings, and points to `prose` (`WRN0009`). <!-- wlkkpwyl --> <!-- stsmlzys -->
+- `(document name expr)` declares a document, the output file, in place of `graph`.
+  <!-- pspvnpwt -->
+
+### Changed
+- **Breaking:** comparisons are words: `<`, `>`, `<=` and `>=` are errors that name `lt`,
+  `gt`, `leq` and `geq`, since `<` and `>` now write infix forms. <!-- rzptuqyw -->
+- **Breaking:** `make`, `assert` and `in` are read by their syntax, so a function cannot take
+  their names (`SYN0008`). <!-- nvryylvq --> <!-- wxqrryxu -->
+- **Breaking:** the build's `:graphs` setting is now `:documents`; `:graphs` is an unknown
+  setting (`BLD0000`). <!-- pspvnpwt -->
+- `uri` and `date` are refinements of strings: an asserted value passes on as it was written,
+  never converted, and a date is read where it is used, by `shift`. <!-- kxrwylzv -->
+- Messages name refinements as they are written, `Expected data to have the refinement
+  number, got string instead.`, and their examples are in the current syntax.
+  <!-- swlxowok --> <!-- ouwksnrk -->
+- `std` and the fixtures are written in the current syntax. <!-- pqxpwzky -->
+- A build of one document says `1 document`. <!-- plkxrsnq -->
+
+### Deprecated
+- The old spellings with a hash mark, a refinement before a value or a parameter or after a
+  definition's name, the empty record and array, and `satisfies` before such a refinement,
+  still work, each with a warning that names its replacement where it is written, `<x ⊢
+  string>`, `⊢ string`, `(make record)`, `<x ∈ string>` (`WRN0001`). They are errors in
+  0.8.0.0. <!-- ortpruxn --> <!-- qyouqqxx -->
+- `graph` still declares a document, with a warning that names `document` (`WRN0001`).
+  <!-- pspvnpwt -->
+- `ouro build -g` still chooses documents, left out of the help, with a warning that names
+  `-t`, `--target`, which replaces it. <!-- pspvnpwt --> <!-- qyouqqxx -->
+
+### Removed
+- **Breaking:** `(list a b)` is an error that names `array`, as 0.6.2.0 warned (gap 55).
+  <!-- kqrtuxop -->
+
 ## [0.6.2.0] - 2026-11-17
 
 ### Added
@@ -214,7 +282,8 @@ version is 0.x, a new minor version may break programs, and each change that doe
   records and arrays, serialisation to JSON, and a command line. ([45edabc], [9e10f0e],
   [0fabbf6], [4ef6457], [4db16ac])
 
-[Unreleased]: https://github.com/protocol-oberon/ouro/compare/v0.6.2.0...HEAD
+[Unreleased]: https://github.com/protocol-oberon/ouro/compare/v0.7.0.0...HEAD
+[0.7.0.0]: https://github.com/protocol-oberon/ouro/compare/v0.6.2.0...v0.7.0.0
 [0.6.2.0]: https://github.com/protocol-oberon/ouro/compare/v0.6.1.0...v0.6.2.0
 [0.6.1.0]: https://github.com/protocol-oberon/ouro/compare/v0.6.0.0...v0.6.1.0
 [0.6.0.0]: https://github.com/protocol-oberon/ouro/compare/v0.5.0.0...v0.6.0.0
