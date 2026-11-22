@@ -2,6 +2,7 @@
 module Data.Ouro.Lisp.Lexer where
 
 import           Data.Char                  (isLetter)
+import           Data.Functor               (void)
 import qualified Data.List.NonEmpty         as NE
 import           Data.Ouro.Error.Types      (ErrorContext (..), OuroError (..),
                                              SyntaxError (..))
@@ -10,13 +11,14 @@ import           Data.Text                  (Text)
 import qualified Data.Text                  as T
 import           Data.Void                  (Void)
 import qualified Text.Megaparsec            as M
-import           Text.Megaparsec            (MonadParsec (eof, lookAhead, notFollowedBy),
+import           Text.Megaparsec            (MonadParsec (eof, lookAhead, notFollowedBy, takeWhileP),
                                              ParseError (..), Parsec, choice,
                                              getSourcePos, many,
                                              oneOf, option, optional, runParser,
                                              some, try, (<|>))
-import           Text.Megaparsec.Char       (alphaNumChar, char, letterChar,
-                                             space1, spaceChar, string)
+import           Text.Megaparsec.Char       (alphaNumChar, char, eol, hspace,
+                                             letterChar, space1, spaceChar,
+                                             string)
 import qualified Text.Megaparsec.Char.Lexer as L
 import           Text.Megaparsec.Error      (ErrorItem (Tokens),
                                              ParseErrorBundle)
@@ -137,6 +139,29 @@ pAttributes = lexeme . withPos $ do
                                  pure (Tkn.Attr (keyword <> T.pack (first : rest)))
     where
     keyChar = alphaNumChar <|> oneOf ("-_" :: String)
+
+
+-- Bar lines, '| …': a bar followed by a space, or alone at the end of its line, begins a line of text,
+-- raw to the end of the line: ';' is no comment, '"' no string, '(' no form, and '\' escapes nothing.
+-- A following line whose first character, after its indentation, is such a bar continues it,
+-- and all are one token, a line each, with the bar, the space after it and trailing spaces dropped. '|-',
+-- the ASCII spelling of ⊢, is not one: its bar is followed by neither.
+pBarLines :: Parser Tkn.Token
+pBarLines = lexeme . withPos
+    $ do
+      first <- try bar *> rest
+      more  <- many (try (eol *> hspace *> bar) *> rest)
+      pure (Tkn.ProseLines (first : more))
+
+    where
+    -- A bar that begins a bar line: followed by a space, the end of its line, or the file's end
+    bar = char '|' <* lookAhead (void (char ' ') <|> void eol <|> eof)
+
+    -- The rest of the line, after the one space that may follow the bar, its trailing spaces dropped
+    rest = do
+           _    <- optional (char ' ')
+           text <- takeWhileP Nothing (\c -> c /= '\n' && c /= '\r')
+           pure (T.stripEnd text)
 
 
 -- The old hash forms, read until the cleanup that ends 0.7.0 makes them errors: the two old
@@ -303,6 +328,7 @@ symbolChar = alphaNumChar <|> oneOf ("_-+*/=!?&|~':" :: String)
 
 pSingleToken :: Parser Tkn.Token
 pSingleToken =  pDelims
+            <|> pBarLines
             <|> pCoreKeywords
             <|> pDefinitionWords
             <|> pAttributes

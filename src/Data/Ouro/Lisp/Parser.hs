@@ -9,6 +9,7 @@ import           Control.Monad.State.Strict  (MonadTrans (lift),
                                               modify')
 import           Data.Foldable               (find, traverse_)
 import qualified Data.Function               as F
+import           Data.List                   (groupBy)
 import qualified Data.Map                    as Map
 import           Data.Maybe                  (isNothing)
 import           Data.Ouro.Error.Diagnostics (lexicalError, missingAttributeValue,
@@ -479,6 +480,21 @@ pExpr = do
                       in case Tkn.tokenType t of
                              -- Open boundaries push processing down into structural lookahead groups
                              -- Note: We intentionally pop 'ts' here to advance past the open delimiter
+                             -- (prose | …): bar lines folded into one string, a literal where it is
+                             -- written, so it stands wherever a string does, a doc among them
+                             Tkn.OpenParen
+                                 | Tkn.Symbol "prose" : Tkn.ProseLines ls : Tkn.CloseParen : _ <- map Tkn.tokenType ts
+                                 -> consume (drop 3 ts) >> pure (S.Literal (Tkn.pos t) (S.Str (foldProse ls)))
+
+                             -- prose takes bar lines and nothing else
+                             Tkn.OpenParen
+                                 | Tkn.Symbol "prose" : _ <- map Tkn.tokenType ts
+                                 -> lexicalError "prose is written with bar lines, (prose | text …), its ')' on a line of its own."
+                                    & withBlurb "Each line begins with a bar and a space; a bar alone begins a new paragraph."
+                                    & OuroError (Tkn.pos t)
+                                    & Left
+                                    & lift
+
                              Tkn.OpenParen      -> consume ts >> parseFormContainer (Tkn.pos t)
 
                              -- Primitive Leaf Node capture (+ source location)
@@ -498,6 +514,12 @@ pExpr = do
                              Tkn.String txt     -> capture (S.Literal (Tkn.pos t) (S.Str txt))
                              Tkn.Number val     -> capture (S.Literal (Tkn.pos t) (S.Num val))
                              Tkn.Boolean b      -> capture (S.Literal (Tkn.pos t) (S.Bool b))
+
+                             -- Bar lines are prose's alone
+                             Tkn.ProseLines _   -> lexicalError "Bar lines are written only in prose: (prose | text …), its ')' on a line of its own."
+                                                   & OuroError (Tkn.pos t)
+                                                   & Left
+                                                   & lift
 
                              -- Reader Macros & Type Assertions
                              -- Note: We intentionally pop 'ts' here to advance past the old refinement
@@ -534,6 +556,20 @@ pExpr = do
                                               & OuroError (Tkn.pos t)
                                               & Left
                                               & lift
+
+
+-- prose's string, as the prose looks: the lines of each paragraph trimmed and joined with single
+-- spaces, and each bare bar a paragraph break, "\n\n", wherever it is written: two in a row are
+-- two breaks, and one at the start or the end is a break there.
+foldProse :: [Text] -> Text
+foldProse = T.concat . map piece . groupBy (\a b -> not (blank a) && not (blank b))
+    where
+    blank = T.null . T.strip
+
+    -- A bare bar, alone in its group, or a paragraph's lines
+    piece = \case
+        [line] | blank line -> "\n\n"
+        paragraph           -> T.unwords (map T.strip paragraph)
 
 
 -- Lookahead Container Accumulators

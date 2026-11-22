@@ -633,6 +633,36 @@ operators = Group "Operators: operands and desugaring"
                                                               "(define/procedure f (<xs ⊢ (array (record))>) xs) (graph g (:ok 1))")
     , ("a record type with keys does not",          compilesWithoutWarnings "(define/procedure f (<r ⊢ (record :k string)>) r) (graph g (:ok 1))")
 
+      -- prose: bar lines, a bar and a space or a bar alone at its line's end beginning each line of
+      -- raw text, folded into one string where it is written
+    , ("prose folds its lines into a string",       compilesToJSON "(graph g (:r (prose | a\n                    | b\n                    )))"
+                                                                   "{\"r\": \"a b\"}")
+    , ("a bar alone begins a paragraph",            compilesToJSON "(graph g (:r (prose | a\n | b\n |\n | c\n )))"
+                                                                   "{\"r\": \"a b\\n\\nc\"}")
+    , ("each bare bar is a break, at the ends too",  compilesToJSON "(graph g (:r (prose |\n | a\n |\n |\n | b\n |\n )))"
+                                                                   "{\"r\": \"\\n\\na\\n\\n\\n\\nb\\n\\n\"}")
+    , ("each line is trimmed",                      compilesToJSON "(graph g (:r (prose |   x  \n | y\n )))"
+                                                                   "{\"r\": \"x y\"}")
+    , ("a bar line is raw text",                    compilesToJSON "(graph g (:r (prose | a ; \"b\" (c \\d\n )))"
+                                                                   "{\"r\": \"a ; \\\"b\\\" (c \\\\d\"}")
+    , ("Windows line endings too",                  compilesToJSON "(graph g (:r (prose | a\r\n | b\r\n )))"
+                                                                   "{\"r\": \"a b\"}")
+    , ("prose is a string where it is written, a doc too", compilesWithoutWarnings "(define/refinement titled (<r ⊢ record>) (doc (prose | Has\n | a label.\n )) (has r _label)) (graph g (:r 1))")
+    , ("bar lines are prose's alone",               failsWith "Bar lines are written only in prose"
+                                                              "(graph g (:r | a\n ))")
+    , ("and prose takes nothing else",              failsWith "prose is written with bar lines"
+                                                              "(graph g (:r (prose \"a\")))")
+    , ("|- still asserts",                          compilesToJSON "(graph g (:r (|- 1 number)))"
+                                                                   "{\"r\": 1}")
+    , ("a bar in a string is text",                 compilesToJSON "(graph g (:r \"| a\"))"
+                                                                   "{\"r\": \"| a\"}")
+    , ("a bar in a comment is a comment",           compilesToJSON "(graph g ; | a\n (:r 1))"
+                                                                   "{\"r\": 1}")
+    , ("and in a block comment",                    compilesToJSON "(graph g #| | a |# (:r 1))"
+                                                                   "{\"r\": 1}")
+    , ("a bar against text begins no bar line",     failsWith "|x"
+                                                              "(graph g (:r |x))")
+
       -- Comparisons are words. '<' and '>' delimit an infix expression, its '<' written
       -- against the first operand, so each old name is an error that names its word
     , ("< is now lt",                               failsWith "'<' is now 'lt': (lt a b)"
