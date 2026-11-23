@@ -1,8 +1,6 @@
 Error [BLD0013]: Collection Overlap
-  ┌── │test-cli/fixtures/messages/BLD0013-CollectionOverlap/tate:1:1│
+  ┌── │test-cli/fixtures/messages/BLD0013-CollectionOverlap/tate│
   │
-1 │ 
-  │ ^
   │ Name: tate
   │ Also in: test-cli/fixtures/messages/BLD0013-CollectionOverlap
   │ 

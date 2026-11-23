@@ -9,6 +9,11 @@ version is 0.x, a new minor version may break programs, and each change that doe
 
 ## [Unreleased]
 
+### Fixed
+- A diagnostic in no file, such as one about the argument `-t ouro-mode`, a vendored folder or
+  an unreadable file, names where it is, `│-t ouro-mode│`, where it was framed as line 1 of an
+  empty file with a caret under nothing (gap 58). <!-- zwxwmxzu -->
+
 ## [0.7.0.0] - 2026-11-23
 
 Types are written as sets. A refinement is a set of values, built in or defined in Ouro, and is

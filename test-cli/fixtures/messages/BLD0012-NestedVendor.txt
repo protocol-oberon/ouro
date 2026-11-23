@@ -1,8 +1,6 @@
 Error [BLD0012]: Nested Vendor
-  ┌── │test-cli/fixtures/messages/BLD0012-NestedVendor/vendor/tate/vendor:1:1│
+  ┌── │test-cli/fixtures/messages/BLD0012-NestedVendor/vendor/tate/vendor│
   │
-1 │ 
-  │ ^
   │ Collection: tate
   │ 
 

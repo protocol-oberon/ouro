@@ -9,7 +9,7 @@ module CLI.Printer
 ) where
 
 import           Data.Char                     (isAlphaNum, isLetter)
-import           Data.Maybe                    (fromMaybe)
+import           Data.Maybe                    (fromMaybe, isJust)
 import           Data.Ouro                     (BuildError (..),
                                                 ErrorContext (..),
                                                 InternalError (..),
@@ -102,9 +102,15 @@ diagnosticLayout sourceOf diagnostic = do
 
     let frame       = sourceFrame sourceOf pos
         lineNum     = frameLine frame
-        colNum      = frameColumn frame
         lineStr     = annotate Gutter (pretty $ show lineNum)
         gutterWidth = length (show lineNum)
+
+    -- A position in no file, such as the argument -t people/persn, has no line to show: the
+    -- frame names it, and its details follow without a line or a caret
+    let inFile = isJust (sourceOf (frameFile frame))
+        colNum = case inFile of
+                     True  -> frameColumn frame
+                     False -> 1
 
     -- The text of the line the diagnostic is on, in its own file
     let rawLine = T.unpack (frameText frame)
@@ -159,15 +165,22 @@ diagnosticLayout sourceOf diagnostic = do
     -- components maintain strict alignment layout bounds relative to the vertical fence.
     let doc :: Doc OuroStyle
         doc = vsep $
-            [ annotate headerStyle (pretty (renderLabel headerStyle) <> " [" <> pretty codeText <> "]: " <> pretty title)
-            , pretty (replicate gutterWidth ' ') <> " ┌── │"
-              <> pretty (frameFile frame) <> ":" <> annotate Gutter (pretty lineNum) <> ":" <> annotate Gutter (pretty colNum) <> "│"
-            , pretty (replicate gutterWidth ' ') <> " │"
-            , mkGutter lineStr <> pretty slicedLine
+            [ annotate headerStyle (pretty (renderLabel headerStyle) <> " [" <> pretty codeText <> "]: " <> pretty title) ]
+            ++ (case inFile of
+                    True  -> [ pretty (replicate gutterWidth ' ') <> " ┌── │"
+                               <> pretty (frameFile frame) <> ":" <> annotate Gutter (pretty lineNum) <> ":"
+                               <> annotate Gutter (pretty colNum) <> "│"
+                             , pretty (replicate gutterWidth ' ') <> " │"
+                             , mkGutter lineStr <> pretty slicedLine
 
-            -- Caret alignment tracking
-            , mkEmptyGutter <> indent (visualColNum - 1) (annotate Pointer "^")
-            ]
+                             -- Caret alignment tracking
+                             , mkEmptyGutter <> indent (visualColNum - 1) (annotate Pointer "^")
+                             ]
+
+                    -- Named, without a line or a caret
+                    False -> [ pretty (replicate gutterWidth ' ') <> " ┌── │" <> pretty (frameFile frame) <> "│"
+                             , pretty (replicate gutterWidth ' ') <> " │"
+                             ])
             ++ alignedDetails
             ++ (case blurbDoc of
                     [] -> [mkEmptyGutter, mempty]

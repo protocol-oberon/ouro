@@ -1,8 +1,6 @@
 Error [BLD0011]: Reserved Collection
-  ┌── │test-cli/fixtures/messages/BLD0011-ReservedCollection/vendor/std:1:1│
+  ┌── │test-cli/fixtures/messages/BLD0011-ReservedCollection/vendor/std│
   │
-1 │ 
-  │ ^
   │ Collection: std
   │ 
 

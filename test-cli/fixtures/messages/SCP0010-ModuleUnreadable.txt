@@ -1,8 +1,6 @@
 Error [SCP0010]: Module Unreadable
-  ┌── │test-cli/fixtures/messages/SCP0010-ModuleUnreadable/latin.ouro:1:1│
+  ┌── │test-cli/fixtures/messages/SCP0010-ModuleUnreadable/latin.ouro│
   │
-1 │ 
-  │ ^
   │ Module: latin
   │ File:   test-cli/fixtures/messages/SCP0010-ModuleUnreadable/latin.ouro
   │ 

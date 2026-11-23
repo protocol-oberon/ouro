@@ -68,6 +68,13 @@ builds = Group "CLI: ouro build"
                                                         assert ("'-g' is now written '-t'" `T.isInfixOf` plain (err run))
                                                         written <- evalIO (traverse doesFileExist [dir </> "out" </> "a" </> "y.json", dir </> "out" </> "a" </> "x.json"])
                                                         written === [True, False])
+    , ("-t not written module/document is named, without a line", withTests 1 . property $ do
+                                                        dir <- evalIO (writeFolder "build-chosen-form" [ ("a.ouro", "(document x (:r 1))") ])
+                                                        run <- evalIO (ouro dir ["build", "-t", "ouro-mode"])
+                                                        exitCode run === ExitFailure 1
+                                                        assert ("Error [BLD0018]" `T.isInfixOf` plain (err run))
+                                                        assert ("│-t ouro-mode│" `T.isInfixOf` plain (err run))
+                                                        assert (not ("-t ouro-mode:1:1" `T.isInfixOf` plain (err run))))
     , ("-g is not in the help",                     withTests 1 . property $ do
                                                         dir <- evalIO (writeFolder "build-help" [])
                                                         run <- evalIO (ouro dir ["build", "-h"])
