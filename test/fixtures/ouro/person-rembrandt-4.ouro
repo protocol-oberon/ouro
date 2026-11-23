@@ -15,8 +15,8 @@
   (-> (person "rembrandt/4" "Rembrandt")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :identified_by (array (with (base/name vocab/primary-name "Rembrandt Harmenzoon van Rijn")
-                                  :part (array (actor/given-name "Rembrandt")
-                                               (:id            (example "Name/Harmenzoon")
-                                               :type          "Name"
-                                               :classified_as (array name-type/middle-name))
-                                              (actor/family-name "van Rijn")))))))
+                                   :part (array (actor/given-name "Rembrandt")
+                                                (:id            (example "Name/Harmenzoon")
+                                                 :type          "Name"
+                                                 :classified_as (array name-type/middle-name))
+                                                (actor/family-name "van Rijn")))))))

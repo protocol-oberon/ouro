@@ -23,8 +23,8 @@
   (-> (object "spring/15" "Jeanne (Spring) by Manet")
       (with :context                   "https://linked.art/ns/v1/linked-art.json")
       (with :changed_ownership_through (array (owned "Ownership of Spring to Proust" (time/year-range "1881" "1883") "manet_proust"
-                                                    (node "person/manet" "Person" "Manet")
-                                                    (node "person/proust" "Person" "Proust"))
-                                             (owned "Ownership of Spring to Payne" (time/year "1909") "durand_payne"
-                                                    (node "person/durand" "Person" "Durand-Ruel Gallery")
-                                                    (node "person/payne" "Person" "Oliver Payne"))))))
+                                                     (node "person/manet" "Person" "Manet")
+                                                     (node "person/proust" "Person" "Proust"))
+                                              (owned "Ownership of Spring to Payne" (time/year "1909") "durand_payne"
+                                                     (node "person/durand" "Person" "Durand-Ruel Gallery")
+                                                     (node "person/payne" "Person" "Oliver Payne"))))))

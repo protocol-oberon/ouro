@@ -26,4 +26,4 @@
       (with :timespan      (time/year-range "1881" "1883"))
       (with :part          (array (with (provenance/acquisition spring manet proust) :_label "Ownership of Spring to Proust")
                                   (with (provenance/payment (provenance/money 3000 currency/french-francs) proust manet)
-                                  :_label "3000 Francs to Manet")))))
+                                   :_label "3000 Francs to Manet")))))

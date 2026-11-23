@@ -12,11 +12,11 @@
 
 (define/procedure accession ⊢ record (<number ⊢ string> <museum ⊢ string> <label ⊢ string>)
   (with (base/identifier identifier-type/accession-number number)
-    :assigned_by ((:type           "AttributeAssignment"
-                   :carried_out_by ((:id            (example (+ "group/" museum))
-                                     :type          "Group"
-                                     :_label        label
-                                     :classified_as (array group-type/museum)))))))
+   :assigned_by ((:type           "AttributeAssignment"
+                  :carried_out_by ((:id            (example (+ "group/" museum))
+                                    :type          "Group"
+                                    :_label        label
+                                    :classified_as (array group-type/museum)))))))
 
 ;; A painting owned jointly by two museums, each giving it an accession number of its own
 (document object-yiadom-boakye-1

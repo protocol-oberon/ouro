@@ -12,5 +12,5 @@
    :id            (example "object/3")
    :type          "HumanMadeObject"
    :identified_by (array (with (base/name vocab/primary-name "Hacha")
-                         :id       (example "Name/0")
-                         :language (array iso/spanish)))))
+                          :id       (example "Name/0")
+                          :language (array iso/spanish)))))

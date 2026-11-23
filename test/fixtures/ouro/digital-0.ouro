@@ -23,7 +23,7 @@
       (with :dimension               (array (object/height 2550 object/pixels)
                                             (object/width 2087 object/pixels)))
       (with :part_of                 (array (with (at <"https://iiif.harvardartmuseums.org/manifests/object/299843" ⊢ uri>)
-                                                 :_label "IIIF Manifest")))
+                                             :_label "IIIF Manifest")))
       (with :member_of               ((:id (example "set/0") :type "Set" :_label "Images of Self-Portraits of Van Gogh")))
       (with :access_point            (array (at <"https://ids.lib.harvard.edu/ids/iiif/47174896/full/full/0/default.jpg" ⊢ uri>)))
       (with :digitally_shows         ((:type "VisualItem" :_label "Visual Content of Self-Portrait of Van Gogh")))

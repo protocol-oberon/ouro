@@ -21,6 +21,6 @@
       (with :context "https://linked.art/ns/v1/linked-art.json")
       (with :part    (array (provenance/payment (provenance/money 900 iso/us-dollars) buyer (:type "Person" :_label "Seller"))
                             (with (provenance/payment (provenance/money 100 currency/us-dollars)
-                                                     buyer
-                                                     (:type "Group" :_label "Auction House" :classified_as (array group-type/auction-house)))
-                            :classified_as (array provenance-type/commissioning))))))
+                                                      buyer
+                                                      (:type "Group" :_label "Auction House" :classified_as (array group-type/auction-house)))
+                             :classified_as (array provenance-type/commissioning))))))

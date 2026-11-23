@@ -32,4 +32,4 @@
       (with :caused_by            ((:id <"http://example.org/auction/Br1908/0055" ⊢ uri> :type "Activity" :_label "Auction of Lot 0055")))
       (with :part                 (array (provenance/acquisition st-george simpson adams)
                                          (provenance/payment (with (provenance/money 8.8 iso/british-pounds) :_label "8.8 pounds")
-                                                            adams simpson)))))
+                                                             adams simpson)))))

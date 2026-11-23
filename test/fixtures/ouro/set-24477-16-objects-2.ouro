@@ -16,4 +16,4 @@
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as (array set-type/auction-lot))
       (with :dimension     (array (with (provenance/money 25000000 iso/us-dollars)
-                                  :classified_as (array price-type/estimated-price))))))
+                                   :classified_as (array price-type/estimated-price))))))

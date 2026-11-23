@@ -27,7 +27,7 @@
       (with :context "https://linked.art/ns/v1/linked-art.json")
       (with :part    ((:type        "RightAcquisition"
                        :establishes (array (with (share "40% Ownership by Dealer 1" 40 "Dealer 1")
-                                           :applies_to ((:type "HumanMadeObject" :_label "Painting" :classified_as (array object-type/painting)))))
+                                            :applies_to ((:type "HumanMadeObject" :_label "Painting" :classified_as (array object-type/painting)))))
                        :invalidates (array (ownership "30% Ownership by Dealer 1")))
                       (:type        "RightAcquisition"
                        :establishes (array (share "60% Ownership by Dealer 2" 70 "Dealer 2"))

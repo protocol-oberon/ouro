@@ -31,10 +31,10 @@
       (with :context "https://linked.art/ns/v1/linked-art.json")
       (adjoin :classified_as provenance-type/commissioning)
       (with :part    (array (promise "Obligation to Pay Artist"
-                                    (base/description "Promise to pay for a painting to be created by the artist")
-                                    franke dine)
-                           (promise "Obligation to Produce Painting"
-                                    (:type          "LinguisticObject"
-                                     :classified_as (array (base/aat "300435416" "Description"))
-                                     :content       "Promise to produce a painting for the commissioning party")
-                                    dine franke)))))
+                                     (base/description "Promise to pay for a painting to be created by the artist")
+                                     franke dine)
+                            (promise "Obligation to Produce Painting"
+                                     (:type          "LinguisticObject"
+                                      :classified_as (array (base/aat "300435416" "Description"))
+                                      :content       "Promise to produce a painting for the commissioning party")
+                                     dine franke)))))

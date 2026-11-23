@@ -13,9 +13,9 @@
    :id             (example "object/12")
    :type           "HumanMadeObject"
    :referred_to_by (array (-> (base/description "A small greenstone pendant surrounded by silver")
-                             (with :identified_by  (array (base/name vocab/display-name "Description")))
-                             (with :referred_to_by ((:type "LinguisticObject" :content "Description provided by the artist")))
-                             (with :language       (array iso/english))
-                             (with :subject_to     ((:type          "Right"
-                                                     :classified_as ((:id <"https://creativecommons.org/licenses/by/4.0/" ⊢ uri> :type "Type"))
-                                                     :identified_by (array (base/name vocab/display-name "CC BY 4.0")))))))))
+                              (with :identified_by  (array (base/name vocab/display-name "Description")))
+                              (with :referred_to_by ((:type "LinguisticObject" :content "Description provided by the artist")))
+                              (with :language       (array iso/english))
+                              (with :subject_to     ((:type          "Right"
+                                                      :classified_as ((:id <"https://creativecommons.org/licenses/by/4.0/" ⊢ uri> :type "Type"))
+                                                      :identified_by (array (base/name vocab/display-name "CC BY 4.0")))))))))

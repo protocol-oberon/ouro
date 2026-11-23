@@ -12,4 +12,4 @@
   (-> (person "wiley/1" "Kehinde Wiley")
       (with :context       "https://linked.art/ns/v1/linked-art.json")
       (with :classified_as (array (adjoin (:id <"http://www.wikidata.org/entity/Q3007177" ⊢ uri> :type "Type" :_label "African-American")
-                                  :classified_as (base/aat "300250435" "Ethnicity"))))))
+                                   :classified_as (base/aat "300250435" "Ethnicity"))))))

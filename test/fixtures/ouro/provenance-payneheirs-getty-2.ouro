@@ -19,9 +19,9 @@
   (-> (provenance "payneheirs_getty/2" "Purchase of Spring")
       (with :context "https://linked.art/ns/v1/linked-art.json")
       (with :part    (array (with (provenance/acquisition spring heirs (node "group/getty" "Group" "J. Paul Getty Museum"))
-                            :_label "Acquisition of Painting")
-                           (:type                     "TransferOfCustody"
-                            :_label                   "Custody by Department"
-                            :transferred_custody_of   (array spring)
-                            :transferred_custody_from (array heirs)
-                            :transferred_custody_to   (array (node "group/getty_ptgs" "Group" "Paintings Department")))))))
+                             :_label "Acquisition of Painting")
+                            (:type                     "TransferOfCustody"
+                             :_label                   "Custody by Department"
+                             :transferred_custody_of   (array spring)
+                             :transferred_custody_from (array heirs)
+                             :transferred_custody_to   (array (node "group/getty_ptgs" "Group" "Paintings Department")))))))
