@@ -3439,12 +3439,14 @@ The groups:
 
 0.6.0.0 was measured before the two kinds of fixture were joined, so its tables keep them apart, as =canonical= (Ouro's own) and =linked-art=.
 
-Each version is a heading, recorded when the version is released and never changed afterwards. Its drawer holds the date measured, the change measured, the compiler and the machine. Times are tasty-bench's mean, with two standard deviations after =±=, and are comparable only between runs on the same machine.
+Each breaking version (0.7.0.0, 0.8.0.0) is a heading, recorded when the version is released and never changed afterwards; minor and patch versions are not measured. Its drawer holds the date measured, the change measured, the compiler and the machine. Times are tasty-bench's mean, with two standard deviations after =±=, and are comparable only between runs on the same machine. Each version's results are kept in =bench/results/<version>.csv=, the baseline the next breaking version is compared with.
 
 To record a version:
 
-- =cabal bench --benchmark-options='--csv b.csv'= runs every benchmark and keeps the results as a baseline;
-- =cabal bench --benchmark-options='--baseline b.csv --fail-if-slower 20'= compares a later run with it.
+- =cabal bench --benchmark-options='--timeout 10s --csv bench/results/0.8.0.0.csv'= runs every benchmark and keeps the results as a baseline;
+- =cabal bench --benchmark-options='--timeout 10s --baseline bench/results/0.7.0.0.csv --fail-if-slower 20'= compares a run with the last version's, and fails on a benchmark 20% slower.
+
+=--timeout= is needed: without it, tasty-bench repeats a benchmark until its spread is under 5% of its mean, and on a noisy machine some never get there, so the run never ends. With it, a benchmark reports its estimate when time is nearly up; one whose next round would overrun is reported =TIMEOUT=, and is run again on its own with =-p= and =--stdev 10=. A version that seems slower is run beside the last one, alternately in one session, before the difference is believed: the machine's state alone moved 0.6.2.0's own hoard by a third between two days.
 
 =--benchmark-options='-p /hoard/ +RTS -T -RTS'= adds each benchmark's allocation, bytes copied by the collector and peak memory. Allocation that grows with the input while copying grows faster means a live heap that grows: every major collection copies all of it.
 
@@ -3481,6 +3483,49 @@ Times in ms. Allocation grows linearly (203 MB to 655 MB, ×3.2); bytes copied g
 What remains at 500 coins is mostly the evaluator's bindings: ~Map~, ~IntMap~, ~Env~, ~Promise~ and ~FrameEntry~, about 63% of the live heap. The promise store keeps every binding of a document until the document is finished, so the live heap grows with the document. Releasing what no frame can reach is the remaining lever, and it touches the memoisation that gap 12's fix relies on.
 
 ~escapeString~ and ~escapeChar~ were 12% of the time and 16% of the allocation, since every string was escaped a character at a time. Now each run of characters needing no escape is written whole, which cut the allocation at 2000 coins from 815 MB to 655 MB.
+
+** 0.7.0.0
+:PROPERTIES:
+:MEASURED: 2026-11-23
+:CHANGE:   rysvqnkv, after 0.7.0.1: the compiler of 0.7.0.0, which differs only in the CLI's printer
+:GHC:      9.10.3, -O1, +RTS -A32m
+:MACHINE:  Intel Core i7-6600U, 2.60 GHz, 8 GB, Windows 10 Pro
+:END:
+
+The machine was slower on the day than when 0.6.2.0 was measured: 0.6.2.0's own hoard, run again beside this one, took a quarter to a third longer than its table below. These figures are kept as measured, in =bench/results/0.7.0.0.csv=, and the comparison with 0.6.2.0 is the one made in one session, after the tables.
+
+| fixtures (212)              |    Time |
+|-----------------------------+---------|
+| fastest (=encoding=)        | 0.19 ms |
+| first quartile              | 10.6 ms |
+| median                      | 14.6 ms |
+| third quartile              | 19.2 ms |
+| slowest (=group-0=)         | 38.9 ms |
+| all 212, one after another  | 3.16 s  |
+
+=object-nightwatch-12= and =object-spring-30= were =TIMEOUT= in the full run and were measured on their own with =--stdev 10=: 27.7 ms and 12.4 ms.
+
+| hoard      |           Time |
+|------------+----------------|
+| 100 coins  |  64.6 ms ± 8.4 |
+| 500 coins  |   191 ms ± 37  |
+| 2000 coins |  1033 ms ± 70  |
+
+| arrays, 100 / 500 / 2000 coins | 100     | 500    | 2000    | ×4 ratio |
+|--------------------------------+---------+--------+---------+----------|
+| =forall=                       | 55.6 ms | 191 ms | 747 ms  |      3.9 |
+| =len in map=                   | 44.1 ms | 161 ms | 572 ms  |      3.6 |
+| =union=                        | 47.4 ms | 172 ms | 677 ms  |      3.9 |
+
+Against 0.6.2.0 in one session, its hoard and this one run alternately, twice:
+
+| hoard, same session | 0.6.2.0         | 0.7.0.0          |
+|---------------------+-----------------+------------------|
+| 100 coins           | 45.4, 51.1 ms   | 49.2, 63.4 ms    |
+| 500 coins           | 165, 160 ms     | 173, 195 ms      |
+| 2000 coins          | 725, 825 ms     | 900, 863 ms      |
+
+0.7.0.0 is about 5% to 20% slower than 0.6.2.0 at 100 and 500 coins, within the 20% the next version is held to, as the work every program now pays for would make it: the infix and typing passes of Canon, and the type lint. At 2000 coins the spread, ± 220 to 300 ms, is wider than the difference. The arrays grow near linearly, each ×4 ratio under 4. The hoard's, 500 to 2000 coins, is 5.4 here, but 4.4 to 5.2 for both versions in one session, so it is the machine's noise at that size, not a change in growth.
 
 ** 0.6.2.0
 :PROPERTIES:
