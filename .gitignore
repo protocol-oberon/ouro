@@ -3,5 +3,7 @@ dist-newstyle/
 .envrc
 scratch/
 out/
+# Emacs: autosaves (#file#), lock files (.#file) and backups (file~)
 \#*#
 .#*
+*~
