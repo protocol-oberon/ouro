@@ -19,63 +19,62 @@ work, each with a warning that names what replaces it, until 0.8.0.0.
 - `⊢` (also `assert` or `|-`) asserts that a value is in a refinement, passing it on unchanged
   or stopping with a type error; `∈` (also `in`) asks, answering `true` or `false`. Each is
   written prefix, `(⊢ x string)`, or infix, `<x ⊢ string>`, and a `case` branch's head
-  `(∈ p)` asks it of the case's target. <!-- wxqrryxu --> <!-- rvuoxopr -->
+  `(∈ p)` asks it of the case's target. ([c6d1213], [69e2c2e])
 - Any form can be written infix between angle brackets, `<a op b>` being `(op a b)`, and a
-  chain threads, `<x ⊢ record ⊢ titled>`. <!-- qkuqkmun -->
+  chain threads, `<x ⊢ record ⊢ titled>`. ([3529b6b])
 - Signatures are written with binders, `(<id ⊢ uri> <label ⊢ string>)`, a pattern's too,
   `<(?a ?b) ⊢ array>`, and a return type after the name, `(define/procedure f ⊢ record (...)
   ...)`. A signature is kept with its function, and checked when it is called.
-  <!-- wxllmopn --> <!-- yzrvmoom -->
+  ([764c698], [9a72541])
 - Refinements defined in Ouro, with `define/refinement`: one typed parameter, a body that
   answers `true` or `false`, and a `doc` that a failure reports as the rule it broke,
   `titled: Has a label.` A refinement is asserted by its name, `<r ⊢ titled>`, in a signature
   as anywhere, and may go down into its value, so a tree is checked at every depth. One
-  without a doc warns (`WRN0007`). <!-- oxoyksmm --> <!-- unrtrxkt --> <!-- mluzqpsw -->
-  <!-- psqvvozz -->
+  without a doc warns (`WRN0007`). ([cbbe699], [4f77773], [305b528], [ab52bac])
 - Types combine as sets: `(∪ a b)`, `(∩ a b)`, `(∖ a b)`, `(array p)` for an array whose every
   element is in `p`, and `(record :k p ...)` for a record with at least these keys, each value
   in its type. A failure names the part that failed, `an array whose element 3 is string`, `a
   record without label`. `(record)`, with no keys, warns that it is every record (`WRN0008`).
-  <!-- sxrnqpmz --> <!-- xyktslwp --> <!-- ymmopvqn --> <!-- yrlksppl -->
+  ([96dd471], [eba4e3e], [b518516], [386ce4a])
 - `(make record ...)` and `(make array ...)` build a record or an array whatever the shape of
   what follows, and `(make record)` and `(make array)` are the empty ones: a record of only
-  inlays can now be written (gap 14). <!-- nvryylvq -->
-- `(shift date duration)` moves a date, back with a negative duration. <!-- kxrwylzv -->
+  inlays can now be written (gap 14). ([4642487])
+- `(shift date duration)` moves a date, back with a negative duration. ([70a95b1])
 - `prose` writes long text as bar lines, each raw to the end of its line, joined into one
   string, a bar alone being a paragraph break. A triple-quoted string warns that it is three
-  strings, and points to `prose` (`WRN0009`). <!-- wlkkpwyl --> <!-- stsmlzys -->
+  strings, and points to `prose` (`WRN0009`). ([9e4e75f], [0f86ded])
 - `(document name expr)` declares a document, the output file, in place of `graph`.
-  <!-- pspvnpwt -->
+  ([4636b37])
 
 ### Changed
 - **Breaking:** comparisons are words: `<`, `>`, `<=` and `>=` are errors that name `lt`,
-  `gt`, `leq` and `geq`, since `<` and `>` now write infix forms. <!-- rzptuqyw -->
+  `gt`, `leq` and `geq`, since `<` and `>` now write infix forms. ([de25bf6])
 - **Breaking:** `make`, `assert` and `in` are read by their syntax, so a function cannot take
-  their names (`SYN0008`). <!-- nvryylvq --> <!-- wxqrryxu -->
+  their names (`SYN0008`). ([4642487], [c6d1213])
 - `uri` and `date` are refinements of strings: an asserted value passes on as it was written,
-  never converted, and a date is read where it is used, by `shift`. <!-- kxrwylzv -->
+  never converted, and a date is read where it is used, by `shift`. ([70a95b1])
 - Messages name refinements as they are written, `Expected data to have the refinement
   number, got string instead.`, and their examples are in the current syntax.
-  <!-- swlxowok --> <!-- ouwksnrk -->
-- `std` and the fixtures are written in the current syntax. <!-- pqxpwzky -->
-- A build of one document says `1 document`. <!-- plkxrsnq -->
+  ([01996c7], [9a809e7])
+- `std` and the fixtures are written in the current syntax. ([d77d37a])
+- A build of one document says `1 document`. ([86c0c71])
 
 ### Deprecated
 - The old spellings with a hash mark, a refinement before a value or a parameter or after a
   definition's name, the empty record and array, and `satisfies` before such a refinement,
   still work, each with a warning that names its replacement where it is written, `<x ⊢
   string>`, `⊢ string`, `(make record)`, `<x ∈ string>` (`WRN0001`). They are errors in
-  0.8.0.0. <!-- ortpruxn --> <!-- qyouqqxx -->
+  0.8.0.0. ([50021e0], [c419ea6])
 - `graph` still declares a document, with a warning that names `document` (`WRN0001`).
-  <!-- pspvnpwt -->
+  ([4636b37])
 - `ouro build -g` still chooses documents, left out of the help, with a warning that names
-  `-t`, `--target`, which replaces it. <!-- pspvnpwt --> <!-- qyouqqxx -->
+  `-t`, `--target`, which replaces it. ([4636b37], [c419ea6])
 - The build setting `:graphs` still chooses documents, read when `:documents` is not given,
-  with a warning that names `:documents` (`WRN0001`). <!-- pspvnpwt --> <!-- ommpqsqp -->
+  with a warning that names `:documents` (`WRN0001`). ([4636b37], [60a3e94])
 
 ### Removed
 - **Breaking:** `(list a b)` is an error that names `array`, as 0.6.2.0 warned (gap 55).
-  <!-- kqrtuxop -->
+  ([6e7bba8])
 
 ## [0.6.2.0] - 2026-11-17
 
@@ -289,6 +288,33 @@ work, each with a warning that names what replaces it, until 0.8.0.0.
 [0.6.0.0]: https://github.com/protocol-oberon/ouro/compare/v0.5.0.0...v0.6.0.0
 [0.5.0.0]: https://github.com/protocol-oberon/ouro/compare/v0.0.0.1...v0.5.0.0
 [0.0.0.1]: https://github.com/protocol-oberon/ouro/releases/tag/v0.0.0.1
+[c6d1213]: https://github.com/protocol-oberon/ouro/commit/c6d1213
+[69e2c2e]: https://github.com/protocol-oberon/ouro/commit/69e2c2e
+[3529b6b]: https://github.com/protocol-oberon/ouro/commit/3529b6b
+[764c698]: https://github.com/protocol-oberon/ouro/commit/764c698
+[9a72541]: https://github.com/protocol-oberon/ouro/commit/9a72541
+[cbbe699]: https://github.com/protocol-oberon/ouro/commit/cbbe699
+[4f77773]: https://github.com/protocol-oberon/ouro/commit/4f77773
+[305b528]: https://github.com/protocol-oberon/ouro/commit/305b528
+[ab52bac]: https://github.com/protocol-oberon/ouro/commit/ab52bac
+[96dd471]: https://github.com/protocol-oberon/ouro/commit/96dd471
+[eba4e3e]: https://github.com/protocol-oberon/ouro/commit/eba4e3e
+[b518516]: https://github.com/protocol-oberon/ouro/commit/b518516
+[386ce4a]: https://github.com/protocol-oberon/ouro/commit/386ce4a
+[4642487]: https://github.com/protocol-oberon/ouro/commit/4642487
+[70a95b1]: https://github.com/protocol-oberon/ouro/commit/70a95b1
+[9e4e75f]: https://github.com/protocol-oberon/ouro/commit/9e4e75f
+[0f86ded]: https://github.com/protocol-oberon/ouro/commit/0f86ded
+[4636b37]: https://github.com/protocol-oberon/ouro/commit/4636b37
+[de25bf6]: https://github.com/protocol-oberon/ouro/commit/de25bf6
+[01996c7]: https://github.com/protocol-oberon/ouro/commit/01996c7
+[9a809e7]: https://github.com/protocol-oberon/ouro/commit/9a809e7
+[d77d37a]: https://github.com/protocol-oberon/ouro/commit/d77d37a
+[86c0c71]: https://github.com/protocol-oberon/ouro/commit/86c0c71
+[50021e0]: https://github.com/protocol-oberon/ouro/commit/50021e0
+[c419ea6]: https://github.com/protocol-oberon/ouro/commit/c419ea6
+[60a3e94]: https://github.com/protocol-oberon/ouro/commit/60a3e94
+[6e7bba8]: https://github.com/protocol-oberon/ouro/commit/6e7bba8
 
 [74c4e09]: https://github.com/protocol-oberon/ouro/commit/74c4e09
 [e59379f]: https://github.com/protocol-oberon/ouro/commit/e59379f
