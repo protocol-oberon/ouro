@@ -25,6 +25,7 @@ module CLI.Project
 ) where
 
 import           CLI.Source                   (readSource)
+import           Control.Applicative          ((<|>))
 import           Control.Monad                (filterM)
 import           Control.Monad.Validate       (refute, runValidateT)
 import           Control.Monad.Writer         (runWriterT, tell)
@@ -41,6 +42,7 @@ import           Data.Ouro                    (CompilationResult (..),
 import           Data.Ouro.Build              (BuildResult (..), Graphs (..),
                                                buildModules)
 import           Data.Ouro.Error.Diagnostics  (buildSettings, collectionOverlap,
+                                               deprecatedSyntax,
                                                graphSelectionForm, importCase,
                                                invalidVersion, missingSourceFolder,
                                                nestedVendor, newerOuro,
@@ -148,6 +150,8 @@ readPackage file source = swap (runIdentity (runWriterT (runValidateT readIt)))
              imported <- runLoader bundledOnly (loadImports canonical)
              -- Its value is a call of it, (package), evaluated as a graph is
              value    <- either refute pure (evaluateGraph imported canonical (Graph pos "package" (S.Form pos [S.Symbol pos "package"])))
+             -- :graphs, the old name of :documents, still chooses the documents, with a warning
+             tell [ OuroWarning pos (deprecatedSyntax ":graphs" ":documents") | L.Record _ pairs <- [value], Just _ <- [lookup "graphs" pairs] ]
              either refute pure (settings pos value)
 
 
@@ -192,10 +196,11 @@ settings pos = \case
     where
     fromPairs pairs =
         let setting key = lookup key pairs
-            unknown     = [ at (unknownBuildSetting key) | (key, _) <- pairs, key `notElem` buildSettings ]
+            unknown     = [ at (unknownBuildSetting key) | (key, _) <- pairs, key `notElem` ("graphs" : buildSettings) ]
             sources     = maybe (Right ".") (fmap T.unpack . text "sources") (setting "sources")
             outputs     = maybe (Right "out") (fmap T.unpack . text "outputs") (setting "outputs")
-            graphs      = maybe (Right Nothing) (fmap Just . graphNames) (setting "documents")
+            -- :graphs, the old name of :documents, is read when :documents is not given
+            graphs      = maybe (Right Nothing) (fmap Just . graphNames) (setting "documents" <|> setting "graphs")
             needed      = maybe (Right ()) (\value -> text "ouro" value >>= ouro) (setting "ouro")
         in case NE.nonEmpty (unknown <> problems sources <> problems outputs <> problems graphs <> problems needed) of
                Just errs -> Left errs

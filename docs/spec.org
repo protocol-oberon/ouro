@@ -481,6 +481,8 @@ None is required, so ~(define/constant package (make record))~ is every default.
 
 - =:documents= is an Array even when it names one document.
 
+- =:graphs=, its old name, is read when =:documents= is not given, with a warning (=WRN0001=) at the =package= function, "':graphs' is now written ':documents'", until 0.8.0.0 makes it an error.
+
 - =:ouro= is numbers apart by dots, as ="0.5"=.
   - A version newer than the compiler's is =BLD0015=, which names both.
   - One that is not numbers apart by dots is =BLD0016=.
@@ -716,7 +718,7 @@ The keywords are =define/procedure=, =define/constant=, =define/refinement=, =do
   - =define= on its own, or of another kind (=define/graph=), is an error.
   - Its message: ='define' is not a definition: say what is defined, …=.
 
-- =graph=, the old name of =document=, still works, with a warning (=WRN0001=), "'graph' is now written 'document'"; it becomes an error in 0.8.0.0. The build's =:graphs= is now =:documents=, and its =-g= is =-t=: =-g= still works until 0.8.0.0, left out of the help, with a warning, "'-g' is now written '-t'".
+- =graph=, the old name of =document=, still works, with a warning (=WRN0001=), "'graph' is now written 'document'"; it becomes an error in 0.8.0.0. The build's =:graphs= is now =:documents=, and its =-g= is =-t=: both still work until 0.8.0.0, =-g= left out of the help, with a warning, "'-g' is now written '-t'".
 
 - =defn=, =defn/const= and =defn/property=, which these replace, are errors that name their replacement.
   - =defn is now define/procedure: …=.

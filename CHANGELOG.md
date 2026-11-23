@@ -52,8 +52,6 @@ work, each with a warning that names what replaces it, until 0.8.0.0.
   `gt`, `leq` and `geq`, since `<` and `>` now write infix forms. <!-- rzptuqyw -->
 - **Breaking:** `make`, `assert` and `in` are read by their syntax, so a function cannot take
   their names (`SYN0008`). <!-- nvryylvq --> <!-- wxqrryxu -->
-- **Breaking:** the build's `:graphs` setting is now `:documents`; `:graphs` is an unknown
-  setting (`BLD0000`). <!-- pspvnpwt -->
 - `uri` and `date` are refinements of strings: an asserted value passes on as it was written,
   never converted, and a date is read where it is used, by `shift`. <!-- kxrwylzv -->
 - Messages name refinements as they are written, `Expected data to have the refinement
@@ -72,6 +70,8 @@ work, each with a warning that names what replaces it, until 0.8.0.0.
   <!-- pspvnpwt -->
 - `ouro build -g` still chooses documents, left out of the help, with a warning that names
   `-t`, `--target`, which replaces it. <!-- pspvnpwt --> <!-- qyouqqxx -->
+- The build setting `:graphs` still chooses documents, read when `:documents` is not given,
+  with a warning that names `:documents` (`WRN0001`). <!-- pspvnpwt --> <!-- ommpqsqp -->
 
 ### Removed
 - **Breaking:** `(list a b)` is an error that names `array`, as 0.6.2.0 warned (gap 55).

@@ -60,6 +60,11 @@ packageFiles = Group "Builds: package.ouro"
     , (":name is not a setting",                    packageFails "(define/constant package (:name \"p\"))" "BLD0000" ["unknownSetting = \"name\""])
     , (":documents chooses the graphs built",          readsGraphs "(define/constant package (:documents (\"people/person\" \"places/tate\")))" (Just ["people/person", "places/tate"]))
     , ("without it, every graph is",                readsGraphs "(define/constant package (:sources \"src\"))" Nothing)
+    , (":graphs, its old name, still chooses them", readsGraphs "(define/constant package (:graphs (\"people/person\")))" (Just ["people/person"]))
+    , ("with a warning that names :documents",     withTests 1 . property $
+                                                    assert (any (T.isInfixOf "replacement = \":documents\"" . T.pack . show)
+                                                                (fst (readPackage "package.ouro" "(define/constant package (:graphs (\"people/person\")))"))))
+    , (":documents is read before :graphs",         readsGraphs "(define/constant package (:documents (\"a/x\") :graphs (\"a/y\")))" (Just ["a/x"]))
     , (":documents is an Array, even of one",          packageFails "(define/constant package (:documents \"people/person\"))" "TYP0000" ["even when it names one"])
     , (":ouro is the version needed",               readsAs "(define/constant package (:ouro \"0.5\"))" (".", "out"))
     , ("no newer than this compiler",               packageFails "(define/constant package (:ouro \"99.0\"))" "BLD0015" ["neededOuro = \"99.0\"", "compilerOuro = \"" <> ouroVersion <> "\""])
