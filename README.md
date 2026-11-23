@@ -1240,7 +1240,11 @@ If you prefer a traditional Haskell environment, you can build Ouro directly fro
    ```bash
    ouro --version
    ```
-   
+
+## Editors
+
+An Emacs mode for Ouro is kept apart from the compiler, as [a gist](https://gist.github.com/ShilohAlleyne/49ab3c0168b504189df85687ca28e888): it highlights types after `⊢` and `∈`, infix forms and prose, indents records, and types Ouro's symbols by their TeX names, `\in` as `∈`.
+
 # Using the Compiler
 
 The ouro compiler has the following commands (shown via running `ouro -h`):
