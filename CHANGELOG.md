@@ -9,6 +9,8 @@ version is 0.x, a new minor version may break programs, and each change that doe
 
 ## [Unreleased]
 
+## [0.7.0.1] - 2026-11-23
+
 ### Fixed
 - A diagnostic in no file, such as one about the argument `-t ouro-mode`, a vendored folder or
   an unreadable file, names where it is, `│-t ouro-mode│`, where it was framed as line 1 of an
@@ -286,7 +288,8 @@ work, each with a warning that names what replaces it, until 0.8.0.0.
   records and arrays, serialisation to JSON, and a command line. ([45edabc], [9e10f0e],
   [0fabbf6], [4ef6457], [4db16ac])
 
-[Unreleased]: https://github.com/protocol-oberon/ouro/compare/v0.7.0.0...HEAD
+[Unreleased]: https://github.com/protocol-oberon/ouro/compare/v0.7.0.1...HEAD
+[0.7.0.1]: https://github.com/protocol-oberon/ouro/compare/v0.7.0.0...v0.7.0.1
 [0.7.0.0]: https://github.com/protocol-oberon/ouro/compare/v0.6.2.0...v0.7.0.0
 [0.6.2.0]: https://github.com/protocol-oberon/ouro/compare/v0.6.1.0...v0.6.2.0
 [0.6.1.0]: https://github.com/protocol-oberon/ouro/compare/v0.6.0.0...v0.6.1.0
