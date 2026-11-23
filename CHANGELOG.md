@@ -14,7 +14,7 @@ version is 0.x, a new minor version may break programs, and each change that doe
 ### Fixed
 - A diagnostic in no file, such as one about the argument `-t ouro-mode`, a vendored folder or
   an unreadable file, names where it is, `│-t ouro-mode│`, where it was framed as line 1 of an
-  empty file with a caret under nothing (gap 58). <!-- zwxwmxzu -->
+  empty file with a caret under nothing (gap 58). ([ec69b48])
 
 ## [0.7.0.0] - 2026-11-23
 
@@ -296,6 +296,7 @@ work, each with a warning that names what replaces it, until 0.8.0.0.
 [0.6.0.0]: https://github.com/protocol-oberon/ouro/compare/v0.5.0.0...v0.6.0.0
 [0.5.0.0]: https://github.com/protocol-oberon/ouro/compare/v0.0.0.1...v0.5.0.0
 [0.0.0.1]: https://github.com/protocol-oberon/ouro/releases/tag/v0.0.0.1
+[ec69b48]: https://github.com/protocol-oberon/ouro/commit/ec69b48
 [c6d1213]: https://github.com/protocol-oberon/ouro/commit/c6d1213
 [69e2c2e]: https://github.com/protocol-oberon/ouro/commit/69e2c2e
 [3529b6b]: https://github.com/protocol-oberon/ouro/commit/3529b6b
