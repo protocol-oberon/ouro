@@ -106,7 +106,7 @@ defaultPackage :: FilePath -> Package
 defaultPackage dir = Package "." "out" Nothing (initialPos (normalise (dir </> packageFileName)))
 
 
--- This compiler's version, as :ouro is written: 0.6.2.0
+-- This compiler's version, as :ouro is written: 0.7.0.0
 ouroVersion :: Text
 ouroVersion = T.intercalate "." (map (T.pack . show) (versionBranch version))
 
