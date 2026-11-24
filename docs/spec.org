@@ -3422,6 +3422,14 @@ A diagnostic whose position is in no file it can show, the argument =-t ouro-mod
 
 /Fixed/ (2026-11-23): the frame names the position, =│-t ouro-mode│=, and the details follow without a line or a caret. A position is in a file when the printer has its source.
 
+** OPEN [#C] A refinement's failure says "a array"
+:PROPERTIES:
+:ID:       59
+:FOUND:    2026-11-24
+:PINNED:   =gap 59= in =knownGaps=
+:END:
+A value that fails a refinement is described as "a" and its kind, so an array is "a array": ~<(make array) ⊢ non-empty>~ reports "got a array that is not non-empty". The article is written before the kind without looking at it (=Engine.hs=, ~"a " <> refinementOf v~); "an array" is right, as the array type's message already writes it, "an array whose element 3 is string". Found while showing =non-empty= for the presentation (2026-11-24).
+
 * Appendix C: Benchmarks
 :PROPERTIES:
 :COLUMNS:  %16ITEM %MEASURED %CHANGE %GHC %MACHINE

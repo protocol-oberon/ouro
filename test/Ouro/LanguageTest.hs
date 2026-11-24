@@ -1649,4 +1649,6 @@ knownGaps = Group "Known gaps: current and fixed"
                                                                    "(document g (:r (array 1 2)))")
     , ("gap 57: a misplaced (∈ p) is an unbound %in", importsFailAt "SCP0000" ("inline-test", 1, 17) ["%in"] []
                                                                    "(document g (:a (∈ number)))")
+    , ("gap 59: an array that fails a refinement is 'a array'", failsWith "a array that is not non-empty"
+                                                                   "(define/refinement non-empty (<xs ⊢ array>) (doc \"d\") (gt (len xs) 0)) (document g (:a <(make array) ⊢ non-empty>))")
     ]
