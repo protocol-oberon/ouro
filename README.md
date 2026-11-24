@@ -1,8 +1,12 @@
 # Ouro
 
-Ouro is a domain-specific language for writing JSON-LD knowledge graphs, such as CIDOC-CRM's in Linked Art. Its source has the shape of the JSON it produces, so a record reads like the record it compiles to, and its standard library, `std`, holds Linked Art's own patterns: the required terms, time spans, provenance, and more.
+Ouro is a language for building models of things, such as artworks, people, provenance and exhibitions, and rendering them as JSON-LD, so that anything that reads linked data can use them. It began as a way to write Linked Art's JSON-LD, and its source still has the shape of the JSON it produces: a record reads like the record it compiles to.
 
-Compiled Ouro is always well-formed JSON. A document compiles only when every value in it has a JSON form and no error is left anywhere in it. URIs and dates are checked wherever they are asserted, and a record's `@context` is read as a JSON-LD context. The same source always compiles to the same output. Ouro does not check a record's terms against a vocabulary; that is for refinements. `std`'s functions write Linked Art's terms for you, and because a compile is deterministic, a record that is right once stays right.
+A model in Ouro has three layers. Its *types* say what a valid thing is: each type is a set of values, a refinement, such as `titled`, the records that have a label. Types combine as sets do, `(∪ painting print)`; a value is asserted to be in one with `⊢`, or asked with `∈`. Its *patterns* say how things are built: procedures, with `std` holding Linked Art's own, the required terms, time spans, provenance and more. Its *documents* are the things themselves.
+
+Every value is known when Ouro compiles, so a type is checked by asking each value, not by proof. A value that fails is a compile error, reported with the rule it broke, and nothing is written until every document passes. Compiled Ouro is always well-formed JSON, and the same source always compiles to the same output. All 211 of linked.art's published examples are written in Ouro, and each compiles to the JSON-LD linked.art publishes.
+
+A record's `@context` is read as a JSON-LD context, and URIs and dates are checked wherever they are asserted. Ouro does not check a record's terms against a vocabulary; that is for refinements, and `std`'s functions write Linked Art's terms for you.
 
 # Syntax
 
@@ -1331,10 +1335,10 @@ A library is used by copying it into `vendor/`, in the project's folder, beside 
 These are agreed directions for Ouro, roughly in the order they will be built. None of them is implemented yet.
 
 - **The end of the old spellings** (0.8.0.0): the old hash-marked refinements and empty values, `satisfies` before them, `graph`, `-g` and `:graphs` still work in 0.7, each with a warning that names what replaces it; in 0.8.0.0 each is an error that names its replacement.
-- **Type errors with a trail:** a failed requirement reported as one shape everywhere, naming the value, the refinement, the rule it broke (its `doc`), and the path down to the part that failed, with blame at the boundary that was crossed.
-- **Relations and dependent signatures** (0.7.1): a refinement that relates values rather than describing one, such as a size or an order, so that a signature can say what holds between its parameters and its result. A type variable is written as a single letter, or as `~word~`, and says what a function keeps: what goes in comes out in the same set.
-- **Singletons** (0.7.1): a written string or number in a type is the set of that one value, `<type ⊢ "Person">`. Booleans are refused in types, as a Boolean says less than a refinement named for what it means.
-- **Procedure types** (0.7.1): the type of a function argument read off the function given, by arity and argument order, so a higher-order function of your own checks what it is passed.
+- **Type errors with a trail** (0.7.1.0): a failed requirement reported as one shape everywhere, naming the value, the refinement, the rule it broke (its `doc`), and the path down to the part that failed, with blame at the boundary that was crossed.
+- **Relations and dependent signatures** (0.7.2.0): a refinement that relates values rather than describing one, such as a size or an order, so that a signature can say what holds between its parameters and its result. A type variable is written as a single letter, or as `~word~`, and says what a function keeps: what goes in comes out in the same set.
+- **Singletons** (0.7.2.0): a written string or number in a type is the set of that one value, `<type ⊢ "Person">`. Booleans are refused in types, as a Boolean says less than a refinement named for what it means.
+- **Procedure types** (0.7.2.0): the type of a function argument read off the function given, by arity and argument order, so a higher-order function of your own checks what it is passed.
 - **The rest of the static analysis:** names, arity and recursion are already checked as written (see [Functions](#functions) and [Lexical Scoping](#lexical-scoping)). Still to come: warnings for unused bindings, imports and functions, once the error codes are redesigned; and whether an expression is a call, a record or an array decided there, once, for the evaluator to follow, by the same rules as now.
 - **A REPL and a language server,** bundled with the compiler, as `std` is, so that they run the same parser and evaluator as `build`. The language server is where spelling belongs: a key or class that is not a term of the record's context can be underlined as it is written, with the nearest term offered, without ever stopping a compile.
 - **Search:** an Ouro Hoogle, finding functions by name, by signature and by their documentation.
