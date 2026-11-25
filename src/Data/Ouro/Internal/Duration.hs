@@ -1,18 +1,25 @@
 module Data.Ouro.Internal.Duration
 ( Duration (..)
 , Unit (..)
+, Direction (..)
 , parseDuration
 , renderDuration
 , unitDuration
 , largestUnit
+, shiftBy
+, shiftThrough
+, addDurations
 ) where
 
-import           Control.Monad   (guard)
-import           Data.Char       (isDigit)
-import           Data.Maybe      (isJust)
-import           Data.Scientific (FPFormat (Fixed), Scientific, formatScientific, isInteger)
-import           Data.Text       (Text)
-import qualified Data.Text       as T
+import           Control.Monad      (guard)
+import           Data.Char          (isDigit)
+import           Data.Maybe         (fromMaybe, isJust)
+import           Data.Scientific    (FPFormat (Fixed), Scientific, formatScientific, isInteger)
+import           Data.Text          (Text)
+import qualified Data.Text          as T
+import           Data.Time          (UTCTime (..), addUTCTime)
+import           Data.Time.Calendar (addDays, addGregorianMonthsClip, addGregorianYearsClip, fromGregorian,
+                                     gregorianMonthLength, toGregorian)
 
 
 -- Duration.
@@ -147,3 +154,93 @@ largestUnit d = case filter fst (zip written [minBound ..]) of
     []            -> Nothing
     where
     written = [isJust (years d), isJust (months d), isJust (days d), isJust (hours d), isJust (minutes d), isJust (seconds d)]
+
+
+-- Which way a shift moves a date
+data Direction
+    = Forward
+    | Backward
+    deriving (Show, Eq)
+
+
+-- A date moved by a duration, its parts applied in order, years, months, days, then the time,
+-- so that the clipping of months is the same however a duration is written: 31 January and one
+-- month is the last day of February, never March. A duration written with xsd:duration's -
+-- moves the other way.
+shiftBy :: Direction -> Duration -> UTCTime -> UTCTime
+shiftBy direction d utc = addUTCTime (fromRational (sign * time)) utc { utctDay = dated }
+    where
+    sign = case (direction, negative d) of
+        (Forward,  False) -> 1
+        (Backward, True)  -> 1
+        _otherway         -> -1
+
+    count f = round sign * fromMaybe 0 (f d)
+
+    dated = addDays (count days)
+          . addGregorianMonthsClip (count months)
+          . addGregorianYearsClip (count years)
+          $ utctDay utc
+
+    time = toRational (3600 * fromMaybe 0 (hours d) + 60 * fromMaybe 0 (minutes d))
+         + toRational (fromMaybe 0 (seconds d))
+
+
+-- A date moved by a duration and then through its largest unit: forward, to the end of that
+-- unit, its last second, as end_of_the_end means; backward, to its start. (days 1) forward
+-- from 3 January is 4 January at 23:59:59; (months 0) forward is the end of the current month.
+shiftThrough :: Direction -> Duration -> UTCTime -> UTCTime
+shiftThrough direction d utc = case (direction, largestUnit d) of
+    (Forward,  Just unit) -> endOf unit moved
+    (Backward, Just unit) -> startOf unit moved
+    (_, Nothing)          -> moved
+    where
+    moved = shiftBy direction d utc
+
+
+-- The last second of the unit a date is in
+endOf :: Unit -> UTCTime -> UTCTime
+endOf unit utc = case unit of
+    Years   -> let (y, _, _) = toGregorian day in UTCTime (fromGregorian y 12 31) lastSecond
+    Months  -> let (y, m, _) = toGregorian day in UTCTime (fromGregorian y m (gregorianMonthLength y m)) lastSecond
+    Days    -> UTCTime day lastSecond
+    Hours   -> UTCTime day (fromInteger (whole 3600 * 3600 + 3599))
+    Minutes -> UTCTime day (fromInteger (whole 60 * 60 + 59))
+    Seconds -> utc
+    where
+    day        = utctDay utc
+    lastSecond = 86399
+    whole n    = floor (toRational (utctDayTime utc)) `div` n
+
+
+-- The first second of the unit a date is in
+startOf :: Unit -> UTCTime -> UTCTime
+startOf unit utc = case unit of
+    Years   -> let (y, _, _) = toGregorian day in UTCTime (fromGregorian y 1 1) 0
+    Months  -> let (y, m, _) = toGregorian day in UTCTime (fromGregorian y m 1) 0
+    Days    -> UTCTime day 0
+    Hours   -> UTCTime day (fromInteger (whole 3600 * 3600))
+    Minutes -> UTCTime day (fromInteger (whole 60 * 60))
+    Seconds -> utc
+    where
+    day     = utctDay utc
+    whole n = floor (toRational (utctDayTime utc)) `div` n
+
+
+-- Two durations added part by part, (days 1) and (hours 2) being P1DT2H: a part written in
+-- either is written in the sum
+addDurations :: Duration -> Duration -> Duration
+addDurations a b = Duration
+    { negative = False
+    , years    = plus years
+    , months   = plus months
+    , days     = plus days
+    , hours    = plus hours
+    , minutes  = plus minutes
+    , seconds  = plus seconds
+    }
+    where
+    plus :: Num n => (Duration -> Maybe n) -> Maybe n
+    plus part = case (part a, part b) of
+        (Nothing, Nothing) -> Nothing
+        (x, y)             -> Just (fromMaybe 0 x + fromMaybe 0 y)

@@ -20,12 +20,14 @@ import           Data.Ouro.Error.Diagnostics (binaryOpMismatchBlurb,
                                               typeMismatch, withBlurb)
 import           Data.Ouro.Error.Types       (ErrorContext (..), OuroError (..),
                                               SyntaxError (..))
+import qualified Data.Ouro.Internal.Duration as D
 import qualified Data.Ouro.Internal.Expr     as I
 import qualified Data.Ouro.Internal.Kinds    as JLD
 import           Data.Ouro.Internal.Uri      (uriText)
 import           Data.Ouro.Lisp.Eval.Types   (Env, PeriodUnit (..),
                                               humanReadableType)
 import qualified Data.Ouro.Lisp.Eval.Types   as L
+import           Data.Ouro.Refinement.Check  (dateBlurb, durationBlurb)
 import           Data.Ouro.Refinement.Value  (refinementOf)
 import           Data.Text                   (Text)
 import qualified Data.Text                   as T
@@ -73,6 +75,14 @@ builtinRegistry = Map.fromList
                       , ("years-end",   handleYearsEndModifier)
                       , ("months-end",  handleMonthsEndModifier)
                       , ("shift",       handleShift)
+                      -- Dates and durations, each family's variants named family/variant
+                      , ("shift/forward",          handleShiftForward)
+                      , ("shift/backward",         handleShiftBackward)
+                      , ("shift/forward-through",  handleShiftForwardThrough)
+                      , ("shift/backward-through", handleShiftBackwardThrough)
+                      , ("duration/add",           handleDurationAdd)
+                      , ("date/before",            handleDateBefore)
+                      , ("date/after",             handleDateAfter)
                       -- Strings: each takes the string first, so -> threads through them
                       , ("to-string",   handleToString)
                       , ("split",       handleSplit)
@@ -111,6 +121,13 @@ builtinArity = Map.fromList $
        , ("len",           (1, "len takes one Array or String: (len xs)."))
        , ("contains",      (2, "contains takes an Array or a String, then the value to look for: (contains (1 2 3) 2)."))
        , ("shift",         (2, "shift takes a date, then the duration to move it by: (shift d (days 1)), or (days -1) to move it back."))
+       , ("shift/forward",          (2, "shift/forward takes a date, then the duration to move it on by: (shift/forward d (days 1))."))
+       , ("shift/backward",         (2, "shift/backward takes a date, then the duration to move it back by: (shift/backward d (days 1))."))
+       , ("shift/forward-through",  (2, "shift/forward-through takes a date, then a duration: (shift/forward-through d (days 1)), the last second of the day after."))
+       , ("shift/backward-through", (2, "shift/backward-through takes a date, then a duration: (shift/backward-through d (days 1)), the first second of the day before."))
+       , ("duration/add",           (2, "duration/add takes two durations: (duration/add (days 1) (hours 2))."))
+       , ("date/before",            (2, "date/before takes two dates: (date/before a b), true when a comes before b."))
+       , ("date/after",             (2, "date/after takes two dates: (date/after a b), true when a comes after b."))
        , ("distinct",      (1, "distinct takes one Array: (distinct (1 2 1))."))
        , ("unions",        (1, "unions takes one Array of Arrays: (unions ((1) (2 3)))."))
        , ("intersections", (1, "intersections takes one Array of Arrays: (intersections ((1 2) (2 3)))."))
@@ -473,6 +490,123 @@ handleNot pos =
 
 -- handleShift.
 --
+-- The four shifts of a date by a duration, a magnitude, the direction the operation's:
+--
+--   (shift/forward d (days 1))           the day after
+--   (shift/backward d (days 1))          the day before
+--   (shift/forward-through d (days 1))   the last second of the day after, end_of_the_end
+--   (shift/backward-through d (days 1))  the first second of the day before
+--
+-- A date and a duration are strings, read where they are used.
+handleShiftForward, handleShiftBackward, handleShiftForwardThrough, handleShiftBackwardThrough
+    :: SourcePos -> [L.Expr] -> Reader Env L.Expr
+handleShiftForward         = shiftWith "shift/forward"          (D.shiftBy D.Forward)
+handleShiftBackward        = shiftWith "shift/backward"         (D.shiftBy D.Backward)
+handleShiftForwardThrough  = shiftWith "shift/forward-through"  (D.shiftThrough D.Forward)
+handleShiftBackwardThrough = shiftWith "shift/backward-through" (D.shiftThrough D.Backward)
+
+
+-- A shift: a date and a duration, the date moved, written back as a string
+shiftWith :: Text -> (D.Duration -> UTCTime -> UTCTime) -> SourcePos -> [L.Expr] -> Reader Env L.Expr
+shiftWith name move pos = pure . \case
+    [err@(L.EvalError _), _] -> err
+    [_, err@(L.EvalError _)] -> err
+    [date, duration]         -> case (dateOf pos date, magnitudeOf pos duration) of
+                                    (Left err, _)        -> err
+                                    (_, Left err)        -> err
+                                    (Right utc, Right d) -> L.Primitive (I.String (I.renderDate (move d utc)))
+    operands                 -> Data.Ouro.Error.Diagnostics.incorrectArity name 2 (length operands)
+                                & OuroError pos
+                                & L.EvalError
+
+
+-- (duration/add a b): two durations added part by part, (days 1) and (hours 2) being "P1DT2H".
+-- Durations are added by name, never by +, which joins them as strings.
+handleDurationAdd :: SourcePos -> [L.Expr] -> Reader Env L.Expr
+handleDurationAdd pos = pure . \case
+    [err@(L.EvalError _), _] -> err
+    [_, err@(L.EvalError _)] -> err
+    [a, b]                   -> case (magnitudeOf pos a, magnitudeOf pos b) of
+                                    (Left err, _)        -> err
+                                    (_, Left err)        -> err
+                                    (Right x, Right y)   -> L.Primitive (I.String (D.renderDuration (D.addDurations x y)))
+    operands                 -> Data.Ouro.Error.Diagnostics.incorrectArity "duration/add" 2 (length operands)
+                                & OuroError pos
+                                & L.EvalError
+
+
+-- (date/before a b) and (date/after a b): whether the first date comes before, or after, the
+-- second, the instants compared, never the text
+handleDateBefore, handleDateAfter :: SourcePos -> [L.Expr] -> Reader Env L.Expr
+handleDateBefore = compareDates "date/before" (<)
+handleDateAfter  = compareDates "date/after"  (>)
+
+
+compareDates :: Text -> (UTCTime -> UTCTime -> Bool) -> SourcePos -> [L.Expr] -> Reader Env L.Expr
+compareDates name order pos = pure . \case
+    [err@(L.EvalError _), _] -> err
+    [_, err@(L.EvalError _)] -> err
+    [a, b]                   -> case (dateOf pos a, dateOf pos b) of
+                                    (Left err, _)        -> err
+                                    (_, Left err)        -> err
+                                    (Right x, Right y)   -> L.Primitive (I.Boolean (order x y))
+    operands                 -> Data.Ouro.Error.Diagnostics.incorrectArity name 2 (length operands)
+                                & OuroError pos
+                                & L.EvalError
+
+
+-- A date, read from a string where it is used, or why the value is none
+dateOf :: SourcePos -> L.Expr -> Either L.Expr UTCTime
+dateOf pos = \case
+    L.Primitive (I.String written)
+        -> case parseISO8601 (T.unpack written) of
+               Just utc -> Right utc
+               Nothing  -> Left (operandMismatch pos "date" "a string that is not a date" dateBlurb)
+    other
+        -> Left (operandMismatch pos "date" (refinementOf other) dateBlurb)
+
+
+-- A duration, read from a string where it is used, or from a duration (days 1) made before
+-- durations were strings; or why the value is none
+durationOf :: SourcePos -> L.Expr -> Either L.Expr D.Duration
+durationOf pos = \case
+    L.Primitive (I.String written)
+        -> maybe (Left (operandMismatch pos "duration" "a string that is not a duration" durationBlurb)) Right (D.parseDuration written)
+    L.Duration unit amt
+        -> case unitOf unit of
+               Just u  -> either (\why -> Left (operandMismatch pos "duration" why durationBlurb)) Right (D.unitDuration u (fromIntegral amt))
+               Nothing -> Left (operandMismatch pos "duration" "a duration to the end of a unit, which only thru makes" durationBlurb)
+    other
+        -> Left (operandMismatch pos "duration" (refinementOf other) durationBlurb)
+    where
+    unitOf = \case
+        Years       -> Just D.Years
+        Months      -> Just D.Months
+        Days        -> Just D.Days
+        Hours       -> Just D.Hours
+        Minutes     -> Just D.Minutes
+        Seconds     -> Just D.Seconds
+        YearsToEnd  -> Nothing
+        MonthsToEnd -> Nothing
+
+
+-- A duration that is a magnitude, as the operations on durations take: the direction is the
+-- operation's, so xsd:duration's leading - is refused
+magnitudeOf :: SourcePos -> L.Expr -> Either L.Expr D.Duration
+magnitudeOf pos value = durationOf pos value >>= \d -> case D.negative d of
+    True  -> Left (operandMismatch pos "duration" "a negative duration" durationBlurb)
+    False -> Right d
+
+
+-- A built-in's operand outside the refinement it needs
+operandMismatch :: SourcePos -> Text -> Text -> Text -> L.Expr
+operandMismatch pos expected actual blurb =
+    Data.Ouro.Error.Diagnostics.refinementMismatch expected actual
+    & Data.Ouro.Error.Diagnostics.withBlurb blurb
+    & OuroError pos
+    & L.EvalError
+
+
 -- (shift date duration): the date moved by the duration, a negative one moving it back. A
 -- date is a string that is in date, so it is read where it is used (see 'shiftDate').
 handleShift :: SourcePos -> [L.Expr] -> Reader Env L.Expr

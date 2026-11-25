@@ -100,13 +100,20 @@ qualifierOf imp = fromMaybe (T.takeWhileEnd (/= '/') (importPath imp)) (importAl
 
 
 -- A qualified name split at its first '/': base/core is ("base", "core"). Both sides must be
--- non-empty, so the operators / and /= are not qualified names.
+-- non-empty, so the operators / and /= are not qualified names. A built-in family's variant,
+-- shift/forward, date/before, is no qualified name: its '/' names a variant, as '/' always does.
 splitQualified :: Text -> Maybe (Text, Text)
 splitQualified name =
     case T.breakOn "/" name of
         (qualifier, rest)
-            | not (T.null qualifier), T.length rest > 1 -> Just (qualifier, T.drop 1 rest)
-        _notQualified                                   -> Nothing
+            | not (T.null qualifier), T.length rest > 1, qualifier `notElem` builtinFamilies -> Just (qualifier, T.drop 1 rest)
+        _notQualified                                                                     -> Nothing
+
+
+-- The built-ins written family/variant: the shifts of a date, operations on dates and on
+-- durations. A module cannot be imported under one of these names.
+builtinFamilies :: [Text]
+builtinFamilies = ["shift", "date", "duration"]
 
 
 -- Module Environment, mathematically proven to be segregated. A module's imports and
