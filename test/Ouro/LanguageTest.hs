@@ -557,8 +557,8 @@ operators = Group "Operators: operands and desugaring"
                                                               "(define/procedure f (<x ⊢ (∪ string 1)>) x) (document g (:r 1))")
     , ("an unknown refinement inside is reported",  failsWith "Unknown refinement: titeld"
                                                               "(document g (:r <1 ⊢ (∪ number titeld)>))")
-    , ("an error inside a side stays that error",   failsWith "expectedRefinement = \"record\""
-                                                              (titled <> "(define/refinement broken (<x ⊢ number>) <x ∈ titled>) (document g (:r <1 ⊢ (∪ broken number)>))"))
+    , ("an error inside a side stays that error",   failsWith "expectedRefinement = \"string\""
+                                                              (titled <> "(define/refinement broken (<x ⊢ number>) (eq <x ⊢ string> \"s\")) (document g (:r <1 ⊢ (∪ broken number)>))"))
 
       -- (array p): an array whose every element is in p
     , ("every element in p",                        compilesToJSON "(document g (:a <(1 2 3) ⊢ (array number)> :b <(make array) ⊢ (array string)>))"
@@ -577,8 +577,8 @@ operators = Group "Operators: operands and desugaring"
                                                               "(define/procedure f (<x ⊢ (array)>) x) (document g (:r 1))")
     , ("nor is (array a b)",                        failsWith "A type is a refinement's name"
                                                               "(define/procedure f (<x ⊢ (array string number)>) x) (document g (:r 1))")
-    , ("an error inside an element's check stays",  failsWith "expectedRefinement = \"record\""
-                                                              (titled <> "(define/refinement broken (<x ⊢ number>) <x ∈ titled>) (document g (:r <(1) ⊢ (array broken)>))"))
+    , ("an error inside an element's check stays",  failsWith "expectedRefinement = \"string\""
+                                                              (titled <> "(define/refinement broken (<x ⊢ number>) (eq <x ⊢ string> \"s\")) (document g (:r <(1) ⊢ (array broken)>))"))
     , ("a refinement over its own parts descends",  compilesToJSON "(define/refinement tree (<n ⊢ record>) (doc \"Its parts are trees.\") <(get-or n () part) ∈ (array tree)>) (document g (:r <(:part ((:part ()))) ∈ tree>))"
                                                                    "{\"r\": true}")
 
@@ -603,8 +603,8 @@ operators = Group "Operators: operands and desugaring"
                                                                    "{\"r\": \"a\"}")
     , ("as a case head",                            compilesToJSON "(document g (:r (case (:part ()) ((∈ (record :part array)) \"node\") (otherwise \"leaf\"))))"
                                                                    "{\"r\": \"node\"}")
-    , ("an error inside a key's check stays",       failsWith "expectedRefinement = \"record\""
-                                                              (titled <> "(define/refinement broken (<x ⊢ number>) <x ∈ titled>) (document g (:r <(:k 1) ⊢ (record :k broken)>))"))
+    , ("an error inside a key's check stays",       failsWith "expectedRefinement = \"string\""
+                                                              (titled <> "(define/refinement broken (<x ⊢ number>) (eq <x ⊢ string> \"s\")) (document g (:r <(:k 1) ⊢ (record :k broken)>))"))
     , ("a refinement through its own keys descends", compilesToJSON "(define/refinement tree (<n ⊢ record>) (doc \"A leaf, or parts that are trees.\") <n ∈ (∪ (record :leaf string) (record :part (array tree)))>) (document g (:r <(:part ((:leaf \"a\"))) ∈ tree>))"
                                                                    "{\"r\": true}")
     , ("a record type is read",                     compilesToJSON "(define/procedure f (<r ⊢ (record :label string :part (array record))>) r) (document g (:ok 1))"
@@ -1635,7 +1635,7 @@ knownGaps = Group "Known gaps: current and fixed"
                                                                    "(document g (:r (define/constant q 1)))")
     , ("gap 49 (fixed): and so is a define/refinement", failsWith "A definition can only appear at the top level of a file."
                                                                    "(document g (:r (define/refinement p (#record r) true)))")
-    , ("gap 50: satisfies is false when an assertion inside the refinement fails", compilesToJSON "(define/refinement labelled (#record r) (eq #string (get r label) \"x\")) (document g (:r (satisfies (:label 1) #labelled)))"
+    , ("gap 50 (fixed): satisfies is false when an assertion inside the refinement fails", fixedGap $ compilesToJSON "(define/refinement labelled (#record r) (eq #string (get r label) \"x\")) (document g (:r (satisfies (:label 1) #labelled)))"
                                                                    "{\"r\": false}")
     , ("gap 51: decimal arithmetic is binary floating point", compilesToJSON "(document g (:a (+ 0.1 0.2) :b (* 3 1.1) :c (fold (3.72 3.36 3.40) 0 +)))"
                                                                    "{\"a\": 0.30000000000000004, \"b\": 3.3000000000000003, \"c\": 10.48}")
@@ -1647,7 +1647,7 @@ knownGaps = Group "Known gaps: current and fixed"
                                                     === Right True)
     , ("gap 55 (fixed): array is unbound",          fixedGap $ importsFailAt "SCP0000" ("inline-test", 1, 15) ["array"] []
                                                                    "(document g (:r (array 1 2)))")
-    , ("gap 57: a misplaced (∈ p) is an unbound %in", importsFailAt "SCP0000" ("inline-test", 1, 17) ["%in"] []
+    , ("gap 57 (fixed): a misplaced (∈ p) is an unbound %in", fixedGap $ importsFailAt "SCP0000" ("inline-test", 1, 17) ["%in"] []
                                                                    "(document g (:a (∈ number)))")
     , ("gap 59 (fixed): an array that fails a refinement is 'a array'", fixedGap $ failsWith "a array that is not non-empty"
                                                                    "(define/refinement non-empty (<xs ⊢ array>) (doc \"d\") (gt (len xs) 0)) (document g (:a <(make array) ⊢ non-empty>))")

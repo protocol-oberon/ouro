@@ -16,9 +16,19 @@ version is 0.x, a new minor version may break programs, and each change that doe
   the function for its result, and the trail down to the part that failed, `element 2`, then
   `key _label`. A built-in's own operand check stays `TYP0001`. <!-- krlomqut -->
 
+- **Breaking**: `∈` answers `false` for a value outside a defined refinement's domain,
+  `<"a" ∈ titled>` where `titled` takes a record, which was an error. Such a value asserted,
+  `<"a" ⊢ titled>`, is reported at the value, where it was at the refinement's name.
+  <!-- qusxptnq -->
+
 ### Fixed
 - A value failing a refinement is named with its article, `an array`, where it was `a array`
   (gap 59). <!-- krlomqut -->
+- A refinement that breaks inside its body, an assertion there failing, is that error under `∈`
+  and inside a union, where it was read as the value outside the refinement (gap 50).
+  <!-- qusxptnq -->
+- `(∈ p)` written anywhere but a case branch's head says so, where it was an unbound `%in`
+  (gap 57). <!-- qusxptnq -->
 
 ## [0.7.0.1] - 2026-11-23
 

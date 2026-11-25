@@ -709,7 +709,7 @@ assertions = Group "Properties: assertions, #titled x"
                                                             (titled <> "(document g (:r #titled (:x 1)))"))
     , ("an error inside it stays that error",     failsWith "expectedRefinement = \"record\", actualRefinement = \"string\""
                                                             (titled <> "(document g (:r #titled \"a\"))"))
-    , ("at the tag, where it is called",          failsWith "line 1, col 71"
+    , ("outside its domain, at the value",         failsWith "line 1, col 79"
                                                             (titled <> "(document g (:r #titled \"a\"))"))
 
       -- Wherever a built-in property is written
@@ -717,8 +717,8 @@ assertions = Group "Properties: assertions, #titled x"
                                                                  "{\"a\": true, \"b\": false}")
     , ("as a case branch's head",                 compilesToJSON (titled <> "(document g (:r (case (:x 1) ((satisfies #titled) \"titled\") (otherwise \"untitled\"))))")
                                                                  "{\"r\": \"untitled\"}")
-    , ("satisfies keeps its parameter's contract an error", failsWith "expectedRefinement = \"record\", actualRefinement = \"string\""
-                                                            (titled <> "(document g (:r (satisfies \"a\" #titled)))"))
+    , ("satisfies answers false outside its domain", compilesToJSON (titled <> "(document g (:r (satisfies \"a\" #titled)))")
+                                                                 "{\"r\": false}")
     , ("a parameter's contract",                 compilesToJSON (titled <> "(define/procedure name-of (#titled r) (get r _label)) (document g (:r (name-of (:_label \"A\"))))")
                                                                  "{\"r\": \"A\"}")
     , ("which an argument without it fails",      failsWith "line 1, col 134"

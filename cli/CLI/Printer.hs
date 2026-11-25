@@ -581,6 +581,7 @@ roleText = \case
     Ref.ArgumentOf callee n -> "the " <> ordinal n <> " argument of " <> calleeText callee
     Ref.ResultOf callee     -> "the result of " <> calleeText callee
     Ref.Assertion           -> "an assertion"
+    Ref.Asked               -> "a question"
 
 
 -- Who a failure blames, read off its role. A requirement written in Ouro can itself be wrong,

@@ -20,7 +20,7 @@ import           Data.Graph                    (SCC (..), stronglyConnComp)
 import           Data.List                     (sortOn)
 import qualified Data.Map.Strict               as Map
 import           Data.Maybe                    (fromMaybe, mapMaybe)
-import           Data.Ouro.Error.Diagnostics   (incorrectArity, notARefinement,
+import           Data.Ouro.Error.Diagnostics   (incorrectArity, lexicalError, notARefinement,
                                                 notExported, recursiveCall,
                                                 unboundName, unknownRefinement,
                                                 unknownQualifier, withBlurb)
@@ -517,6 +517,14 @@ form scope pos items = case items of
     S.Symbol _ "when" : _                            -> mempty
     [S.Symbol _ (S.asks -> True), subject, S.Asserted tPos ty (S.Hole _ "%subject")]
         | not (isSubjectHole subject)                -> typeNames scope tPos ty (Just [size scope subject]) <> names scope subject
+    -- (∈ p) on its own asks the target of a case, so it is a case branch's head, which 'branch'
+    -- reads; anywhere else there is no value for it to ask about. The old satisfies has a
+    -- message of its own, naming what replaces it.
+    [S.Symbol _ (S.formName -> "in"), S.Asserted _ _ (S.Hole _ "%subject")]
+        -> lexicalError "(∈ p) on its own asks the target of a case, so it is written only as the head of a case branch."
+           & withBlurb "Elsewhere, ask it of a value: (∈ x p), or <x ∈ p>."
+           & OuroError pos
+           & problem
     S.Symbol _ (S.formName -> "satisfies") : _       -> mempty
     S.Symbol _ "assert" : _                          -> mempty
     S.Symbol _ "in" : _                              -> mempty

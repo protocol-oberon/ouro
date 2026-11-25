@@ -19,23 +19,26 @@ import           Text.Megaparsec                  (SourcePos)
 import qualified Text.URI                         as URI
 
 
--- How a refinement defined in Ouro is run on a value, which only the evaluator can do: the
--- refinement by its name, called where its type is written, answering true or false with its
--- doc, or the error the call is (no such refinement, a procedure, a body that fails). The
--- checker takes it as an argument, so that checking never depends on the evaluator: layer 1
--- meets layer 0 here, and only here.
-type RunDefined = SourcePos -> Text -> L.Expr -> EvalM (Either L.Expr (Bool, Maybe Text))
+-- What only the evaluator can do with a refinement defined in Ouro: name its domain, the type
+-- its subject is declared with and where, and run it on a value, called where its type is
+-- written, answering true or false with its doc, or the error the call is (no such refinement,
+-- a procedure, a body that fails). The checker is given it, so that checking never depends on
+-- the evaluator: layer 1 meets layer 0 here, and only here.
+data Evaluator = Evaluator
+    { domainOf   :: Text -> EvalM (Maybe (SourcePos, R.Type))
+    , runDefined :: SourcePos -> Text -> L.Expr -> EvalM (Either L.Expr (Bool, Maybe Text))
+    }
 
 
 -- Checks an evaluated value against a type, required in a role, the type written at the first
 -- position, the value at the second: the value itself, never converted, or a RefinementFailed
 -- error at the value, its failure carrying the role. A type is a refinement by its name, or one
 -- built from them with ∪ ∩ ∖, (array p) and (record :k p …).
-checkRefinement :: RunDefined -> Q.Role -> R.Type -> SourcePos -> SourcePos -> L.Expr -> EvalM L.Expr
-checkRefinement run role ty typePos pos evaluatedVal = case ty of
+checkRefinement :: Evaluator -> Q.Role -> R.Type -> SourcePos -> SourcePos -> L.Expr -> EvalM L.Expr
+checkRefinement ev role ty typePos pos evaluatedVal = case ty of
     R.Named refinement
         -> case refinement of
-               R.RDefined name -> checkDefined run role typePos pos name evaluatedVal
+               R.RDefined name -> checkDefined ev role typePos pos name evaluatedVal
                builtIn         -> case builtInProblem builtIn evaluatedVal of
                                       Nothing              -> pure evaluatedVal
                                       Just (actual, blurb) -> pure (refinementFailure pos (failureOf role (R.Named builtIn) typePos evaluatedVal actual Nothing) blurb)
@@ -91,12 +94,12 @@ checkRefinement run role ty typePos pos evaluatedVal = case ty of
 
     -- The same, of another value: an element of an array, or a record's value at a key. Outside,
     -- it keeps the trail below the part, so the whole type's failure can continue it; any other
-    -- error stays that error, so a refinement broken inside a union is never taken for a value
-    -- outside it
+    -- error stays that error, a refinement broken inside its body among them, so a broken
+    -- refinement inside a union is never taken for a value outside it
     inTypeOf :: R.Type -> L.Expr -> EvalM Answer
-    inTypeOf part value = checkRefinement run role part typePos pos value
+    inTypeOf part value = checkRefinement ev role part typePos pos value
         <&> \case
-             EvalError (OuroError _ ctx) | isRefinementMismatch ctx
+             EvalError (OuroError _ ctx) | isOutside ctx
                  -> Out (maybe [] Q.trail (failureIn ctx))
 
              err@(EvalError _)
@@ -143,17 +146,26 @@ checkRefinement run role ty typePos pos evaluatedVal = case ty of
         pure (refinementFailure pos ((failureOf role required typePos evaluatedVal actual Nothing) { Q.trail = below }) "")
 
 
--- A refinement defined in Ouro, titled: the value has it if the refinement, run on the value,
--- answers true. A false answer is the value outside it, with the refinement's doc as the rule.
--- Any error running it, its parameter's requirement among them, stays the error; a failed
--- requirement inside its body comes out with the body as a step of its trail.
-checkDefined :: RunDefined -> Q.Role -> SourcePos -> SourcePos -> Text -> L.Expr -> EvalM L.Expr
-checkDefined run role typePos pos name v = run typePos name v <&> \case
-    Right (True, _)    -> v
-    Right (False, doc) -> refinementFailure pos (failureOf role refinement typePos v given doc) (rule doc)
-    Left err           -> throughStep (Q.Step typePos (Q.Body name) refinement) err
+-- A refinement defined in Ouro, titled: the value has it if it is in the refinement's domain,
+-- the type its subject is declared with, and the refinement, run on it, answers true. The domain
+-- is checked first, here, so that a value outside it is a value outside the refinement, the
+-- refinement's first argument failing, which a question answers with false; only then is the
+-- refinement run. A false answer is the value outside it, with the refinement's doc as the rule.
+-- Any error running it stays the error; a failed requirement inside its body comes out with the
+-- body as a step of its trail, so it is never taken for the value outside the refinement.
+checkDefined :: Evaluator -> Q.Role -> SourcePos -> SourcePos -> Text -> L.Expr -> EvalM L.Expr
+checkDefined ev role typePos pos name v = domainOf ev name >>= \case
+    Just (domainPos, domain) -> checkRefinement ev (Q.ArgumentOf (Q.Defined name) 1) domain domainPos pos v >>= \case
+                                    err@(EvalError _) -> pure err
+                                    _inDomain         -> run
+    Nothing                  -> run
 
     where
+    run = runDefined ev typePos name v <&> \case
+        Right (True, _)    -> v
+        Right (False, doc) -> refinementFailure pos (failureOf role refinement typePos v given doc) (rule doc)
+        Left err           -> throughStep (Q.Step typePos (Q.Body name) refinement) err
+
     refinement = R.Named (R.RDefined name)
     given      = aValue v
 
@@ -257,6 +269,22 @@ builtInProblem refinement value = case (refinement, value) of
 uriBlurb, dateBlurb :: Text
 uriBlurb  = "A uri is a string with a scheme, such as \"https://linked.art/example/1\"."
 dateBlurb = "A date is a string in ISO-8601 form, YYYY-MM-DDTHH:mm:ssZ, such as \"1642-01-01T00:00:00Z\"."
+
+
+-- Whether an error says the value is outside a type, an answer of no, rather than that a check
+-- broke: a requirement's failure decided on the value, its trail never inside a refinement's
+-- body. A failure inside a body is the refinement broken, and a built-in's operand failing
+-- inside one is too. Under any blurbs written on it.
+isOutside :: ErrorContext -> Bool
+isOutside = \case
+    Typing (RefinementFailed _ _ failure) -> not (any (inBody . Q.stepPart) (Q.trail failure))
+    AnnotatedContext _ ctx                -> isOutside ctx
+    _otherError                           -> False
+
+    where
+    inBody = \case
+        Q.Body _   -> True
+        _otherPart -> False
 
 
 -- Whether an error is a value lacking a refinement, a requirement's or a built-in operand's,

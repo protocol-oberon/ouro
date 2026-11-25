@@ -14,6 +14,7 @@ data Role
     = ArgumentOf Callee Int  -- The nth argument of a call, counted from 1
     | ResultOf   Callee      -- What a function returns, under its return type
     | Assertion              -- <x ⊢ p>, a statement written in Ouro
+    | Asked                  -- <x ∈ p>, a question: outside, the answer is false, never an error
     deriving (Show, Eq, Ord, Generic)
 
 
@@ -42,6 +43,7 @@ blame = \case
     ArgumentOf _ _  -> Caller
     ResultOf callee -> Called callee
     Assertion       -> Itself
+    Asked           -> Itself
 
 
 -- Failure.

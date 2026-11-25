@@ -1121,9 +1121,9 @@ The symbols of logic and sets are read the same way, as the names they stand for
 
   - The value at each key is a part of the record, so a refinement may assert itself through a record type's keys, and goes down into the value: ~(define/refinement tree (<n ⊢ record>) <n ∈ (∪ (record :leaf string) (record :part (array tree)))>)~ is accepted by the recursion check.
 
-- =⊢= asserts: the value passes on as it is, never converted, or it is a refinement mismatch (=TYP0001=) at the value. A chain asserts each, ~<r ⊢ record ⊢ titled>~.
+- =⊢= asserts: the value passes on as it is, never converted, or it is a requirement's failure, =TYP0002= Refinement Failed, at the value: what was required and what was given, the role the value was required in, who is blamed (the caller for an argument, the function for its result, an assertion itself), and the trail down to the part that failed, an element, a key, or a refinement's body. A chain asserts each, ~<r ⊢ record ⊢ titled>~.
 
-- =∈= asks: =true= or =false=, an error inside it staying that error. As the head of a =case= branch it is about the case's target, ~((∈ string) "text")~.
+- =∈= asks: =true= or =false=. A value outside the refinement is =false=, a value outside a defined refinement's domain among them, ~<"a" ∈ titled>~ where =titled= takes a record. A refinement that breaks is an error, not an answer: a failure inside its body, ~<(get r label) ⊢ string>~ failing there, or any other error, stays that error, inside a union too. As the head of a =case= branch it is about the case's target, ~((∈ string) "text")~; on its own anywhere else it is an error saying so.
 
 - With a hole each is a function: ~(filter xs <? ∈ string>)~.
 
@@ -3298,10 +3298,12 @@ Inside an expression, the keywords =defn/const= and =defn/property= were read as
 A definition can only appear at the top level of a file.
 #+end_example
 
-** PENDING =satisfies= is false when an assertion inside the refinement fails
+** FIXED =satisfies= is false when an assertion inside the refinement fails
 :PROPERTIES:
 :ID:       50
 :FOUND:    2026-11-14
+:FIXED_IN: 0.7.1.0
+:PINNED:   =gap 50 (fixed)= in =knownGaps=
 :END:
 ~<x ∈ p>~ is false only when =p='s check fails, and an error stays an error, but the check is told from an error by the error's kind alone, a refinement mismatch, wherever it was raised.
 
@@ -3310,6 +3312,8 @@ A definition can only appear at the top level of a file.
 - Its parameter's requirement failing, ~<"a" ∈ titled>~, does stay an error.
 
 Found while designing the requirement error (2026-11-14).
+
+/Fixed/ (2026-11-25): both rows of the question, as designed. A defined refinement's domain is checked before its body runs, so ~<"a" ∈ titled>~ is =false=, the value outside the refinement; and a failure is told from an answer by its trail, a failure from inside a refinement's body being the refinement broken, so the failed assertion in =labelled= stays that error, under =∈= and inside a union alike.
 
 ** PENDING Decimal arithmetic is binary floating point
 :PROPERTIES:
@@ -3403,13 +3407,16 @@ The fix: an order on values, structural, as =eq= compares them, so each operatio
 
 /Fixed/ (2026-11-17): rather than a full order, which a record's context does not have, each value has a key that equal values always share: its primitive, or its structure, a record's attribute pairs in key order. Values are kept in a map from key to the values of that key, and only those are compared with =eq=. Results and their order are as before. =union=, =intersect=, =setminus=, =subset=, =distinct=, =unions=, =intersections=, =image= and =adjoin= all use it. The benchmark: 32.7 ms, 121 ms and 520 ms, ×4.3.
 
-** OPEN [#C] A misplaced =(∈ p)= is an unbound =%in=
+** FIXED A misplaced =(∈ p)= is an unbound =%in=
 :PROPERTIES:
 :ID:       57
 :FOUND:    2026-11-22
-:PINNED:   =gap 57= in =knownGaps=
+:FIXED_IN: 0.7.1.0
+:PINNED:   =gap 57 (fixed)= in =knownGaps=
 :END:
 ~(∈ p)~ with no value is meaningful only at the head of a =case= branch. Written anywhere else, ~(:a (∈ number))~, it is =SCP0000=, "Unbound Identifier", with =%in= as the name, which is Canon's internal spelling of =∈= and cannot be written in Ouro. The error is right; it should say that =∈= takes a value, or is a branch head, as the old =satisfies= message did. Found while updating the spec to the current syntax (2026-11-22).
+
+/Fixed/ (2026-11-25): the static analysis reports it where it is written, as a syntax error: "(∈ p) on its own asks the target of a case, so it is written only as the head of a case branch", with the forms that ask a value, ~(∈ x p)~ and ~<x ∈ p>~.
 
 ** FIXED A diagnostic in no file was framed as line 1 of an empty file
 :PROPERTIES:

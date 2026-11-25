@@ -48,8 +48,9 @@ import           Data.Ouro.Lisp.Function        (checkParams, isFunctionKeyword,
 import           Data.Ouro.Lisp.Module.Types    (Module)
 import qualified Data.Ouro.Lisp.Module.Types    as M
 import qualified Data.Ouro.Lisp.Surface         as S
-import           Data.Ouro.Refinement           (Role (..), checkRefinement,
-                                                 isRefinementMismatch, refinementOf)
+import           Data.Ouro.Refinement           (Evaluator (..), Role (..),
+                                                 checkRefinement, isOutside,
+                                                 refinementOf)
 import qualified Data.Ouro.Refinement           as R
 import           Data.Text                      (Text)
 import qualified Data.Text                      as T
@@ -500,8 +501,8 @@ evalExpr expr = do
             | not (isSubjectHole subject)
             -> evalExpr subject >>= \case
                    err@(EvalError _) -> pure err
-                   value             -> checkRefinement runDefined Assertion ty typePos typePos value >>= \case
-                                            EvalError (OuroError _ ctx) | isRefinementMismatch ctx -> pure (Primitive (I.Boolean False))
+                   value             -> checkRefinement evaluator Asked ty typePos typePos value >>= \case
+                                            EvalError (OuroError _ ctx) | isOutside ctx            -> pure (Primitive (I.Boolean False))
                                             err@(EvalError _)                                    -> pure err
                                             _hasIt                                               -> pure (Primitive (I.Boolean True))
 
@@ -684,19 +685,38 @@ assertType role typePos ty payload = do
     evaluatedVal <- evalExpr payload
     case evaluatedVal of
         err@(EvalError _) -> pure err
-        _notError         -> checkRefinement runDefined role ty typePos (S.exprPos payload) evaluatedVal
+        _notError         -> checkRefinement evaluator role ty typePos (S.exprPos payload) evaluatedVal
 
 
--- Runs a refinement defined in Ouro, titled, on a value, for the checker (Refinement.Check's
--- RunDefined): its answer, true or false, with its doc. It is found by the frames around the
--- assertion, as a function is, but never among their bindings, since nothing bound by a let or
--- a parameter is a refinement. An error inside the refinement, its parameter's requirement
--- among them, is given back as the error. It is called where its assertion is written, as the
--- analysis found the call, so a refinement asserting itself on a part of its value is
--- accepted. The analysis reports a name that names no refinement, so the errors here are not
--- reached from a compile.
-runDefined :: SourcePos -> Text -> L.Expr -> EvalM (Either L.Expr (Bool, Maybe Text))
-runDefined typePos name v = do
+-- What the checker is given of the evaluator (Refinement.Check's Evaluator): a defined
+-- refinement's domain, and running it
+evaluator :: Evaluator
+evaluator = Evaluator
+    { domainOf   = refinementDomain
+    , runDefined = runRefinement
+    }
+
+
+-- The type a refinement defined in Ouro declares its subject with, its first parameter's, and
+-- where it is written; Nothing for a subject declared without one, or a name that names no
+-- refinement, which running it reports
+refinementDomain :: Text -> EvalM (Maybe (SourcePos, R.Type))
+refinementDomain name = do
+    env <- ask
+    case findFunction name env of
+        Just (_, M.SomeFunction (M.Function M.RefinementKind _ _ _ (subject : _) _ _)) -> pure (S.paramType subject)
+        _otherwise                                                                   -> pure Nothing
+
+
+-- Runs a refinement defined in Ouro, titled, on a value, for the checker: its answer, true or
+-- false, with its doc. It is found by the frames around the assertion, as a function is, but
+-- never among their bindings, since nothing bound by a let or a parameter is a refinement. An
+-- error inside the refinement is given back as the error. It is called where its assertion is
+-- written, as the analysis found the call, so a refinement asserting itself on a part of its
+-- value is accepted. The analysis reports a name that names no refinement, so the errors here
+-- are not reached from a compile.
+runRefinement :: SourcePos -> Text -> L.Expr -> EvalM (Either L.Expr (Bool, Maybe Text))
+runRefinement typePos name v = do
     env <- ask
     case findFunction name env of
         Just (fnEnv, M.SomeFunction (M.Function M.RefinementKind fnPos _ doc params result (S.Form _ bodyExprs)))
