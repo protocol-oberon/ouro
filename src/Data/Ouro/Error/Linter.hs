@@ -113,6 +113,57 @@ lintModule ouroModule =
        , Just kebab <- [kebabCase name] ]
     <> [ OuroWarning pos (undocumentedRefinement name)
        | M.SomeFunction (M.Function M.RefinementKind pos name Nothing _ _ _) <- Map.elems (ouroModule ^. M.functionRegistry) ]
+    <> concat [ concatMap lintShifts bodyExprs
+              | M.SomeFunction (M.Function _ _ _ _ _ _ (S.Form _ bodyExprs)) <- Map.elems (ouroModule ^. M.functionRegistry) ]
+    <> concat [ lintShifts expr
+              | M.Graph _ _ expr <- Map.elems (ouroModule ^. M.graphRegistry) ]
+
+
+-- The old spellings of a shift, each warned of with the operation that replaces it: + and -
+-- of a date and a duration, written with a unit, (+ d (days 1)), or with thru; thru, which
+-- only a shift through the end of a unit meant; and the shift whose duration's sign said its
+-- direction. Read before Canon, which rewrites thru away.
+lintShifts :: S.Expr -> [OuroWarning]
+lintShifts = \case
+    S.Form _ [S.Symbol pos op, a, b]
+        | op `elem` ["+", "-"], Just replacement <- shiftWritten op a b
+        -> OuroWarning pos (deprecatedSyntax ("(" <> op <> " date duration)") replacement) : concatMap operand [a, b]
+    S.Form _ [S.Symbol pos "shift", date, duration]
+        -> OuroWarning pos (deprecatedSyntax "shift" (shiftReplacement duration)) : lintShifts date <> operand duration
+    S.Form _ (S.Symbol pos "thru" : rest)
+        -> OuroWarning pos (deprecatedSyntax "thru" "shift/forward-through or shift/backward-through") : concatMap lintShifts rest
+    S.Form _ items
+        -> concatMap lintShifts items
+    S.Asserted _ _ inner
+        -> lintShifts inner
+    _leaf
+        -> []
+
+    where
+    -- What + or - of a unit's duration, or of a thru, is now written
+    shiftWritten op a b = case (any isThru [a, b], any isUnit [a, b], op) of
+        (True, _, "+")  -> Just "shift/forward-through"
+        (True, _, _)    -> Just "shift/backward-through"
+        (_, True, "+")  -> Just "shift/forward"
+        (_, True, _)    -> Just "shift/backward"
+        _notAShift      -> Nothing
+
+    shiftReplacement duration = case isThru duration of
+        True  -> "shift/forward-through"
+        False -> "shift/forward or shift/backward"
+
+    -- An operand already warned of with its shift: a thru's own warning is not repeated
+    operand = \case
+        S.Form _ (S.Symbol _ "thru" : rest) -> concatMap lintShifts rest
+        other                               -> lintShifts other
+
+    isThru = \case
+        S.Form _ (S.Symbol _ "thru" : _) -> True
+        _other                           -> False
+
+    isUnit = \case
+        S.Form _ [S.Symbol _ unit, _] -> unit `elem` ["years", "months", "days", "hours", "minutes", "seconds"]
+        _other                        -> False
 
 
 -- lintTypes.

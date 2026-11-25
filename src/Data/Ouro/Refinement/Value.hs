@@ -34,7 +34,6 @@ refinementOf =
      Array       _          -> "array"
      FunctionClosure {}     -> "function"
      PrimitiveOp _          -> "function"
-     Duration    _ _        -> "a Duration"
      Attr        _ _        -> "an attribute pair"
      EvalError   _          -> "an error"
 
@@ -73,7 +72,6 @@ kindOf =
                 M.Procedure  -> Just R.RProcedure
                 M.Refinement -> Just R.RRefinement
      PrimitiveOp _          -> Just R.RProcedure
-     Duration    _ _        -> Nothing
      Attr        _ _        -> Nothing
      EvalError   _          -> Nothing
 

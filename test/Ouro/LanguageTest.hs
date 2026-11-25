@@ -437,8 +437,8 @@ types = Group "Types: the rules as they are"
                                                               "(document g (:r (lt \"a\" \"b\")))")
     , ("a URI joins as a string does",              compilesToJSON "(document g (:r (+ #uri \"https://a.org/\" \"x\")))"
                                                                    "{\"r\": \"https://a.org/x\"}")
-    , ("durations do not add",                      failsWith "a Duration time period + a Duration time period"
-                                                              "(document g (:r (+ (days 1) (days 2))))")
+    , ("durations join as strings, as + joins",     compilesToJSON "(document g (:r (+ (days 1) (days 2))))"
+                                                                   "{\"r\": \"P1DP2D\"}")
 
       -- Assertions check, and only #uri and #date convert a String
     , ("#number does not convert a string",         failsWith "expectedRefinement = \"number\", actualRefinement = \"string\""
@@ -481,7 +481,7 @@ operators = Group "Operators: operands and desugaring"
     , ("thru under a built-in property",            compilesToJSON "(document g (:d #date (+ #date \"2020-01-01T00:00:00Z\" (thru (days 1)))))"
                                                                    "{\"d\": \"2020-01-02T23:59:59Z\"}")
     , ("thru shifts back with -",                   compilesToJSON "(document g (:d (- #date \"2020-01-03T00:00:00Z\" (thru (days 1)))))"
-                                                                   "{\"d\": \"2020-01-01T00:00:01Z\"}")
+                                                                   "{\"d\": \"2020-01-02T00:00:00Z\"}")
     , ("all and fold under a property",             compilesToJSON "(document g (:r #boolean (all ((lt 1 2) (lt 2 3))) :s #number (fold (2 3 4) 1 *)))"
                                                                    "{\"r\": true, \"s\": 24}")
     , ("a typed function body",                     compilesToJSON "(define/procedure f () #uri (+ \"https://a.org/\" (+ \"b/\" \"c\"))) (document g (:r (f)))"
@@ -868,7 +868,7 @@ dates = Group "Dates: calendar arithmetic"
                                                                    "{\"r\": \"2020-02-01T00:00:00Z\"}")
     , ("a string that is no date is refused",       failsWith "actualRefinement = \"a string that is not a date\""
                                                               "(document g (:r (shift \"tomorrow\" (days 1))))")
-    , ("as is a value that is no duration",         failsWith "a duration to shift the date by"
+    , ("as is a value that is no duration",         failsWith "expectedRefinement = \"duration\", actualRefinement = \"number\""
                                                               ("(document g (:r (shift " <> date "2020-01-31" <> " 1)))"))
     , ("shift takes two operands",                  failsWith "shift takes a date, then the duration"
                                                               ("(document g (:r (shift " <> date "2020-01-31" <> ")))"))

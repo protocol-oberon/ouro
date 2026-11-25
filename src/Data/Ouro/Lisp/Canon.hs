@@ -31,7 +31,7 @@ import           Data.Text                         (Text)
 --
 -- Desugaring rewrites the surface tree into a smaller core, one rule per pass, in this order.
 -- Each pass is a module of its own under Canon/, and walks the tree in one of the ways in
--- 'Canon.Traverse': top-down, bottom-up, or over lists of siblings.
+-- 'Canon.Traverse': top-down or bottom-up.
 --
 --    0. infix         top-down   <a op b> becomes (op a b), and a chain <a op b op c> threads
 --                                a through its steps, (-> a (op b) (op c)), so every pass
@@ -58,7 +58,7 @@ import           Data.Text                         (Text)
 --    7. adjoin        bottom-up  (adjoin base item ...) becomes (%adjoin base addition ...),
 --                                its attribute pairs and context grouped into records
 --    8. with          bottom-up  (with base item ...) becomes ((inlay base) item ...)
---    9. thru          siblings   (thru (days n)) becomes the durations it stands for
+--    9. thru          bottom-up  (+ d (thru u)) becomes (shift/forward-through d u), - backward
 --   10. alternatives  bottom-up  a case branch (("a" "b") e) becomes ("a" e) ("b" e)
 --
 -- A built-in function takes a fixed number of arguments, so nothing is unrolled: (+ a b c)

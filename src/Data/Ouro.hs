@@ -232,8 +232,6 @@ validateAST' gPos path valueGraph = case valueGraph of
 -- Explains why a compile-time only value cannot be written to the JSON output.
 unserialisableBlurb :: Text -> L.Expr -> Text
 unserialisableBlurb location = \case
-    Duration _ _          -> "The value at " <> location <> " is a Duration, which only has meaning when added to a date."
-                          <> "\n\nPerhaps add it to a date, e.g. (shift \"1881-01-01T00:00:00Z\" (years 2))."
     f@(PrimitiveOp _)     -> functionHint f
     f@FunctionClosure {}  -> functionHint f
     _compileTimeOnly      -> "The value at " <> location <> " only exists during compilation and has no JSON representation."

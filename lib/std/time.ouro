@@ -35,7 +35,7 @@
 (define/procedure month ⊢ record (<date ⊢ string>)
   (doc "A month, to the last second of its last day, leap years included: (month \"1880-02\").")
   (let ($begin <(+ date "-01T00:00:00Z") ⊢ date>)
-    (span begin (+ begin (thru (months 0))))))
+    (span begin (shift/forward-through begin (months 0)))))
 
 (define/procedure year ⊢ record (<date ⊢ string>)
   (doc "A year, to the last second of the 31st of December: (year \"1881\").")

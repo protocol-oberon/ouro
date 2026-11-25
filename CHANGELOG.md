@@ -20,8 +20,23 @@ version is 0.x, a new minor version may break programs, and each change that doe
 - `WRN0010`, a refinement declared over `value`, `(<x ⊢ value>)`, which says nothing about its
   subject: allowed, for a refinement that decides across kinds, but warned of, a narrower domain
   saying more. <!-- slmqsurl -->
+- `duration`, a built-in refinement of `string`: the strings in `xsd:duration` form that are
+  magnitudes, `"P19D"`, `"PT3H"`. <!-- vtnkwlqx -->
+- The four shifts of a date, `shift/forward`, `shift/backward`, `shift/forward-through` and
+  `shift/backward-through`, the last two to the end, or the start, of the duration's largest
+  unit; `duration/add`, which adds durations part by part; and `date/before` and `date/after`,
+  which compare dates. <!-- kznkrwtl -->
 
 ### Changed
+- **Breaking**: a duration is a string, `(days 19)` writing `"P19D"`, so it is data and may be
+  written, where it was a value of its own with no JSON form. `(+ (days 1) (days 2))` joins them,
+  `"P1DP2D"`: durations are added with `duration/add`. <!-- zuolqknw -->
+- **Breaking**: a unit's amount is a whole number but for seconds, `(days 1.5)` being an error
+  where it was floored to a day. <!-- zuolqknw -->
+- `thru` is read as a shift through, `(+ d (thru (days 1)))` as
+  `(shift/forward-through d (days 1))`: a date not at midnight now goes on to the end of the
+  day, where 23:59:59 was added to it, and `(- d (thru (days 1)))` goes back to the start of the
+  day before, where it ended a second after midnight two days back. <!-- zuolqknw -->
 - A value outside a signature's requirement or an assertion is `TYP0002`, Refinement Failed,
   which names what was required and what was given on lines of their own, the role the value
   was required in, `the 1st argument of describe`, who is blamed, the caller for an argument and
@@ -32,6 +47,11 @@ version is 0.x, a new minor version may break programs, and each change that doe
   `<"a" ∈ titled>` where `titled` takes a record, which was an error. Such a value asserted,
   `<"a" ⊢ titled>`, is reported at the value, where it was at the refinement's name.
   <!-- qusxptnq -->
+
+### Deprecated
+- `+` and `-` of a date and a duration, `(+ d (days 1))`; the two-argument `shift`, whose
+  duration's sign said its direction; and `thru`: each still works, warned of with what
+  replaces it (`WRN0001`), until they are errors. <!-- zuolqknw -->
 
 ### Fixed
 - A value failing a refinement is named with its article, `an array`, where it was `a array`

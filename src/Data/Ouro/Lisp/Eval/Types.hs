@@ -90,9 +90,6 @@ data Expr where
     Attr        :: Text             -> Expr           -> Expr
     Array       :: [Expr]                             -> Expr
 
-    -- Only in a program: a span of time, added to dates
-    Duration    :: PeriodUnit -> Int -> Expr
-
     PrimitiveOp :: NativeFunction -> Expr
 
     -- A function, closed over the frame it is defined in, with its kind, a procedure or a
@@ -176,7 +173,6 @@ instance Eq Expr where
     Array  a     == Array  b     = a == b
 
     -- Eval only leaves
-    Duration    p1 i1   == Duration    p2 i2   = (p1 == p2) && (i1 == i2)
     PrimitiveOp _       == PrimitiveOp _       = False
     EvalError   a       == EvalError   b       = a  == b
 
@@ -192,7 +188,6 @@ instance Show Expr where
     Record      meta kvs   -> showString "Record "    . showsPrec 11 meta . showChar ' ' . showsPrec 11 kvs
     Attr        k    v     -> showString "Attr "      . showsPrec 11 k    . showChar ' ' . showsPrec 11 v
     Array       arr        -> showString "Array "     . showsPrec 11 arr
-    Duration    pu   i     -> showString "Duration "  . showsPrec 11 pu . showChar ' ' . showsPrec 11 i
     PrimitiveOp _          -> showString "PrimitiveOp <native_function>"
 
     FunctionClosure _ kind (name, _) args result bodies -> showString "FunctionClosure <env> " . showsPrec 11 kind . showChar ' ' . showsPrec 11 name . showChar ' ' . showsPrec 11 args . showChar ' ' . showsPrec 11 result . showChar ' ' . showsPrec 11 bodies
@@ -229,20 +224,6 @@ freeze = \case
           other         -> error $ "Invariant: Non-serializable node type: " ++ (T.unpack $ humanReadableType other)
 
 
--- Calendar tracking metrics for time-shift date math engine
-data PeriodUnit
-    = Years
-    | Months
-    | Days
-    | Hours
-    | Minutes
-    | Seconds
-    -- Rutime checks
-    | YearsToEnd
-    | MonthsToEnd
-    deriving (Show, Eq)
-
-
 -- How a function written where a value belongs is called, with its parameters' names,
 -- (aat id label), or (artwork) for a function of none. A pattern parameter has no name, so
 -- it is shown as (...). Nothing for a value, a built-in, whose parameters have no names, or
@@ -266,7 +247,6 @@ humanReadableType :: Expr -> Text
 humanReadableType =
     \case
      Primitive   p      -> "a " <> describePrimitive p
-     Duration    _ _    -> "a Duration time period"
      Array       elems  -> describeArray elems
      PrimitiveOp _      -> "a Built-in function"
      EvalError   _      -> "an Error"
@@ -313,7 +293,7 @@ describePrimitive =
      I.Array     _    -> "Array"
 
 
--- Generated last: Env refers to 'Binding' and 'Expr', and Expr to 'PeriodUnit'
+-- Generated last: Env refers to 'Binding' and 'Expr'
 makeLenses ''Env
 makeLenses ''Promise
 makeLenses ''Store

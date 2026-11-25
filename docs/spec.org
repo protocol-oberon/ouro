@@ -697,7 +697,7 @@ An attribute is letters, digits, =-= and =_=, after an optional =@=. It may hold
 
 *** Refinements
 
-A refinement is written by its name, in a type position (see [[*Asserting and asking: =⊢= and =∈=][asserting and asking]]). =string=, =number=, =boolean=, =record=, =array=, =function=, =uri= and =date= are the built-in refinements.
+A refinement is written by its name, in a type position (see [[*Asserting and asking: =⊢= and =∈=][asserting and asking]]). =value=, =data=, =string=, =number=, =boolean=, =record=, =array=, =function=, =procedure=, =refinement=, =uri=, =date= and =duration= are the built-in refinements (see [[*Built-in refinements][built-in refinements]]).
 
 - A refinement is what earlier versions called a property, a set of values within its domain. "Property" means only what it does in JSON-LD and Linked Art: a key of a record, such as =classified_as=.
 
@@ -910,26 +910,33 @@ sub-pattern  = hole | record-pattern | array-pattern | expression ;
 | Date     | =<"1881-01-01T00:00:00Z" ⊢ date>=              | string  |
 | Record   | =(:key value ...)=, =(make record)=            | object  |
 | Array    | =(a b c)=, =(array a b c)=                     | array   |
-| Duration | =(years 2)=, =(days 19)=                       | none    |
+| Duration | =(years 2)=, =(days 19)=, ="P19D"=             | string  |
 | Function | =(fn (x) ...)=, a procedure's name, =+=        | none    |
 
-Durations and functions are values during compilation, but have no JSON form.
-They must be consumed, added to a date or called, before they reach the output.
+A duration is a string in =xsd:duration= form, =(days 19)= writing ="P19D"=, so it is data and may be written. Functions are values during compilation, but have no JSON form: they must be called before they reach the output.
 
 *** Built-in refinements
 
-- =uri= holds the strings that are a URI with a scheme.
-- =date= holds the strings that are an ISO-8601 timestamp, =YYYY-MM-DDTHH:mm:ssZ=.
-- =string=, =number=, =boolean=, =record=, =array= and =function= hold the values of their kind.
-  - =function= holds a =fn=, a =define/procedure= name or a built-in.
-- An assertion on a value that is already a URI or a Date passes it through.
-- Assertions are how URIs and dates, which look like strings in JSON, keep their meaning inside Ouro.
+The built-in refinements form a tree, each set within its parent's, and every level is written as a type:
 
-A value without the refinement it is typed with is reported with both refinements, as they are written:
-- "Expected data to have the refinement =number=, got =string= instead".
-- For =uri= and =date=, the reason is given too, and the expected form is in the blurb:
-  - "got a =string= without a URI scheme";
-  - "got a =string= that is not a date".
+#+BEGIN_SRC text
+value                      every value Ouro has
+├── data                   what can be written to JSON-LD
+│   ├── string             "text"
+│   │   ├── uri            the strings that are a URI with a scheme
+│   │   ├── date           the strings that are an ISO-8601 timestamp, YYYY-MM-DDTHH:mm:ssZ
+│   │   └── duration       the strings that are an xsd:duration magnitude, "P19D"
+│   ├── number, boolean, record, array
+└── function               what can be called
+    ├── procedure          builds data: a define/procedure name, a fn, a built-in
+    └── refinement         judges data: a define/refinement name
+#+END_SRC
+
+- Each is decided on the value: a kind by its shape, =uri=, =date= and =duration= by parsing a string, which passes on as it is, never converted, and a function by the kind it keeps from its definition.
+- Assertions are how URIs, dates and durations, which are strings in JSON, keep their meaning inside Ouro.
+- A refinement declared over =value=, ~(<x ⊢ value>)~, is allowed, as a refinement may decide across kinds, but warned of (=WRN0010=): its domain says nothing about its subject.
+
+A value outside a requirement is a Refinement Failed (=TYP0002=), with what was required and given, the role the value was required in, who is blamed, and the trail down to the part that failed (see [[*Asserting and asking: =⊢= and =∈=][asserting and asking]]). For =uri=, =date= and =duration= the reason is given too, "a string without a URI scheme", "a string that is not a date", and the expected form is in the blurb. A value outside a built-in refinement is shown where it sits in the tree, the refinement required and the value's own kind marked, unless the two are kinds of data side by side, a string required and a number given. A built-in's own operand check, a condition that must be a boolean, is a Refinement Mismatch (=TYP0001=), until the built-ins are declared with requirements.
 
 ** Records and arrays
 
@@ -946,7 +953,7 @@ A record is a form containing =:key value= attribute pairs, or a context.
 
 #+BEGIN_SRC clojure
 (:begin_of_the_begin <"1848-08-01T00:00:00Z" ⊢ date>
- :end_of_the_begin   (shift begin_of_the_begin (thru (days 19))))
+ :end_of_the_begin   (shift/forward-through begin_of_the_begin (days 19)))
 #+END_SRC
 
 *** Arrays
@@ -1587,7 +1594,7 @@ A question is written as membership is, the element or the domain first: ~<x ∈
 | =(any array)=                            | =true= when one element is; written in place, stops at a =true=        |
 | =(fold array init f)=                    | =f= called on the running value and each element, from =init=          |
 | =(array e ...)=                          | an array, whatever its first element is; =list=, its old name, is an error |
-| =(thru duration)=                        | extend a duration to the end of its unit (see Built-ins)               |
+| =(thru duration)=                        | the old spelling of a shift through, warned of (see Built-ins)         |
 | =:context e=                             | the record's JSON-LD =@context=, a context value                       |
 
 =:context= is described under [[*=@context=][=@context=]].
@@ -1803,9 +1810,13 @@ Pattern variables are bound in a frame around the branch body. A record written 
 |              | ~slice~ ~pad-start~ ~replace-all~         |                                                    |
 | Sets         | ~union~ ~intersect~ ~setminus~ ~subset~   | ~(union (1 2) (2 3))~ is ~(1 2 3)~                 |
 | Big sets     | ~unions~ ~intersections~                  | over one array of arrays: ~(unions (map xs f))~    |
-| Durations    | =years months days hours minutes seconds= | ~(days 19)~ is a Duration                          |
-| Dates        | ~shift~                                   | ~(shift d (days 19))~ moves a date                 |
-| End-of-unit  | =(thru d)=                                | ~(thru (days 1))~ = 1 day 23:59:59                 |
+| Durations    | =years months days hours minutes seconds= | ~(days 19)~ is ="P19D"=                            |
+|              | ~duration/add~                            | ~(duration/add (days 1) (hours 2))~ is ="P1DT2H"=  |
+| Shifts       | ~shift/forward~ ~shift/backward~          | ~(shift/forward d (days 19))~ moves a date on      |
+|              | ~shift/forward-through~                   | to the last second of the largest unit             |
+|              | ~shift/backward-through~                  | to the first second of the largest unit            |
+| Dates        | ~date/before~ ~date/after~                | ~(date/before a b)~ compares the instants          |
+| Old spellings | ~shift~, =(thru d)=, =+= and =-= of a date | warned of, until they are errors                   |
 
 *** Arity and operators
 
@@ -1813,7 +1824,7 @@ Every built-in takes a fixed number of arguments, and many values are an array. 
 
 - Ordering (~gt~ ~geq~ ~lt~ ~leq~) compares numbers only.
 
-- =+= also joins strings and arrays, and adds durations to dates.
+- =+= also joins strings and arrays, durations among them, ~(+ (days 1) (days 2))~ being ="P1DP2D"=: durations are added by =duration/add=. A date and a duration still shift under =+= and =-=, warned of, until that is an error naming =shift/forward= and =shift/backward=.
 
 - A chain of comparisons is =all= over its pairs: ~(all ((lt a b) (lt b c)))~.
 
@@ -1956,16 +1967,27 @@ Many sets are an array of them, for =unions= and =intersections= below, and anot
 
 A date is a string that is in =date=: =uri= and =date= are refinements of =string=, as every refinement is a set, so asserting one never changes the value. ~<"2020-01-31T00:00:00Z" ⊢ date>~ is that string, written as it was; a URI is its string, =eq= to it, and every function on strings takes it.
 
-~(shift date duration)~ moves a date, a negative duration moving it back: ~(shift start (days 19))~, ~(shift start (months -1))~. The date is read where it is used, so a string that is no date is a refinement mismatch there, and the date it becomes is written back as a string. Shifting by months or years clips to the end of a shorter month instead of rolling over, so 31 March shifted back a month is the last day of February. =shift= takes a =thru= forwards, ~(shift start (thru (days 1)))~.
+A duration is a string in =xsd:duration= form, =PnYnMnDTnHnMnS=, and =duration= is a refinement of =string=, as =uri= and =date= are: =(years 2)= is ="P2Y"=, =(days 19)= ="P19D"=, =(hours 3)= ="PT3H"=, =(seconds 1.5)= ="PT1.5S"=. A unit's amount is a whole number but for seconds, as a calendar cannot apply half a month exactly, so =(days 1.5)= is an error. A duration is a magnitude, the direction the operation's: =duration= refuses =xsd:duration='s leading =-=.
 
-=+= and =-= still shift a date by a duration, read the same way, until that is an error naming =shift=; =-= is how a =thru= is taken backwards for now.
+A date is moved by one of four shifts, each taking the date, then the duration:
 
-=thru= exists for Linked Art timespans, whose =end_of_the_end= is the last moment of a period: ~(thru (days 1))~ is 1 day 23:59:59, and ~(thru (years 0))~ is to the end of the current year:
+| Shift                        | From =2020-01-03T00:00:00Z= by =(days 1)= |
+|------------------------------+--------------------------------------------|
+| ~(shift/forward d dur)~          | =2020-01-04T00:00:00Z=                     |
+| ~(shift/backward d dur)~         | =2020-01-02T00:00:00Z=                     |
+| ~(shift/forward-through d dur)~  | =2020-01-04T23:59:59Z=, the last second of the day |
+| ~(shift/backward-through d dur)~ | =2020-01-02T00:00:00Z=, the first second of the day |
+
+A duration's parts are applied in order, years, months, days, then the time, and months and years clip to the end of a shorter month instead of rolling over, so 31 January moved on a month is the last day of February. A shift through goes on to the end, or back to the start, of the duration's largest unit as written: ~(shift/forward-through d (months 0))~ is the last second of the current month, and ~(shift/forward-through d (years 0))~ of the current year, the =end_of_the_end= of Linked Art's timespans:
 
 #+BEGIN_SRC clojure
 :begin_of_the_begin <"1642-01-01T00:00:00Z" ⊢ date>
-:end_of_the_end     (shift begin_of_the_begin (thru (years 0)))   ; 1642-12-31T23:59:59Z
+:end_of_the_end     (shift/forward-through begin_of_the_begin (years 0))   ; 1642-12-31T23:59:59Z
 #+END_SRC
+
+~(duration/add a b)~ adds two durations part by part, ~(duration/add (days 1) (hours 2))~ being ="P1DT2H"=. ~(date/before a b)~ and ~(date/after a b)~ compare two dates' instants. Each reads its dates and durations where it is used, so a string that is neither is a refinement mismatch there.
+
+The old spellings still work, each warned of with what replaces it (=WRN0001=), until they are errors: =+= and =-= of a date and a duration, ~(+ d (days 1))~, which read two strings as a date and a duration when they are; ~(shift date duration)~, whose duration's sign, =(days -1)=, said its direction; and =thru=, which Canon reads as a shift through, ~(+ d (thru u))~ being ~(shift/forward-through d u)~ and ~(- d (thru u))~ ~(shift/backward-through d u)~.
 
 ** =@context=
 
@@ -2128,7 +2150,7 @@ Before evaluation, ~Canon.canonicalModule~ rewrites every function body and docu
 | 6. contexts      | bottom-up | =:context e= into ~(%context e)~                                             |
 | 7. adjoin        | bottom-up | ~(adjoin base item ...)~ into ~(%adjoin base addition ...)~                  |
 | 8. with          | bottom-up | ~(with base item ...)~ into ~((%inlay base) item ...)~                       |
-| 9. thru          | siblings  | ~(thru (days n))~ into the durations it stands for                           |
+| 9. thru          | bottom-up | ~(+ d (thru u))~, ~(- d (thru u))~ and ~(shift d (thru u))~ into a shift through |
 | 10. alternatives | bottom-up | a =case= branch ~(("a" "b") e)~ into one branch per literal                  |
 
 In more detail:
@@ -2143,31 +2165,27 @@ In more detail:
 
 - in adjoin, its attribute pairs are grouped into records;
 
-- in thru, as an operand of =+= or =-=, the operation is nested once for each duration.
+- in thru, the old spelling is read as the operation that says it: forward under =+= and =shift=, backward under =-=.
 
 Nothing is unrolled: every built-in takes a fixed number of arguments, so ~(+ a b c)~ and ~(lt a b c)~ are arity errors, and many values are an array, ~(fold xs 0 +)~, ~(all (a b c))~.
 
 *** Walks
 
-A pass walks the tree in one of three ways (~Canon.Traverse~):
+A pass walks the tree in one of two ways (~Canon.Traverse~):
 
 - top-down, rewriting a form before its parts, when the rule depends on the form's own shape;
-- bottom-up, rewriting a form's parts first;
-- over lists of siblings, for a rule that turns one element into several.
+- bottom-up, rewriting a form's parts first.
 
-An expression that stands on its own is a list of one: a document's body, or the payload of a refinement. A =thru= there has no meaning, and is left for the evaluator to report.
+A =thru= anywhere but in a shift has no meaning, and is left for the evaluator to report.
 
 *** Order
 
-The order matters in five places:
+The order matters in four places:
 
 - threading runs before =adjoin= and =with=, so in ~(-> x (with :k v))~ =with= receives =x= as its base;
 - contexts run before =adjoin=, so a context written among its attribute pairs is grouped with them;
-- bindings run before =thru=, so a value that expands into several elements stays inside its binding;
 - guards run before alternatives, which leave a marked guard alone;
 - connectives run after threading, so a step =(and y)= receives the threaded value as its first operand.
-
-Only =thru= walks siblings.
 
 *** Modules
 
@@ -2197,9 +2215,8 @@ Each pass is a module of its own under =Lisp/Canon/=, with the walks in =Travers
 | ~(adjoin base :k v (inlay x) e)~        | ~(%adjoin base (:k v) x (array e))~; ~(adjoin base)~ is ~base~      |
 | =:context e=, =:@context e=             | ~(%context e)~: the record's metadata, not an attribute pair        |
 | ~(all (a b c))~, ~(any (a b c))~        | the chain of cases ~(and a b)~ and ~(or a b)~ are                   |
-| ~(thru (days n))~                       | ~(days n) (hours 23) (minutes 59) (seconds 59)~                     |
-| ~(+ d (thru (days n)))~                 | ~(+ (+ (+ (+ d (days n)) (hours 23)) (minutes 59)) (seconds 59))~   |
-| ~(thru (years n))~, ~(thru (months n))~ | ~(years-end n)~, ~(months-end n)~ (resolved against the date)       |
+| ~(+ d (thru u))~, ~(shift d (thru u))~  | ~(shift/forward-through d u)~                                       |
+| ~(- d (thru u))~                        | ~(shift/backward-through d u)~                                      |
 | =case= alternatives ~(("a" "b") e)~     | one branch per literal                                              |
 | a =case= guard ~((lt 10) e)~             | ~((%when (lt %target 10)) e)~, the case bound as below               |
 | a condition ~((when c) e)~              | ~((%when c) e)~                                                     |
@@ -2260,14 +2277,14 @@ Special forms are matched by =evalExpr= before classification, so =let=, =case= 
            :identified_by      ((:type    "Name"
                                  :content "40 days in August and September, 1848"))
            :begin_of_the_begin <"1848-08-01T00:00:00Z" ⊢ date>
-           :end_of_the_begin   (shift begin_of_the_begin (thru (days 19))))
+           :end_of_the_begin   (shift/forward-through begin_of_the_begin (days 19)))
 #+END_SRC
 
 - =:timespan (...)= opens a nested record: its parentheses are the JSON object's braces.
 
 - =:identified_by ((...))= is an array holding one record: the outer parentheses are the array, the inner ones the record.
 
-- =⊢ date= asserts that the string is a timestamp, and passes it on as it is; =shift= reads it as a date where it is used, and writes the date it becomes back as a string.
+- =⊢ date= asserts that the string is a timestamp, and passes it on as it is; a shift reads it as a date where it is used, and writes the date it becomes back as a string.
 
 - =end_of_the_begin= refers to its sibling =begin_of_the_begin=, a binding in the record's own frame. Order does not matter.
 
@@ -2293,9 +2310,9 @@ data Expr where
     Array           :: [Expr] -> Expr
 
     -- Compile-time-only values: no JSON form
-    Duration        :: PeriodUnit -> Int -> Expr
-    PrimitiveOp     :: NativeFunction -> Expr       -- a built-in
-    FunctionClosure :: Env -> FunctionId -> [S.Param] -> [S.Expr] -> Expr
+    PrimitiveOp     :: NativeFunction -> Expr       -- a built-in, a procedure
+    FunctionClosure :: Env -> FunctionDeclaration -> FunctionId -> [S.Param] -> Maybe (SourcePos, Type) -> [S.Expr] -> Expr
+                                                    -- its kind, a procedure or a refinement, kept from its definition
 
     -- The universal error leaf
     EvalError       :: OuroError -> Expr
@@ -2445,7 +2462,7 @@ Then ~destructure~ forces each pattern parameter's promise and matches it with ~
 evaluate :: Module -> S.Expr -> (L.Expr, [OuroError])
 #+END_SRC
 
-Only error leaves count: a binding that holds a Duration or a function is fine as long as it never reaches the output. Forcing a =fn= creates its closure but does not run its body, so an error inside a function that is never called is not reported.
+Only error leaves count: a binding that holds a function is fine as long as it never reaches the output. Forcing a =fn= creates its closure but does not run its body, so an error inside a function that is never called is not reported.
 
 ** Error isolation
 
@@ -2463,7 +2480,7 @@ Before anything is serialised, ~validateAST~ walks the evaluated tree and collec
 
 1. Every ~EvalError~ in the output.
 
-2. Every value that has no JSON form: Durations, functions, built-ins and schema values, reported at the document's position with the key path to the value (for example ='produced_by.timespan'=).
+2. Every value that has no JSON form: functions, built-ins and schema values, reported at the document's position with the key path to the value (for example ='produced_by.timespan'=).
 
 3. Infinity and NaN, which JSON cannot represent.
 

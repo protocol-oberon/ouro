@@ -202,8 +202,7 @@ emitProps evaluator env attrAddrs expressions = go I.EmptyMeta expressions
                                         -- 4. Accept array configurations
                                         Array elements -> Record finalMeta ((key, Array elements) : nextPairs)
 
-                                        -- 5. Pass-through for valid domain primitives (Durations, builtins)
-                                        Duration    u v   -> Record finalMeta ((key, Duration    u v)   : nextPairs)
+                                        -- 5. Pass-through for built-ins
                                         PrimitiveOp o     -> Record finalMeta ((key, PrimitiveOp o)     : nextPairs)
 
                                         -- Real type violations fall here
@@ -364,7 +363,6 @@ compileArray evaluator env pos elements = Array <$> compileElements env elements
                         -- Accept nested layouts or expressions inside the stream
                         Record      m  p   -> Record      m  p   : restL
                         Array       ls     -> Array       ls     : restL
-                        Duration    u  v   -> Duration    u  v   : restL
                         PrimitiveOp o      -> PrimitiveOp o      : restL
 
                         otherVal -> let err = typeMismatch

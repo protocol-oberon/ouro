@@ -1,13 +1,12 @@
 module Data.Ouro.Lisp.Canon.Traverse
 ( bottomUp
-, siblings
 , topDown
 ) where
 
 import qualified Data.Ouro.Lisp.Surface as S
 
 
--- The three ways a desugaring rule walks the surface tree. Each pass uses one.
+-- The two ways a desugaring rule walks the surface tree. Each pass uses one.
 
 
 -- A rule that must see a form before its parts are rewritten, because it depends on the
@@ -29,21 +28,4 @@ bottomUp rule = go
     go = \case
         S.Form     pos items    -> rule (S.Form pos (map go items))
         S.Asserted pos ty inner -> S.Asserted pos ty (go inner)
-        leaf                    -> leaf
-
-
--- A rule over a list of siblings, which can turn one element into several: the elements of
--- every form, parts first. An expression that stands on its own (a graph's body,
--- an asserted value, the whole tree) is a list of one; a rule that would turn it into several
--- has no meaning there, so it is left for the evaluator to report.
-siblings :: ([S.Expr] -> [S.Expr]) -> S.Expr -> S.Expr
-siblings rule = root
-    where
-    root expr = case rule [go expr] of
-        [single]   -> single
-        _expansion -> go expr
-
-    go = \case
-        S.Form     pos items    -> S.Form     pos (rule (map go items))
-        S.Asserted pos ty inner -> S.Asserted pos ty (root inner)
         leaf                    -> leaf

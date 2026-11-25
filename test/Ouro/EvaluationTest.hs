@@ -49,7 +49,7 @@ tests = Group "Evaluation Tests (Surface to Higher IR)"
     , ("returns L.EvalError for an index past the end", prop_error_index_bounds)
 
 
-    , ("rejects a Duration as a graph value",          prop_reject_duration)
+    , ("writes a duration as its string",              prop_write_duration)
     , ("rejects a builtin as a graph value",           prop_reject_builtin)
     , ("rejects a function as a graph value",          prop_reject_function)
     , ("rejects an infinite Number as a graph value",  prop_reject_infinity)
@@ -206,10 +206,12 @@ prop_error_index_bounds = withTests 1 . property $ do
     assert (isEvalError result)
 
 
+-- A duration is a string, in xsd:duration form, so it is written as one
+prop_write_duration :: Property
+prop_write_duration = withTests 1 . property $
+    assert $ not (isCompileFailure (compile "test-suite" "g" "(document g (:d (years 2)))"))
+
 -- Compile-time only values must produce a compiler error, not crash the serializer
-prop_reject_duration :: Property
-prop_reject_duration = withTests 1 . property $
-    assert $ isCompileFailure (compile "test-suite" "g" "(document g (:d (years 2)))")
 
 prop_reject_builtin :: Property
 prop_reject_builtin = withTests 1 . property $

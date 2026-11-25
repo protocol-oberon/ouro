@@ -24,19 +24,14 @@ import qualified Data.Ouro.Internal.Duration as D
 import qualified Data.Ouro.Internal.Expr     as I
 import qualified Data.Ouro.Internal.Kinds    as JLD
 import           Data.Ouro.Internal.Uri      (uriText)
-import           Data.Ouro.Lisp.Eval.Types   (Env, PeriodUnit (..),
-                                              humanReadableType)
+import           Data.Ouro.Lisp.Eval.Types   (Env, humanReadableType)
 import qualified Data.Ouro.Lisp.Eval.Types   as L
 import           Data.Ouro.Refinement.Check  (dateBlurb, durationBlurb)
 import           Data.Ouro.Refinement.Value  (refinementOf)
+import           Data.Scientific             (fromFloatDigits)
 import           Data.Text                   (Text)
 import qualified Data.Text                   as T
-import           Data.Time                   (UTCTime (..), addUTCTime,
-                                              fromGregorian,
-                                              gregorianMonthLength, toGregorian)
-import           Data.Time.Calendar          (addDays,
-                                              addGregorianMonthsClip,
-                                              addGregorianYearsClip)
+import           Data.Time                   (UTCTime (..))
 import           Text.Megaparsec             (SourcePos)
 
 
@@ -71,9 +66,6 @@ builtinRegistry = Map.fromList
                       , ("hours",       handleHoursModifier)
                       , ("minutes",     handleMinutesModifier)
                       , ("seconds",     handleSecondsModifier)
-                      -- Runtime temporal handlers
-                      , ("years-end",   handleYearsEndModifier)
-                      , ("months-end",  handleMonthsEndModifier)
                       , ("shift",       handleShift)
                       -- Dates and durations, each family's variants named family/variant
                       , ("shift/forward",          handleShiftForward)
@@ -133,7 +125,7 @@ builtinArity = Map.fromList $
        , ("intersections", (1, "intersections takes one Array of Arrays: (intersections ((1 2) (2 3)))."))
        ]
     <> [ (unit, (1, unit <> " takes one Number: (" <> unit <> " 2)."))
-       | unit <- ["years", "months", "days", "hours", "minutes", "seconds", "years-end", "months-end"] ]
+       | unit <- ["years", "months", "days", "hours", "minutes", "seconds"] ]
     <> [ ("to-string",   (1, "to-string takes one value: (to-string 42)."))
        , ("split",       (2, "split takes a String, then the separator: (split \"a, b\" \", \")."))
        , ("join",        (2, "join takes an Array of Strings, then the separator: (join (\"a\" \"b\") \", \")."))
@@ -177,9 +169,13 @@ handleAddition pos =
     \case
      [a, b]
          -> case (a, b) of
-                (L.Primitive (I.String date), L.Duration unit amt)      -> pure $ shiftDate pos date unit amt
-                (L.Duration unit amt,        L.Primitive (I.String date)) -> pure $ shiftDate pos date unit amt
-                (L.Primitive (I.String s1),  L.Primitive (I.String s2)) -> pure $ L.Primitive (I.String (s1 <> s2))
+                -- A date and a duration, the old spelling of a shift, in either order: until it is an
+                -- error, two strings that read as a date and a duration are shifted, not joined
+                (L.Primitive (I.String s1),  L.Primitive (I.String s2))
+                    -> case (asShift s1 s2, asShift s2 s1) of
+                           (Just (utc, d), _) -> pure (shifted D.Forward utc d)
+                           (_, Just (utc, d)) -> pure (shifted D.Forward utc d)
+                           _strings           -> pure $ L.Primitive (I.String (s1 <> s2))
                 (L.Primitive (I.Number n1),  L.Primitive (I.Number n2)) -> pure $ L.Primitive (I.Number (n1 + n2))
                 -- Arrays join, whatever their elements: like JSON arrays, they need not be homogeneous
                 (arrX, arrY)
@@ -213,8 +209,10 @@ handleSubtraction :: SourcePos -> [L.Expr] -> Reader Env L.Expr
 handleSubtraction pos =
     \case
      [a, b] -> case (a , b) of
-                   (L.Primitive (I.String date), L.Duration unit amt)     -> pure $ shiftDate pos date unit (-amt)
-                   (L.Duration unit amt,       L.Primitive (I.String date)) -> pure $ shiftDate pos date unit (-amt)
+                   -- A date and a duration, the old spelling of shift/backward
+                   (L.Primitive (I.String s1), L.Primitive (I.String s2))
+                       | Just (utc, d) <- asShift s1 s2
+                       -> pure (shifted D.Backward utc d)
                    (L.Primitive (I.Number n1), L.Primitive (I.Number n2)) -> pure $ L.Primitive (I.Number (n1 - n2))
 
                    -- Error propagation
@@ -566,28 +564,13 @@ dateOf pos = \case
         -> Left (operandMismatch pos "date" (refinementOf other) dateBlurb)
 
 
--- A duration, read from a string where it is used, or from a duration (days 1) made before
--- durations were strings; or why the value is none
+-- A duration, read from a string where it is used, or why the value is none
 durationOf :: SourcePos -> L.Expr -> Either L.Expr D.Duration
 durationOf pos = \case
     L.Primitive (I.String written)
         -> maybe (Left (operandMismatch pos "duration" "a string that is not a duration" durationBlurb)) Right (D.parseDuration written)
-    L.Duration unit amt
-        -> case unitOf unit of
-               Just u  -> either (\why -> Left (operandMismatch pos "duration" why durationBlurb)) Right (D.unitDuration u (fromIntegral amt))
-               Nothing -> Left (operandMismatch pos "duration" "a duration to the end of a unit, which only thru makes" durationBlurb)
     other
         -> Left (operandMismatch pos "duration" (refinementOf other) durationBlurb)
-    where
-    unitOf = \case
-        Years       -> Just D.Years
-        Months      -> Just D.Months
-        Days        -> Just D.Days
-        Hours       -> Just D.Hours
-        Minutes     -> Just D.Minutes
-        Seconds     -> Just D.Seconds
-        YearsToEnd  -> Nothing
-        MonthsToEnd -> Nothing
 
 
 -- A duration that is a magnitude, as the operations on durations take: the direction is the
@@ -607,38 +590,29 @@ operandMismatch pos expected actual blurb =
     & L.EvalError
 
 
--- (shift date duration): the date moved by the duration, a negative one moving it back. A
--- date is a string that is in date, so it is read where it is used (see 'shiftDate').
+-- (shift date duration): the date moved by the duration, a negative one, (days -1), moving it
+-- back. The old spelling of shift/forward and shift/backward, kept until it is an error.
 handleShift :: SourcePos -> [L.Expr] -> Reader Env L.Expr
-handleShift pos =
-    \case
-     [err@(L.EvalError _), _]
-         -> pure err
+handleShift pos = pure . \case
+    [err@(L.EvalError _), _] -> err
+    [_, err@(L.EvalError _)] -> err
+    [date, duration]         -> case (dateOf pos date, durationOf pos duration) of
+                                    (Left err, _)        -> err
+                                    (_, Left err)        -> err
+                                    (Right utc, Right d) -> shifted D.Forward utc d
+    args                     -> Data.Ouro.Error.Diagnostics.incorrectArity "shift" 2 (length args)
+                                & OuroError pos
+                                & L.EvalError
 
-     [_, err@(L.EvalError _)]
-         -> pure err
 
-     [L.Primitive (I.String date), L.Duration unit amt]
-         -> pure (shiftDate pos date unit amt)
+-- A date and a duration, from two strings, if they read as one and the other
+asShift :: Text -> Text -> Maybe (UTCTime, D.Duration)
+asShift date duration = (,) <$> parseISO8601 (T.unpack date) <*> D.parseDuration duration
 
-     [L.Primitive (I.String _), other]
-         -> Data.Ouro.Error.Diagnostics.typeMismatch "a duration to shift the date by" (humanReadableType other)
-            & Data.Ouro.Error.Diagnostics.withBlurb "A duration is made by (years n), (months n), (days n), (hours n), (minutes n) or (seconds n)."
-            & OuroError pos
-            & L.EvalError
-            & pure
 
-     [other, _]
-         -> Data.Ouro.Error.Diagnostics.refinementMismatch "date" (refinementOf other)
-            & OuroError pos
-            & L.EvalError
-            & pure
-
-     args
-         -> Data.Ouro.Error.Diagnostics.incorrectArity "shift" 2 (length args)
-            & OuroError pos
-            & L.EvalError
-            & pure
+-- A date moved by a duration, written back as a string
+shifted :: D.Direction -> UTCTime -> D.Duration -> L.Expr
+shifted direction utc d = L.Primitive (I.String (I.renderDate (D.shiftBy direction d utc)))
 
 
 -- Functions cannot be compared: two different functions can behave identically,
@@ -676,41 +650,6 @@ isNumber = \case
             _notANum                   -> False
 
 
---- Time Shifting & L.Duration Modifiers ---
--- A date shifted by a duration. A date is a string that is in date, never converted, so it
--- is read here, where it is used, and the date it becomes is written back as a string. A
--- string that is not a date is the refinement mismatch <x ⊢ date> would be.
-shiftDate :: SourcePos -> Text -> PeriodUnit -> Int -> L.Expr
-shiftDate pos written unit amt =
-    case parseISO8601 (T.unpack written) of
-        Just utc -> L.Primitive (I.String (I.renderDate (applyDuration utc unit amt)))
-        Nothing  -> refinementMismatch "date" "a string that is not a date"
-                    & withBlurb "A date is a string in ISO-8601 form, YYYY-MM-DDTHH:mm:ssZ, such as \"1642-01-01T00:00:00Z\"."
-                    & OuroError pos
-                    & L.EvalError
-
-
--- Shifts a date by a duration. Months and years clip to the end of a shorter month rather
--- than rolling over into the next: 31 January + 1 month is the last day of February, and
--- 29 February + 1 year is 28 February. A shift never skips past the month it lands in.
-applyDuration :: Integral a => UTCTime -> PeriodUnit -> a -> UTCTime
-applyDuration utc unit amt = case unit of
-                                 Years   -> utc { utctDay = addGregorianYearsClip (fromIntegral amt) (utctDay utc) }
-                                 Months  -> utc { utctDay = addGregorianMonthsClip (fromIntegral amt) (utctDay utc) }
-                                 Days    -> utc { utctDay = addDays (fromIntegral amt) (utctDay utc) }
-                                 Hours   -> addUTCTime (fromIntegral amt * 3600) utc
-                                 Minutes -> addUTCTime (fromIntegral amt * 60) utc
-                                 Seconds -> addUTCTime (fromIntegral amt) utc
-
-                                 -- Runtime handles for dynamic calendar snapping
-                                 YearsToEnd -> let advancedDay = addGregorianYearsClip (fromIntegral amt) (utctDay utc)
-                                                   (y, _, _)   = toGregorian advancedDay
-                                               in utc { utctDay = fromGregorian y 12 31, utctDayTime = 86399 }
-
-                                 MonthsToEnd -> let advancedDay = addGregorianMonthsClip (fromIntegral amt) (utctDay utc)
-                                                    (y, m, _)   = toGregorian advancedDay
-                                                    lastDay     = gregorianMonthLength y m
-                                                in utc { utctDay = fromGregorian y m lastDay, utctDayTime = 86399 }
 
 
 
@@ -1121,11 +1060,18 @@ handleAdjoin pos = pure . \case
         & L.EvalError
 
 
--- Shared helper for duration modifiers to ensure consistent error handling.
-mkDurationHandler :: Text -> PeriodUnit -> SourcePos -> [L.Expr] -> Reader Env L.Expr
+-- A duration of one unit, (days 19), as the string xsd:duration writes it, "P19D": a whole
+-- number of years, months, days, hours or minutes, and of seconds any number. A fraction of
+-- another unit is refused, as a calendar cannot apply it exactly; a negative amount is written
+-- with xsd:duration's -, which only the old shifts read.
+mkDurationHandler :: Text -> D.Unit -> SourcePos -> [L.Expr] -> Reader Env L.Expr
 mkDurationHandler unitName unit pos args =
     case args of
-        [L.Primitive (I.Number n)] -> pure $ L.Duration unit (floor n)
+        [L.Primitive (I.Number n)] -> pure $ case D.unitDuration unit (fromFloatDigits n) of
+                                          Right d  -> L.Primitive (I.String (D.renderDuration d))
+                                          Left why -> operandMismatch pos ("a whole number of " <> unitName) "a fraction"
+                                                          ("A duration's " <> unitName <> " are whole: " <> why
+                                                           <> ". Perhaps a smaller unit, or seconds, which may have a fraction.")
         [badArg]                   -> Data.Ouro.Error.Diagnostics.typeMismatch ("A Number representing the amount of " <> unitName)
                                                    (humanReadableType badArg)
                                       & Data.Ouro.Error.Diagnostics.withBlurb ( "The (" <> unitName <> ") modifier expects a single numeric argument "
@@ -1143,19 +1089,15 @@ mkDurationHandler unitName unit pos args =
 
 
 handleYearsModifier, handleMonthsModifier, handleDaysModifier,
-  handleHoursModifier, handleMinutesModifier, handleSecondsModifier,
-  handleYearsEndModifier, handleMonthsEndModifier
+  handleHoursModifier, handleMinutesModifier, handleSecondsModifier
     :: SourcePos -> [L.Expr] -> Reader Env L.Expr
 
-handleYearsModifier   = mkDurationHandler "years"   Years
-handleMonthsModifier  = mkDurationHandler "months"  Months
-handleDaysModifier    = mkDurationHandler "days"    Days
-handleHoursModifier   = mkDurationHandler "hours"   Hours
-handleMinutesModifier = mkDurationHandler "minutes" Minutes
-handleSecondsModifier = mkDurationHandler "seconds" Seconds
-
-handleYearsEndModifier  = mkDurationHandler "years-end"  YearsToEnd
-handleMonthsEndModifier = mkDurationHandler "months-end" MonthsToEnd
+handleYearsModifier   = mkDurationHandler "years"   D.Years
+handleMonthsModifier  = mkDurationHandler "months"  D.Months
+handleDaysModifier    = mkDurationHandler "days"    D.Days
+handleHoursModifier   = mkDurationHandler "hours"   D.Hours
+handleMinutesModifier = mkDurationHandler "minutes" D.Minutes
+handleSecondsModifier = mkDurationHandler "seconds" D.Seconds
 
 --- Shared Utility Predicates ---
 parseISO8601 :: String -> Maybe UTCTime
