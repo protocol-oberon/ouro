@@ -553,7 +553,13 @@ instance GConstructorCount (C1 c a) where
 typeMismatchBlurb :: L.Expr -> Text
 typeMismatchBlurb value =
     "Ouro's built-in refinements are string, number, boolean, uri, date, record, array and function."
-    <> case refinementOf value of
+    <> typeMismatchHint value
+
+-- What a value outside a built-in refinement is, where its kind alone does not say: one with no
+-- built-in refinement, or a function, which perhaps was meant to be called
+typeMismatchHint :: L.Expr -> Text
+typeMismatchHint value =
+    case refinementOf value of
            refinement
                | refinement `elem` builtInNames -> ""
                | otherwise                     -> " This value is " <> refinement <> ", which has no built-in refinement."
@@ -642,6 +648,10 @@ emptyRecordType = Lint EmptyRecordType
 tripleQuotedString :: WarningContext
 tripleQuotedString = Lint TripleQuotedString
 
+-- Create a warning for a refinement whose subject is declared over value, which says nothing
+refinementOverValue :: Text -> WarningContext
+refinementOverValue = Lint . RefinementOverValue
+
 -- Create a compile-time elided property assignment semantic warning
 elidedPropertyAssign :: Text -> Text -> WarningContext
 elidedPropertyAssign key construct = Semantic $ ElidedPropertyAssign
@@ -727,6 +737,12 @@ warningBlurb = \case
         <> "which an array keeps without complaint.\n\n"
         <> "Perhaps write long text with prose: (prose | …), each line beginning with a bar, its ')' on a line of its own."
 
+    Lint (RefinementOverValue name)
+        -> "Every value is in value, so a refinement declared over it says nothing about its subject: its body decides "
+        <> "everything, and nothing in its signature tells a reader what " <> name <> " is about. That is allowed, "
+        <> "for a refinement that decides across kinds, but a narrower domain says more.\n\n"
+        <> "Perhaps write the kinds it is about: (define/refinement " <> name <> " (<x ⊢ data>) ...), or (<r ⊢ record>)."
+
     Semantic (ElidedPropertyAssign key construct)
         -> "The expression assigned to the property attribute '" <> key <> "' evaluates exclusively to a compile-time '"
         <> construct <> "' block. Because elided control structures leave zero footprint in final binary payloads, "
@@ -751,6 +767,7 @@ warningSummary = \case
     Lint (UndocumentedRefinement name)  -> "The refinement '" <> name <> "' has no doc"
     Lint EmptyRecordType                -> "(record) is the type record"
     Lint TripleQuotedString             -> "Ouro has no triple-quoted strings"
+    Lint (RefinementOverValue name)     -> "The refinement '" <> name <> "' is declared over value, which says nothing"
     Semantic (ElidedPropertyAssign k _) -> "Property assignment '" <> k <> "' binds to an elided value"
     Vocab (UnboundTypeReference t _)    -> "Unbound schema type reference '" <> t <> "'"
 

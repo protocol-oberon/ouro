@@ -676,12 +676,15 @@ highlightDiagnostic txt =
 
     where
     highlightLine :: Text -> Doc OuroStyle
-    highlightLine lineStr = case T.null (T.strip lineStr) of
+    highlightLine lineStr = case (T.null (T.strip lineStr), "  " `T.isPrefixOf` lineStr) of
                                 -- If the line is purely empty space or an extracted newline gap, preserve it
-                                True  -> ""
+                                (True, _)      -> ""
+                                -- A line indented by two spaces is preformatted, as a drawn tree is:
+                                -- it is kept as it is written, its spacing its layout
+                                (False, True)  -> annotate NoteBody (pretty lineStr)
                                 -- Otherwise, tokenize the single line horizontally using fillSep
                                 -- to allow text-wrapping within the 80-char boundaries
-                                False -> fillSep (map renderToken (tokenizeErrorString lineStr))
+                                (False, False) -> fillSep (map renderToken (tokenizeErrorString lineStr))
 
     renderToken :: DiagnosticToken -> Doc OuroStyle
     renderToken token = case token of
@@ -744,6 +747,11 @@ splitWarningContext ctx =
         Lint TripleQuotedString
             -> ( title
                , [ labeled "Write: " (pretty ("(prose | …)" :: Text)) ]
+               , Just blurb
+               )
+        Lint (RefinementOverValue name)
+            -> ( title
+               , [ labeled "Over value: " (highlightDiagnostic name) ]
                , Just blurb
                )
         Semantic (ElidedPropertyAssign key construct)

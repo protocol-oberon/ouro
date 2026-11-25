@@ -1,0 +1,13 @@
+Warning [WRN0010]: The refinement 'catalogued' is declared over value, which says nothing
+  ┌── │WRN0010-RefinementOverValue.ouro:1:37│
+  │
+1 │ (define/refinement catalogued (<x ⊢ value>) (doc "Anything a catalogue entry may hold.") true)
+  │                                     ^
+  │                                     Over value: catalogued
+  │ 
+
+Every value is in value, so a refinement declared over it says nothing about its subject: its body decides everything, and nothing in its
+signature tells a reader what catalogued is about. That is allowed, for a refinement that decides across kinds, but a narrower domain
+says more.
+
+Perhaps write the kinds it is about: (define/refinement catalogued (<x ⊢ data>) ...), or (<r ⊢ record>).

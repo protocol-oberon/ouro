@@ -8,5 +8,3 @@ Error [TYP0002]: Refinement Failed
   │                  in:       an assertion
   │                  blaming:  the assertion
   │ 
-
-Ouro's built-in refinements are string, number, boolean, uri, date, record, array and function.

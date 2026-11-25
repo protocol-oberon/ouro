@@ -26,6 +26,10 @@ data Refinement
     | RRecord           -- the records, the empty one included
     | RArray            -- the arrays, the empty one included
     | RFunction         -- procedures and refinements
+    | RValue            -- every value: the root of the tree
+    | RData             -- what can be written to JSON-LD: strings, numbers, booleans, records, arrays
+    | RProcedure        -- the functions that build data: define/procedure, fn, the built-ins
+    | RRefinement       -- the functions that judge data: define/refinement
     | RDefined Text     -- a refinement defined in Ouro, by its name as written: titled, people/titled
     deriving (Show, Eq, Ord, Generic)
 
@@ -34,15 +38,19 @@ data Refinement
 -- other name one defined in Ouro
 refinementNamed :: Text -> Refinement
 refinementNamed = \case
-    "string"   -> RString
-    "number"   -> RNumber
-    "boolean"  -> RBoolean
-    "record"   -> RRecord
-    "array"    -> RArray
-    "function" -> RFunction
-    "uri"      -> RUri
-    "date"     -> RDate
-    name       -> RDefined name
+    "string"     -> RString
+    "number"     -> RNumber
+    "boolean"    -> RBoolean
+    "record"     -> RRecord
+    "array"      -> RArray
+    "function"   -> RFunction
+    "value"      -> RValue
+    "data"       -> RData
+    "procedure"  -> RProcedure
+    "refinement" -> RRefinement
+    "uri"        -> RUri
+    "date"       -> RDate
+    name         -> RDefined name
 
 
 -- A type as a message writes it, as it is written in Ouro
@@ -67,4 +75,8 @@ renderRefinement = \case
     RRecord       -> "record"
     RArray        -> "array"
     RFunction     -> "function"
+    RValue        -> "value"
+    RData         -> "data"
+    RProcedure    -> "procedure"
+    RRefinement   -> "refinement"
     RDefined name -> name

@@ -9,6 +9,18 @@ version is 0.x, a new minor version may break programs, and each change that doe
 
 ## [Unreleased]
 
+### Added
+- `value`, `data`, `procedure` and `refinement` are built-in refinements beside `function`, so
+  every level of the type tree can be written: `value` every value, `data` what can be written
+  to JSON-LD, `procedure` and `refinement` the two kinds of function, decided on the value,
+  a built-in counting as a procedure. <!-- lmtxmtvt, slmqsurl -->
+- A value outside a built-in refinement is shown where it sits in the tree of built-in
+  refinements, the refinement required and the value's own kind marked; left out where the two
+  are kinds of data side by side, a string required and a number given. <!-- slmqsurl -->
+- `WRN0010`, a refinement declared over `value`, `(<x ⊢ value>)`, which says nothing about its
+  subject: allowed, for a refinement that decides across kinds, but warned of, a narrower domain
+  saying more. <!-- slmqsurl -->
+
 ### Changed
 - A value outside a signature's requirement or an assertion is `TYP0002`, Refinement Failed,
   which names what was required and what was given on lines of their own, the role the value

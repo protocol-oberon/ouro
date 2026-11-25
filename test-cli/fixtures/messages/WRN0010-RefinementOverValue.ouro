@@ -1,0 +1,2 @@
+(define/refinement catalogued (<x ⊢ value>) (doc "Anything a catalogue entry may hold.") true)
+(document g (:r <1 ⊢ catalogued>))

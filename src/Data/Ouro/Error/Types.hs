@@ -552,6 +552,16 @@ data LinterWarning
     --
     -- * Remediation: Issue warning. Suggest prose, (prose | …).
     | TripleQuotedString
+
+    -- LINT WARNING: A REFINEMENT OVER VALUE
+    -- Occurs when a refinement declares its subject <x ⊢ value>. Every value is in value, so the
+    -- domain says nothing about the subject and the body decides everything; legal, as a
+    -- refinement across kinds is, but nothing in its signature tells a reader what it is about.
+    --
+    -- * Remediation: Issue warning. Suggest a narrower domain, record or data.
+    | RefinementOverValue
+      { overValue :: Text  -- The refinement's name
+      }
     deriving (Show, Eq, Ord, Generic)
 
 

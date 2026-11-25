@@ -7,6 +7,7 @@ import qualified Data.Map.Strict             as Map
 import           Data.Ouro.Error.Diagnostics (deprecatedSyntax, emptyRecordType, notKebabCase,
                                               parenthesisedResult,
                                               procedureOfNoParameters,
+                                              refinementOverValue,
                                               shadowedBuiltin,
                                               tripleQuotedString,
                                               undocumentedRefinement)
@@ -119,14 +120,25 @@ lintModule ouroModule =
 -- Checks the types written in the module after Canon, when an assertion in an expression,
 -- <x ⊢ (record)>, and a fn's binder are typed nodes too: every parameter's and result's type,
 -- and every assertion in a function's or a graph's body. (record), a record type with no
--- keys, is every record, which record already says.
+-- keys, is every record, which record already says. And a refinement declared over value,
+-- <x ⊢ value>, says nothing about its subject.
 lintTypes :: M.Module -> [OuroWarning]
 lintTypes ouroModule =
        concat [ concatMap paramType params <> resultType result <> assertedTypes body
               | M.SomeFunction (M.Function _ _ _ _ params result body) <- Map.elems (ouroModule ^. M.functionRegistry) ]
+    <> concatMap overValueDomain (Map.elems (ouroModule ^. M.functionRegistry))
     <> concat [ assertedTypes expr
               | M.Graph _ _ expr <- Map.elems (ouroModule ^. M.graphRegistry) ]
     where
+    -- A refinement whose subject, its first parameter, is declared over value
+    overValueDomain :: M.SomeFunction -> [OuroWarning]
+    overValueDomain = \case
+        M.SomeFunction (M.Function M.RefinementKind _ name _ (S.Param _ (Just (pos, R.Named R.RValue)) _ : _) _ _)
+            -> [OuroWarning pos (refinementOverValue name)]
+
+        _otherFunction
+            -> []
+
     paramType = \case
         S.Param _ (Just (pos, ty)) _ -> emptyRecords pos ty
         _untyped                     -> []

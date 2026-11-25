@@ -4,7 +4,8 @@ module Data.Ouro.Refinement.Check where
 
 import           Data.Function                    ((&))
 import           Data.Functor                     ((<&>))
-import           Data.Ouro.Error.Diagnostics      (requirementFailed, typeMismatchBlurb, withBlurb)
+import           Data.Maybe                       (fromMaybe)
+import           Data.Ouro.Error.Diagnostics      (requirementFailed, typeMismatchHint, withBlurb)
 import           Data.Ouro.Error.Types            (ErrorContext (..), OuroError (..), TypeError (..))
 import qualified Data.Ouro.Internal.Expr          as I
 import           Data.Ouro.Internal.Uri           (mkUri, uriParsed)
@@ -12,7 +13,7 @@ import           Data.Ouro.Lisp.Eval.Types        (EvalM, Expr (..))
 import qualified Data.Ouro.Lisp.Eval.Types        as L
 import qualified Data.Ouro.Refinement.Requirement as Q
 import qualified Data.Ouro.Refinement.Type        as R
-import           Data.Ouro.Refinement.Value       (aValue, hasKind, kindOf, refinementOf)
+import           Data.Ouro.Refinement.Value       (aValue, hasKind, kindOf, refinementOf, refinementTree)
 import           Data.Text                        (Text)
 import qualified Data.Text                        as T
 import           Text.Megaparsec                  (SourcePos)
@@ -181,7 +182,9 @@ checkDefined ev role typePos pos name v = domainOf ev name >>= \case
 refinementFailure :: SourcePos -> Q.Failure -> Text -> L.Expr
 refinementFailure pos failure blurb =
     requirementFailed failure
-    & withBlurb blurb
+    & (case T.null blurb of
+           True  -> id
+           False -> withBlurb blurb)
     & OuroError pos
     & EvalError
 
@@ -263,7 +266,7 @@ builtInProblem refinement value = case (refinement, value) of
 
     (kind, _)
         | hasKind kind value -> Nothing
-        | otherwise          -> Just (refinementOf value, typeMismatchBlurb value)
+        | otherwise          -> Just (refinementOf value, T.intercalate "\n\n" (filter (not . T.null) [fromMaybe "" (refinementTree kind value), T.strip (typeMismatchHint value)]))
 
 
 uriBlurb, dateBlurb :: Text
