@@ -2,8 +2,9 @@ module Data.Ouro.Lisp.Canon.Connectives
 ( connectives
 ) where
 
-import qualified Data.Ouro.Lisp.Surface as S
-import           Text.Megaparsec        (SourcePos)
+import qualified Data.Ouro.Lisp.Surface    as S
+import qualified Data.Ouro.Refinement.Type as R
+import           Text.Megaparsec           (SourcePos)
 
 
 -- connectives.
@@ -78,7 +79,7 @@ chain pos isAll = \case
 
     where
     -- Each operand is checked where it is written
-    asBool operand = S.Asserted (S.exprPos operand) (S.Named S.RBoolean) operand
+    asBool operand = S.Asserted (S.exprPos operand) (R.Named R.RBoolean) operand
 
 
 -- The elements of an array written in place: (), the empty array, an (array ...), or a form

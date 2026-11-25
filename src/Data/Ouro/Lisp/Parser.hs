@@ -32,6 +32,7 @@ import           Data.Ouro.Lisp.Module.Types (Declaration (..),
                                               graphRegistry, imports,
                                               qualifierOf)
 import qualified Data.Ouro.Lisp.Surface      as S
+import qualified Data.Ouro.Refinement.Type   as R
 import qualified Data.Ouro.Lisp.Tokens       as Tkn
 import qualified Data.Set                    as Set
 import           Data.Text                   (Text)
@@ -265,7 +266,7 @@ pDefn kind params pos = do
 
 -- A function's return type, between its name and its parameters: ⊢ and its refinement,
 -- (define/procedure f ⊢ string (x) ...), or a refinement in its old hash spelling
-pReturnType :: Parser (Maybe (SourcePos, S.Type))
+pReturnType :: Parser (Maybe (SourcePos, R.Type))
 pReturnType = do
     stream <- remainingTokens
     case stream of
@@ -275,7 +276,7 @@ pReturnType = do
                written <- pExpr
                Just <$> lift (requirementOf written)
         t : ts | Just refinement <- retiredType (Tkn.tokenType t)
-            -> consume ts >> pure (Just (Tkn.pos t, S.Named refinement))
+            -> consume ts >> pure (Just (Tkn.pos t, R.Named refinement))
         _noReturnType
             -> pure Nothing
 
@@ -285,7 +286,7 @@ pReturnType = do
 -- <r ⊢ (record :label string)>. Every signature's requirement
 -- is read here, so that a requirement written as more, such as one applied to an earlier
 -- parameter, (has-part-of-type kind), is read in this one place when there are such.
-requirementOf :: S.Expr -> Either OuroError (SourcePos, S.Type)
+requirementOf :: S.Expr -> Either OuroError (SourcePos, R.Type)
 requirementOf written = case S.readType written of
     Right ty
         -> Right (S.exprPos written, ty)
@@ -431,11 +432,11 @@ pArgs = do
                                            -> do
                                               consume rest
                                               pattern <- parseFormContainer (Tkn.pos next)
-                                              collectArgs (patternParam (length acc + 1) (Just (Tkn.pos t, S.Named refinement)) pattern : acc)
+                                              collectArgs (patternParam (length acc + 1) (Just (Tkn.pos t, R.Named refinement)) pattern : acc)
                                        _aName
                                            -> do
                                               name <- expectSymbol "A parameter's type is written in a binder, as in <n ⊢ number>"
-                                              collectArgs (S.Param name (Just (Tkn.pos t, S.Named refinement)) Nothing : acc)
+                                              collectArgs (S.Param name (Just (Tkn.pos t, R.Named refinement)) Nothing : acc)
             _notAParameter      -> lexicalError "A parameter is a name, or a pattern in parentheses, each optionally typed: <n ⊢ number> or <(?a ?b) ⊢ array>"
                                    F.& OuroError (Tkn.pos t)
                                    F.& Left
@@ -466,9 +467,9 @@ binderParam index pos = \case
 
 -- A refinement in its old spelling, a hash before its name, in an expression or a signature:
 -- its name resolved as a binder's is. The old empty values are values, not types.
-retiredType :: Tkn.TokenType -> Maybe S.Refinement
+retiredType :: Tkn.TokenType -> Maybe R.Refinement
 retiredType = \case
-    Tkn.RetiredRefinement name -> Just (S.refinementNamed name)
+    Tkn.RetiredRefinement name -> Just (R.refinementNamed name)
     _notAType                  -> Nothing
 
 -- Recursive Expr Router
@@ -525,7 +526,7 @@ pExpr = do
                              -- Reader Macros & Type Assertions
                              -- Note: We intentionally pop 'ts' here to advance past the old refinement
                              tkn | Just refinement <- retiredType tkn
-                                                -> consume ts >> parseRetiredAssertion (Tkn.pos t) (S.Named refinement)
+                                                -> consume ts >> parseRetiredAssertion (Tkn.pos t) (R.Named refinement)
 
                              -- The old empty values, read as (make record) and (make array) are
                              Tkn.RetiredEmptyRecord -> capture (S.Literal (Tkn.pos t) S.EmptyRec)
@@ -676,7 +677,7 @@ misplacedRange pos =
 
 -- A refinement in its old hash spelling, asserted of the expression after it, or alone at
 -- the end of a form
-parseRetiredAssertion :: SourcePos -> S.Type -> Parser S.Expr
+parseRetiredAssertion :: SourcePos -> R.Type -> Parser S.Expr
 parseRetiredAssertion typePos ty = do
                                  stream <- remainingTokens
                                  case stream of

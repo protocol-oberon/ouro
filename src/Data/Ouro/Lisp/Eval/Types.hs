@@ -15,6 +15,7 @@ import qualified Data.Ouro.Internal.Expr     as I
 import qualified Data.Ouro.Internal.Kinds    as JLD
 import qualified Data.Ouro.Lisp.Module.Types as M
 import qualified Data.Ouro.Lisp.Surface      as S
+import qualified Data.Ouro.Refinement.Type   as R
 import           Data.Set                    (Set)
 import qualified Data.Set                    as Set
 import           Data.Text                   (Text)
@@ -96,7 +97,7 @@ data Expr where
 
     -- A function, closed over the frame it is defined in, with its signature: its
     -- parameters and the requirement on its result, if it has one
-    FunctionClosure :: Env -> FunctionId -> [S.Param] -> Maybe (SourcePos, S.Type) -> [S.Expr] -> Expr
+    FunctionClosure :: Env -> FunctionId -> [S.Param] -> Maybe (SourcePos, R.Type) -> [S.Expr] -> Expr
 
     -- An error, where the value would have been
     EvalError   :: OuroError -> Expr
@@ -308,33 +309,6 @@ describePrimitive =
      I.EmptyRec       -> "Empty Record"
      I.Record    _ _  -> "Record"
      I.Array     _    -> "Array"
-
-
--- The built-in refinement a value has, written as in Ouro, for messages: "string", "record". A
--- value with no built-in refinement, such as null or a Duration, is described instead.
-refinementOf :: Expr -> Text
-refinementOf =
-    \case
-     Primitive p
-         -> case p of
-                I.String    _    -> "string"
-                I.Number    _    -> "number"
-                I.Boolean   _    -> "boolean"
-                I.URI       _    -> "uri"
-                I.Date      _    -> "date"
-                I.EmptyRec       -> "record"
-                I.Record    _ _  -> "record"
-                I.EmptyArr       -> "array"
-                I.Array     _    -> "array"
-                I.Null           -> "null"
-                I.BlankNode _    -> "a blank node"
-     Record      _ _        -> "record"
-     Array       _          -> "array"
-     FunctionClosure {}     -> "function"
-     PrimitiveOp _          -> "function"
-     Duration    _ _        -> "a Duration"
-     Attr        _ _        -> "an attribute pair"
-     EvalError   _          -> "an error"
 
 
 -- Generated last: Env refers to 'Binding' and 'Expr', and Expr to 'PeriodUnit'

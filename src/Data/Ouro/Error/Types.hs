@@ -5,9 +5,10 @@
 
 module Data.Ouro.Error.Types where
 
-import           Data.Text       (Text)
-import           GHC.Generics    (Generic)
-import           Text.Megaparsec (SourcePos (sourceColumn, sourceLine), unPos)
+import           Data.Ouro.Refinement.Requirement (Failure)
+import           Data.Text                        (Text)
+import           GHC.Generics                     (Generic)
+import           Text.Megaparsec                  (SourcePos (sourceColumn, sourceLine), unPos)
 
 
 -- The single data type that represents any compiler diagnostic emission
@@ -176,27 +177,12 @@ data TypeError
     -- * Remediation: Name both refinements as they are written in Ouro, and say why when the
     --   value's own refinement is not reason enough (a String that is not a URI).
     | RefinementMismatch
-      { expectedRefinement :: Text  -- The refinement the value is typed with, as written: "number"
-      , actualRefinement   :: Text  -- The refinement the value has, with a reason where needed
+      { expectedRefinement :: Text           -- The refinement the value is typed with, as written: "number"
+      , actualRefinement   :: Text           -- The refinement the value has, with a reason where needed
+      , requirement        :: Maybe Failure  -- The failure as data, at a requirement's check; Nothing at a
+                                             -- built-in's own operand check. Carried beside the text until
+                                             -- the printer renders it
       }
-    deriving (Show, Eq, Ord, Generic)
-
-
--- Role.
---
--- What a value was required for, where a requirement is checked. Who is blamed follows from
--- it: an argument's caller, a result's function, an assertion itself.
-data Role
-    = ArgumentOf Callee Int  -- The nth argument of a call, counted from 1
-    | ResultOf   Callee      -- What a function returns, under its return type
-    | Assertion              -- <x ⊢ p>, a statement written in Ouro
-    deriving (Show, Eq, Ord, Generic)
-
-
--- The function a requirement belongs to, as it is called
-data Callee
-    = Procedure Text  -- A defined function, by its name as written
-    | Lambda          -- A fn
     deriving (Show, Eq, Ord, Generic)
 
 

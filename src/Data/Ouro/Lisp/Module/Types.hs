@@ -5,14 +5,15 @@
 
 module Data.Ouro.Lisp.Module.Types where
 
-import qualified Data.Map.Strict        as Map
-import           Data.Maybe             (fromMaybe)
-import qualified Data.Set               as Set
-import           Data.Ouro.Lisp.Surface (Expr, Param (..), Type)
-import           Data.Text              (Text)
-import qualified Data.Text              as T
-import           Lens.Micro.TH          (makeLenses)
-import           Text.Megaparsec        (SourcePos)
+import qualified Data.Map.Strict           as Map
+import           Data.Maybe                (fromMaybe)
+import qualified Data.Set                  as Set
+import           Data.Ouro.Lisp.Surface    (Expr, Param (..))
+import           Data.Ouro.Refinement.Type (Type)
+import           Data.Text                 (Text)
+import qualified Data.Text                 as T
+import           Lens.Micro.TH             (makeLenses)
+import           Text.Megaparsec           (SourcePos)
 
 
 -- DataKind to represent expression types

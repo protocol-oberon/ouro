@@ -13,8 +13,10 @@ import           Data.Ouro.Error.Types     (BuildError (..), ErrorContext (..),
                                             VocabularyWarning (..),
                                             WarningContext (..))
 import           Data.Ouro.Internal.Utils  (rankBySimilarity)
+import           Data.Ouro.Refinement.Requirement (Failure)
 import           Data.Ouro.Lisp.Eval.Types (humanReadableType)
 import qualified Data.Ouro.Lisp.Eval.Types as L
+import           Data.Ouro.Refinement.Value (refinementOf)
 import qualified Data.Set                  as Set
 import           Data.Text                 (Text)
 import qualified Data.Text                 as T
@@ -101,11 +103,21 @@ typeMismatch expected actual = Typing $ TypeMismatch
     , actualType   = actual
     }
 
--- A value without the built-in refinement it is typed with
+-- A value without the built-in refinement a built-in needs of its operand
 refinementMismatch :: Text -> Text -> ErrorContext
 refinementMismatch expected actual = Typing $ RefinementMismatch
     { expectedRefinement = expected
     , actualRefinement   = actual
+    , requirement        = Nothing
+    }
+
+-- A value outside a requirement, a signature's or an assertion's: the text the printer shows,
+-- and the failure as data beside it
+requirementFailed :: Text -> Text -> Failure -> ErrorContext
+requirementFailed expected actual failure = Typing $ RefinementMismatch
+    { expectedRefinement = expected
+    , actualRefinement   = actual
+    , requirement        = Just failure
     }
 
 
@@ -541,7 +553,7 @@ instance GConstructorCount (C1 c a) where
 typeMismatchBlurb :: L.Expr -> Text
 typeMismatchBlurb value =
     "Ouro's built-in refinements are string, number, boolean, uri, date, record, array and function."
-    <> case L.refinementOf value of
+    <> case refinementOf value of
            refinement
                | refinement `elem` builtInNames -> ""
                | otherwise                     -> " This value is " <> refinement <> ", which has no built-in refinement."

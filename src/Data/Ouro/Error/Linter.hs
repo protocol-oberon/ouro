@@ -15,6 +15,7 @@ import           Data.Ouro.Lisp.Eval.Builtins (builtinRegistry)
 import           Data.Ouro.Lisp.Function     (specialForms)
 import qualified Data.Ouro.Lisp.Module.Types as M
 import qualified Data.Ouro.Lisp.Surface      as S
+import qualified Data.Ouro.Refinement.Type   as R
 import qualified Data.Ouro.Lisp.Tokens       as Tkn
 import           Data.Text                   (Text)
 import qualified Data.Text                   as T
@@ -145,15 +146,15 @@ assertedTypes = \case
 
 -- (record) wherever a type holds it: on its own, in ∪ ∩ ∖, in an array, or at another
 -- record type's key
-emptyRecords :: SourcePos -> S.Type -> [OuroWarning]
+emptyRecords :: SourcePos -> R.Type -> [OuroWarning]
 emptyRecords pos = \case
-    S.RecordOf []    -> [OuroWarning pos emptyRecordType]
-    S.RecordOf pairs -> concatMap (emptyRecords pos . snd) pairs
-    S.ArrayOf  t     -> emptyRecords pos t
-    S.Union    a b   -> emptyRecords pos a <> emptyRecords pos b
-    S.Inter    a b   -> emptyRecords pos a <> emptyRecords pos b
-    S.Minus    a b   -> emptyRecords pos a <> emptyRecords pos b
-    S.Named    _     -> []
+    R.RecordOf []    -> [OuroWarning pos emptyRecordType]
+    R.RecordOf pairs -> concatMap (emptyRecords pos . snd) pairs
+    R.ArrayOf  t     -> emptyRecords pos t
+    R.Union    a b   -> emptyRecords pos a <> emptyRecords pos b
+    R.Inter    a b   -> emptyRecords pos a <> emptyRecords pos b
+    R.Minus    a b   -> emptyRecords pos a <> emptyRecords pos b
+    R.Named    _     -> []
 
 
 -- The kebab-case spelling of a name with capitals or underscores, or Nothing when it has

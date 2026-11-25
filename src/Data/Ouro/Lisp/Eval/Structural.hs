@@ -30,6 +30,7 @@ import           Data.Ouro.Lisp.Function     (callee, functionBody,
                                               removedLocalDefn, requiredArgument,
                                               requiredResult)
 import qualified Data.Ouro.Lisp.Surface      as S
+import qualified Data.Ouro.Refinement.Type   as R
 import qualified Data.Set                    as Set
 import           Data.Text                   (Text)
 import           Lens.Micro.Platform         ((.~), (^.))
@@ -397,7 +398,7 @@ evalFunction
     -> SourcePos                      -- Where the function's name, or what gives it, is written
     -> L.FunctionId                   -- The function's name and definition position
     -> [S.Param]                      -- The function's formal parameters (e.g., (name <year ⊢ number>))
-    -> Maybe (SourcePos, S.Type) -- The requirement on its result, its return type
+    -> Maybe (SourcePos, R.Type) -- The requirement on its result, its return type
     -> [S.Expr]                       -- The un-evaluated body expressions of the function
     -> [S.Expr]                       -- The actual arguments passed at the call site
     -> EvalM L.Expr                   -- The returned evaluated expr

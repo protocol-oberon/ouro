@@ -24,18 +24,19 @@ module Data.Ouro.Lisp.Function
 , strayHole
 ) where
 
-import           Data.Foldable               (traverse_)
-import           Data.Function               ((&))
-import           Data.Maybe                  (isJust, listToMaybe, mapMaybe)
-import           Data.Ouro.Error.Diagnostics (invalidFunctionName, lexicalError,
-                                              withBlurb)
-import           Data.Ouro.Error.Types       (Callee (..), OuroError (..),
-                                              Role (..))
-import           Data.Ouro.Lisp.Module.Types (splitQualified)
-import qualified Data.Ouro.Lisp.Surface      as S
-import           Data.Text                   (Text)
-import qualified Data.Text                   as T
-import           Text.Megaparsec             (SourcePos)
+import           Data.Foldable                    (traverse_)
+import           Data.Function                    ((&))
+import           Data.Maybe                       (isJust, listToMaybe, mapMaybe)
+import           Data.Ouro.Error.Diagnostics      (invalidFunctionName, lexicalError,
+                                                   withBlurb)
+import           Data.Ouro.Error.Types            (OuroError (..))
+import           Data.Ouro.Lisp.Module.Types      (splitQualified)
+import qualified Data.Ouro.Lisp.Surface           as S
+import           Data.Ouro.Refinement.Requirement (Callee (..), Role (..))
+import qualified Data.Ouro.Refinement.Type        as R
+import           Data.Text                        (Text)
+import qualified Data.Text                        as T
+import           Text.Megaparsec                  (SourcePos)
 
 
 -- Signatures.
@@ -56,7 +57,7 @@ requiredArgument :: Callee -> Int -> S.Param -> S.Expr -> S.Expr
 requiredArgument owner index param arg =
     maybe arg (\(pos, ty) -> S.Required pos ty (ArgumentOf owner index) arg) (S.paramType param)
 
-requiredResult :: Callee -> Maybe (SourcePos, S.Type) -> S.Expr -> S.Expr
+requiredResult :: Callee -> Maybe (SourcePos, R.Type) -> S.Expr -> S.Expr
 requiredResult owner result body =
     maybe body (\(pos, ty) -> S.Required pos ty (ResultOf owner) body) result
 
@@ -78,7 +79,7 @@ callee = \case
 --
 -- The parameter itself is named by its position, '%arg1', '%arg2', ..., which cannot be
 -- written in Ouro, so its argument is only reached through the holes.
-patternParam :: Int -> Maybe (SourcePos, S.Type) -> S.Expr -> S.Param
+patternParam :: Int -> Maybe (SourcePos, R.Type) -> S.Expr -> S.Param
 patternParam index ty pattern = S.Param ("%arg" <> T.pack (show index)) ty (Just pattern)
 
 
@@ -429,9 +430,9 @@ isHeadedBy keyword = \case
 
 -- A refinement always answers true or false: its return type is boolean, and is never
 -- written. One written is an error where it is.
-refinementResult :: SourcePos -> Maybe (SourcePos, S.Type) -> Either OuroError (Maybe (SourcePos, S.Type))
+refinementResult :: SourcePos -> Maybe (SourcePos, R.Type) -> Either OuroError (Maybe (SourcePos, R.Type))
 refinementResult pos = \case
-    Nothing           -> Right $ Just (pos, S.Named S.RBoolean)
+    Nothing           -> Right $ Just (pos, R.Named R.RBoolean)
     Just (typePos, _) -> lexicalError "A refinement always answers true or false, so it has no return type."
                          & withBlurb "Write (define/refinement titled (<r ⊢ record>) ...): its result is checked as boolean."
                          & OuroError typePos
@@ -443,7 +444,7 @@ refinementResult pos = \case
 -- without a type is reported at the refinement.
 refinementParams :: Text -> SourcePos -> [S.Param] -> Either OuroError ()
 refinementParams name pos = \case
-    [S.Param _ (Just (typePos, S.Named S.RFunction)) _]
+    [S.Param _ (Just (typePos, R.Named R.RFunction)) _]
         -> lexicalError "A refinement is about data, so its parameter cannot be function."
            & withBlurb "Give it the value it is about, with a type: (define/refinement titled (<r ⊢ record>) ...)."
            & OuroError typePos

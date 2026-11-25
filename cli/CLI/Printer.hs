@@ -217,7 +217,7 @@ splitErrorContext = \case
            , Nothing
            )
 
-    Typing (RefinementMismatch expected actual)
+    Typing (RefinementMismatch expected actual _requirement)
         -> ( "Refinement Mismatch"
            , [ highlightDiagnostic ("Expected data to have the refinement " <> expected <> ", got " <> actual <> " instead.")
              ]

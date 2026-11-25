@@ -109,6 +109,11 @@ library
         Data.Ouro.Lisp.Parser
         Data.Ouro.Lisp.Surface
         Data.Ouro.Lisp.Tokens
+        Data.Ouro.Refinement
+        Data.Ouro.Refinement.Check
+        Data.Ouro.Refinement.Requirement
+        Data.Ouro.Refinement.Type
+        Data.Ouro.Refinement.Value
 
     -- LANGUAGE extensions used by modules in this package.
     default-extensions:

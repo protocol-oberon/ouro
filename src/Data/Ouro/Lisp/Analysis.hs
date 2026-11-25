@@ -43,6 +43,7 @@ import           Data.Ouro.Lisp.Module.Types   (Declaration (..),
                                                 functionRegistry, graphRegistry,
                                                 splitQualified)
 import qualified Data.Ouro.Lisp.Surface        as S
+import qualified Data.Ouro.Refinement.Type     as R
 import qualified Data.Set                      as Set
 import           Data.Text                     (Text)
 import qualified Data.Text                     as T
@@ -369,14 +370,14 @@ names scope = \case
 -- ∪ ∩ ∖ it is written. An array's element type is about its elements, and a record type's key
 -- types about the values at its keys, each a part of the subject, so a refinement asserted on
 -- them goes down into the value
-typeNames :: Scope -> SourcePos -> S.Type -> Maybe [Size] -> Found
+typeNames :: Scope -> SourcePos -> R.Type -> Maybe [Size] -> Found
 typeNames scope pos ty args = case ty of
-    S.Named refinement -> refinementName scope pos refinement args
-    S.Union a b        -> typeNames scope pos a args <> typeNames scope pos b args
-    S.Inter a b        -> typeNames scope pos a args <> typeNames scope pos b args
-    S.Minus a b        -> typeNames scope pos a args <> typeNames scope pos b args
-    S.ArrayOf element  -> typeNames scope pos element (fmap (map partOf) args)
-    S.RecordOf pairs   -> foldMap (\(_, t) -> typeNames scope pos t (fmap (map partOf) args)) pairs
+    R.Named refinement -> refinementName scope pos refinement args
+    R.Union a b        -> typeNames scope pos a args <> typeNames scope pos b args
+    R.Inter a b        -> typeNames scope pos a args <> typeNames scope pos b args
+    R.Minus a b        -> typeNames scope pos a args <> typeNames scope pos b args
+    R.ArrayOf element  -> typeNames scope pos element (fmap (map partOf) args)
+    R.RecordOf pairs   -> foldMap (\(_, t) -> typeNames scope pos t (fmap (map partOf) args)) pairs
 
 
 -- A refinement's name names a refinement of the module, titled: never a binding around it,
@@ -385,9 +386,9 @@ typeNames scope pos ty args = case ty of
 -- refinement on the value it asserts, of the size given (unknown for a signature's), so a
 -- refinement asserting itself must go down into a value too. An imported refinement,
 -- people/titled, is not yet read, and a built-in refinement names nothing.
-refinementName :: Scope -> SourcePos -> S.Refinement -> Maybe [Size] -> Found
+refinementName :: Scope -> SourcePos -> R.Refinement -> Maybe [Size] -> Found
 refinementName scope pos refinement args = case refinement of
-    S.RDefined name
+    R.RDefined name
         -> case Map.lookup name (scopeFunctions scope) of
                Just (SomeFunction (Function RefinementKind _ _ _ _ _ _)) -> naming scope (Defn name) pos args
                Just (SomeFunction (Function ProcedureKind _ _ _ _ _ _))  -> problem (OuroError pos (notARefinement name))

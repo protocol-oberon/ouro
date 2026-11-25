@@ -26,6 +26,7 @@ import           Data.Ouro.Internal.Uri      (uriText)
 import           Data.Ouro.Lisp.Eval.Types   (Env, PeriodUnit (..),
                                               humanReadableType)
 import qualified Data.Ouro.Lisp.Eval.Types   as L
+import           Data.Ouro.Refinement.Value  (refinementOf)
 import           Data.Text                   (Text)
 import qualified Data.Text                   as T
 import           Data.Time                   (UTCTime (..), addUTCTime,
@@ -458,7 +459,7 @@ handleNot pos =
          -> pure $ L.Primitive (I.Boolean (not b))
 
      [other]
-         -> Data.Ouro.Error.Diagnostics.refinementMismatch "boolean" (L.refinementOf other)
+         -> Data.Ouro.Error.Diagnostics.refinementMismatch "boolean" (refinementOf other)
             & OuroError pos
             & L.EvalError
             & pure
@@ -494,7 +495,7 @@ handleShift pos =
             & pure
 
      [other, _]
-         -> Data.Ouro.Error.Diagnostics.refinementMismatch "date" (L.refinementOf other)
+         -> Data.Ouro.Error.Diagnostics.refinementMismatch "date" (refinementOf other)
             & OuroError pos
             & L.EvalError
             & pure

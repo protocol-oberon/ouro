@@ -14,6 +14,7 @@ import           Data.Ouro.Lisp.Eval.Engine (evalExpr)
 import           Data.Ouro.Lisp.Eval.Types  (emptyEnv, runEvalM)
 import qualified Data.Ouro.Lisp.Eval.Types  as L
 import qualified Data.Ouro.Lisp.Surface     as S
+import qualified Data.Ouro.Refinement.Type  as R
 import qualified Data.Text                  as T
 
 runEval :: S.Expr -> L.Expr
@@ -168,7 +169,7 @@ prop_single_pass = withTests 1 . property $ do
     let sym             = S.Symbol dummyPos
         num             = S.Literal dummyPos . S.Num
         bool            = S.Literal dummyPos . S.Bool
-        asBool          = S.Asserted dummyPos (S.Named S.RBoolean)
+        asBool          = S.Asserted dummyPos (R.Named R.RBoolean)
         form            = S.Form dummyPos
         onlyConnectives = filter ((== "connectives") . Canon.passName) Canon.passes
     Canon.runPasses onlyConnectives (form [sym "all", form [bool True, bool False]])
