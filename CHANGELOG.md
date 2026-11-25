@@ -9,61 +9,63 @@ version is 0.x, a new minor version may break programs, and each change that doe
 
 ## [Unreleased]
 
+## [0.8.0.0] - 2026-11-25
+
 ### Added
 - `value`, `data`, `procedure` and `refinement` are built-in refinements beside `function`, so
   every level of the type tree can be written: `value` every value, `data` what can be written
   to JSON-LD, `procedure` and `refinement` the two kinds of function, decided on the value,
-  a built-in counting as a procedure. <!-- lmtxmtvt, slmqsurl -->
+  a built-in counting as a procedure. ([b6b8350], [d42fa2c])
 - A value outside a built-in refinement is shown where it sits in the tree of built-in
   refinements, the refinement required and the value's own kind marked; left out where the two
-  are kinds of data side by side, a string required and a number given. <!-- slmqsurl -->
+  are kinds of data side by side, a string required and a number given. ([d42fa2c])
 - `WRN0010`, a refinement declared over `value`, `(<x ⊢ value>)`, which says nothing about its
   subject: allowed, for a refinement that decides across kinds, but warned of, a narrower domain
-  saying more. <!-- slmqsurl -->
+  saying more. ([d42fa2c])
 - `duration`, a built-in refinement of `string`: the strings in `xsd:duration` form that are
-  magnitudes, `"P19D"`, `"PT3H"`. <!-- vtnkwlqx -->
+  magnitudes, `"P19D"`, `"PT3H"`. ([6520853])
 - The four shifts of a date, `shift/forward`, `shift/backward`, `shift/forward-through` and
   `shift/backward-through`, the last two to the end, or the start, of the duration's largest
   unit; `duration/add`, which adds durations part by part; and `date/before` and `date/after`,
-  which compare dates. <!-- kznkrwtl -->
+  which compare dates. ([221bc7f])
 
 ### Changed
 - A duration is a string, `(days 19)` writing `"P19D"`, so it is data and may be written, where
   it was a value of its own with no JSON form. `(+ (days 1) (days 2))` joins them, `"P1DP2D"`:
   durations are added with `duration/add`. A duration is now in `string`, so
-  `<(days 1) ∈ string>` is `true`. <!-- zuolqknw -->
+  `<(days 1) ∈ string>` is `true`. ([a79bc97])
 - **Breaking**: a unit's amount is a whole number but for seconds, `(days 1.5)` being an error
-  where it was floored to a day. <!-- zuolqknw -->
+  where it was floored to a day. ([a79bc97])
 - **Breaking**: `thru` is read as a shift through, `(+ d (thru (days 1)))` as
   `(shift/forward-through d (days 1))`: a date not at midnight now goes on to the end of the
   day, where 23:59:59 was added to it, and `(- d (thru (days 1)))` goes back to the start of the
   day before, where it ended a second after midnight two days back. `(- d (thru (months 1)))`
   goes back to the start of the month before, where it went to that month's end, and a negative
-  amount in a `thru`, `(thru (months -1))`, is refused. <!-- zuolqknw -->
+  amount in a `thru`, `(thru (months -1))`, is refused. ([a79bc97])
 - A value outside a signature's requirement or an assertion is `TYP0002`, Refinement Failed,
   which names what was required and what was given on lines of their own, the role the value
   was required in, `the 1st argument of describe`, who is blamed, the caller for an argument and
   the function for its result, and the trail down to the part that failed, `element 2`, then
-  `key _label`. A built-in's own operand check stays `TYP0001`. <!-- krlomqut -->
+  `key _label`. A built-in's own operand check stays `TYP0001`. ([73d5779])
 
 - `∈` answers `false` for a value outside a defined refinement's domain,
   `<"a" ∈ titled>` where `titled` takes a record, which was an error. Such a value asserted,
   `<"a" ⊢ titled>`, is reported at the value, where it was at the refinement's name.
-  <!-- qusxptnq -->
+  ([44b6293])
 
 ### Deprecated
 - `+` and `-` of a date and a duration, `(+ d (days 1))`; the two-argument `shift`, whose
   duration's sign said its direction; and `thru`: each still works, warned of with what
-  replaces it (`WRN0001`), until they are errors. <!-- zuolqknw -->
+  replaces it (`WRN0001`), until they are errors. ([a79bc97])
 
 ### Fixed
 - A value failing a refinement is named with its article, `an array`, where it was `a array`
-  (gap 59). <!-- krlomqut -->
+  (gap 59). ([73d5779])
 - A refinement that breaks inside its body, an assertion there failing, is that error under `∈`
   and inside a union, where it was read as the value outside the refinement (gap 50).
-  <!-- qusxptnq -->
+  ([44b6293])
 - `(∈ p)` written anywhere but a case branch's head says so, where it was an unbound `%in`
-  (gap 57). <!-- qusxptnq -->
+  (gap 57). ([44b6293])
 
 ## [0.7.0.1] - 2026-11-23
 
@@ -344,7 +346,8 @@ work, each with a warning that names what replaces it, until 0.8.0.0.
   records and arrays, serialisation to JSON, and a command line. ([45edabc], [9e10f0e],
   [0fabbf6], [4ef6457], [4db16ac])
 
-[Unreleased]: https://github.com/protocol-oberon/ouro/compare/v0.7.0.1...HEAD
+[Unreleased]: https://github.com/protocol-oberon/ouro/compare/v0.8.0.0...HEAD
+[0.8.0.0]: https://github.com/protocol-oberon/ouro/compare/v0.7.0.1...v0.8.0.0
 [0.7.0.1]: https://github.com/protocol-oberon/ouro/compare/v0.7.0.0...v0.7.0.1
 [0.7.0.0]: https://github.com/protocol-oberon/ouro/compare/v0.6.2.0...v0.7.0.0
 [0.6.2.0]: https://github.com/protocol-oberon/ouro/compare/v0.6.1.0...v0.6.2.0
@@ -352,6 +355,13 @@ work, each with a warning that names what replaces it, until 0.8.0.0.
 [0.6.0.0]: https://github.com/protocol-oberon/ouro/compare/v0.5.0.0...v0.6.0.0
 [0.5.0.0]: https://github.com/protocol-oberon/ouro/compare/v0.0.0.1...v0.5.0.0
 [0.0.0.1]: https://github.com/protocol-oberon/ouro/releases/tag/v0.0.0.1
+[b6b8350]: https://github.com/protocol-oberon/ouro/commit/b6b8350
+[d42fa2c]: https://github.com/protocol-oberon/ouro/commit/d42fa2c
+[6520853]: https://github.com/protocol-oberon/ouro/commit/6520853
+[221bc7f]: https://github.com/protocol-oberon/ouro/commit/221bc7f
+[a79bc97]: https://github.com/protocol-oberon/ouro/commit/a79bc97
+[73d5779]: https://github.com/protocol-oberon/ouro/commit/73d5779
+[44b6293]: https://github.com/protocol-oberon/ouro/commit/44b6293
 [ec69b48]: https://github.com/protocol-oberon/ouro/commit/ec69b48
 [c6d1213]: https://github.com/protocol-oberon/ouro/commit/c6d1213
 [69e2c2e]: https://github.com/protocol-oberon/ouro/commit/69e2c2e
