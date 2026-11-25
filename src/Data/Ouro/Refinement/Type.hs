@@ -30,6 +30,7 @@ data Refinement
     | RData             -- what can be written to JSON-LD: strings, numbers, booleans, records, arrays
     | RProcedure        -- the functions that build data: define/procedure, fn, the built-ins
     | RRefinement       -- the functions that judge data: define/refinement
+    | RDuration         -- the strings that parse as an xsd:duration magnitude: "P19D"
     | RDefined Text     -- a refinement defined in Ouro, by its name as written: titled, people/titled
     deriving (Show, Eq, Ord, Generic)
 
@@ -50,6 +51,7 @@ refinementNamed = \case
     "refinement" -> RRefinement
     "uri"        -> RUri
     "date"       -> RDate
+    "duration"   -> RDuration
     name         -> RDefined name
 
 
@@ -79,4 +81,5 @@ renderRefinement = \case
     RData         -> "data"
     RProcedure    -> "procedure"
     RRefinement   -> "refinement"
+    RDuration     -> "duration"
     RDefined name -> name

@@ -7,6 +7,7 @@ import           Data.Functor                     ((<&>))
 import           Data.Maybe                       (fromMaybe)
 import           Data.Ouro.Error.Diagnostics      (requirementFailed, typeMismatchHint, withBlurb)
 import           Data.Ouro.Error.Types            (ErrorContext (..), OuroError (..), TypeError (..))
+import           Data.Ouro.Internal.Duration      (Duration (negative), parseDuration)
 import qualified Data.Ouro.Internal.Expr          as I
 import           Data.Ouro.Internal.Uri           (mkUri, uriParsed)
 import           Data.Ouro.Lisp.Eval.Types        (EvalM, Expr (..))
@@ -264,14 +265,27 @@ builtInProblem refinement value = case (refinement, value) of
     (R.RDate, _)
         -> Just (refinementOf value, dateBlurb)
 
+    -- A duration is a magnitude: xsd:duration's leading - is read, but is no duration of Ouro's
+    (R.RDuration, Primitive (I.String rawText))
+        -> case parseDuration rawText of
+               Nothing                    -> Just ("a string that is not a duration", durationBlurb)
+               Just d | negative d        -> Just ("a negative duration", durationBlurb)
+                      | otherwise         -> Nothing
+
+    (R.RDuration, _)
+        -> Just (refinementOf value, durationBlurb)
+
     (kind, _)
         | hasKind kind value -> Nothing
         | otherwise          -> Just (refinementOf value, T.intercalate "\n\n" (filter (not . T.null) [fromMaybe "" (refinementTree kind value), T.strip (typeMismatchHint value)]))
 
 
-uriBlurb, dateBlurb :: Text
-uriBlurb  = "A uri is a string with a scheme, such as \"https://linked.art/example/1\"."
-dateBlurb = "A date is a string in ISO-8601 form, YYYY-MM-DDTHH:mm:ssZ, such as \"1642-01-01T00:00:00Z\"."
+uriBlurb, dateBlurb, durationBlurb :: Text
+uriBlurb      = "A uri is a string with a scheme, such as \"https://linked.art/example/1\"."
+dateBlurb     = "A date is a string in ISO-8601 form, YYYY-MM-DDTHH:mm:ssZ, such as \"1642-01-01T00:00:00Z\"."
+durationBlurb = "A duration is a string in xsd:duration form, PnYnMnDTnHnMnS, such as \"P19D\" or \"PT3H\", "
+             <> "a magnitude: the direction is the operation's, shift/forward or shift/backward. "
+             <> "(days 19) writes one."
 
 
 -- Whether an error says the value is outside a type, an answer of no, rather than that a check

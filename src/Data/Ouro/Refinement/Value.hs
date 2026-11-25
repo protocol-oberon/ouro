@@ -89,6 +89,7 @@ builtIns =
               [ Node R.RString "\"text\""
                     [ Node R.RUri  "\"https://linked.art/example/1\"" []
                     , Node R.RDate "\"1642-01-01T00:00:00Z\""         []
+                    , Node R.RDuration "\"P19D\", \"PT3H\""           []
                     ]
               , Node R.RNumber  "1, 2.5"                []
               , Node R.RBoolean "true, false"           []
