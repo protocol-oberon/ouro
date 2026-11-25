@@ -1,0 +1,12 @@
+Error [TYP0002]: Refinement Failed
+  ┌── │TYP0002-RefinementFailed.ouro:1:18│
+  │
+1 │ (document g (:a <1 ⊢ string>))
+  │                  ^
+  │                  required: string
+  │                  given:    number
+  │                  in:       an assertion
+  │                  blaming:  the assertion
+  │ 
+
+Ouro's built-in refinements are string, number, boolean, uri, date, record, array and function.

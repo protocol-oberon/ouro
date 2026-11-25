@@ -1,9 +1,7 @@
 Error [TYP0001]: Refinement Mismatch
-  ┌── │TYP0001-RefinementMismatch.ouro:1:18│
+  ┌── │TYP0001-RefinementMismatch.ouro:1:17│
   │
-1 │ (document g (:a <1 ⊢ string>))
-  │                  ^
-  │                  Expected data to have the refinement string, got number instead.
+1 │ (document g (:a (not 1)))
+  │                 ^
+  │                 Expected data to have the refinement boolean, got number instead.
   │ 
-
-Ouro's built-in refinements are string, number, boolean, uri, date, record, array and function.

@@ -8,6 +8,7 @@ import           Data.Ouro.Lisp.Eval.Types (Expr (..))
 import qualified Data.Ouro.Lisp.Eval.Types as L
 import qualified Data.Ouro.Refinement.Type as R
 import           Data.Text                 (Text)
+import qualified Data.Text                 as T
 
 
 -- The built-in refinement a value has, written as in Ouro, for messages: "string", "record". A
@@ -35,6 +36,15 @@ refinementOf =
      Duration    _ _        -> "a Duration"
      Attr        _ _        -> "an attribute pair"
      EvalError   _          -> "an error"
+
+
+-- A value as a reader would name it, with its article: "an array", "a record", "a uri". A
+-- description that has its own article already, "a blank node", is kept as it is.
+aValue :: Expr -> Text
+aValue value = case refinementOf value of
+    described | any (`T.isPrefixOf` described) ["a ", "an "] -> described
+    vowel     | T.take 1 vowel `elem` ["a", "e", "i", "o"]   -> "an " <> vowel
+    kind                                                       -> "a " <> kind
 
 
 -- The built-in refinement a value is of, its kind, as data: what an error's code says was given.

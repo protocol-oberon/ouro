@@ -9,6 +9,17 @@ version is 0.x, a new minor version may break programs, and each change that doe
 
 ## [Unreleased]
 
+### Changed
+- A value outside a signature's requirement or an assertion is `TYP0002`, Refinement Failed,
+  which names what was required and what was given on lines of their own, the role the value
+  was required in, `the 1st argument of describe`, who is blamed, the caller for an argument and
+  the function for its result, and the trail down to the part that failed, `element 2`, then
+  `key _label`. A built-in's own operand check stays `TYP0001`. <!-- krlomqut -->
+
+### Fixed
+- A value failing a refinement is named with its article, `an array`, where it was `a array`
+  (gap 59). <!-- krlomqut -->
+
 ## [0.7.0.1] - 2026-11-23
 
 ### Fixed

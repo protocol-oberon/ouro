@@ -12,7 +12,7 @@ import           Data.Ouro.Lisp.Eval.Types        (EvalM, Expr (..))
 import qualified Data.Ouro.Lisp.Eval.Types        as L
 import qualified Data.Ouro.Refinement.Requirement as Q
 import qualified Data.Ouro.Refinement.Type        as R
-import           Data.Ouro.Refinement.Value       (hasKind, kindOf, refinementOf)
+import           Data.Ouro.Refinement.Value       (aValue, hasKind, kindOf, refinementOf)
 import           Data.Text                        (Text)
 import qualified Data.Text                        as T
 import           Text.Megaparsec                  (SourcePos)
@@ -28,7 +28,7 @@ type RunDefined = SourcePos -> Text -> L.Expr -> EvalM (Either L.Expr (Bool, May
 
 
 -- Checks an evaluated value against a type, required in a role, the type written at the first
--- position, the value at the second: the value itself, never converted, or a RefinementMismatch
+-- position, the value at the second: the value itself, never converted, or a RefinementFailed
 -- error at the value, its failure carrying the role. A type is a refinement by its name, or one
 -- built from them with ∪ ∩ ∖, (array p) and (record :k p …).
 checkRefinement :: RunDefined -> Q.Role -> R.Type -> SourcePos -> SourcePos -> L.Expr -> EvalM L.Expr
@@ -155,7 +155,7 @@ checkDefined run role typePos pos name v = run typePos name v <&> \case
 
     where
     refinement = R.Named (R.RDefined name)
-    given      = "a " <> refinementOf v <> " that is not " <> name
+    given      = aValue v
 
     -- The refinement's doc, stated as the rule it asserts
     rule = \case
@@ -168,7 +168,7 @@ checkDefined run role typePos pos name v = run typePos name v <&> \case
 -- read off it, and how to put it right
 refinementFailure :: SourcePos -> Q.Failure -> Text -> L.Expr
 refinementFailure pos failure blurb =
-    requirementFailed (R.renderType (Q.required failure)) (Q.given failure) failure
+    requirementFailed failure
     & withBlurb blurb
     & OuroError pos
     & EvalError
@@ -201,9 +201,9 @@ data Answer
 -- other error
 failureIn :: ErrorContext -> Maybe Q.Failure
 failureIn = \case
-    Typing (RefinementMismatch _ _ failure) -> failure
-    AnnotatedContext _ ctx                  -> failureIn ctx
-    _otherError                             -> Nothing
+    Typing (RefinementFailed _ _ failure) -> Just failure
+    AnnotatedContext _ ctx                -> failureIn ctx
+    _otherError                           -> Nothing
 
 
 -- An error with a step put in front of its failure's trail, the boundary it came out through;
@@ -215,8 +215,8 @@ throughStep step = \case
 
     where
     onFailure = \case
-        Typing (RefinementMismatch expected actual (Just failure))
-            -> Typing (RefinementMismatch expected actual (Just failure { Q.trail = step : Q.trail failure }))
+        Typing (RefinementFailed expected actual failure)
+            -> Typing (RefinementFailed expected actual (failure { Q.trail = step : Q.trail failure }))
 
         AnnotatedContext blurb ctx
             -> AnnotatedContext blurb (onFailure ctx)
@@ -259,9 +259,11 @@ uriBlurb  = "A uri is a string with a scheme, such as \"https://linked.art/examp
 dateBlurb = "A date is a string in ISO-8601 form, YYYY-MM-DDTHH:mm:ssZ, such as \"1642-01-01T00:00:00Z\"."
 
 
--- Whether an error is a value lacking a refinement, under any blurbs written on it
+-- Whether an error is a value lacking a refinement, a requirement's or a built-in operand's,
+-- under any blurbs written on it
 isRefinementMismatch :: ErrorContext -> Bool
 isRefinementMismatch = \case
     Typing RefinementMismatch {} -> True
+    Typing RefinementFailed {}   -> True
     AnnotatedContext _ ctx     -> isRefinementMismatch ctx
     _otherError                -> False

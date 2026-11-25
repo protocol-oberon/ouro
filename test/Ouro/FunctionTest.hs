@@ -699,7 +699,7 @@ assertions :: Group
 assertions = Group "Properties: assertions, #titled x"
     [ ("a value with it passes on",               compilesToJSON (titled <> "(document g (:r #titled (:_label \"A\")))")
                                                                  "{\"r\": {\"_label\": \"A\"}}")
-    , ("a value without it fails",                failsWith "expectedRefinement = \"titled\", actualRefinement = \"a record that is not titled\""
+    , ("a value without it fails",                failsWith "expectedRefinement = \"titled\", actualRefinement = \"a record\""
                                                             (titled <> "(document g (:r #titled (:x 1)))"))
     , ("at the value",                            failsWith "line 1, col 79"
                                                             (titled <> "(document g (:r #titled (:x 1)))"))

@@ -15,7 +15,8 @@ import           Data.Ouro.Error.Types            (BuildError (..), ErrorContext
 import           Data.Ouro.Internal.Utils         (rankBySimilarity)
 import           Data.Ouro.Lisp.Eval.Types        (humanReadableType)
 import qualified Data.Ouro.Lisp.Eval.Types        as L
-import           Data.Ouro.Refinement.Requirement (Failure)
+import           Data.Ouro.Refinement.Requirement (Failure (..))
+import           Data.Ouro.Refinement.Type        (renderType)
 import           Data.Ouro.Refinement.Value       (refinementOf)
 import qualified Data.Set                         as Set
 import           Data.Text                        (Text)
@@ -108,16 +109,15 @@ refinementMismatch :: Text -> Text -> ErrorContext
 refinementMismatch expected actual = Typing $ RefinementMismatch
     { expectedRefinement = expected
     , actualRefinement   = actual
-    , requirement        = Nothing
     }
 
--- A value outside a requirement, a signature's or an assertion's: the text the printer shows,
--- and the failure as data beside it
-requirementFailed :: Text -> Text -> Failure -> ErrorContext
-requirementFailed expected actual failure = Typing $ RefinementMismatch
-    { expectedRefinement = expected
-    , actualRefinement   = actual
-    , requirement        = Just failure
+-- A value outside a requirement, a signature's or an assertion's: the failure as data, its two
+-- texts read off it
+requirementFailed :: Failure -> ErrorContext
+requirementFailed outside = Typing $ RefinementFailed
+    { expectedRefinement = renderType (required outside)
+    , actualRefinement   = given outside
+    , failure            = outside
     }
 
 

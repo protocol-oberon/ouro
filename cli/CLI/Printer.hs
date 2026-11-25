@@ -27,9 +27,10 @@ import           Data.Ouro                     (BuildError (..),
                                                 smartWarningCode, sourceFrame,
                                                 warningBlurb,
                                                 warningSummary)
+import qualified Data.Ouro.Refinement          as Ref
 import           Data.Text                     (Text)
 import qualified Data.Text                     as T
-import           Prettyprinter                 (Doc, LayoutOptions (..),
+import           Prettyprinter                (Doc, LayoutOptions (..),
                                                 PageWidth (AvailablePerLine),
                                                 Pretty (pretty), SimpleDocStream,
                                                 annotate, defaultLayoutOptions,
@@ -217,10 +218,24 @@ splitErrorContext = \case
            , Nothing
            )
 
-    Typing (RefinementMismatch expected actual _requirement)
+    Typing (RefinementMismatch expected actual)
         -> ( "Refinement Mismatch"
            , [ highlightDiagnostic ("Expected data to have the refinement " <> expected <> ", got " <> actual <> " instead.")
              ]
+           , Nothing
+           )
+
+    -- A requirement's failure, read off its data: what was required, what was given, its role
+    -- and who is blamed, then the trail down to the part that failed. Plain until the printer
+    -- renders failures generically.
+    Typing (RefinementFailed _ _ outside)
+        -> ( "Refinement Failed"
+           , [ labeled "required: " (highlightDiagnostic (Ref.renderType (Ref.required outside)))
+             , labeled "given:    " (highlightDiagnostic (Ref.given outside))
+             , labeled "in:       " (pretty (roleText (Ref.role outside)))
+             , labeled "blaming:  " (pretty (blameText (Ref.role outside)))
+             ]
+             <> zipWith trailLine [0 ..] (Ref.trail outside)
            , Nothing
            )
 
@@ -559,6 +574,56 @@ splitErrorContext = \case
 -- Standardized labels without compounding layout padding
 labeled :: Doc OuroStyle -> Doc OuroStyle -> Doc OuroStyle
 labeled label value = label <> value
+
+-- What a value was required for, as a message says it: "the 1st argument of marker-note"
+roleText :: Ref.Role -> Text
+roleText = \case
+    Ref.ArgumentOf callee n -> "the " <> ordinal n <> " argument of " <> calleeText callee
+    Ref.ResultOf callee     -> "the result of " <> calleeText callee
+    Ref.Assertion           -> "an assertion"
+
+
+-- Who a failure blames, read off its role. A requirement written in Ouro can itself be wrong,
+-- so a party other than the assertion is named on that assumption.
+blameText :: Ref.Role -> Text
+blameText role = case Ref.blame role of
+    Ref.Caller        -> "the caller (assuming the requirement is correct)"
+    Ref.Called callee -> calleeText callee <> " (assuming the requirement is correct)"
+    Ref.Itself        -> "the assertion"
+
+
+-- A function as a message names it
+calleeText :: Ref.Callee -> Text
+calleeText = \case
+    Ref.Defined name -> name
+    Ref.Lambda       -> "a fn"
+
+
+-- One step of a failure's trail, as a branch of the check tree, indented by its depth
+trailLine :: Int -> Ref.Step -> Doc OuroStyle
+trailLine depth step =
+    pretty (T.replicate (2 * depth) " " <> "└─ " <> part (Ref.stepPart step) <> ": ")
+    <> highlightDiagnostic (Ref.renderType (Ref.stepType step))
+    where
+    part = \case
+        Ref.Element i    -> "element " <> T.pack (show i)
+        Ref.Key key      -> "key " <> key
+        Ref.Missing key  -> "key " <> key <> ", missing"
+        Ref.Body name    -> "inside " <> name
+        Ref.Whole        -> "the value"
+
+
+-- A position in words: "1st", "2nd", "3rd", "4th", "11th"
+ordinal :: Int -> Text
+ordinal n = T.pack (show n) <> suffix
+    where
+    suffix = case (n `mod` 100, n `mod` 10) of
+        (teen, _) | teen >= 11 && teen <= 13 -> "th"
+        (_, 1)                               -> "st"
+        (_, 2)                               -> "nd"
+        (_, 3)                               -> "rd"
+        _otherwise                           -> "th"
+
 
 -- A number of arguments, in words: "no arguments", "1 argument", "2 arguments"
 arguments :: Int -> T.Text

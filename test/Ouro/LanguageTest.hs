@@ -541,7 +541,7 @@ operators = Group "Operators: operands and desugaring"
                                                               "(document g (:r <true ⊢ (∪ string number)>))")
     , ("an intersection holds both",                compilesToJSON "(document g (:r <\"https://a.org\" ⊢ (∩ string uri)>))"
                                                                    "{\"r\": \"https://a.org\"}")
-    , ("and refuses a value in one only",           failsWith "RefinementMismatch"
+    , ("and refuses a value in one only",           failsWith "RefinementFailed"
                                                               "(document g (:r <\"x\" ⊢ (∩ string uri)>))")
     , ("a difference refuses what it takes away",   compilesToJSON "(document g (:a <\"x\" ∈ (∖ string uri)> :b <\"https://a.org\" ∈ (∖ string uri)>))"
                                                                    "{\"a\": true, \"b\": false}")
@@ -1649,6 +1649,6 @@ knownGaps = Group "Known gaps: current and fixed"
                                                                    "(document g (:r (array 1 2)))")
     , ("gap 57: a misplaced (∈ p) is an unbound %in", importsFailAt "SCP0000" ("inline-test", 1, 17) ["%in"] []
                                                                    "(document g (:a (∈ number)))")
-    , ("gap 59: an array that fails a refinement is 'a array'", failsWith "a array that is not non-empty"
+    , ("gap 59 (fixed): an array that fails a refinement is 'a array'", fixedGap $ failsWith "a array that is not non-empty"
                                                                    "(define/refinement non-empty (<xs ⊢ array>) (doc \"d\") (gt (len xs) 0)) (document g (:a <(make array) ⊢ non-empty>))")
     ]
