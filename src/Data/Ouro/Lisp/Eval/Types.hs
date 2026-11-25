@@ -95,9 +95,11 @@ data Expr where
 
     PrimitiveOp :: NativeFunction -> Expr
 
-    -- A function, closed over the frame it is defined in, with its signature: its
-    -- parameters and the requirement on its result, if it has one
-    FunctionClosure :: Env -> FunctionId -> [S.Param] -> Maybe (SourcePos, R.Type) -> [S.Expr] -> Expr
+    -- A function, closed over the frame it is defined in, with its kind, a procedure or a
+    -- refinement, kept from its definition so that membership in procedure and refinement is
+    -- decided on the value, and its signature: its parameters and the requirement on its
+    -- result, if it has one
+    FunctionClosure :: Env -> M.FunctionDeclaration -> FunctionId -> [S.Param] -> Maybe (SourcePos, R.Type) -> [S.Expr] -> Expr
 
     -- An error, where the value would have been
     EvalError   :: OuroError -> Expr
@@ -193,7 +195,7 @@ instance Show Expr where
     Duration    pu   i     -> showString "Duration "  . showsPrec 11 pu . showChar ' ' . showsPrec 11 i
     PrimitiveOp _          -> showString "PrimitiveOp <native_function>"
 
-    FunctionClosure _ (name, _) args result bodies -> showString "FunctionClosure <env> " . showsPrec 11 name . showChar ' ' . showsPrec 11 args . showChar ' ' . showsPrec 11 result . showChar ' ' . showsPrec 11 bodies
+    FunctionClosure _ kind (name, _) args result bodies -> showString "FunctionClosure <env> " . showsPrec 11 kind . showChar ' ' . showsPrec 11 name . showChar ' ' . showsPrec 11 args . showChar ' ' . showsPrec 11 result . showChar ' ' . showsPrec 11 bodies
 
     EvalError err -> showString "EvalError " . showsPrec 11 err
 
@@ -247,8 +249,8 @@ data PeriodUnit
 -- an anonymous fn, which has no name to call it by ('fn' is a special form, so no definition has it).
 callOf :: Expr -> Maybe Text
 callOf = \case
-    FunctionClosure _ (name, _) params _ _ -> callTemplate name params
-    _notAFunctionWithNames               -> Nothing
+    FunctionClosure _ _ (name, _) params _ _ -> callTemplate name params
+    _notAFunctionWithNames                 -> Nothing
 
 callTemplate :: Text -> [S.Param] -> Maybe Text
 callTemplate name params

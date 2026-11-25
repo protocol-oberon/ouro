@@ -36,6 +36,13 @@ data FunctionKind (k :: FunctionDeclaration) where
 deriving instance Show (FunctionKind k)
 deriving instance Eq   (FunctionKind k)
 
+-- The declaration a kind witnesses, as a plain value: what a closure keeps of its function's
+-- kind once the function is a value, where the type index is gone
+declarationOf :: FunctionKind k -> FunctionDeclaration
+declarationOf = \case
+    ProcedureKind  -> Procedure
+    RefinementKind -> Refinement
+
 data SomeFunction where
     SomeFunction :: HigherExpression ('FunctionExpr k) -> SomeFunction
 

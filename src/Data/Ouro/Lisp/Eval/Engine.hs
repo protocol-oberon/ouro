@@ -151,7 +151,7 @@ evalExpr expr = do
         -- so arity, signatures, blame and the recursion check apply, and a definition's value is kept
         -- (see constant). At the head of a call a name is the function itself (see applyFunction)
         S.Symbol pos name          -> lookupVar evalExpr pos name env >>= \case
-                                          FunctionClosure closureEnv fnId [] resultType bodyExprs
+                                          FunctionClosure closureEnv _ fnId [] resultType bodyExprs
                                               -> constant closureEnv pos fnId resultType bodyExprs
                                           value
                                               -> pure value
@@ -541,11 +541,11 @@ evalExpr expr = do
         -- A return type is read as an assertion on the parameter list: (fn ⊢ number (n) expr).
         S.Form pos [S.Symbol _ (S.formName -> "fn"), S.Form _ params, body]
             | Just typed <- traverse param (zip [1 ..] params)
-            -> pure (either EvalError (const (FunctionClosure env ("fn", pos) typed Nothing [body])) (checkParams pos typed))
+            -> pure (either EvalError (const (FunctionClosure env M.Procedure ("fn", pos) typed Nothing [body])) (checkParams pos typed))
 
         S.Form pos [S.Symbol _ (S.formName -> "fn"), S.Asserted tPos ty (S.Form _ params), body]
             | Just typed <- traverse param (zip [1 ..] params)
-            -> pure (either EvalError (const (FunctionClosure env ("fn", pos) typed (Just (tPos, ty)) [body])) (checkParams pos typed))
+            -> pure (either EvalError (const (FunctionClosure env M.Procedure ("fn", pos) typed (Just (tPos, ty)) [body])) (checkParams pos typed))
 
         S.Form pos (S.Symbol _ (S.formName -> "fn") : _)
             -> lexicalError "A fn is written (fn (args) expr): argument names or patterns, each with an optional type, then exactly one result expression."
@@ -729,7 +729,7 @@ runRefinement typePos name v = do
                                               & L.functionRegistry .~ Map.empty
                                               & L.parentEnv        .~ Just env)
                                      typePos
-                                     [("%refinement", FunctionClosure fnEnv (name, fnPos) params result bodyExprs), ("%refinement-value", v)]
+                                     [("%refinement", FunctionClosure fnEnv M.Refinement (name, fnPos) params result bodyExprs), ("%refinement-value", v)]
                answer <- local (const frame) $
                              applyFunction typePos [S.Symbol typePos "%refinement", S.Symbol typePos "%refinement-value"]
                pure $ case answer of
@@ -775,7 +775,7 @@ applyFunction pos exprs =
                                    _notAName             -> evalExpr operatorExpr
 
                case resolvedOp of
-                   FunctionClosure closureEnv name params resultType bodyExprs
+                   FunctionClosure closureEnv _ name params resultType bodyExprs
                        -> evalFunction evalExpr closureEnv pos (S.exprPos operatorExpr) name params resultType bodyExprs argumentExprs
 
                    PrimitiveOp nativeFunc
