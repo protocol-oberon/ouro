@@ -17,11 +17,31 @@ data Role
     deriving (Show, Eq, Ord, Generic)
 
 
--- The function a requirement belongs to, as it is called
+-- The function a requirement belongs to, as it is called: how it is identified, never what
+-- kind it is, so a procedure and a refinement are named alike
 data Callee
-    = Procedure Text  -- A defined function, by its name as written
-    | Lambda          -- A fn
+    = Defined Text  -- A defined function, by its name as written: a procedure or a refinement
+    | Lambda        -- A fn
     deriving (Show, Eq, Ord, Generic)
+
+
+-- Who a failure is reported against: the two sides of a call, and an assertion alone
+data Party
+    = Caller         -- Whoever called the function, for an argument it supplied
+    | Called Callee  -- The function called, for the result it made
+    | Itself         -- The assertion, which only its own expression can break
+    deriving (Show, Eq, Ord, Generic)
+
+
+-- Blame, read off the role, never stored: an argument is supplied by the caller, so a failed
+-- argument blames the caller; a result is made by the function called, so a failed result
+-- blames it; an assertion has one party. Findler and Felleisen's split of a function type into
+-- its negative and positive positions.
+blame :: Role -> Party
+blame = \case
+    ArgumentOf _ _  -> Caller
+    ResultOf callee -> Called callee
+    Assertion       -> Itself
 
 
 -- Failure.

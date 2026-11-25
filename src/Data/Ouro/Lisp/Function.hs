@@ -65,7 +65,7 @@ requiredResult owner result body =
 callee :: Text -> Callee
 callee = \case
     "fn" -> Lambda
-    name -> Procedure name
+    name -> Defined name
 
 
 -- Destructuring parameters.

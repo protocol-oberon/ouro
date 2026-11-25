@@ -49,6 +49,7 @@ import           Data.Ouro.Lisp.Module.Types    (Module)
 import qualified Data.Ouro.Lisp.Module.Types    as M
 import qualified Data.Ouro.Lisp.Surface         as S
 import           Data.Ouro.Refinement.Check     (checkRefinement, isRefinementMismatch)
+import           Data.Ouro.Refinement.Requirement (Role (..))
 import qualified Data.Ouro.Refinement.Type      as R
 import           Data.Ouro.Refinement.Value     (refinementOf)
 import           Data.Text                      (Text)
@@ -141,10 +142,10 @@ evalExpr expr = do
                & EvalError
                & pure
 
-        S.Asserted typePos ty payload -> assertType typePos ty payload
+        S.Asserted typePos ty payload -> assertType Assertion typePos ty payload
 
-        -- A signature's requirement, on an argument or a result
-        S.Required typePos ty _role payload -> assertType typePos ty payload
+        -- A signature's requirement, on an argument or a result, checked in its role
+        S.Required typePos ty role payload -> assertType role typePos ty payload
         -- A name of a function of no parameters, written as a value, is its result: Ouro has no
         -- effects, so the function cannot be told from its value. It is called as (name) is,
         -- so arity, signatures, blame and the recursion check apply, and a definition's value is kept
@@ -500,7 +501,7 @@ evalExpr expr = do
             | not (isSubjectHole subject)
             -> evalExpr subject >>= \case
                    err@(EvalError _) -> pure err
-                   value             -> checkRefinement runDefined ty typePos typePos value >>= \case
+                   value             -> checkRefinement runDefined Assertion ty typePos typePos value >>= \case
                                             EvalError (OuroError _ ctx) | isRefinementMismatch ctx -> pure (Primitive (I.Boolean False))
                                             err@(EvalError _)                                    -> pure err
                                             _hasIt                                               -> pure (Primitive (I.Boolean True))
@@ -677,14 +678,14 @@ evalExpr expr = do
 -- assertType.
 --
 -- Checks a value against a type, as a signature or an assertion such as (⊢ x string) names
--- it, written at the position given. Only uri and date convert: a String that passes them
--- becomes a URI or a Date.
-assertType :: SourcePos -> R.Type -> S.Expr -> EvalM L.Expr
-assertType typePos ty payload = do
+-- it, written at the position given, in the role it is required in: an argument, a result or
+-- an assertion. The value passes on as itself, never converted.
+assertType :: Role -> SourcePos -> R.Type -> S.Expr -> EvalM L.Expr
+assertType role typePos ty payload = do
     evaluatedVal <- evalExpr payload
     case evaluatedVal of
         err@(EvalError _) -> pure err
-        _notError         -> checkRefinement runDefined ty typePos (S.exprPos payload) evaluatedVal
+        _notError         -> checkRefinement runDefined role ty typePos (S.exprPos payload) evaluatedVal
 
 
 -- Runs a refinement defined in Ouro, titled, on a value, for the checker (Refinement.Check's

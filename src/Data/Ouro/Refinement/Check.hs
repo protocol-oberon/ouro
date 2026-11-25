@@ -27,15 +27,15 @@ import qualified Text.URI                    as URI
 type RunDefined = SourcePos -> Text -> L.Expr -> EvalM (Either L.Expr (Bool, Maybe Text))
 
 
--- Checks an evaluated value against a type, written at the first position, the value at the
--- second: the value itself, never converted, or a RefinementMismatch error at the value.
--- A type is a refinement by its name, or one built from them with ∪ ∩ ∖, (array p) and
--- (record :k p …).
-checkRefinement :: RunDefined -> R.Type -> SourcePos -> SourcePos -> L.Expr -> EvalM L.Expr
-checkRefinement run ty typePos pos evaluatedVal = case ty of
+-- Checks an evaluated value against a type, required in a role, the type written at the first
+-- position, the value at the second: the value itself, never converted, or a RefinementMismatch
+-- error at the value, its failure carrying the role. A type is a refinement by its name, or one
+-- built from them with ∪ ∩ ∖, (array p) and (record :k p …).
+checkRefinement :: RunDefined -> Q.Role -> R.Type -> SourcePos -> SourcePos -> L.Expr -> EvalM L.Expr
+checkRefinement run role ty typePos pos evaluatedVal = case ty of
     R.Named refinement
         -> case refinement of
-               R.RDefined name -> checkDefined run typePos pos name evaluatedVal
+               R.RDefined name -> checkDefined run role typePos pos name evaluatedVal
                builtIn         -> case builtInProblem builtIn evaluatedVal of
                                       Nothing              -> pure evaluatedVal
                                       Just (actual, blurb) -> failRefinement (R.Named builtIn) actual blurb
@@ -81,7 +81,7 @@ checkRefinement run ty typePos pos evaluatedVal = case ty of
 
     -- The same, of another value: an element of an array, or a record's value at a key
     inTypeOf :: R.Type -> L.Expr -> EvalM (Either L.Expr Bool)
-    inTypeOf part value = checkRefinement run part typePos pos value
+    inTypeOf part value = checkRefinement run role part typePos pos value
         <&> \case
              EvalError (OuroError _ ctx) | isRefinementMismatch ctx
                  -> Right False
@@ -130,16 +130,16 @@ checkRefinement run ty typePos pos evaluatedVal = case ty of
 
     -- A value without the refinement it is checked against, at the value
     failRefinement :: R.Type -> Text -> Text -> EvalM L.Expr
-    failRefinement required actual blurb = pure (refinementFailure pos (failureOf required typePos actual Nothing) blurb)
+    failRefinement required actual blurb = pure (refinementFailure pos (failureOf role required typePos actual Nothing) blurb)
 
 
 -- A refinement defined in Ouro, titled: the value has it if the refinement, run on the value,
 -- answers true. Any error running it, its parameter's requirement among them, stays the
 -- error; a false answer is the value outside it, with the refinement's doc as the rule.
-checkDefined :: RunDefined -> SourcePos -> SourcePos -> Text -> L.Expr -> EvalM L.Expr
-checkDefined run typePos pos name v = run typePos name v <&> \case
+checkDefined :: RunDefined -> Q.Role -> SourcePos -> SourcePos -> Text -> L.Expr -> EvalM L.Expr
+checkDefined run role typePos pos name v = run typePos name v <&> \case
     Right (True, _)    -> v
-    Right (False, doc) -> refinementFailure pos (failureOf (R.Named (R.RDefined name)) typePos given doc) (rule doc)
+    Right (False, doc) -> refinementFailure pos (failureOf role (R.Named (R.RDefined name)) typePos given doc) (rule doc)
     Left err           -> err
 
     where
@@ -162,14 +162,15 @@ refinementFailure pos failure blurb =
     & EvalError
 
 
--- The failure of a requirement where it is checked: the type, where it is written, the value as
--- given, and the refinement's doc. The role and the trail are filled in as the check is reached.
-failureOf :: R.Type -> SourcePos -> Text -> Maybe Text -> Q.Failure
-failureOf required at given doc = Q.Failure
+-- The failure of a requirement where it is checked: the role it was required in, the type,
+-- where it is written, the value as given, and the refinement's doc. The trail is filled in as
+-- the failure comes back out of the checks around it.
+failureOf :: Q.Role -> R.Type -> SourcePos -> Text -> Maybe Text -> Q.Failure
+failureOf role required at given doc = Q.Failure
     { Q.required   = required
     , Q.requiredAt = at
     , Q.given      = given
-    , Q.role       = Q.Assertion
+    , Q.role       = role
     , Q.trail      = []
     , Q.rule       = doc
     }
