@@ -248,6 +248,7 @@ test-suite ouro-test
         Ouro.ImportTest
         Ouro.LanguageTest
         Ouro.LetTest
+        Ouro.RefinementTest
         Ouro.ScopingTest
         Ouro.StdTest
 

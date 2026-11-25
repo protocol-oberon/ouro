@@ -3457,6 +3457,14 @@ A value that fails a refinement is described as "a" and its kind, so an array is
 
 /Fixed/ (2026-11-25): a requirement's failure is data, =RefinementFailed=, and its message names what was required and what was given on lines of their own, =required: non-empty= and =given: an array=; the value is named with its article (=Refinement.Value.aValue=).
 
+** OPEN A type mismatch lists eight built-in refinements
+:PROPERTIES:
+:ID:       60
+:FOUND:    2026-11-25
+:PINNED:   the two =gap 60= tests in =knownGaps=
+:END:
+Two Type Mismatch messages predate the tree of built-in refinements. A function inside an array that reaches the output, ~((fn (n) n) "x")~, has the blurb "Ouro's built-in refinements are string, number, boolean, uri, date, record, array and function.": a list written by hand (=Diagnostics.typeMismatchBlurb=), from before =value=, =data=, =procedure=, =refinement= and =duration= were refinements. A function at a key, ~(:f +)~, is "a function, not a value", where a function is a value and what the output needs is data; its expected type, "a JSON value (String, Number, Boolean, URI, Date, Record or Array)", names the kinds in the old capitals. The tree (=Refinement.Value.builtIns=) is the one list, which a Refinement Failed already draws; these should be drawn from it, so they cannot drift, and say data where they mean it. Found while writing the tests of 0.7.1.0 (2026-11-25).
+
 * Appendix C: Benchmarks
 :PROPERTIES:
 :COLUMNS:  %16ITEM %MEASURED %CHANGE %GHC %MACHINE

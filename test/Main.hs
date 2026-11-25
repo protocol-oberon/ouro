@@ -11,6 +11,7 @@ import qualified Ouro.FunctionTest   as Function
 import qualified Ouro.ImportTest     as Import
 import qualified Ouro.LanguageTest   as Language
 import qualified Ouro.LetTest        as Let
+import qualified Ouro.RefinementTest as Refinement
 import qualified Ouro.ScopingTest    as Scoping
 import qualified Ouro.StdTest        as Std
 import qualified Ouro.StructuralTest as Structural
@@ -93,6 +94,10 @@ main = withUtf8Console $ do
         , Language.contexts
         , Language.contextAlgebra
         , Language.specialFormsAreBindings
+        -- Refinements: a failure's role, blame and trail, and the tree of built-in refinements
+        , Refinement.requirements
+        , Refinement.kinds
+        , Language.durations
         -- Known gaps: pinned as they are today; a fixed gap keeps its pin, run negated
         , Language.knownGaps
         ]

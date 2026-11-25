@@ -8,6 +8,7 @@ module Ouro.LanguageTest
 , types
 , operators
 , dates
+, durations
 , classification
 , encoding
 , endOfFile
@@ -28,6 +29,7 @@ import           Data.Ouro                 (LinterWarning (..),
                                             WarningContext (..), decodeSource,
                                             defaultOptions,
                                             smartWarningCode, validate)
+import qualified Data.Ouro.Internal.Duration as D
 import qualified Data.Ouro.Internal.Expr   as I
 import qualified Data.Ouro.Internal.Kinds  as JLD
 import           Data.Ouro.Internal.Schema (ContextEntry (..), ContextValue (..),
@@ -43,7 +45,7 @@ import           Utils                     (compilesToJSON,
                                             failsWith, failsWithout, fixedGap,
                                             fixture, importsFailAt,
                                             readSourceFile, shouldCompileTo,
-                                            warnsWith)
+                                            warnsWith, warnsWithout)
 
 
 -- Only attribute pairs and elements reach the output. Functions, built-ins and other
@@ -872,6 +874,53 @@ dates = Group "Dates: calendar arithmetic"
                                                               ("(document g (:r (shift " <> date "2020-01-31" <> " 1)))"))
     , ("shift takes two operands",                  failsWith "shift takes a date, then the duration"
                                                               ("(document g (:r (shift " <> date "2020-01-31" <> ")))"))
+
+      -- The four shifts, each taking the date, then the duration, a magnitude: the direction,
+      -- and whether through the end or the start of the largest unit, is the operation's
+    , ("the four shifts of a date",                 compilesToJSON "(document g (:a (shift/forward \"2020-01-03T00:00:00Z\" (days 1)) :b (shift/backward \"2020-01-03T00:00:00Z\" (days 1)) :c (shift/forward-through \"2020-01-03T00:00:00Z\" (days 1)) :d (shift/backward-through \"2020-01-03T00:00:00Z\" (days 1))))"
+                                                                   "{\"a\": \"2020-01-04T00:00:00Z\", \"b\": \"2020-01-02T00:00:00Z\", \"c\": \"2020-01-04T23:59:59Z\", \"d\": \"2020-01-02T00:00:00Z\"}")
+    , ("months clip, forward and back",             compilesToJSON "(document g (:a (shift/forward \"2020-01-31T00:00:00Z\" (months 1)) :b (shift/backward \"2020-03-31T00:00:00Z\" (months 1))))"
+                                                                   "{\"a\": \"2020-02-29T00:00:00Z\", \"b\": \"2020-02-29T00:00:00Z\"}")
+    , ("a duration's parts apply largest first",    compilesToJSON "(document g (:a (shift/forward \"2020-01-31T00:00:00Z\" \"P1M1D\")))"
+                                                                   "{\"a\": \"2020-03-01T00:00:00Z\"}")
+    , ("through a month, a year or an hour ends it", compilesToJSON "(document g (:a (shift/forward-through \"2020-01-31T00:00:00Z\" (months 0)) :b (shift/forward-through \"2020-02-29T00:00:00Z\" (years 1)) :c (shift/forward-through \"2020-01-03T10:00:00Z\" (hours 2))))"
+                                                                   "{\"a\": \"2020-01-31T23:59:59Z\", \"b\": \"2021-12-31T23:59:59Z\", \"c\": \"2020-01-03T12:59:59Z\"}")
+    , ("a time of day is carried to the unit's end", compilesToJSON "(document g (:a (shift/forward-through \"2020-01-03T10:00:00Z\" (days 1))))"
+                                                                   "{\"a\": \"2020-01-04T23:59:59Z\"}")
+    , ("and back through, to its start",            compilesToJSON "(document g (:a (shift/backward-through \"2020-01-03T10:00:00Z\" (days 1)) :b (shift/backward-through \"2020-05-15T10:00:00Z\" (months 1))))"
+                                                                   "{\"a\": \"2020-01-02T00:00:00Z\", \"b\": \"2020-04-01T00:00:00Z\"}")
+    , ("a shift refuses a negative duration",       failsWith "actualRefinement = \"a negative duration\""
+                                                              "(document g (:a (shift/forward \"2020-01-31T00:00:00Z\" \"-P1D\")))")
+    , ("a string that is no date",                  failsWith "actualRefinement = \"a string that is not a date\""
+                                                              "(document g (:a (shift/forward \"tomorrow\" (days 1))))")
+    , ("and a value that is no duration",           failsWith "expectedRefinement = \"duration\", actualRefinement = \"number\""
+                                                              "(document g (:a (shift/forward \"2020-01-31T00:00:00Z\" 1)))")
+    , ("date/before and date/after compare instants", compilesToJSON "(document g (:a (date/before \"2020-01-01T00:00:00Z\" \"2020-01-02T00:00:00Z\") :b (date/after \"2020-01-01T00:00:00Z\" \"2020-01-02T00:00:00Z\") :c (date/before \"2020-01-01T00:00:00Z\" \"2020-01-01T00:00:00Z\")))"
+                                                                   "{\"a\": true, \"b\": false, \"c\": false}")
+    , ("the shifts warn of nothing",                compilesWithoutWarnings "(document g (:a (shift/forward \"2020-01-31T00:00:00Z\" (days 1)) :b (shift/backward-through \"2020-01-31T00:00:00Z\" (days 1))))")
+
+      -- The old spellings still shift, each warned of with what replaces it
+    , ("+ of a date and a duration is warned of",   warnsWith "'(+ date duration)' is now written 'shift/forward'"
+                                                              "(document g (:a (+ \"2020-01-03T00:00:00Z\" (days 1))))")
+    , ("in either order",                           compilesToJSON "(document g (:a (+ (days 1) \"2020-01-03T00:00:00Z\")))"
+                                                                   "{\"a\": \"2020-01-04T00:00:00Z\"}")
+    , ("as - is",                                   warnsWith "'(- date duration)' is now written 'shift/backward'"
+                                                              "(document g (:a (- \"2020-01-03T00:00:00Z\" (days 1))))")
+    , ("+ of thru, with the shift through",         warnsWith "'(+ date duration)' is now written 'shift/forward-through'"
+                                                              "(document g (:a (+ \"2020-01-03T00:00:00Z\" (thru (days 1)))))")
+    , ("- of thru, backward",                       warnsWith "'(- date duration)' is now written 'shift/backward-through'"
+                                                              "(document g (:a (- \"2020-01-03T00:00:00Z\" (thru (days 1)))))")
+    , ("the old shift, either way",                 warnsWith "'shift' is now written 'shift/forward or shift/backward'"
+                                                              "(document g (:a (shift \"2020-01-03T00:00:00Z\" (days -1))))")
+    , ("and through a thru, forward",               warnsWith "'shift' is now written 'shift/forward-through'"
+                                                              "(document g (:a (shift \"2020-01-03T00:00:00Z\" (thru (days 1)))))")
+    , ("the old spellings shift as the new",        compilesToJSON "(document g (:a (shift \"2020-01-03T00:00:00Z\" (days -1)) :b (shift \"2020-01-03T00:00:00Z\" (thru (days 1))) :c (+ \"2020-01-03T00:00:00Z\" (thru (days 1))) :d (- \"2020-01-03T00:00:00Z\" (thru (days 1)))))"
+                                                                   "{\"a\": \"2020-01-02T00:00:00Z\", \"b\": \"2020-01-04T23:59:59Z\", \"c\": \"2020-01-04T23:59:59Z\", \"d\": \"2020-01-02T00:00:00Z\"}")
+    , ("+ of strings that are no date joins them",  compilesToJSON "(document g (:a (+ \"abc\" \"P1D\")))"
+                                                                   "{\"a\": \"abcP1D\"}")
+    , ("unwarned",                                  warnsWithout "is now written" "(document g (:a (+ \"abc\" \"P1D\")))")
+    , ("a thru outside a shift is unbound",         failsWith "ScopeError {variableName = \"thru\"}"
+                                                              "(document g (:a (thru (days 1))))")
     ]
 
     where
@@ -881,6 +930,53 @@ dates = Group "Dates: calendar arithmetic"
 
     -- A JSON record holding a timespan of the given dates
     timespan pairs = "{\"timespan\": {" <> T.intercalate ", " [ "\"" <> k <> "\": \"" <> v <> "\"" | (k, v) <- pairs ] <> "}}"
+
+
+-- A duration is a string in xsd:duration form, PnYnMnDTnHnMnS, and duration is a refinement of
+-- string, as uri and date are. A unit writes one, a magnitude whose amount is whole but for
+-- seconds; duration/add adds two part by part, and + joins them as it joins any strings.
+durations :: Group
+durations = Group "Durations: strings in xsd:duration form"
+    [ ("a unit writes its duration",                compilesToJSON "(document g (:a (days 19) :b (hours 3) :c (seconds 1.5) :d (months 0) :e (years 2) :f (minutes 5)))"
+                                                                   "{\"a\": \"P19D\", \"b\": \"PT3H\", \"c\": \"PT1.5S\", \"d\": \"P0M\", \"e\": \"P2Y\", \"f\": \"PT5M\"}")
+    , ("a fraction of a day is refused",            failsWith "expectedRefinement = \"a whole number of days\", actualRefinement = \"a fraction\""
+                                                              "(document g (:a (days 1.5)))")
+    , ("duration holds the magnitudes written as xsd:duration", compilesToJSON "(document g (:a <\"P19D\" ∈ duration> :b <\"P1Y2M3DT4H5M6.5S\" ∈ duration> :c <\"PT1.5S\" ∈ duration> :d <\"P0M\" ∈ duration>))"
+                                                                   "{\"a\": true, \"b\": true, \"c\": true, \"d\": true}")
+    , ("and nothing else",                          compilesToJSON "(document g (:a <\"-P1D\" ∈ duration> :b <\"P\" ∈ duration> :c <\"PT\" ∈ duration> :d <\"P1DT\" ∈ duration> :e <\"P1W\" ∈ duration> :f <\"P1.5D\" ∈ duration> :g <19 ∈ duration>))"
+                                                                   "{\"a\": false, \"b\": false, \"c\": false, \"d\": false, \"e\": false, \"f\": false, \"g\": false}")
+    , ("a duration is a string",                    compilesToJSON "(document g (:a <\"P1D\" ⊢ duration> :b <(days 1) ∈ string>))"
+                                                                   "{\"a\": \"P1D\", \"b\": true}")
+    , ("a string that is no duration fails",        failsWith "actualRefinement = \"a string that is not a duration\""
+                                                              "(document g (:a <\"x\" ⊢ duration>))")
+    , ("duration/add adds part by part",            compilesToJSON "(document g (:a (duration/add (days 1) (hours 2)) :b (duration/add \"P1D\" \"P2D\") :c (duration/add (seconds 1.5) (seconds 1))))"
+                                                                   "{\"a\": \"P1DT2H\", \"b\": \"P3D\", \"c\": \"PT2.5S\"}")
+    , ("a written duration reads back as written",  property $ do
+                                                      written <- forAll genDuration
+                                                      fmap D.renderDuration (D.parseDuration written) === Just written)
+    , ("a negative one reads, and is marked",       withTests 1 . property $
+                                                      fmap D.negative (D.parseDuration "-P1D") === Just True)
+    ]
+
+    where
+    -- An xsd:duration as Ouro writes one: each part optional, at least one written, the time's
+    -- after a T, and seconds whole or with a fraction that does not end in 0
+    genDuration = do
+        dateParts <- traverse part ["Y", "M", "D"]
+        timeParts <- traverse part ["H", "M"]
+        secs      <- Gen.maybe (Gen.choice [ whole, (\w f -> w <> "." <> f) <$> whole <*> fraction ])
+        let date' = mconcat (concat dateParts)
+            time' = mconcat (concat timeParts) <> maybe "" (<> "S") secs
+        case (date', time') of
+            ("", "") -> pure "P1D"
+            (_, "")  -> pure ("P" <> date')
+            _        -> pure ("P" <> date' <> "T" <> time')
+
+    part unit = maybe [] (\n -> [n <> unit]) <$> Gen.maybe whole
+
+    whole = T.pack . show <$> Gen.int (Range.linear 0 400)
+
+    fraction = (\ds d -> T.pack (ds <> [d])) <$> Gen.string (Range.linear 0 2) Gen.digit <*> Gen.element ("123456789" :: String)
 
 
 -- Source files are UTF-8 on every platform: a byte order mark is dropped, CRLF line endings
@@ -1651,4 +1747,8 @@ knownGaps = Group "Known gaps: current and fixed"
                                                                    "(document g (:a (∈ number)))")
     , ("gap 59 (fixed): an array that fails a refinement is 'a array'", fixedGap $ failsWith "a array that is not non-empty"
                                                                    "(define/refinement non-empty (<xs ⊢ array>) (doc \"d\") (gt (len xs) 0)) (document g (:a <(make array) ⊢ non-empty>))")
+    , ("gap 60: a type mismatch lists eight built-in refinements", failsWith "built-in refinements are string, number, boolean, uri, date, record, array and function."
+                                                                   "(document g (:r ((fn (n) n) \"x\")))")
+    , ("gap 60: and a function in the output is 'not a value'", failsWith "is a function, not a value"
+                                                                   "(document g (:f +))")
     ]
