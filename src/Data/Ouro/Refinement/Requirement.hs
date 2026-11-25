@@ -1,6 +1,6 @@
 module Data.Ouro.Refinement.Requirement where
 
-import           Data.Ouro.Refinement.Type (Type)
+import           Data.Ouro.Refinement.Type (Refinement, Type)
 import           Data.Text                 (Text)
 import           GHC.Generics              (Generic)
 import           Text.Megaparsec           (SourcePos)
@@ -46,18 +46,19 @@ blame = \case
 
 -- Failure.
 --
--- A value outside a requirement, as data: what was required and where it is written, a sketch
--- of the value given, the role it was required in, and the trail from the requirement down to
--- the part that failed. The error renders it as the failing branch of the check tree; an
--- interactive view renders the whole tree from the same data. Blame is derived from the role,
--- never stored.
+-- A value outside a requirement, as data: what was required and where it is written, the value
+-- given, as a reader's sketch and as its kind, the role it was required in, and the trail from
+-- the requirement down to the part that failed. The error renders it as the failing branch of
+-- the check tree; an interactive view renders the whole tree from the same data; an error's code
+-- reads its kinds, role and the trail's last step. Blame is derived from the role, never stored.
 data Failure = Failure
-    { required   :: Type        -- The type as written: (searched-nothing-in dealer-ledgers)
-    , requiredAt :: SourcePos   -- Where it is written: a binder, a return type, an assertion
-    , given      :: Text        -- A sketch of the value
-    , role       :: Role        -- What the value was required for
-    , trail      :: [Step]      -- From the requirement down to the part that failed, outermost first
-    , rule       :: Maybe Text  -- The failing refinement's doc, the rule it states
+    { required   :: Type              -- The type as written: (searched-nothing-in dealer-ledgers)
+    , requiredAt :: SourcePos         -- Where it is written: a binder, a return type, an assertion
+    , given      :: Text              -- A sketch of the value, for a reader
+    , givenKind  :: Maybe Refinement  -- The value's kind, its built-in refinement, for an error's code
+    , role       :: Role              -- What the value was required for
+    , trail      :: [Step]            -- From the requirement down to the part that failed, outermost first
+    , rule       :: Maybe Text        -- The failing refinement's doc, the rule it states
     }
     deriving (Show, Eq, Ord, Generic)
 
@@ -76,6 +77,7 @@ data Step = Step
 data Part
     = Element Int  -- An array's element, counted from 1
     | Key Text     -- A record's value at a key
+    | Missing Text -- A key the record does not have
     | Body Text    -- Inside a refinement's body, by the refinement's name
     | Whole        -- The value itself
     deriving (Show, Eq, Ord, Generic)

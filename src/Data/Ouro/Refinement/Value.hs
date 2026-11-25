@@ -37,6 +37,33 @@ refinementOf =
      EvalError   _          -> "an error"
 
 
+-- The built-in refinement a value is of, its kind, as data: what an error's code says was given.
+-- Nothing for what has no kind of its own, a duration, an attribute pair or an error.
+kindOf :: Expr -> Maybe R.Refinement
+kindOf =
+    \case
+     Primitive p
+         -> case p of
+                I.String    _    -> Just R.RString
+                I.Number    _    -> Just R.RNumber
+                I.Boolean   _    -> Just R.RBoolean
+                I.URI       _    -> Just R.RUri
+                I.Date      _    -> Just R.RDate
+                I.EmptyRec       -> Just R.RRecord
+                I.Record    _ _  -> Just R.RRecord
+                I.EmptyArr       -> Just R.RArray
+                I.Array     _    -> Just R.RArray
+                I.Null           -> Nothing
+                I.BlankNode _    -> Nothing
+     Record      _ _        -> Just R.RRecord
+     Array       _          -> Just R.RArray
+     FunctionClosure {}     -> Just R.RFunction
+     PrimitiveOp _          -> Just R.RFunction
+     Duration    _ _        -> Nothing
+     Attr        _ _        -> Nothing
+     EvalError   _          -> Nothing
+
+
 -- Whether a value is of a built-in kind, a refinement checked by the value's shape alone:
 -- string, number, boolean, record, array or function. Any other refinement is no kind.
 hasKind :: R.Refinement -> Expr -> Bool
