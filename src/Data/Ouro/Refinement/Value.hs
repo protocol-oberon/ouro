@@ -101,10 +101,19 @@ builtIns =
         ]
 
 
+-- Every built-in refinement, the tree read top to bottom
+builtInRefinements :: [R.Refinement]
+builtInRefinements = go builtIns
+    where
+    go (Node refinement _ children) = refinement : concatMap go children
+
+
 -- The tree drawn for a value outside a built-in refinement, the refinement required and the
--- value's own kind marked, so that a reader sees where each sits. Nothing when the two are kinds
--- of data side by side, a string required and a number given, where the lines saying what was
--- required and given already say all the tree would.
+-- value's own kind marked, so that a reader sees where each sits. Only a branch that leads to a
+-- mark is opened; any other is one row, written with … after its name, so the tree shows what
+-- matters and no more. Nothing when the two are kinds of data side by side, a string required
+-- and a number given, where the lines saying what was required and given already say all the
+-- tree would.
 refinementTree :: R.Refinement -> Expr -> Maybe Text
 refinementTree required value = case (parentOf required, given >>= parentOf) of
     (Just R.RData, Just R.RData) -> Nothing
@@ -113,10 +122,20 @@ refinementTree required value = case (parentOf required, given >>= parentOf) of
     where
     given = kindOf value
 
-    -- A node's row, then its children's, each under the branch that leads to it
-    draw here below (Node refinement what children) =
-        row (here <> R.renderRefinement refinement) what refinement
-        : concat (zipWith (child below (length children)) [1 :: Int ..] children)
+    -- A node's row, then, if a mark lies below it, its children's, each under the branch that
+    -- leads to it; otherwise the node alone, … saying it holds more
+    draw here below (Node refinement what children) = case any leadsToMark children of
+        True  -> row (here <> R.renderRefinement refinement) what refinement
+                 : concat (zipWith (child below (length children)) [1 :: Int ..] children)
+        False -> [row (here <> R.renderRefinement refinement <> folded children) what refinement]
+
+    folded = \case
+        []     -> ""
+        _below -> " …"
+
+    leadsToMark (Node refinement _ children) = marked refinement || any leadsToMark children
+
+    marked refinement = Just refinement == Just required || Just refinement == given
 
     child below count i node = case i == count of
         True  -> draw (below <> "└── ") (below <> "    ") node

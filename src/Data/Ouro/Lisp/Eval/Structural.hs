@@ -205,13 +205,11 @@ emitProps evaluator env attrAddrs expressions = go I.EmptyMeta expressions
                                         -- 5. Pass-through for built-ins
                                         PrimitiveOp o     -> Record finalMeta ((key, PrimitiveOp o)     : nextPairs)
 
-                                        -- Real type violations fall here
+                                        -- A value that is not data
                                         otherVal -> let err = typeMismatch
-                                                                  "a valid property value (like a Primitive or nested Record)"
+                                                                  "data"
                                                                   (humanReadableType otherVal)
-                                                              & withBlurb (maybe (humanReadableType otherVal)
-                                                                                 (\call -> "A function is not a value: perhaps call it, " <> call <> ".")
-                                                                                 (L.callOf otherVal))
+                                                              & withBlurb (typeMismatchBlurb otherVal)
                                                               & OuroError (S.exprPos valExpr)
                                                     in Record finalMeta ((key, EvalError err) : nextPairs)
 
@@ -345,7 +343,7 @@ compileArray evaluator env pos elements = Array <$> compileElements env elements
                           Record    m p -> Record    m p : restL
                           Primitive p   -> Primitive p   : restL
                           otherVal      -> typeMismatch
-                                               "a valid nested Record block or a single value"
+                                               "data"
                                                (humanReadableType otherVal)
                                            & withBlurb (typeMismatchBlurb otherVal)
                                            & OuroError pos
@@ -366,7 +364,7 @@ compileArray evaluator env pos elements = Array <$> compileElements env elements
                         PrimitiveOp o      -> PrimitiveOp o      : restL
 
                         otherVal -> let err = typeMismatch
-                                                    "a plain data value (like a String, Number, or Boolean)"
+                                                    "data"
                                                     (humanReadableType otherVal)
                                                 & withBlurb (typeMismatchBlurb otherVal)
                                                 & OuroError (S.exprPos otherExpr)

@@ -4,6 +4,7 @@
 module Data.Ouro.Error.Diagnostics where
 
 import           Data.Data                        (Proxy (..))
+import           Data.Maybe                       (fromMaybe)
 import           Data.Ouro.Error.Types            (BuildError (..), ErrorContext (..),
                                                    InternalError (..),
                                                    LinterWarning (..), PathError (..),
@@ -17,7 +18,9 @@ import           Data.Ouro.Lisp.Eval.Types        (humanReadableType)
 import qualified Data.Ouro.Lisp.Eval.Types        as L
 import           Data.Ouro.Refinement.Requirement (Failure (..))
 import           Data.Ouro.Refinement.Type        (renderType)
-import           Data.Ouro.Refinement.Value       (refinementOf)
+import qualified Data.Ouro.Refinement.Type        as R
+import           Data.Ouro.Refinement.Value       (builtInRefinements, refinementOf,
+                                                   refinementTree)
 import qualified Data.Set                         as Set
 import           Data.Text                        (Text)
 import qualified Data.Text                        as T
@@ -549,11 +552,11 @@ instance GConstructorCount (C1 c a) where
 
 --- Diagnostics Messages ---
 
--- Type Error
+-- Type Error: a value that is not data where data is needed, drawn in the tree of built-in
+-- refinements, data required and the value's kind given, then what it is, if its kind is not enough
 typeMismatchBlurb :: L.Expr -> Text
 typeMismatchBlurb value =
-    "Ouro's built-in refinements are string, number, boolean, uri, date, record, array and function."
-    <> typeMismatchHint value
+    T.intercalate "\n\n" (filter (not . T.null) [fromMaybe "" (refinementTree R.RData value), T.strip (typeMismatchHint value)])
 
 -- What a value outside a built-in refinement is, where its kind alone does not say: one with no
 -- built-in refinement, or a function, which perhaps was meant to be called
@@ -566,9 +569,9 @@ typeMismatchHint value =
     <> maybe "" (\call -> " This value is a function: perhaps call it, " <> call <> ".") (L.callOf value)
 
 
--- The built-in refinements a value can have, by the names messages give them
+-- The built-in refinements a value can have, by the names messages give them, read off the tree
 builtInNames :: [Text]
-builtInNames = ["string", "number", "boolean", "uri", "date", "record", "array", "function"]
+builtInNames = map R.renderRefinement builtInRefinements
 
 
 binaryOpMismatchBlurb :: L.Expr -> L.Expr -> Text

@@ -88,8 +88,14 @@ kinds = Group "Refinements: every level of the tree is written"
                                                               (functions <> "(document g (:a <double ⊢ data>))"))
 
       -- The tree in a message
-    , ("the tree draws every built-in refinement",    withTests 1 . property $
-                                                      fmap (length . filter (not . T.null) . drop 1 . T.lines) (tree R.RProcedure number) === Just 13)
+    , ("the tree opens only the branches to a mark",  withTests 1 . property $
+                                                      fmap (length . filter (not . T.null) . drop 1 . T.lines) (tree R.RProcedure number) === Just 10)
+    , ("folding a branch with no mark below it",      withTests 1 . property $
+                                                      fmap (any (T.isInfixOf "string …") . T.lines) (tree R.RProcedure number) === Just True)
+    , ("a marked one too, when nothing below is",     withTests 1 . property $
+                                                      fmap (any (T.isInfixOf "function …") . T.lines) (tree R.RFunction number) === Just True)
+    , ("every built-in refinement is in the tree",    withTests 1 . property $
+                                                      length R.builtInRefinements === 13)
     , ("marking the refinement required",             withTests 1 . property $
                                                       markedRow "◀ required" R.RProcedure number === Just "procedure")
     , ("and the kind given",                          withTests 1 . property $

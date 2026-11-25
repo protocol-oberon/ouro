@@ -51,6 +51,7 @@ import           Data.List                   (sortOn)
 import           Data.List.NonEmpty          (NonEmpty (..))
 import qualified Data.List.NonEmpty          as NE
 import qualified Data.Map                    as Map
+import           Data.Maybe                  (fromMaybe)
 import           Data.Ouro.Error.Diagnostics (SourceFrame (..), nonExistentGraph,
                                               smartErrorCode,
                                               smartWarningCode, sourceFrame,
@@ -89,6 +90,7 @@ import           Data.Ouro.Lisp.Module.Types (Declaration (..),
                                               HigherExpression (..), Module,
                                               acceptedCalls, graphRegistry)
 import qualified Data.Ouro.Lisp.Parser       as LP
+import qualified Data.Ouro.Refinement        as R
 import           Data.Text                   (Text)
 import qualified Data.Text                   as T
 import qualified Data.Text.Lazy              as TL
@@ -212,9 +214,9 @@ validateAST' gPos path valueGraph = case valueGraph of
                                                           & OuroError gPos
                                                           & pure
                               Primitive _              -> []
-                              -- Compile-time only values (Durations, functions, schemas...) have no JSON form
+                              -- Compile-time only values (functions, schemas...) have no JSON form
                               unserialisable           -> typeMismatch
-                                                              "a JSON value (String, Number, Boolean, URI, Date, Record or Array)"
+                                                              "data"
                                                               (L.humanReadableType unserialisable)
                                                           & withBlurb (unserialisableBlurb location unserialisable)
                                                           & OuroError gPos
@@ -229,15 +231,18 @@ validateAST' gPos path valueGraph = case valueGraph of
                       False -> "'" <> path <> "'"
 
 
--- Explains why a compile-time only value cannot be written to the JSON output.
+-- Explains why a compile-time only value cannot be written to the JSON output: a function is
+-- drawn in the tree of built-in refinements, data required and its kind given
 unserialisableBlurb :: Text -> L.Expr -> Text
 unserialisableBlurb location = \case
     f@(PrimitiveOp _)     -> functionHint f
     f@FunctionClosure {}  -> functionHint f
     _compileTimeOnly      -> "The value at " <> location <> " only exists during compilation and has no JSON representation."
     where
-    functionHint f = "The value at " <> location <> " is a function, not a value."
-                  <> maybe "\n\nPerhaps call it with its arguments." (\call -> "\n\nPerhaps call it: " <> call <> ".") (L.callOf f)
+    functionHint f = T.intercalate "\n\n" (filter (not . T.null)
+                         [ "The value at " <> location <> " is a function, not data."
+                         , fromMaybe "" (R.refinementTree R.RData f)
+                         , maybe "Perhaps call it with its arguments." (\call -> "Perhaps call it: " <> call <> ".") (L.callOf f) ])
 
 
 

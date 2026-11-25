@@ -69,9 +69,9 @@ serialisation = Group "Serialisation: only values reach the output"
                                                               "(define/procedure mk () (fn (x) x)) (document g (:r (mk)))")
     , ("a named function as a value is an error",   failsWith "an unexecuted function"
                                                               "(define/procedure inc (x) (+ x 1)) (document g (:r inc))")
-    , ("a fn inside an array is an error",          failsWith "a JSON value"
+    , ("a fn inside an array is an error",          failsWith "expectedType = \"data\""
                                                               "(document g (:r (array (fn (x) x))))")
-    , ("a fn as the graph is an error",             failsWith "a JSON value"
+    , ("a fn as the graph is an error",             failsWith "expectedType = \"data\""
                                                               "(document g (fn (x) x))")
     , ("a built-in as a value is an error",         failsWith "a Built-in function"
                                                               "(document g (:r +))")
@@ -84,7 +84,7 @@ serialisation = Group "Serialisation: only values reach the output"
       -- This fixed the function hint of gap 10, which suggested (name! args).
     , ("in an array, how to call it",               failsWith "Perhaps call it: (inc x)."
                                                               "(define/procedure inc (x) (+ x 1)) (document g (:r (array inc)))")
-    , ("as an attribute value",                     failsWith "A function is not a value: perhaps call it, (inc x)."
+    , ("as an attribute value",                     failsWith "This value is a function: perhaps call it, (inc x)."
                                                               "(define/procedure inc (x) (+ x 1)) (document g (:r inc))")
     , ("as an argument with a property",            failsWith "This value is a function: perhaps call it, (mk x)."
                                                               "(define/procedure f #record (#record r) r) (define/procedure mk (x) (:a x)) (document g (:r (f mk)))")
@@ -1747,8 +1747,10 @@ knownGaps = Group "Known gaps: current and fixed"
                                                                    "(document g (:a (∈ number)))")
     , ("gap 59 (fixed): an array that fails a refinement is 'a array'", fixedGap $ failsWith "a array that is not non-empty"
                                                                    "(define/refinement non-empty (<xs ⊢ array>) (doc \"d\") (gt (len xs) 0)) (document g (:a <(make array) ⊢ non-empty>))")
-    , ("gap 60: a type mismatch lists eight built-in refinements", failsWith "built-in refinements are string, number, boolean, uri, date, record, array and function."
+    , ("gap 60 (fixed): a type mismatch lists eight built-in refinements", fixedGap $ failsWith "built-in refinements are string, number, boolean, uri, date, record, array and function."
                                                                    "(document g (:r ((fn (n) n) \"x\")))")
-    , ("gap 60: and a function in the output is 'not a value'", failsWith "is a function, not a value"
+    , ("gap 61: a function at a key is reported at its document", importsFailAt "TYP0000" ("inline-test", 1, 1) ["is a function, not data"] []
+                                                                   "(document g\n  (:f +))")
+    , ("gap 60 (fixed): and a function in the output is 'not a value'", fixedGap $ failsWith "is a function, not a value"
                                                                    "(document g (:f +))")
     ]

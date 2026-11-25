@@ -9,6 +9,16 @@ version is 0.x, a new minor version may break programs, and each change that doe
 
 ## [Unreleased]
 
+### Changed
+- The tree of built-in refinements a message draws opens only the branches that lead to what was
+  required and what was given; any other branch is one row, with `…` after its name.
+  <!-- rlwxpvku -->
+
+### Fixed
+- A function where data is needed, `(:f +)`, expects `data` and draws it in the tree, where the
+  message listed eight built-in refinements by hand, from before `value`, `data`, `procedure`,
+  `refinement` and `duration`, and called a function "not a value" (gap 60). <!-- rlwxpvku -->
+
 ## [0.8.0.0] - 2026-11-25
 
 ### Added
