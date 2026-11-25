@@ -32,8 +32,8 @@ import           Data.Ouro.Lisp.Module.Types (Declaration (..),
                                               graphRegistry, imports,
                                               qualifierOf)
 import qualified Data.Ouro.Lisp.Surface      as S
-import qualified Data.Ouro.Refinement.Type   as R
 import qualified Data.Ouro.Lisp.Tokens       as Tkn
+import qualified Data.Ouro.Refinement.Type   as R
 import qualified Data.Set                    as Set
 import           Data.Text                   (Text)
 import qualified Data.Text                   as T

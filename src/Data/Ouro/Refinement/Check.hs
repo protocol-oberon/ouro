@@ -2,21 +2,21 @@
 
 module Data.Ouro.Refinement.Check where
 
-import           Data.Function               ((&))
-import           Data.Functor                ((<&>))
-import           Data.Ouro.Error.Diagnostics (requirementFailed, typeMismatchBlurb, withBlurb)
-import           Data.Ouro.Error.Types       (ErrorContext (..), OuroError (..), TypeError (..))
-import qualified Data.Ouro.Internal.Expr     as I
-import           Data.Ouro.Internal.Uri      (mkUri, uriParsed)
-import           Data.Ouro.Lisp.Eval.Types   (EvalM, Expr (..))
-import qualified Data.Ouro.Lisp.Eval.Types   as L
+import           Data.Function                    ((&))
+import           Data.Functor                     ((<&>))
+import           Data.Ouro.Error.Diagnostics      (requirementFailed, typeMismatchBlurb, withBlurb)
+import           Data.Ouro.Error.Types            (ErrorContext (..), OuroError (..), TypeError (..))
+import qualified Data.Ouro.Internal.Expr          as I
+import           Data.Ouro.Internal.Uri           (mkUri, uriParsed)
+import           Data.Ouro.Lisp.Eval.Types        (EvalM, Expr (..))
+import qualified Data.Ouro.Lisp.Eval.Types        as L
 import qualified Data.Ouro.Refinement.Requirement as Q
-import qualified Data.Ouro.Refinement.Type   as R
-import           Data.Ouro.Refinement.Value  (hasKind, refinementOf)
-import           Data.Text                   (Text)
-import qualified Data.Text                   as T
-import           Text.Megaparsec             (SourcePos)
-import qualified Text.URI                    as URI
+import qualified Data.Ouro.Refinement.Type        as R
+import           Data.Ouro.Refinement.Value       (hasKind, refinementOf)
+import           Data.Text                        (Text)
+import qualified Data.Text                        as T
+import           Text.Megaparsec                  (SourcePos)
+import qualified Text.URI                         as URI
 
 
 -- How a refinement defined in Ouro is run on a value, which only the evaluator can do: the

@@ -15,8 +15,8 @@ import           Data.Ouro.Lisp.Eval.Builtins (builtinRegistry)
 import           Data.Ouro.Lisp.Function     (specialForms)
 import qualified Data.Ouro.Lisp.Module.Types as M
 import qualified Data.Ouro.Lisp.Surface      as S
-import qualified Data.Ouro.Refinement.Type   as R
 import qualified Data.Ouro.Lisp.Tokens       as Tkn
+import qualified Data.Ouro.Refinement.Type   as R
 import           Data.Text                   (Text)
 import qualified Data.Text                   as T
 import           Lens.Micro                  ((^.))

@@ -3,28 +3,28 @@
 
 module Data.Ouro.Error.Diagnostics where
 
-import           Data.Data                 (Proxy (..))
-import           Data.Ouro.Error.Types     (BuildError (..), ErrorContext (..),
-                                            InternalError (..),
-                                            LinterWarning (..), PathError (..),
-                                            ScopeError (..),
-                                            SemanticWarning (..),
-                                            SyntaxError (..), TypeError (..),
-                                            VocabularyWarning (..),
-                                            WarningContext (..))
-import           Data.Ouro.Internal.Utils  (rankBySimilarity)
+import           Data.Data                        (Proxy (..))
+import           Data.Ouro.Error.Types            (BuildError (..), ErrorContext (..),
+                                                   InternalError (..),
+                                                   LinterWarning (..), PathError (..),
+                                                   ScopeError (..),
+                                                   SemanticWarning (..),
+                                                   SyntaxError (..), TypeError (..),
+                                                   VocabularyWarning (..),
+                                                   WarningContext (..))
+import           Data.Ouro.Internal.Utils         (rankBySimilarity)
+import           Data.Ouro.Lisp.Eval.Types        (humanReadableType)
+import qualified Data.Ouro.Lisp.Eval.Types        as L
 import           Data.Ouro.Refinement.Requirement (Failure)
-import           Data.Ouro.Lisp.Eval.Types (humanReadableType)
-import qualified Data.Ouro.Lisp.Eval.Types as L
-import           Data.Ouro.Refinement.Value (refinementOf)
-import qualified Data.Set                  as Set
-import           Data.Text                 (Text)
-import qualified Data.Text                 as T
-import           GHC.Generics              (C1, D1, Generic (from), M1 (..),
-                                            Rep, type (:+:) (..))
-import           Text.Megaparsec           (SourcePos, sourceColumn, sourceLine,
-                                            sourceName, unPos)
-import           Text.Printf               (printf)
+import           Data.Ouro.Refinement.Value       (refinementOf)
+import qualified Data.Set                         as Set
+import           Data.Text                        (Text)
+import qualified Data.Text                        as T
+import           GHC.Generics                     (C1, D1, Generic (from), M1 (..),
+                                                   Rep, type (:+:) (..))
+import           Text.Megaparsec                  (SourcePos, sourceColumn, sourceLine,
+                                                   sourceName, unPos)
+import           Text.Printf                      (printf)
 
 
 -- Append an educational explanation block to any underlying error context.

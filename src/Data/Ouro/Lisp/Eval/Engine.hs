@@ -48,10 +48,9 @@ import           Data.Ouro.Lisp.Function        (checkParams, isFunctionKeyword,
 import           Data.Ouro.Lisp.Module.Types    (Module)
 import qualified Data.Ouro.Lisp.Module.Types    as M
 import qualified Data.Ouro.Lisp.Surface         as S
-import           Data.Ouro.Refinement.Check     (checkRefinement, isRefinementMismatch)
-import           Data.Ouro.Refinement.Requirement (Role (..))
-import qualified Data.Ouro.Refinement.Type      as R
-import           Data.Ouro.Refinement.Value     (refinementOf)
+import           Data.Ouro.Refinement           (Role (..), checkRefinement,
+                                                 isRefinementMismatch, refinementOf)
+import qualified Data.Ouro.Refinement           as R
 import           Data.Text                      (Text)
 import qualified Data.Text                      as T
 import qualified Data.Vector                    as V
