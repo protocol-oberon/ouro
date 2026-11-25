@@ -3527,6 +3527,39 @@ What remains at 500 coins is mostly the evaluator's bindings: ~Map~, ~IntMap~, ~
 
 ~escapeString~ and ~escapeChar~ were 12% of the time and 16% of the allocation, since every string was escaped a character at a time. Now each run of characters needing no escape is written whole, which cut the allocation at 2000 coins from 815 MB to 655 MB.
 
+** 0.8.0.0
+:PROPERTIES:
+:MEASURED: 2026-11-25
+:CHANGE:   vowkvqxy, the release change
+:GHC:      9.10.3, -O1, +RTS -A32m
+:MACHINE:  Intel Core i7-6600U, 2.60 GHz, 8 GB, Windows 10 Pro
+:END:
+
+Against =bench/results/0.7.0.0.csv=, with =--fail-if-slower 20=: none of the 224 is slower, 181 are faster, by 16% to 62%, and 43 the same. Nothing in 0.8.0.0 is meant to make compiling faster, and 0.7.0.0 was measured on a day the machine ran slow (see below), so the gain is the machine's rather than the compiler's: what the gate shows is that the trail, the kinds of functions and durations as strings cost nothing measurable. These figures are kept as measured, in =bench/results/0.8.0.0.csv=.
+
+| fixtures (212)              |    Time |
+|-----------------------------+---------|
+| fastest (=encoding=)        | 0.15 ms |
+| first quartile              | 7.20 ms |
+| median                      | 9.91 ms |
+| third quartile              | 13.2 ms |
+| slowest (=object-0=)        | 31.4 ms |
+| all 212, one after another  | 2.12 s  |
+
+| hoard      |           Time |
+|------------+----------------|
+| 100 coins  |  41.0 ms ± 2.7 |
+| 500 coins  |   140 ms ± 8.9 |
+| 2000 coins |   584 ms ± 35  |
+
+| arrays, 100 / 500 / 2000 coins | 100     | 500    | 2000    | ×4 ratio |
+|--------------------------------+---------+--------+---------+----------|
+| =forall=                       | 38.4 ms | 142 ms | 600 ms  |      4.2 |
+| =len in map=                   | 34.0 ms | 120 ms | 469 ms  |      3.9 |
+| =union=                        | 35.8 ms | 133 ms | 619 ms  |      4.7 |
+
+The hoard grows ×4.2 from 500 to 2000 coins, near linear, where 0.7.0.0's was 5.4. =union= at 2000 coins has a spread of ± 147 ms, so its ratio of 4.7 is within the noise of a ratio of 4.
+
 ** 0.7.0.0
 :PROPERTIES:
 :MEASURED: 2026-11-23
