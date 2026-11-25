@@ -28,22 +28,25 @@ version is 0.x, a new minor version may break programs, and each change that doe
   which compare dates. <!-- kznkrwtl -->
 
 ### Changed
-- **Breaking**: a duration is a string, `(days 19)` writing `"P19D"`, so it is data and may be
-  written, where it was a value of its own with no JSON form. `(+ (days 1) (days 2))` joins them,
-  `"P1DP2D"`: durations are added with `duration/add`. <!-- zuolqknw -->
+- A duration is a string, `(days 19)` writing `"P19D"`, so it is data and may be written, where
+  it was a value of its own with no JSON form. `(+ (days 1) (days 2))` joins them, `"P1DP2D"`:
+  durations are added with `duration/add`. A duration is now in `string`, so
+  `<(days 1) ∈ string>` is `true`. <!-- zuolqknw -->
 - **Breaking**: a unit's amount is a whole number but for seconds, `(days 1.5)` being an error
   where it was floored to a day. <!-- zuolqknw -->
-- `thru` is read as a shift through, `(+ d (thru (days 1)))` as
+- **Breaking**: `thru` is read as a shift through, `(+ d (thru (days 1)))` as
   `(shift/forward-through d (days 1))`: a date not at midnight now goes on to the end of the
   day, where 23:59:59 was added to it, and `(- d (thru (days 1)))` goes back to the start of the
-  day before, where it ended a second after midnight two days back. <!-- zuolqknw -->
+  day before, where it ended a second after midnight two days back. `(- d (thru (months 1)))`
+  goes back to the start of the month before, where it went to that month's end, and a negative
+  amount in a `thru`, `(thru (months -1))`, is refused. <!-- zuolqknw -->
 - A value outside a signature's requirement or an assertion is `TYP0002`, Refinement Failed,
   which names what was required and what was given on lines of their own, the role the value
   was required in, `the 1st argument of describe`, who is blamed, the caller for an argument and
   the function for its result, and the trail down to the part that failed, `element 2`, then
   `key _label`. A built-in's own operand check stays `TYP0001`. <!-- krlomqut -->
 
-- **Breaking**: `∈` answers `false` for a value outside a defined refinement's domain,
+- `∈` answers `false` for a value outside a defined refinement's domain,
   `<"a" ∈ titled>` where `titled` takes a record, which was an error. Such a value asserted,
   `<"a" ⊢ titled>`, is reported at the value, where it was at the refinement's name.
   <!-- qusxptnq -->

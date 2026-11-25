@@ -3319,7 +3319,7 @@ A definition can only appear at the top level of a file.
 :PROPERTIES:
 :ID:       50
 :FOUND:    2026-11-14
-:FIXED_IN: 0.7.1.0
+:FIXED_IN: 0.8.0.0
 :PINNED:   =gap 50 (fixed)= in =knownGaps=
 :END:
 ~<x ∈ p>~ is false only when =p='s check fails, and an error stays an error, but the check is told from an error by the error's kind alone, a refinement mismatch, wherever it was raised.
@@ -3428,7 +3428,7 @@ The fix: an order on values, structural, as =eq= compares them, so each operatio
 :PROPERTIES:
 :ID:       57
 :FOUND:    2026-11-22
-:FIXED_IN: 0.7.1.0
+:FIXED_IN: 0.8.0.0
 :PINNED:   =gap 57 (fixed)= in =knownGaps=
 :END:
 ~(∈ p)~ with no value is meaningful only at the head of a =case= branch. Written anywhere else, ~(:a (∈ number))~, it is =SCP0000=, "Unbound Identifier", with =%in= as the name, which is Canon's internal spelling of =∈= and cannot be written in Ouro. The error is right; it should say that =∈= takes a value, or is a branch head, as the old =satisfies= message did. Found while updating the spec to the current syntax (2026-11-22).
@@ -3450,7 +3450,7 @@ A diagnostic whose position is in no file it can show, the argument =-t ouro-mod
 :PROPERTIES:
 :ID:       59
 :FOUND:    2026-11-24
-:FIXED_IN: 0.7.1.0
+:FIXED_IN: 0.8.0.0
 :PINNED:   =gap 59 (fixed)= in =knownGaps=
 :END:
 A value that fails a refinement is described as "a" and its kind, so an array is "a array": ~<(make array) ⊢ non-empty>~ reports "got a array that is not non-empty". The article is written before the kind without looking at it (=Engine.hs=, ~"a " <> refinementOf v~); "an array" is right, as the array type's message already writes it, "an array whose element 3 is string". Found while showing =non-empty= for the presentation (2026-11-24).
@@ -3463,7 +3463,7 @@ A value that fails a refinement is described as "a" and its kind, so an array is
 :FOUND:    2026-11-25
 :PINNED:   the two =gap 60= tests in =knownGaps=
 :END:
-Two Type Mismatch messages predate the tree of built-in refinements. A function inside an array that reaches the output, ~((fn (n) n) "x")~, has the blurb "Ouro's built-in refinements are string, number, boolean, uri, date, record, array and function.": a list written by hand (=Diagnostics.typeMismatchBlurb=), from before =value=, =data=, =procedure=, =refinement= and =duration= were refinements. A function at a key, ~(:f +)~, is "a function, not a value", where a function is a value and what the output needs is data; its expected type, "a JSON value (String, Number, Boolean, URI, Date, Record or Array)", names the kinds in the old capitals. The tree (=Refinement.Value.builtIns=) is the one list, which a Refinement Failed already draws; these should be drawn from it, so they cannot drift, and say data where they mean it. Found while writing the tests of 0.7.1.0 (2026-11-25).
+Two Type Mismatch messages predate the tree of built-in refinements. A function inside an array that reaches the output, ~((fn (n) n) "x")~, has the blurb "Ouro's built-in refinements are string, number, boolean, uri, date, record, array and function.": a list written by hand (=Diagnostics.typeMismatchBlurb=), from before =value=, =data=, =procedure=, =refinement= and =duration= were refinements. A function at a key, ~(:f +)~, is "a function, not a value", where a function is a value and what the output needs is data; its expected type, "a JSON value (String, Number, Boolean, URI, Date, Record or Array)", names the kinds in the old capitals. The tree (=Refinement.Value.builtIns=) is the one list, which a Refinement Failed already draws; these should be drawn from it, so they cannot drift, and say data where they mean it. Found while writing the tests of 0.8.0.0 (2026-11-25).
 
 * Appendix C: Benchmarks
 :PROPERTIES:

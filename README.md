@@ -49,20 +49,41 @@ A type in Ouro is a set of values, a **refinement**. `⊢` (spelled `assert`, or
    :texty <"Spring" ∈ string>))     ; true
 ```
 
-There are 8 built-in refinements:
+The built-in refinements form a tree, each set inside the one above it, and every level can be written as a type:
 
-| Refinement | The values in it                                                                  |
-|:-----------|:----------------------------------------------------------------------------------|
-| `string`   | Strings.                                                                          |
-| `number`   | Numbers.                                                                          |
-| `boolean`  | `true` and `false`.                                                               |
-| `record`   | Records, the empty one included.                                                  |
-| `array`    | Arrays, the empty one included.                                                   |
-| `function` | Functions: a `fn`, a `define/procedure` name or a built-in.                       |
-| `uri`      | Strings that parse as a URI with a scheme. The string passes on as it is.         |
-| `date`     | Strings in ISO 8601 date-time form. The string passes on as it is.                |
+```
+value                    every value Ouro has
+├── data                 what can be written to JSON-LD
+│   ├── string           "text"
+│   │   ├── uri          strings that parse as a URI with a scheme
+│   │   ├── date         strings in ISO 8601 date-time form, "1642-01-01T00:00:00Z"
+│   │   └── duration     strings in xsd:duration form, "P19D", "PT3H"
+│   ├── number
+│   ├── boolean          true and false
+│   ├── record           records, the empty one included
+│   └── array            arrays, the empty one included
+└── function             what can be called
+    ├── procedure        builds data: a define/procedure name, a fn, a built-in
+    └── refinement       judges data: a define/refinement name
+```
 
-A value outside the refinement it is asserted in is an error, such as `Expected data to have the refinement number, got string instead.`
+A `uri`, `date` or `duration` is its string, passed on as it is. A function keeps its kind from its definition, so `<+ ∈ procedure>` is `true`.
+
+A value outside a requirement is a type error, `TYP0002`, which says what was required and what was given, where the value was required, and who is to blame, the caller for an argument and the function for its result:
+
+```
+Error [TYP0002]: Refinement Failed
+  ┌── │checked.ouro:5:20│
+  │
+5 │   (:year (describe "1642")))
+  │                    ^
+  │                    required: number
+  │                    given:    string
+  │                    in:       the 1st argument of describe
+  │                    blaming:  the caller (assuming the requirement is correct)
+```
+
+When the value is outside a built-in refinement far from its own kind, the message draws the tree above, marking both.
 
 Types combine as sets do, prefix or infix:
 
@@ -74,7 +95,7 @@ Types combine as sets do, prefix or infix:
 | `(array p)`              | arrays whose every element is in `p`                            |
 | `(record :k p …)`        | records with at least these keys, the value at each in its type |
 
-A failure inside one names what failed: `an array whose element 3 is string`, `a record without label`, `a record whose label is number`.
+A failure inside one names what failed, `an array whose element 3 is string`, `a record without label`, and its trail lines show the way down to it, `element 3`, then `key label`.
 
 A refinement of your own is defined with `define/refinement`: one parameter, the value it is about, typed, and a body that answers `true` or `false`. Its `doc` is the rule a failure reports:
 
@@ -435,7 +456,7 @@ current record. For example the following Ouro code:
  :type    "Activity"
  :_label  "Purchase of Spring by Proust"
  (inlay (:begin_of_the_begin <"1881-01-01T00:00:00Z" ⊢ date>
-         :end_of_the_end     <(+ begin_of_the_begin (thru (years 2))) ⊢ date>)))
+         :end_of_the_end     <(shift/forward-through begin_of_the_begin (years 2)) ⊢ date>)))
 ```
 
 ...is complied to the following JSON.
@@ -677,20 +698,27 @@ The connectives, the quantifiers and the set operations can be written with the 
 
 Ouro has the following built in functions:
 
-**Arithmetic & Temporal Shifting:** The arithmetic functions take two operands, as every built-in takes a fixed number of arguments, and handle numbers, strings and arrays; a date is moved with `shift`. Many values are an Array, folded: `(fold (2 2 6) 0 +)` is `10`.
+**Arithmetic:** The arithmetic functions take two operands, as every built-in takes a fixed number of arguments, and handle numbers, strings and arrays; dates have functions of their own, below. Many values are an Array, folded: `(fold (2 2 6) 0 +)` is `10`.
 
 | Function | Syntax Example                         | Behaviour / Domain Rules                                          |
 |:---------|:---------------------------------------|:------------------------------------------------------------------|
 | **`+`**  | `(+ 2 6)` -> `8`                       | Adds two numbers.                                                 |
-|          | `(shift "2026-06-14..." (years 1))`    | `shift` moves a date forward by a time window.                    |
 |          | `(+ "Type: " label)`                   | Joins strings.                                                    |
 |          | `(+ (1 2) (3))` -> `(1 2 3)`           | Concatenates arrays.                                              |
 | **`-`**  | `(- 20 5)` -> `15`                     | Subtracts the second from the first.                              |
-|          | `(shift "2026-06-14..." (months -2))`  | A negative time window moves it back.                             |
 | **`*`**  | `(* 3 4)` -> `12`                      | Multiplies two numbers.                                           |
 | **`/`**  | `(/ 100 4)` -> `25`                    | Divides the first by the second.                                  |
 
-Time windows are made with `(years n)`, `(months n)`, `(days n)`, `(hours n)`, `(minutes n)` and `(seconds n)`. Shifting by months or years clips to the end of a shorter month instead of rolling over into the next one, so 31 March minus one month is the last day of February.
+**Dates and durations:** A duration is a string in `xsd:duration` form, made with `(years n)`, `(months n)`, `(days n)`, `(hours n)`, `(minutes n)` and `(seconds n)`: `(days 19)` is `"P19D"`. Each amount is a whole number, but for seconds. A date is moved by one of four shifts, each taking the date, then the duration:
+
+| Function                     | From `"2020-01-03T00:00:00Z"` by `(days 1)` | Behaviour                                         |
+|:-----------------------------|:---------------------------|:----------------------------------------------------------|
+| **`shift/forward`**          | `"2020-01-04T00:00:00Z"`   | Moves the date on.                                        |
+| **`shift/backward`**         | `"2020-01-02T00:00:00Z"`   | Moves it back.                                            |
+| **`shift/forward-through`**  | `"2020-01-04T23:59:59Z"`   | Moves it on, to the last second of the largest unit.      |
+| **`shift/backward-through`** | `"2020-01-02T00:00:00Z"`   | Moves it back, to the first second of the largest unit.   |
+
+Shifting by months or years clips to the end of a shorter month instead of rolling over into the next one, so 31 March moved back a month is the last day of February. `(duration/add (days 1) (hours 2))` is `"P1DT2H"`, and `(date/before a b)` and `(date/after a b)` compare two dates. `+` and `-` of a date and a duration, the two-argument `shift` and `thru` still work, each with a warning that names its replacement.
 
 **Relational Comparisons:** Relational operators compare two numbers. A chain is `all` over its pairs: `(all ((lt 0 x) (lt x 10)))`.
 
@@ -999,19 +1027,18 @@ A parameter can be a pattern, written as a `case` pattern is. It takes one argum
 - A binder types a pattern, checking the argument before it is taken apart: `(fn (<(?a ?b) ⊢ array>) ...)`.
 - Each name is bound once: two parameters, two holes, or a hole and a parameter with the same name are an error.
 
-## Syntax Sugar
+## The end of a period
 
-Ouro offers some syntax sugar to make common Linked Art JSON-LD patterns a bit more ergonomic. An example of this is `thru`. `thru` handles the common pattern of setting a date/time occurrence to the last possible second i.e "1883-12-31T23:59:59Z". Instead of manually checking the correct months/days/minutes of a desired time in Ouro we can simply write `(thru (years 2))`. This allows us to make very human readable statements such as:
+Linked Art's time spans end at the last second of a period, such as "1883-12-31T23:59:59Z". Instead of working out the length of each month and year, `shift/forward-through` goes on to the end of the duration's largest unit, so a span can say what it means:
 
 ```clojure
-
- (document syntax-sugar
-   (:timespan (:type               "TimeSpan"
-               :begin_of_the_begin <"1881-01-01T00:00:00Z" ⊢ date>
-               :end_of_the_end     (shift begin_of_the_begin (thru (years 2))))))
+(document period-end
+  (:timespan (:type               "TimeSpan"
+              :begin_of_the_begin <"1881-01-01T00:00:00Z" ⊢ date>
+              :end_of_the_end     (shift/forward-through begin_of_the_begin (years 2)))))
 ```
 
-`shift` moves a date by a time window; `(shift d (months -1))` moves it back.
+`end_of_the_end` is "1883-12-31T23:59:59Z", and `(years 0)` would end the year it begins in.
 
 ## Prose
 
@@ -1334,11 +1361,10 @@ A library is used by copying it into `vendor/`, in the project's folder, beside 
 
 These are agreed directions for Ouro, roughly in the order they will be built. None of them is implemented yet.
 
-- **The end of the old spellings** (0.8.0.0): the old hash-marked refinements and empty values, `satisfies` before them, `graph`, `-g` and `:graphs` still work in 0.7, each with a warning that names what replaces it; in 0.8.0.0 each is an error that names its replacement.
-- **Type errors with a trail** (0.7.1.0): a failed requirement reported as one shape everywhere, naming the value, the refinement, the rule it broke (its `doc`), and the path down to the part that failed, with blame at the boundary that was crossed.
-- **Relations and dependent signatures** (0.7.2.0): a refinement that relates values rather than describing one, such as a size or an order, so that a signature can say what holds between its parameters and its result. A type variable is written as a single letter, or as `~word~`, and says what a function keeps: what goes in comes out in the same set.
-- **Singletons** (0.7.2.0): a written string or number in a type is the set of that one value, `<type ⊢ "Person">`. Booleans are refused in types, as a Boolean says less than a refinement named for what it means.
-- **Procedure types** (0.7.2.0): the type of a function argument read off the function given, by arity and argument order, so a higher-order function of your own checks what it is passed.
+- **The end of the old spellings** (0.9.0.0): the old hash-marked refinements and empty values, `satisfies` before them, `graph`, `-g` and `:graphs`, and the old date arithmetic, `+` and `-` of a date and a duration, the two-argument `shift` and `thru`, still work in 0.8, each with a warning that names what replaces it; in 0.9.0.0 each is an error that names its replacement.
+- **Relations and dependent signatures** (0.8.1.0): a refinement that relates values rather than describing one, such as a size or an order, so that a signature can say what holds between its parameters and its result. A type variable is written as a single letter, or as `~word~`, and says what a function keeps: what goes in comes out in the same set.
+- **Singletons** (0.8.1.0): a written string or number in a type is the set of that one value, `<type ⊢ "Person">`. Booleans are refused in types, as a Boolean says less than a refinement named for what it means.
+- **Procedure types** (0.8.2.0): the type of a function argument read off the function given, by arity and argument order, so a higher-order function of your own checks what it is passed.
 - **The rest of the static analysis:** names, arity and recursion are already checked as written (see [Functions](#functions) and [Lexical Scoping](#lexical-scoping)). Still to come: warnings for unused bindings, imports and functions, once the error codes are redesigned; and whether an expression is a call, a record or an array decided there, once, for the evaluator to follow, by the same rules as now.
 - **A REPL and a language server,** bundled with the compiler, as `std` is, so that they run the same parser and evaluator as `build`. The language server is where spelling belongs: a key or class that is not a term of the record's context can be underlined as it is written, with the nearest term offered, without ever stopping a compile.
 - **Search:** an Ouro Hoogle, finding functions by name, by signature and by their documentation.
