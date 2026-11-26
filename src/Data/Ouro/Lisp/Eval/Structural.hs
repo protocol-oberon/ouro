@@ -202,9 +202,6 @@ emitProps evaluator env attrAddrs expressions = go I.EmptyMeta expressions
                                         -- 4. Accept array configurations
                                         Array elements -> Record finalMeta ((key, Array elements) : nextPairs)
 
-                                        -- 5. Pass-through for built-ins
-                                        PrimitiveOp o     -> Record finalMeta ((key, PrimitiveOp o)     : nextPairs)
-
                                         -- A value that is not data
                                         otherVal -> let err = typeMismatch
                                                                   "data"
@@ -361,7 +358,6 @@ compileArray evaluator env pos elements = Array <$> compileElements env elements
                         -- Accept nested layouts or expressions inside the stream
                         Record      m  p   -> Record      m  p   : restL
                         Array       ls     -> Array       ls     : restL
-                        PrimitiveOp o      -> PrimitiveOp o      : restL
 
                         otherVal -> let err = typeMismatch
                                                     "data"

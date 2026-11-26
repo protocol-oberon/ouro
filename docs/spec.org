@@ -3481,13 +3481,16 @@ An array that holds an error, ~(:xs (make array <"a" ⊢ number>))~, checked aga
 
 /Fixed/ (2026-11-26): a value that is an error passes through a check as itself, as a whole, as an array's element or at a record's key (=Refinement.Check.checkRefinement=), so one mistake is one error, where it was made.
 
-** OPEN A function at a key is reported at its document
+** FIXED A function at a key is reported at its document
 :PROPERTIES:
 :ID:       61
 :FOUND:    2026-11-25
-:PINNED:   =gap 61= in =knownGaps=
+:FIXED_IN: unreleased
+:PINNED:   =gap 61 (fixed)= in =knownGaps=
 :END:
 A function written as an attribute's value of a document, ~(document g (:f +))~, is a Type Mismatch at the document's own position, =(document g=, not at the =+=. The check is made on the evaluated document, before it is written (=Data.Ouro.validateAST=), which knows the document's position and the key path, ='f'=, named in the blurb, but not where the value was written. A function inside a record or an array is reported where it is written, by the evaluator. Found while fixing gap 60 (2026-11-25).
+
+/Fixed/ (2026-11-26): only a built-in was let through by the evaluator, an attribute's value or an array's element (=Eval.Structural=); it is now reported where it is written, as every other function is. Bound by =let=, a built-in is still called as any function. The check on the evaluated document stays, for a function that is the whole document, ~(document g +)~.
 
 * Appendix C: Benchmarks
 :PROPERTIES:

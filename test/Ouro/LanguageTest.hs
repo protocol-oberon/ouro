@@ -75,6 +75,12 @@ serialisation = Group "Serialisation: only values reach the output"
                                                               "(document g (fn (x) x))")
     , ("a built-in as a value is an error",         failsWith "a built-in procedure"
                                                               "(document g (:r +))")
+    , ("reported at the value",                     importsFailAt "TYP0000" ("inline-test", 2, 7) ["expectedType = \"data\""] []
+                                                              "(document g\n  (:f +))")
+    , ("in an array too",                           importsFailAt "TYP0000" ("inline-test", 2, 12) ["expectedType = \"data\""] []
+                                                              "(document g\n  (:f (1 2 +)))")
+    , ("but bound, it is called as any function",   compilesToJSON "(document g (let ($add +) (:r (add 1 2))))"
+                                                                   "{\"r\": 3}")
     , ("a fn spliced by inlay is an error",         failsWith "a procedure"
                                                               "(define/procedure mk () (:f (fn (x) x))) (document g (:a 1 (inlay (mk))))")
     , ("let bindings are not output",               compilesToJSON "(document g (let ($hidden 1) (:shown hidden)))"
@@ -1751,7 +1757,7 @@ knownGaps = Group "Known gaps: current and fixed"
                                                                    "(document g (:r ((fn (n) n) \"x\")))")
     , ("gap 62 (fixed): an error inside an array is a second error at its check", fixedGap $ failsWith "given = \"an array whose element 1 is an error\""
                                                                    "(define/procedure total ⊢ number (<xs ⊢ (array number)>) (fold xs 0 +)) (document g (:xs (make array <\"a\" ⊢ number>) :r (total xs)))")
-    , ("gap 61: a function at a key is reported at its document", importsFailAt "TYP0000" ("inline-test", 1, 1) ["is a function, not data"] []
+    , ("gap 61 (fixed): a function at a key is reported at its document", fixedGap $ importsFailAt "TYP0000" ("inline-test", 1, 1) ["is a function, not data"] []
                                                                    "(document g\n  (:f +))")
     , ("gap 60 (fixed): and a function in the output is 'not a value'", fixedGap $ failsWith "is a function, not a value"
                                                                    "(document g (:f +))")
