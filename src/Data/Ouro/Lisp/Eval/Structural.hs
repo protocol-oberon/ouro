@@ -219,9 +219,11 @@ emitProps evaluator env attrAddrs expressions = go I.EmptyMeta expressions
                   -- Case E: Catch dangling expressions instead of silently erasing them
                   expr : rest
                       -> let err = typeMismatch
-                                       "a structural record property (an attribute pair, inlay, context)"
-                                       "an unbound expression"
-                                   & withBlurb "Unbound expressions are not allowed inside Record blocks. They must be bound to an attribute."
+                                       "an attribute pair, an inlay or a context"
+                                       "a value without a key"
+                                   & withBlurb ( "A form with an attribute pair is a record, so everything in it is an attribute pair, "
+                                              <> "an inlay or a context, and this value has no key. Perhaps give it one, (:k value); "
+                                              <> "or, if an array was meant, put the attribute pair in a record of its own, (1 (:a 2))." )
                                    & OuroError (S.exprPos expr)
                          in go metaAcc rest <&> \case
                                 Record m p -> Record m (("*err*", EvalError err) : p)

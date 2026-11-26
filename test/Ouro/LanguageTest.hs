@@ -805,9 +805,11 @@ classification = Group "Classification: records, arrays and calls"
                                                                    "{\"r\": [{\"a\": 1}]}")
     , ("an attribute pair makes a record",          compilesToJSON "(document g (:r (:a 1)))"
                                                                    "{\"r\": {\"a\": 1}}")
-    , ("a loose value in a record is an error",     failsWith "an unbound expression"
+    , ("a loose value in a record is an error",     failsWith "a value without a key"
                                                               "(document g (:r (:a 1 2)))")
-    , ("one attribute pair among values makes a record", failsWith "an unbound expression"
+    , ("one attribute pair among values makes a record", failsWith "a value without a key"
+                                                              "(document g (:r (1 :a 2)))")
+    , ("and the message says how to keep the array", failsWith "if an array was meant, put the attribute pair in a record of its own, (1 (:a 2))"
                                                               "(document g (:r (1 :a 2)))")
     , ("array builds an Array of computed values",  compilesToJSON "(document g (:r (array (+ 1 1) \"a\")))"
                                                                    "{\"r\": [2, \"a\"]}")
@@ -1651,7 +1653,7 @@ knownGaps = Group "Known gaps: current and fixed"
                                                               "{\"k\": 1, \"j\": 2}")
     , ("gap 17 (fixed): a URI's empty root path is dropped", fixedGap $ compilesToJSON "(document g (:u #uri \"https://a.org/\"))"
                                                                    "{\"u\": \"https://a.org\"}")
-    , ("gap 18: an attribute pair among values has no hint", failsWithout "(1 (:a 2))"
+    , ("gap 18 (fixed): an attribute pair among values has no hint", fixedGap $ failsWithout "(1 (:a 2))"
                                                                  "(document g (:r (1 :a 2)))")
     , ("gap 21 (fixed): validate rejects a \\u escape", fixedGap . withTests 1 . property $
                                                     assert (either (const True) (const False)
@@ -1727,7 +1729,7 @@ knownGaps = Group "Known gaps: current and fixed"
                                                                    "(define/procedure truer (x) x) (document g (:r (truer 1)))")
     , ("gap 47 (fixed): and a graph named so",      fixedGap $ failsWith "Expected graph name"
                                                                    "(document null-results (:r 1))")
-    , ("gap 47 (fixed): and an attribute named so, read where it is used", fixedGap $ failsWith "an unbound expression"
+    , ("gap 47 (fixed): and an attribute named so, read where it is used", fixedGap $ failsWith "a value without a key"
                                                                    "(document g (:null-ish 1 :r null-ish))")
     , ("gap 48 (fixed): a whole number of ten million or more is written in scientific notation", fixedGap $ compilesToJSON "(document g (:a 9999999 :b 10000000 :c 123456789))"
                                                                    "{\"a\": 9999999, \"b\": 1.0e7, \"c\": 1.23456789e8}")

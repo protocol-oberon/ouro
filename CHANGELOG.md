@@ -38,6 +38,10 @@ version is 0.x, a new minor version may break programs, and each change that doe
   two arrays` for `+` and `two numbers` for the rest, and states its rule, with a hint to
   `to-string` for a number joined to a string, where it named date and duration pairs and asked
   to "verify that your input data matches the expected structural schema". <!-- pzonkxtu -->
+- A value without a key in a record, `(1 :a 2)`, is "a value without a key", and the message
+  says both ways to mend it: give it a key, or, if an array was meant, put the attribute pair in
+  a record of its own, `(1 (:a 2))`, where it was "an unbound expression" (gap 18).
+  <!-- oqpmqzuk -->
 
 ## [0.8.0.0] - 2026-11-25
 

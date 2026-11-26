@@ -2955,12 +2955,16 @@ This gave misleading arity or parenthesis errors. =$name= is now read on its own
 
 /Fixed/ (2026-11-16), with gap 22: a URI is kept as the text it was written as, checked by the URI library but never rendered by it (=Data.Ouro.Internal.Uri=), so ~<"https://a.org/" ⊢ uri>~ is written ="https://a.org/"=, in a value, a remote context and =ouro validate='s output alike. linked.art's =object/0= writes the Louvre's id, ="http://louvre.fr/"=, as a =uri= again.
 
-** OPEN [#C] An attribute pair among array values has no hint
+** FIXED [#C] An attribute pair among array values has no hint
 :PROPERTIES:
 :ID:       18
 :FOUND:    2026-10-12
+:FIXED_IN: unreleased
+:PINNED:   =gap 18 (fixed)= in =knownGaps=
 :END:
 ~(1 :a 2)~ is read as a record (one attribute pair makes the form a record), so =1= is reported as an unbound expression. The error is right, but it could suggest ~(1 (:a 2))~.
+
+/Fixed/ (2026-11-26): the value is "a value without a key", where "an attribute pair, an inlay or a context" is expected, and the blurb gives both readings: give it a key, ~(:k value)~, or, if an array was meant, put the attribute pair in a record of its own, ~(1 (:a 2))~.
 
 ** FIXED Strings were not escaped in the output, which is invalid JSON
 :PROPERTIES:
