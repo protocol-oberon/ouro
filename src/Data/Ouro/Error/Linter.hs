@@ -265,8 +265,8 @@ lintResult owner = \case
         | otherwise                  = T.pack (show n)
 
 
--- What a function is called in a warning: a refinement, or a function
+-- What a function is called in a warning: by its kind, a refinement or a procedure
 kindName :: M.SomeFunction -> Text
 kindName = \case
     M.SomeFunction (M.Function M.RefinementKind _ _ _ _ _ _) -> "refinement"
-    M.SomeFunction (M.Function M.ProcedureKind _ _ _ _ _ _)  -> "function"
+    M.SomeFunction (M.Function M.ProcedureKind _ _ _ _ _ _)  -> "procedure"

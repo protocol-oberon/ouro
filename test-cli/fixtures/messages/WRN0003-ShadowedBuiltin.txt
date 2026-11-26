@@ -1,4 +1,4 @@
-Warning [WRN0003]: The function 'len' replaces the built-in 'len'
+Warning [WRN0003]: The procedure 'len' replaces the built-in 'len'
   ┌── │WRN0003-ShadowedBuiltin.ouro:1:1│
   │
 1 │ (define/procedure len (x) x)
@@ -10,4 +10,4 @@ A function named after a built-in or a special form replaces it throughout the f
 does in Scheme: a built-in in calls, in case guards and under any symbol it is also written with (=
 is eq, ∪ is union), a special form wherever it is called.
 
-Perhaps choose another name for the function, unless replacing 'len' is intended.
+Perhaps choose another name for the procedure, unless replacing 'len' is intended.

@@ -4,6 +4,7 @@
 module Data.Ouro.Error.Diagnostics where
 
 import           Data.Data                        (Proxy (..))
+import           Data.List                        (sortOn)
 import           Data.Maybe                       (fromMaybe)
 import           Data.Ouro.Error.Types            (BuildError (..), ErrorContext (..),
                                                    InternalError (..),
@@ -169,12 +170,11 @@ unknownRefinement name refinements =
               )
               (lexicalError ("Unknown refinement: " <> name))
     where
-    suggestion = case rankBySimilarity name (refinements <> builtinNames) of
+    -- The built-in names, longest first: on a tie the earlier name is suggested, so the short
+    -- names come last, and str is string, not data or uri
+    suggestion = case rankBySimilarity name (refinements <> sortOn (negate . T.length) builtInNames) of
                      (bestMatch, score) : _ | score <= 3 -> "\n\nPerhaps you meant: '" <> bestMatch <> "'?"
                      _noneNear                           -> ""
-
-    -- On a tie the earlier name is suggested, so the short names come last: str is string, not uri
-    builtinNames = ["string", "number", "boolean", "record", "array", "function", "uri", "date"]
 
 
 -- A refinement's name that names a function of the procedure kind: only a refinement is asserted

@@ -91,7 +91,7 @@ plainNames = Group "Functions: names are plain symbols, in one namespace"
                                                              "(define/procedure label () \"function\") (document g (:label \"value\" :r (label)))")
 
       -- A define/procedure may take a built-in's name, and replaces it everywhere, with a warning
-    , ("a defn named after a built-in warns",      warnsWith "The function 'eq' replaces the built-in 'eq'"
+    , ("a defn named after a built-in warns",      warnsWith "The procedure 'eq' replaces the built-in 'eq'"
                                                              "(define/procedure eq (a b) true) (document g (:r (eq 1 2)))")
     , ("= is a name like any other, not eq",       compilesToJSON "(define/procedure = (a b) true) (document g (:r (= 1 2) :s (eq 1 2)))"
                                                                   "{\"r\": true, \"s\": false}")
@@ -226,7 +226,7 @@ placeholders = Group "Functions: a call with holes is a function of them"
                                                             "(define/procedure double (#number n) (* n 2)) (document g (let ($d (double ?)) (:r (d \"x\"))))")
 
     -- Errors
-    , ("a hole belongs to the innermost call",    failsWith "a Number * an unexecuted function"
+    , ("a hole belongs to the innermost call",    failsWith "a Number * a procedure"
                                                             "(define/procedure apply (f x) (f x)) (document g (:r (apply (* 2 (+ ? 1)) 3)))")
     , ("it takes one argument per parameter",     failsWith "IncorrectArity"
                                                             "(document g (let ($inc (+ ? 1)) (:r (inc 1 2))))")
@@ -549,7 +549,7 @@ constants = Group "Functions: a function of no parameters, named, is its value"
                                                                  "{\"r\": 2}")
     , ("an imported constant",                    compilesToJSON "(import std/vocab) (document g (:r vocab/artwork))"
                                                                  "{\"r\": {\"id\": \"http://vocab.getty.edu/aat/300133025\", \"type\": \"Type\", \"_label\": \"Artwork\"}}")
-    , ("a fn of no parameters not named stays a function", failsWith "an unexecuted function"
+    , ("a fn of no parameters not named stays a function", failsWith "a procedure"
                                                                      "(document g (:r (case 1 (otherwise (fn () 3)))))")
 
       -- It is called as (c) is
@@ -735,6 +735,8 @@ assertions = Group "Properties: assertions, #titled x"
                                                             (titled <> "(document g (:r #titeld (:_label \"A\")))"))
     , ("or built-in name",                        failsWith "Perhaps you meant: 'string'?"
                                                             "(document g (:r #str \"a\"))")
+    , ("every built-in name in the tree",         failsWith "Perhaps you meant: 'duration'?"
+                                                            "(document g (:r <\"P1D\" ⊢ duraton>))")
     , ("in a function no graph calls",            failsWith "Unknown refinement: titeld"
                                                             (titled <> "(define/procedure unused (r) #titeld r) (document g (:r 1))"))
     , ("and in a parameter's contract",           failsWith "Unknown refinement: titeld"

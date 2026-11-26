@@ -13,11 +13,17 @@ version is 0.x, a new minor version may break programs, and each change that doe
 - The tree of built-in refinements a message draws opens only the branches that lead to what was
   required and what was given; any other branch is one row, with `…` after its name.
   <!-- rlwxpvku -->
+- A function is named by its kind in messages and warnings: "a procedure", "a refinement" or
+  "a built-in procedure", where it was "an unexecuted function" or "a Built-in function", and a
+  Refinement Failed's `given:` agrees with the tree's mark. `WRN0003` and `WRN0004` say "the
+  procedure 'len'". <!-- pnootmro -->
 
 ### Fixed
 - A function where data is needed, `(:f +)`, expects `data` and draws it in the tree, where the
   message listed eight built-in refinements by hand, from before `value`, `data`, `procedure`,
   `refinement` and `duration`, and called a function "not a value" (gap 60). <!-- rlwxpvku -->
+- An unknown refinement's suggestion is drawn from every built-in refinement, so `duraton`
+  suggests `duration`, where it chose from the first eight only. <!-- pnootmro -->
 
 ## [0.8.0.0] - 2026-11-25
 

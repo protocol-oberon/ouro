@@ -202,7 +202,7 @@ importedModules = Group "Modules: imported modules, in memory"
                                                                        "(import needy) (document g (:r 1))")
     , ("a missing module and a broken one",        importsFailWithEach ["missingModule = \"nope\"", "Expected argument list"] [unparsed]
                                                                        "(import nope) (import unparsed) (document g (:r 1))")
-    , ("a module's warnings reach the importer",   importsWarnTimes 1 "The function 'badName' is not named in kebab-case" [badlyNamed]
+    , ("a module's warnings reach the importer",   importsWarnTimes 1 "The procedure 'badName' is not named in kebab-case" [badlyNamed]
                                                                     "(import badly-named) (document g (:r (badly-named/badName)))")
 
       -- Names
@@ -434,7 +434,7 @@ moduleErrors = Group "Modules: every error, with its code, place and hint"
     , ("as is a broken module",                    importsFailTimes 1 [unparsed] "(import unparsed) (document g (:a (unparsed/f) :b (get () 5)))")
 
       -- Warnings inside a module are reported in its file
-    , ("a warning inside a module",                importsWarnIn "badly-named.ouro" "The function 'badName' is not named in kebab-case" [("badly-named", "(export badName)\n(define/procedure badName () 1)")]
+    , ("a warning inside a module",                importsWarnIn "badly-named.ouro" "The procedure 'badName' is not named in kebab-case" [("badly-named", "(export badName)\n(define/procedure badName () 1)")]
                                                                  "(import badly-named) (document g (:r (badly-named/badName)))")
 
       -- A module says where it was looked for, and std/… is always the bundled module

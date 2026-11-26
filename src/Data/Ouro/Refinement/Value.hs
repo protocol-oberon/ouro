@@ -32,8 +32,11 @@ refinementOf =
                 I.BlankNode _    -> "a blank node"
      Record      _ _        -> "record"
      Array       _          -> "array"
-     FunctionClosure {}     -> "function"
-     PrimitiveOp _          -> "function"
+     FunctionClosure _ kind _ _ _ _
+         -> case kind of
+                M.Procedure  -> "procedure"
+                M.Refinement -> "refinement"
+     PrimitiveOp _          -> "procedure"
      Attr        _ _        -> "an attribute pair"
      EvalError   _          -> "an error"
 

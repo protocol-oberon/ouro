@@ -248,11 +248,14 @@ humanReadableType =
     \case
      Primitive   p      -> "a " <> describePrimitive p
      Array       elems  -> describeArray elems
-     PrimitiveOp _      -> "a Built-in function"
+     PrimitiveOp _      -> "a built-in procedure"
      EvalError   _      -> "an Error"
      Record      _ _    -> "a Record"
      Attr        _ _    -> "an unbound Attribute pair"
-     FunctionClosure {} -> "an unexecuted function"
+     FunctionClosure _ kind _ _ _ _
+         -> case kind of
+                M.Procedure  -> "a procedure"
+                M.Refinement -> "a refinement"
 
 -- Evaluates the root Array
 describeArray :: [Expr] -> Text

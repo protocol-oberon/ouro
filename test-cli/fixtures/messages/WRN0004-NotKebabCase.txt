@@ -1,4 +1,4 @@
-Warning [WRN0004]: The function 'badName' is not named in kebab-case
+Warning [WRN0004]: The procedure 'badName' is not named in kebab-case
   ┌── │WRN0004-NotKebabCase.ouro:2:1│
   │
 2 │ (define/constant badName 1)

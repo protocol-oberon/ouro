@@ -61,21 +61,21 @@ serialisation = Group "Serialisation: only values reach the output"
                                                                    "{\"a\": 1.0e21, \"b\": 1.0e-8}")
     , ("a let-bound fn is not output",              compilesToJSON "(document g (let ($f (fn (x) x)) (:r (f 1))))"
                                                                    "{\"r\": 1}")
-    , ("a fn as an attribute value is an error",    failsWith "an unexecuted function"
+    , ("a fn as an attribute value is an error",    failsWith "a procedure"
                                                               "(document g (:f (fn (x) x)))")
-    , ("a fn bound by an attribute pair is still output", failsWith "an unexecuted function"
+    , ("a fn bound by an attribute pair is still output", failsWith "a procedure"
                                                               "(document g (:f (fn (x) x) :r (f 1)))")
-    , ("a returned fn is an error",                 failsWith "an unexecuted function"
+    , ("a returned fn is an error",                 failsWith "a procedure"
                                                               "(define/procedure mk () (fn (x) x)) (document g (:r (mk)))")
-    , ("a named function as a value is an error",   failsWith "an unexecuted function"
+    , ("a named function as a value is an error",   failsWith "a procedure"
                                                               "(define/procedure inc (x) (+ x 1)) (document g (:r inc))")
     , ("a fn inside an array is an error",          failsWith "expectedType = \"data\""
                                                               "(document g (:r (array (fn (x) x))))")
     , ("a fn as the graph is an error",             failsWith "expectedType = \"data\""
                                                               "(document g (fn (x) x))")
-    , ("a built-in as a value is an error",         failsWith "a Built-in function"
+    , ("a built-in as a value is an error",         failsWith "a built-in procedure"
                                                               "(document g (:r +))")
-    , ("a fn spliced by inlay is an error",         failsWith "an unexecuted function"
+    , ("a fn spliced by inlay is an error",         failsWith "a procedure"
                                                               "(define/procedure mk () (:f (fn (x) x))) (document g (:a 1 (inlay (mk))))")
     , ("let bindings are not output",               compilesToJSON "(document g (let ($hidden 1) (:shown hidden)))"
                                                                    "{\"shown\": 1}")
@@ -314,7 +314,7 @@ returnedFunctions = Group "Functions: arity and returned functions"
                                                                    "{\"r\": 3}")
     , ("a form headed by a call is an array",       compilesToJSON "(define/procedure one () 1) (document g (:r ((one))))"
                                                                    "{\"r\": [1]}")
-    , ("so ((f x) y) does not call the result",     failsWith "an unexecuted function"
+    , ("so ((f x) y) does not call the result",     failsWith "a procedure"
                                                               "(define/procedure adder (n) (fn (x) (+ n x))) (document g (:r ((adder 1) 2)))")
     ]
 
