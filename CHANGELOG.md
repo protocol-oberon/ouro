@@ -29,6 +29,9 @@ version is 0.x, a new minor version may break programs, and each change that doe
   `refinement` and `duration`, and called a function "not a value" (gap 60). <!-- rlwxpvku -->
 - An unknown refinement's suggestion is drawn from every built-in refinement, so `duraton`
   suggests `duration`, where it chose from the first eight only. <!-- pnootmro -->
+- An error inside an array or a record is reported once, where it was made, where checking the
+  array or record against a type later reported it again, "an array whose element 1 is an error"
+  (gap 62). <!-- svvwpnvz -->
 
 ## [0.8.0.0] - 2026-11-25
 

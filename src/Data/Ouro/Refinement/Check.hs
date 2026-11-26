@@ -39,8 +39,18 @@ data Evaluator = Evaluator
 -- position, the value at the second: the value itself, never converted, or a RefinementFailed
 -- error at the value, its failure carrying the role. A type is a refinement by its name, or one
 -- built from them with ∪ ∩ ∖, (array p) and (record :k p …).
+--
+-- A value that is an error is not outside any type: it is not yet a value, so it passes on as
+-- itself, and is reported once, where it went wrong.
 checkRefinement :: Evaluator -> Q.Role -> R.Type -> SourcePos -> SourcePos -> L.Expr -> EvalM L.Expr
-checkRefinement ev role ty typePos pos evaluatedVal = case ty of
+checkRefinement ev role ty typePos pos evaluatedVal = case evaluatedVal of
+    err@(EvalError _) -> pure err
+    _value            -> checkValue ev role ty typePos pos evaluatedVal
+
+
+-- The check of a value that is not an error
+checkValue :: Evaluator -> Q.Role -> R.Type -> SourcePos -> SourcePos -> L.Expr -> EvalM L.Expr
+checkValue ev role ty typePos pos evaluatedVal = case ty of
     R.Named refinement
         -> case refinement of
                R.RDefined name -> checkDefined ev role typePos pos name evaluatedVal
@@ -109,19 +119,22 @@ checkRefinement ev role ty typePos pos evaluatedVal = case ty of
     notIn :: [Q.Step] -> Maybe Text -> EvalM L.Expr
     notIn below found = failRefinement ty (refinementOf evaluatedVal) below found
 
-    -- Each element in the element type, in order, stopping at the first outside it; an error
-    -- inside an element's check stays that error
+    -- Each element in the element type, in order, stopping at the first outside it; an element
+    -- that is an error, or an error inside an element's check, stays that error
     everyElement :: R.Type -> [(Int, L.Expr)] -> EvalM L.Expr
     everyElement element = \case
         []               -> pure evaluatedVal
-        (i, item) : rest -> inTypeOf element item >>= \case
-            In              -> everyElement element rest
-            Out below found -> failRefinement ty ("an array whose element " <> T.pack (show i) <> " is " <> refinementOf item)
-                                              (Q.Step typePos (Q.Element i) element : below) found
-            Broken err      -> pure err
+        (i, item) : rest -> case item of
+            err@(EvalError _) -> pure err
+            _value            -> inTypeOf element item >>= \case
+                In              -> everyElement element rest
+                Out below found -> failRefinement ty ("an array whose element " <> T.pack (show i) <> " is " <> refinementOf item)
+                                                  (Q.Step typePos (Q.Element i) element : below) found
+                Broken err      -> pure err
 
     -- Each written key present, and its value in the key's type, in order, stopping at the
-    -- first missing or outside; an error inside a key's check stays that error
+    -- first missing or outside; a value that is an error, or an error inside a key's check,
+    -- stays that error
     everyKey :: [(Text, L.Expr)] -> [(Text, R.Type)] -> EvalM L.Expr
     everyKey fields = \case
         []
@@ -130,6 +143,7 @@ checkRefinement ev role ty typePos pos evaluatedVal = case ty of
         (key, keyType) : rest
             -> case lookup key fields of
                    Nothing    -> failRefinement ty ("a record without " <> key) [Q.Step typePos (Q.Missing key) keyType] Nothing
+                   Just err@(EvalError _) -> pure err
                    Just value -> inTypeOf keyType value >>= \case
                        In              -> everyKey fields rest
                        Out below found -> failRefinement ty ("a record whose " <> key <> " is " <> refinementOf value)

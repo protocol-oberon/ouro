@@ -1749,7 +1749,7 @@ knownGaps = Group "Known gaps: current and fixed"
                                                                    "(define/refinement non-empty (<xs ⊢ array>) (doc \"d\") (gt (len xs) 0)) (document g (:a <(make array) ⊢ non-empty>))")
     , ("gap 60 (fixed): a type mismatch lists eight built-in refinements", fixedGap $ failsWith "built-in refinements are string, number, boolean, uri, date, record, array and function."
                                                                    "(document g (:r ((fn (n) n) \"x\")))")
-    , ("gap 62: an error inside an array is a second error at its check", failsWith "given = \"an array whose element 1 is an error\""
+    , ("gap 62 (fixed): an error inside an array is a second error at its check", fixedGap $ failsWith "given = \"an array whose element 1 is an error\""
                                                                    "(define/procedure total ⊢ number (<xs ⊢ (array number)>) (fold xs 0 +)) (document g (:xs (make array <\"a\" ⊢ number>) :r (total xs)))")
     , ("gap 61: a function at a key is reported at its document", importsFailAt "TYP0000" ("inline-test", 1, 1) ["is a function, not data"] []
                                                                    "(document g\n  (:f +))")

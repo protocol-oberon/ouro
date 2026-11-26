@@ -3470,13 +3470,16 @@ Two Type Mismatch messages predate the tree of built-in refinements. A function 
 
 /Fixed/ (2026-11-25): every Type Mismatch of a value that is not data expects =data=, and draws the tree, data required and the value's kind given; a function is "a function, not data". The tree opens only the branches that lead to a mark, any other one row with =…= after its name, so a message shows what matters: here, =data …= beside the =function= branch. The names a hint checks against are read off the tree (=Refinement.Value.builtInRefinements=).
 
-** OPEN An error inside an array is a second error at its check
+** FIXED An error inside an array is a second error at its check
 :PROPERTIES:
 :ID:       62
 :FOUND:    2026-11-26
-:PINNED:   =gap 62= in =knownGaps=
+:FIXED_IN: unreleased
+:PINNED:   =gap 62 (fixed)= in =knownGaps=
 :END:
 An array that holds an error, ~(:xs (make array <"a" ⊢ number>))~, checked against a type, ~(total xs)~ where =total= takes =(array number)=, is a second Refinement Failed, "an array whose element 1 is an error", =└─ element 1: number, given an error=, beside the first error, which it repeats. The error inside should pass through the check as itself: a value holding an error is not outside a type, it is not yet a value. A record's attribute holding an error alike. Found when the trail began to say what it found (2026-11-26).
+
+/Fixed/ (2026-11-26): a value that is an error passes through a check as itself, as a whole, as an array's element or at a record's key (=Refinement.Check.checkRefinement=), so one mistake is one error, where it was made.
 
 ** OPEN A function at a key is reported at its document
 :PROPERTIES:

@@ -9,8 +9,8 @@ import qualified Data.Ouro.Refinement      as R
 import           Data.Text                 (Text)
 import qualified Data.Text                 as T
 import           Hedgehog
-import           Utils                     (compilesToJSON, failsWith, warnsWith,
-                                            warnsWithout)
+import           Utils                     (compilesToJSON, failsWith, importsFailTimes,
+                                            warnsWith, warnsWithout)
 
 
 -- A value outside a requirement is a Refinement Failed, which keeps, as data, what was required,
@@ -67,6 +67,15 @@ requirements = Group "Refinements: a failure, its role and its trail"
                                                               "(define/procedure f (<xs ⊢ (array number)>) xs) (document g (:r (f (1 \"x\"))))")
     , ("and none without a trail",                    failsWith "trail = [], found = Nothing"
                                                               "(document g (:a <1 ⊢ string>))")
+
+      -- A value that is an error is not outside a type: it passes through a check as itself, so
+      -- one mistake is one error, where it was made
+    , ("an error in an array is reported once",       importsFailTimes 1 []
+                                                              "(define/procedure total ⊢ number (<xs ⊢ (array number)>) (fold xs 0 +)) (document g (:xs (make array <\"a\" ⊢ number>) :r (total xs)))")
+    , ("as is one in a record",                       importsFailTimes 1 []
+                                                              "(define/procedure k-of ⊢ number (<r ⊢ (record :k number)>) (get r k)) (document g (:rr (:k <\"b\" ⊢ number>) :s (k-of rr)))")
+    , ("and one checked as a whole",                  importsFailTimes 1 []
+                                                              "(define/procedure f (<n ⊢ number>) n) (document g (:x <\"a\" ⊢ number> :r (f x)))")
 
       -- A defined refinement: its rule is its doc, and its domain is asked first
     , ("a defined refinement's rule is its doc",      failsWith "rule = Just \"has a title\""
