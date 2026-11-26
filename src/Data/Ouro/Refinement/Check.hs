@@ -27,8 +27,11 @@ import qualified Text.URI                         as URI
 -- a procedure, a body that fails). The checker is given it, so that checking never depends on
 -- the evaluator: layer 1 meets layer 0 here, and only here.
 data Evaluator = Evaluator
-    { domainOf   :: Text -> EvalM (Maybe (SourcePos, R.Type))
-    , runDefined :: SourcePos -> Text -> L.Expr -> EvalM (Either L.Expr (Bool, Maybe Text))
+    { domainOf    :: Text -> EvalM (Maybe (SourcePos, R.Type))
+    , askedTypeOf :: Text -> EvalM (Maybe (SourcePos, R.Type, Maybe Text))
+      -- The type a refinement's body asks of its subject, <x ∈ T> and nothing else, where it is
+      -- written, and the refinement's doc; Nothing for any other body
+    , runDefined  :: SourcePos -> Text -> L.Expr -> EvalM (Either L.Expr (Bool, Maybe Text))
     }
 
 
@@ -49,44 +52,44 @@ checkRefinement ev role ty typePos pos evaluatedVal = case ty of
     -- failed, so the trail stops at the union
     R.Union a b -> inType a >>= \case
         In       -> pure evaluatedVal
-        Out _    -> inType b >>= \case
+        Out _ _  -> inType b >>= \case
                         In         -> pure evaluatedVal
-                        Out _      -> notIn []
+                        Out _ _    -> notIn [] Nothing
                         Broken err -> pure err
         Broken err -> pure err
 
     -- ∩: in a and in b: b is asked only when the value is in a, and the operand it is outside
     -- is the step the trail takes
     R.Inter a b -> inType a >>= \case
-        In         -> inType b >>= \case
-                          In         -> pure evaluatedVal
-                          Out below  -> notIn (Q.Step typePos Q.Whole b : below)
-                          Broken err -> pure err
-        Out below  -> notIn (Q.Step typePos Q.Whole a : below)
-        Broken err -> pure err
+        In               -> inType b >>= \case
+                                In               -> pure evaluatedVal
+                                Out below found  -> notIn (Q.Step typePos Q.Whole b : below) found
+                                Broken err       -> pure err
+        Out below found  -> notIn (Q.Step typePos Q.Whole a : below) found
+        Broken err       -> pure err
 
     -- ∖: in a and not in b: it holds only when b answers that the value is outside it. In b,
     -- the value failed nothing below, so the trail stops at the difference
     R.Minus a b -> inType a >>= \case
-        In         -> inType b >>= \case
-                          In         -> notIn []
-                          Out _      -> pure evaluatedVal
-                          Broken err -> pure err
-        Out below  -> notIn (Q.Step typePos Q.Whole a : below)
-        Broken err -> pure err
+        In               -> inType b >>= \case
+                                In         -> notIn [] Nothing
+                                Out _ _    -> pure evaluatedVal
+                                Broken err -> pure err
+        Out below found  -> notIn (Q.Step typePos Q.Whole a : below) found
+        Broken err       -> pure err
 
     -- (array p): an array whose every element is in p: the elements are asked in order, and
     -- the first outside is named
     R.ArrayOf element
         -> case L.asArray evaluatedVal of
-               Nothing    -> notIn []
+               Nothing    -> notIn [] Nothing
                Just items -> everyElement element (zip [1 :: Int ..] items)
 
     -- (record :k p …): a record with at least these keys, each value in its type: the keys
     -- are asked in the order written, and the first missing or outside is named
     R.RecordOf pairs
         -> case L.asRecord evaluatedVal of
-               Nothing     -> notIn []
+               Nothing     -> notIn [] Nothing
                Just fields -> everyKey fields pairs
 
     where
@@ -99,21 +102,12 @@ checkRefinement ev role ty typePos pos evaluatedVal = case ty of
     -- error stays that error, a refinement broken inside its body among them, so a broken
     -- refinement inside a union is never taken for a value outside it
     inTypeOf :: R.Type -> L.Expr -> EvalM Answer
-    inTypeOf part value = checkRefinement ev role part typePos pos value
-        <&> \case
-             EvalError (OuroError _ ctx) | isOutside ctx
-                 -> Out (maybe [] Q.trail (failureIn ctx))
-
-             err@(EvalError _)
-                 -> Broken err
-
-             _passed
-                 -> In
+    inTypeOf part value = checkRefinement ev role part typePos pos value <&> answerOf
 
     -- A value outside a compound type is reported against the whole of it, with the trail
-    -- down to the part that failed
-    notIn :: [Q.Step] -> EvalM L.Expr
-    notIn below = failRefinement ty (refinementOf evaluatedVal) below
+    -- down to the part that failed and what was found there
+    notIn :: [Q.Step] -> Maybe Text -> EvalM L.Expr
+    notIn below found = failRefinement ty (refinementOf evaluatedVal) below found
 
     -- Each element in the element type, in order, stopping at the first outside it; an error
     -- inside an element's check stays that error
@@ -121,10 +115,10 @@ checkRefinement ev role ty typePos pos evaluatedVal = case ty of
     everyElement element = \case
         []               -> pure evaluatedVal
         (i, item) : rest -> inTypeOf element item >>= \case
-            In         -> everyElement element rest
-            Out below  -> failRefinement ty ("an array whose element " <> T.pack (show i) <> " is " <> refinementOf item)
-                                         (Q.Step typePos (Q.Element i) element : below)
-            Broken err -> pure err
+            In              -> everyElement element rest
+            Out below found -> failRefinement ty ("an array whose element " <> T.pack (show i) <> " is " <> refinementOf item)
+                                              (Q.Step typePos (Q.Element i) element : below) found
+            Broken err      -> pure err
 
     -- Each written key present, and its value in the key's type, in order, stopping at the
     -- first missing or outside; an error inside a key's check stays that error
@@ -135,17 +129,18 @@ checkRefinement ev role ty typePos pos evaluatedVal = case ty of
 
         (key, keyType) : rest
             -> case lookup key fields of
-                   Nothing    -> failRefinement ty ("a record without " <> key) [Q.Step typePos (Q.Missing key) keyType]
+                   Nothing    -> failRefinement ty ("a record without " <> key) [Q.Step typePos (Q.Missing key) keyType] Nothing
                    Just value -> inTypeOf keyType value >>= \case
-                       In         -> everyKey fields rest
-                       Out below  -> failRefinement ty ("a record whose " <> key <> " is " <> refinementOf value)
-                                                    (Q.Step typePos (Q.Key key) keyType : below)
-                       Broken err -> pure err
+                       In              -> everyKey fields rest
+                       Out below found -> failRefinement ty ("a record whose " <> key <> " is " <> refinementOf value)
+                                                         (Q.Step typePos (Q.Key key) keyType : below) found
+                       Broken err      -> pure err
 
-    -- A value outside the type it is checked against, at the value, with the trail below it
-    failRefinement :: R.Type -> Text -> [Q.Step] -> EvalM L.Expr
-    failRefinement required actual below =
-        pure (refinementFailure pos ((failureOf role required typePos evaluatedVal actual Nothing) { Q.trail = below }) "")
+    -- A value outside the type it is checked against, at the value, with the trail below it and
+    -- what was found where it ends
+    failRefinement :: R.Type -> Text -> [Q.Step] -> Maybe Text -> EvalM L.Expr
+    failRefinement required actual below found =
+        pure (refinementFailure pos ((failureOf role required typePos evaluatedVal actual Nothing) { Q.trail = below, Q.found = found }) "")
 
 
 -- A refinement defined in Ouro, titled: the value has it if it is in the refinement's domain,
@@ -155,18 +150,42 @@ checkRefinement ev role ty typePos pos evaluatedVal = case ty of
 -- refinement run. A false answer is the value outside it, with the refinement's doc as the rule.
 -- Any error running it stays the error; a failed requirement inside its body comes out with the
 -- body as a step of its trail, so it is never taken for the value outside the refinement.
+--
+-- A refinement whose body only asks a type of its subject, <x ∈ T>, is not run: the value is
+-- checked against T directly, which answers as the body would, and outside it the failure keeps
+-- the trail down through T, the type it asks as its first step.
 checkDefined :: Evaluator -> Q.Role -> SourcePos -> SourcePos -> Text -> L.Expr -> EvalM L.Expr
 checkDefined ev role typePos pos name v = domainOf ev name >>= \case
     Just (domainPos, domain) -> checkRefinement ev (Q.ArgumentOf (Q.Defined name) 1) domain domainPos pos v >>= \case
                                     err@(EvalError _) -> pure err
-                                    _inDomain         -> run
-    Nothing                  -> run
+                                    _inDomain         -> answer
+    Nothing                  -> answer
 
     where
+    answer = askedTypeOf ev name >>= \case
+        Just (askedPos, asked, doc) -> checkRefinement ev role asked askedPos pos v <&> asking askedPos asked doc
+        Nothing                     -> run
+
+    -- The value against the type the refinement asks: outside it, the refinement's own failure,
+    -- its trail continued through the type; an error checking it, an error inside the body
+    asking askedPos asked doc = \case
+        EvalError (OuroError _ ctx) | isOutside ctx
+            -> let (below, found) = outsideOf ctx
+               in outside doc (Q.Step askedPos (Q.Asks name) asked : below) found
+
+        err@(EvalError _)
+            -> throughStep (Q.Step typePos (Q.Body name) refinement) err
+
+        _inAsked
+            -> v
+
     run = runDefined ev typePos name v <&> \case
         Right (True, _)    -> v
-        Right (False, doc) -> refinementFailure pos (failureOf role refinement typePos v given doc) (rule doc)
+        Right (False, doc) -> outside doc [] Nothing
         Left err           -> throughStep (Q.Step typePos (Q.Body name) refinement) err
+
+    outside doc below found =
+        refinementFailure pos ((failureOf role refinement typePos v given doc) { Q.trail = below, Q.found = found }) (rule doc)
 
     refinement = R.Named (R.RDefined name)
     given      = aValue v
@@ -201,6 +220,7 @@ failureOf role required at value given doc = Q.Failure
     , Q.givenKind  = kindOf value
     , Q.role       = role
     , Q.trail      = []
+    , Q.found      = Nothing
     , Q.rule       = doc
     }
 
@@ -209,8 +229,30 @@ failureOf role required at value given doc = Q.Failure
 -- part; or broken, the check itself an error, which stays that error
 data Answer
     = In
-    | Out [Q.Step]
+    | Out [Q.Step] (Maybe Text)
     | Broken L.Expr
+
+
+-- What a part's check answered, read off its result: outside it, with the trail below the part
+-- and what was found where it ends; an error, broken; any value, in it
+answerOf :: L.Expr -> Answer
+answerOf = \case
+    EvalError (OuroError _ ctx) | isOutside ctx
+        -> uncurry Out (outsideOf ctx)
+
+    err@(EvalError _)
+        -> Broken err
+
+    _passed
+        -> In
+
+
+-- The trail of a value outside a type, and what was found where it ends: the innermost failure's
+-- own finding, or, at the bottom of the trail, its sketch of the value
+outsideOf :: ErrorContext -> ([Q.Step], Maybe Text)
+outsideOf ctx = case failureIn ctx of
+    Just failure -> (Q.trail failure, Just (fromMaybe (Q.given failure) (Q.found failure)))
+    Nothing      -> ([], Nothing)
 
 
 -- The requirement's failure an error carries, under any blurbs written on it; Nothing for any

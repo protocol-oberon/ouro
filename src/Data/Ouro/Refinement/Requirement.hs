@@ -60,6 +60,7 @@ data Failure = Failure
     , givenKind  :: Maybe Refinement  -- The value's kind, its built-in refinement, for an error's code
     , role       :: Role              -- What the value was required for
     , trail      :: [Step]            -- From the requirement down to the part that failed, outermost first
+    , found      :: Maybe Text        -- A sketch of the part that failed, where the trail ends; none without one
     , rule       :: Maybe Text        -- The failing refinement's doc, the rule it states
     }
     deriving (Show, Eq, Ord, Generic)
@@ -80,6 +81,7 @@ data Part
     = Element Int  -- An array's element, counted from 1
     | Key Text     -- A record's value at a key
     | Missing Text -- A key the record does not have
-    | Body Text    -- Inside a refinement's body, by the refinement's name
+    | Body Text    -- Inside a refinement's body, by the refinement's name: an error there, never an answer
+    | Asks Text    -- The type a refinement asks of its subject, by the refinement's name: the value outside it
     | Whole        -- The value itself
     deriving (Show, Eq, Ord, Generic)

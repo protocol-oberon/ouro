@@ -51,6 +51,23 @@ requirements = Group "Refinements: a failure, its role and its trail"
     , ("and a refinement's body it broke in",         failsWith "stepPart = Body \"broken\""
                                                               "(define/refinement broken (<x ⊢ string>) (doc \"b\") (eq <x ⊢ number> 1)) (document g (:r <\"s\" ⊢ broken>))")
 
+      -- A refinement whose body only asks a type is checked against the type, the trail going on
+      -- through it; the trail's end says what was found there
+    , ("a refinement that asks a type, through it",   failsWith "stepPart = Asks \"labelled\""
+                                                              (labelled <> "(document g (:a <(:label 1) ⊢ labelled>))"))
+    , ("down to the part that failed",                failsWith "stepPart = Key \"label\", stepType = Named RString}], found = Just \"number\""
+                                                              (labelled <> "(document g (:a <(:label 1) ⊢ labelled>))"))
+    , ("its doc still the rule",                      failsWith "rule = Just \"has a string label\""
+                                                              (labelled <> "(document g (:a <(:label 1) ⊢ labelled>))"))
+    , ("asked, it is still false",                    compilesToJSON (labelled <> "(document g (:a <(:label 1) ∈ labelled> :b <(:label \"x\") ∈ labelled>))")
+                                                                   "{\"a\": false, \"b\": true}")
+    , ("and a broken refinement inside it, an error", failsWith "stepPart = Body \"broken\""
+                                                              "(define/refinement broken (<x ⊢ string>) (doc \"b\") (eq <x ⊢ number> 1)) (define/refinement holds-broken (<r ⊢ record>) (doc \"h\") <r ∈ (record :k broken)>) (document g (:a <(:k \"s\") ∈ holds-broken>))")
+    , ("a failure deep in an array says what it found", failsWith "found = Just \"string\""
+                                                              "(define/procedure f (<xs ⊢ (array number)>) xs) (document g (:r (f (1 \"x\"))))")
+    , ("and none without a trail",                    failsWith "trail = [], found = Nothing"
+                                                              "(document g (:a <1 ⊢ string>))")
+
       -- A defined refinement: its rule is its doc, and its domain is asked first
     , ("a defined refinement's rule is its doc",      failsWith "rule = Just \"has a title\""
                                                               (titled <> "(document g (:r <(:a 1) ⊢ titled>))"))
@@ -68,6 +85,8 @@ requirements = Group "Refinements: a failure, its role and its trail"
 
     where
     titled = "(define/refinement titled (<r ⊢ record>) (doc \"has a title\") (has r title)) "
+
+    labelled = "(define/refinement labelled (<r ⊢ record>) (doc \"has a string label\") <r ∈ (record :label string)>) "
 
     blames role party = withTests 1 . property $ R.blame role === party
 

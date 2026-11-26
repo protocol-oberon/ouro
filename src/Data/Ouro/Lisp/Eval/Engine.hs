@@ -689,12 +689,29 @@ assertType role typePos ty payload = do
 
 
 -- What the checker is given of the evaluator (Refinement.Check's Evaluator): a defined
--- refinement's domain, and running it
+-- refinement's domain, the type it asks, if that is all its body does, and running it
 evaluator :: Evaluator
 evaluator = Evaluator
-    { domainOf   = refinementDomain
-    , runDefined = runRefinement
+    { domainOf    = refinementDomain
+    , askedTypeOf = refinementAskedType
+    , runDefined  = runRefinement
     }
+
+
+-- The type a refinement defined in Ouro asks of its subject, when its body is that question and
+-- nothing else, <x ∈ T> of its first parameter, as Canon leaves it, where T is written, and the
+-- refinement's doc; Nothing for any other body, or a name that names no refinement
+refinementAskedType :: Text -> EvalM (Maybe (SourcePos, R.Type, Maybe Text))
+refinementAskedType name = do
+    env <- ask
+    case findFunction name env of
+        Just (_, M.SomeFunction (M.Function M.RefinementKind _ _ doc (subject : _) _
+                    (S.Form _ [S.Form _ [S.Symbol _ (S.asks -> True), S.Symbol _ asked, S.Asserted typePos ty (S.Hole _ "%subject")]])))
+            | asked == S.paramName subject
+            -> pure (Just (typePos, ty, doc))
+
+        _otherwise
+            -> pure Nothing
 
 
 -- The type a refinement defined in Ouro declares its subject with, its first parameter's, and

@@ -1128,7 +1128,9 @@ The symbols of logic and sets are read the same way, as the names they stand for
 
   - The value at each key is a part of the record, so a refinement may assert itself through a record type's keys, and goes down into the value: ~(define/refinement tree (<n ⊢ record>) <n ∈ (∪ (record :leaf string) (record :part (array tree)))>)~ is accepted by the recursion check.
 
-- =⊢= asserts: the value passes on as it is, never converted, or it is a requirement's failure, =TYP0002= Refinement Failed, at the value: what was required and what was given, the role the value was required in, who is blamed (the caller for an argument, the function for its result, an assertion itself), and the trail down to the part that failed, an element, a key, or a refinement's body. A chain asserts each, ~<r ⊢ record ⊢ titled>~.
+- =⊢= asserts: the value passes on as it is, never converted, or it is a requirement's failure, =TYP0002= Refinement Failed, at the value: what was required and what was given, the role the value was required in, who is blamed (the caller for an argument, the function for its result, an assertion itself), and the trail down to the part that failed, an element, a key, or a refinement's body, its last step saying what was found there, =└─ element 2: number, given string=. A chain asserts each, ~<r ⊢ record ⊢ titled>~.
+
+  - A refinement whose body only asks a type of its subject, ~(define/refinement labelled (<r ⊢ record>) (doc "…") <r ∈ (record :label string)>)~, is not run: the value is checked against the type, which answers as the body would, and a failure keeps its trail through the type, =└─ labelled asks: (record :label string)=, then =└─ key label: string, given number=, with the refinement's doc still the rule. A refinement whose body does more, =and=, a call, gives its rule without a trail.
 
 - =∈= asks: =true= or =false=. A value outside the refinement is =false=, a value outside a defined refinement's domain among them, ~<"a" ∈ titled>~ where =titled= takes a record. A refinement that breaks is an error, not an answer: a failure inside its body, ~<(get r label) ⊢ string>~ failing there, or any other error, stays that error, inside a union too. As the head of a =case= branch it is about the case's target, ~((∈ string) "text")~; on its own anywhere else it is an error saying so.
 
@@ -3467,6 +3469,14 @@ A value that fails a refinement is described as "a" and its kind, so an array is
 Two Type Mismatch messages predate the tree of built-in refinements. A function inside an array that reaches the output, ~((fn (n) n) "x")~, has the blurb "Ouro's built-in refinements are string, number, boolean, uri, date, record, array and function.": a list written by hand (=Diagnostics.typeMismatchBlurb=), from before =value=, =data=, =procedure=, =refinement= and =duration= were refinements. A function at a key, ~(:f +)~, is "a function, not a value", where a function is a value and what the output needs is data; its expected type, "a JSON value (String, Number, Boolean, URI, Date, Record or Array)", names the kinds in the old capitals. The tree (=Refinement.Value.builtIns=) is the one list, which a Refinement Failed already draws; these should be drawn from it, so they cannot drift, and say data where they mean it. Found while writing the tests of 0.8.0.0 (2026-11-25).
 
 /Fixed/ (2026-11-25): every Type Mismatch of a value that is not data expects =data=, and draws the tree, data required and the value's kind given; a function is "a function, not data". The tree opens only the branches that lead to a mark, any other one row with =…= after its name, so a message shows what matters: here, =data …= beside the =function= branch. The names a hint checks against are read off the tree (=Refinement.Value.builtInRefinements=).
+
+** OPEN An error inside an array is a second error at its check
+:PROPERTIES:
+:ID:       62
+:FOUND:    2026-11-26
+:PINNED:   =gap 62= in =knownGaps=
+:END:
+An array that holds an error, ~(:xs (make array <"a" ⊢ number>))~, checked against a type, ~(total xs)~ where =total= takes =(array number)=, is a second Refinement Failed, "an array whose element 1 is an error", =└─ element 1: number, given an error=, beside the first error, which it repeats. The error inside should pass through the check as itself: a value holding an error is not outside a type, it is not yet a value. A record's attribute holding an error alike. Found when the trail began to say what it found (2026-11-26).
 
 ** OPEN A function at a key is reported at its document
 :PROPERTIES:

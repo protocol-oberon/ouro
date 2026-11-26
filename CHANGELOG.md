@@ -17,6 +17,11 @@ version is 0.x, a new minor version may break programs, and each change that doe
   "a built-in procedure", where it was "an unexecuted function" or "a Built-in function", and a
   Refinement Failed's `given:` agrees with the tree's mark. `WRN0003` and `WRN0004` say "the
   procedure 'len'". <!-- pnootmro -->
+- A refinement whose body only asks a type, `<r ∈ (record :label string)>`, is checked against
+  that type, and a failure keeps its trail through it, `└─ labelled asks: (record :label string)`,
+  `└─ key label: string`, where it named the refinement alone. <!-- mnpywwom -->
+- A failure's trail ends with what was found there, `└─ element 2: number, given string`.
+  <!-- mnpywwom -->
 
 ### Fixed
 - A function where data is needed, `(:f +)`, expects `data` and draws it in the tree, where the

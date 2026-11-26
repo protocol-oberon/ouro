@@ -235,7 +235,7 @@ splitErrorContext = \case
              , labeled "in:       " (pretty (roleText (Ref.role outside)))
              , labeled "blaming:  " (pretty (blameText (Ref.role outside)))
              ]
-             <> zipWith trailLine [0 ..] (Ref.trail outside)
+             <> trailLines (Ref.trail outside) (Ref.found outside)
            , Nothing
            )
 
@@ -600,17 +600,25 @@ calleeText = \case
     Ref.Lambda       -> "a fn"
 
 
--- One step of a failure's trail, as a branch of the check tree, indented by its depth
-trailLine :: Int -> Ref.Step -> Doc OuroStyle
-trailLine depth step =
+-- A failure's trail, each step a branch of the check tree, the last saying what was found there
+trailLines :: [Ref.Step] -> Maybe Text -> [Doc OuroStyle]
+trailLines steps found = zipWith3 trailLine [0 ..] steps (replicate (length steps - 1) Nothing <> [found])
+
+
+-- One step of a failure's trail, as a branch of the check tree, indented by its depth, with what
+-- was found there if it is the last
+trailLine :: Int -> Ref.Step -> Maybe Text -> Doc OuroStyle
+trailLine depth step found =
     pretty (T.replicate (2 * depth) " " <> "└─ " <> part (Ref.stepPart step) <> ": ")
     <> highlightDiagnostic (Ref.renderType (Ref.stepType step))
+    <> maybe mempty (\what -> pretty (", given " <> what)) found
     where
     part = \case
         Ref.Element i    -> "element " <> T.pack (show i)
         Ref.Key key      -> "key " <> key
         Ref.Missing key  -> "key " <> key <> ", missing"
         Ref.Body name    -> "inside " <> name
+        Ref.Asks name    -> name <> " asks"
         Ref.Whole        -> "the value"
 
 
