@@ -9,39 +9,41 @@ version is 0.x, a new minor version may break programs, and each change that doe
 
 ## [Unreleased]
 
+## [0.8.0.1] - 2026-11-26
+
 ### Changed
 - The tree of built-in refinements a message draws opens only the branches that lead to what was
   required and what was given; any other branch is one row, with `…` after its name.
-  <!-- rlwxpvku -->
+  ([3d462cd])
 - A function is named by its kind in messages and warnings: "a procedure", "a refinement" or
   "a built-in procedure", where it was "an unexecuted function" or "a Built-in function", and a
   Refinement Failed's `given:` agrees with the tree's mark. `WRN0003` and `WRN0004` say "the
-  procedure 'len'". <!-- pnootmro -->
+  procedure 'len'". ([c5c4fcd])
 - A refinement whose body only asks a type, `<r ∈ (record :label string)>`, is checked against
   that type, and a failure keeps its trail through it, `└─ labelled asks: (record :label string)`,
-  `└─ key label: string`, where it named the refinement alone. <!-- mnpywwom -->
+  `└─ key label: string`, where it named the refinement alone. ([f5af7b2])
 - A failure's trail ends with what was found there, `└─ element 2: number, given string`.
-  <!-- mnpywwom -->
+  ([f5af7b2])
 
 ### Fixed
 - A function where data is needed, `(:f +)`, expects `data` and draws it in the tree, where the
   message listed eight built-in refinements by hand, from before `value`, `data`, `procedure`,
-  `refinement` and `duration`, and called a function "not a value" (gap 60). <!-- rlwxpvku -->
+  `refinement` and `duration`, and called a function "not a value" (gap 60). ([3d462cd])
 - An unknown refinement's suggestion is drawn from every built-in refinement, so `duraton`
-  suggests `duration`, where it chose from the first eight only. <!-- pnootmro -->
+  suggests `duration`, where it chose from the first eight only. ([c5c4fcd])
 - An error inside an array or a record is reported once, where it was made, where checking the
   array or record against a type later reported it again, "an array whose element 1 is an error"
-  (gap 62). <!-- svvwpnvz -->
+  (gap 62). ([402b157])
 - A built-in written where data belongs, `(:f +)` or `(1 2 +)`, is reported at the built-in,
-  where it was reported at the document (gap 61). <!-- mlsxpopq -->
+  where it was reported at the document (gap 61). ([651d03d])
 - An operator given operands it does not take says what it takes, `two numbers, two strings or
   two arrays` for `+` and `two numbers` for the rest, and states its rule, with a hint to
   `to-string` for a number joined to a string, where it named date and duration pairs and asked
-  to "verify that your input data matches the expected structural schema". <!-- pzonkxtu -->
+  to "verify that your input data matches the expected structural schema". ([04f1576])
 - A value without a key in a record, `(1 :a 2)`, is "a value without a key", and the message
   says both ways to mend it: give it a key, or, if an array was meant, put the attribute pair in
   a record of its own, `(1 (:a 2))`, where it was "an unbound expression" (gap 18).
-  <!-- oqpmqzuk -->
+  ([8b6f459])
 
 ## [0.8.0.0] - 2026-11-25
 
@@ -380,7 +382,8 @@ work, each with a warning that names what replaces it, until 0.8.0.0.
   records and arrays, serialisation to JSON, and a command line. ([45edabc], [9e10f0e],
   [0fabbf6], [4ef6457], [4db16ac])
 
-[Unreleased]: https://github.com/protocol-oberon/ouro/compare/v0.8.0.0...HEAD
+[Unreleased]: https://github.com/protocol-oberon/ouro/compare/v0.8.0.1...HEAD
+[0.8.0.1]: https://github.com/protocol-oberon/ouro/compare/v0.8.0.0...v0.8.0.1
 [0.8.0.0]: https://github.com/protocol-oberon/ouro/compare/v0.7.0.1...v0.8.0.0
 [0.7.0.1]: https://github.com/protocol-oberon/ouro/compare/v0.7.0.0...v0.7.0.1
 [0.7.0.0]: https://github.com/protocol-oberon/ouro/compare/v0.6.2.0...v0.7.0.0
@@ -389,6 +392,13 @@ work, each with a warning that names what replaces it, until 0.8.0.0.
 [0.6.0.0]: https://github.com/protocol-oberon/ouro/compare/v0.5.0.0...v0.6.0.0
 [0.5.0.0]: https://github.com/protocol-oberon/ouro/compare/v0.0.0.1...v0.5.0.0
 [0.0.0.1]: https://github.com/protocol-oberon/ouro/releases/tag/v0.0.0.1
+[3d462cd]: https://github.com/protocol-oberon/ouro/commit/3d462cd
+[c5c4fcd]: https://github.com/protocol-oberon/ouro/commit/c5c4fcd
+[f5af7b2]: https://github.com/protocol-oberon/ouro/commit/f5af7b2
+[402b157]: https://github.com/protocol-oberon/ouro/commit/402b157
+[651d03d]: https://github.com/protocol-oberon/ouro/commit/651d03d
+[04f1576]: https://github.com/protocol-oberon/ouro/commit/04f1576
+[8b6f459]: https://github.com/protocol-oberon/ouro/commit/8b6f459
 [b6b8350]: https://github.com/protocol-oberon/ouro/commit/b6b8350
 [d42fa2c]: https://github.com/protocol-oberon/ouro/commit/d42fa2c
 [6520853]: https://github.com/protocol-oberon/ouro/commit/6520853

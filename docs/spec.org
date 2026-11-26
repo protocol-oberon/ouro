@@ -2959,7 +2959,7 @@ This gave misleading arity or parenthesis errors. =$name= is now read on its own
 :PROPERTIES:
 :ID:       18
 :FOUND:    2026-10-12
-:FIXED_IN: unreleased
+:FIXED_IN: 0.8.0.1
 :PINNED:   =gap 18 (fixed)= in =knownGaps=
 :END:
 ~(1 :a 2)~ is read as a record (one attribute pair makes the form a record), so =1= is reported as an unbound expression. The error is right, but it could suggest ~(1 (:a 2))~.
@@ -3467,7 +3467,7 @@ A value that fails a refinement is described as "a" and its kind, so an array is
 :PROPERTIES:
 :ID:       60
 :FOUND:    2026-11-25
-:FIXED_IN: unreleased
+:FIXED_IN: 0.8.0.1
 :PINNED:   the two =gap 60 (fixed)= tests in =knownGaps=
 :END:
 Two Type Mismatch messages predate the tree of built-in refinements. A function inside an array that reaches the output, ~((fn (n) n) "x")~, has the blurb "Ouro's built-in refinements are string, number, boolean, uri, date, record, array and function.": a list written by hand (=Diagnostics.typeMismatchBlurb=), from before =value=, =data=, =procedure=, =refinement= and =duration= were refinements. A function at a key, ~(:f +)~, is "a function, not a value", where a function is a value and what the output needs is data; its expected type, "a JSON value (String, Number, Boolean, URI, Date, Record or Array)", names the kinds in the old capitals. The tree (=Refinement.Value.builtIns=) is the one list, which a Refinement Failed already draws; these should be drawn from it, so they cannot drift, and say data where they mean it. Found while writing the tests of 0.8.0.0 (2026-11-25).
@@ -3478,7 +3478,7 @@ Two Type Mismatch messages predate the tree of built-in refinements. A function 
 :PROPERTIES:
 :ID:       62
 :FOUND:    2026-11-26
-:FIXED_IN: unreleased
+:FIXED_IN: 0.8.0.1
 :PINNED:   =gap 62 (fixed)= in =knownGaps=
 :END:
 An array that holds an error, ~(:xs (make array <"a" ⊢ number>))~, checked against a type, ~(total xs)~ where =total= takes =(array number)=, is a second Refinement Failed, "an array whose element 1 is an error", =└─ element 1: number, given an error=, beside the first error, which it repeats. The error inside should pass through the check as itself: a value holding an error is not outside a type, it is not yet a value. A record's attribute holding an error alike. Found when the trail began to say what it found (2026-11-26).
@@ -3489,7 +3489,7 @@ An array that holds an error, ~(:xs (make array <"a" ⊢ number>))~, checked aga
 :PROPERTIES:
 :ID:       61
 :FOUND:    2026-11-25
-:FIXED_IN: unreleased
+:FIXED_IN: 0.8.0.1
 :PINNED:   =gap 61 (fixed)= in =knownGaps=
 :END:
 A function written as an attribute's value of a document, ~(document g (:f +))~, is a Type Mismatch at the document's own position, =(document g=, not at the =+=. The check is made on the evaluated document, before it is written (=Data.Ouro.validateAST=), which knows the document's position and the key path, ='f'=, named in the blurb, but not where the value was written. A function inside a record or an array is reported where it is written, by the evaluator. Found while fixing gap 60 (2026-11-25).
