@@ -110,7 +110,11 @@ serialisation = Group "Serialisation: only values reach the output"
       -- The rest of gap 10's stale wording, fixed
     , ("get's missing key: the record has no such attribute", failsWith "The Record has no attribute 'b'.\""
                                                               "(document g (:p (:a 1) :r (get p b)))")
-    , ("subtraction's hint names a Duration",       failsWith "or a Date minus a Duration"
+    , ("+ joins its operands of one kind",          failsWith "expectedType = \"two numbers, two strings or two arrays\""
+                                                              "(document g (:r (+ \"Type \" 1)))")
+    , ("and joining a number to a string, a hint",  failsWith "Perhaps make the number a string first, (to-string n)."
+                                                              "(document g (:r (+ \"Type \" 1)))")
+    , ("subtraction takes two numbers",             failsWith "- takes two numbers."
                                                               "(document g (:r (- \"a\" 1)))")
     , ("a $ name may be a special form's",          compilesToJSON "(document g (let ($get 1) (:r get)))"
                                                                    "{\"r\": 1}")
@@ -437,9 +441,9 @@ types = Group "Types: the rules as they are"
                                                                    "{\"r\": true}")
 
       -- Ordering and arithmetic
-    , ("dates cannot be ordered: they are strings", failsWith "a String and a String do not support the requested operation"
+    , ("dates cannot be ordered: they are strings", failsWith "gt takes two numbers."
                                                               ("(document g (:r (gt " <> date <> " " <> date <> ")))"))
-    , ("nor subtracted",                            failsWith "a String and a String do not support the requested operation"
+    , ("nor subtracted",                            failsWith "- takes two numbers."
                                                               ("(document g (:r (- " <> date <> " " <> date <> ")))"))
     , ("strings cannot be ordered",                 failsWith "a String lt a String"
                                                               "(document g (:r (lt \"a\" \"b\")))")

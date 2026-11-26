@@ -15,7 +15,6 @@ import           Data.Ouro.Error.Types            (BuildError (..), ErrorContext
                                                    VocabularyWarning (..),
                                                    WarningContext (..))
 import           Data.Ouro.Internal.Utils         (rankBySimilarity)
-import           Data.Ouro.Lisp.Eval.Types        (humanReadableType)
 import qualified Data.Ouro.Lisp.Eval.Types        as L
 import           Data.Ouro.Refinement.Requirement (Failure (..))
 import           Data.Ouro.Refinement.Type        (renderType)
@@ -574,11 +573,18 @@ builtInNames :: [Text]
 builtInNames = map R.renderRefinement builtInRefinements
 
 
-binaryOpMismatchBlurb :: L.Expr -> L.Expr -> Text
-binaryOpMismatchBlurb base modif = "The provided operands " <> humanReadableType base
-                                <> " and " <> humanReadableType modif
-                                <> " do not support the requested operation. "
-                                <> "Verify that your input data matches the expected structural schema."
+-- An operator given operands it does not take: its rule, and for a number joined to a string,
+-- how to write it
+binaryOpMismatchBlurb :: Text -> L.Expr -> L.Expr -> Text
+binaryOpMismatchBlurb op a b = case op of
+    "+" -> "+ adds two numbers, or joins two strings or two arrays: both operands are of one kind."
+           <> numberAndString
+    _   -> op <> " takes two numbers."
+    where
+    numberAndString = case (refinementOf a, refinementOf b) of
+        ("number", "string") -> " Perhaps make the number a string first, (to-string n)."
+        ("string", "number") -> " Perhaps make the number a string first, (to-string n)."
+        _otherKinds          -> ""
 
 
 inexhaustiveCaseBlurb :: Int -> Text

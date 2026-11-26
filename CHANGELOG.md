@@ -34,6 +34,10 @@ version is 0.x, a new minor version may break programs, and each change that doe
   (gap 62). <!-- svvwpnvz -->
 - A built-in written where data belongs, `(:f +)` or `(1 2 +)`, is reported at the built-in,
   where it was reported at the document (gap 61). <!-- mlsxpopq -->
+- An operator given operands it does not take says what it takes, `two numbers, two strings or
+  two arrays` for `+` and `two numbers` for the rest, and states its rule, with a hint to
+  `to-string` for a number joined to a string, where it named date and duration pairs and asked
+  to "verify that your input data matches the expected structural schema". <!-- pzonkxtu -->
 
 ## [0.8.0.0] - 2026-11-25
 

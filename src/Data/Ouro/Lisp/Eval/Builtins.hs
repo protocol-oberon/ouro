@@ -187,9 +187,9 @@ handleAddition pos =
                 (_, err@(L.EvalError _)) -> pure err
 
                 _typeMismatch
-                    -> Data.Ouro.Error.Diagnostics.typeMismatch "Matching numeric, string, or date/duration pairs"
+                    -> Data.Ouro.Error.Diagnostics.typeMismatch "two numbers, two strings or two arrays"
                              (humanReadableType a <> " + " <> humanReadableType b)
-                       & Data.Ouro.Error.Diagnostics.withBlurb (Data.Ouro.Error.Diagnostics.binaryOpMismatchBlurb a b)
+                       & Data.Ouro.Error.Diagnostics.withBlurb (Data.Ouro.Error.Diagnostics.binaryOpMismatchBlurb "+" a b)
                        & OuroError pos
                        & L.EvalError
                        & pure
@@ -220,9 +220,9 @@ handleSubtraction pos =
                    (_, err@(L.EvalError _)) -> pure err
 
                    _typeMismatch
-                       -> Data.Ouro.Error.Diagnostics.typeMismatch "Matching numeric values or a Date minus a Duration"
+                       -> Data.Ouro.Error.Diagnostics.typeMismatch "two numbers"
                                (humanReadableType a <> " - " <> humanReadableType b)
-                          & Data.Ouro.Error.Diagnostics.withBlurb (Data.Ouro.Error.Diagnostics.binaryOpMismatchBlurb a b)
+                          & Data.Ouro.Error.Diagnostics.withBlurb (Data.Ouro.Error.Diagnostics.binaryOpMismatchBlurb "-" a b)
                           & OuroError pos
                           & L.EvalError
                           & pure
@@ -250,9 +250,9 @@ handleMultiplication pos =
                    (_, err@(L.EvalError _)) -> pure err
 
                    _typeMismatch
-                       -> Data.Ouro.Error.Diagnostics.typeMismatch "Matching numeric values for multiplication"
+                       -> Data.Ouro.Error.Diagnostics.typeMismatch "two numbers"
                                (humanReadableType a <> " * " <> humanReadableType b)
-                          & Data.Ouro.Error.Diagnostics.withBlurb (Data.Ouro.Error.Diagnostics.binaryOpMismatchBlurb a b)
+                          & Data.Ouro.Error.Diagnostics.withBlurb (Data.Ouro.Error.Diagnostics.binaryOpMismatchBlurb "*" a b)
                           & OuroError pos
                           & L.EvalError
                           & pure
@@ -291,9 +291,9 @@ handleDivision pos =
 
          -- Type Mismatch
          _typeMismatch
-             -> Data.Ouro.Error.Diagnostics.typeMismatch "Matching numeric values for division"
+             -> Data.Ouro.Error.Diagnostics.typeMismatch "two numbers"
                              (humanReadableType a <> " / " <> humanReadableType b)
-                & Data.Ouro.Error.Diagnostics.withBlurb (Data.Ouro.Error.Diagnostics.binaryOpMismatchBlurb a b)
+                & Data.Ouro.Error.Diagnostics.withBlurb (Data.Ouro.Error.Diagnostics.binaryOpMismatchBlurb "/" a b)
                 & OuroError pos
                 & L.EvalError
                 & pure
@@ -316,9 +316,9 @@ handleGreater pos =
                    (_, err@(L.EvalError _)) -> pure err
 
                    _typeMismatch
-                       -> Data.Ouro.Error.Diagnostics.typeMismatch "Matching numeric values for greater than"
+                       -> Data.Ouro.Error.Diagnostics.typeMismatch "two numbers"
                                (humanReadableType a <> " gt " <> humanReadableType b)
-                          & Data.Ouro.Error.Diagnostics.withBlurb (Data.Ouro.Error.Diagnostics.binaryOpMismatchBlurb a b)
+                          & Data.Ouro.Error.Diagnostics.withBlurb (Data.Ouro.Error.Diagnostics.binaryOpMismatchBlurb "gt" a b)
                           & OuroError pos
                           & L.EvalError
                           & pure
@@ -342,9 +342,9 @@ handleGreaterEq pos =
                    (_, err@(L.EvalError _)) -> pure err
 
                    _typeMismatch
-                       -> Data.Ouro.Error.Diagnostics.typeMismatch "Matching numeric values for greater than or equal to"
+                       -> Data.Ouro.Error.Diagnostics.typeMismatch "two numbers"
                                (humanReadableType a <> " geq " <> humanReadableType b)
-                          & Data.Ouro.Error.Diagnostics.withBlurb (Data.Ouro.Error.Diagnostics.binaryOpMismatchBlurb a b)
+                          & Data.Ouro.Error.Diagnostics.withBlurb (Data.Ouro.Error.Diagnostics.binaryOpMismatchBlurb "geq" a b)
                           & OuroError pos
                           & L.EvalError
                           & pure
@@ -368,9 +368,9 @@ handleLess pos =
                    (_, err@(L.EvalError _)) -> pure err
 
                    _typeMismatch
-                       -> Data.Ouro.Error.Diagnostics.typeMismatch "Matching numeric values for less than"
+                       -> Data.Ouro.Error.Diagnostics.typeMismatch "two numbers"
                                (humanReadableType a <> " lt " <> humanReadableType b)
-                           & Data.Ouro.Error.Diagnostics.withBlurb (Data.Ouro.Error.Diagnostics.binaryOpMismatchBlurb a b)
+                           & Data.Ouro.Error.Diagnostics.withBlurb (Data.Ouro.Error.Diagnostics.binaryOpMismatchBlurb "lt" a b)
                            & OuroError pos
                            & L.EvalError
                            & pure
@@ -394,9 +394,9 @@ handleLessEq pos =
                    (_, err@(L.EvalError _)) -> pure err
 
                    _typeMismatch
-                       -> Data.Ouro.Error.Diagnostics.typeMismatch "Matching numeric values for less than or equal to"
+                       -> Data.Ouro.Error.Diagnostics.typeMismatch "two numbers"
                                (humanReadableType a <> " leq " <> humanReadableType b)
-                           & Data.Ouro.Error.Diagnostics.withBlurb (Data.Ouro.Error.Diagnostics.binaryOpMismatchBlurb a b)
+                           & Data.Ouro.Error.Diagnostics.withBlurb (Data.Ouro.Error.Diagnostics.binaryOpMismatchBlurb "leq" a b)
                            & OuroError pos
                            & L.EvalError
                            & pure

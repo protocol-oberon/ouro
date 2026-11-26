@@ -3,9 +3,9 @@ Error [TYP0000]: Type Mismatch
   │
 1 │ (document g (:r (+ 1 "a")))
   │                 ^
-  │                 Expected: Matching numeric, string, or date/duration pairs
+  │                 Expected: two numbers, two strings or two arrays
   │                 Got:      a Number + a String
   │ 
 
-The provided operands a Number and a String do not support the requested operation. Verify that your input data
-matches the expected structural schema.
++ adds two numbers, or joins two strings or two arrays: both operands are of one kind. Perhaps make the number a
+string first, (to-string n).
