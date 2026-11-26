@@ -1281,7 +1281,7 @@ An Emacs mode for Ouro is kept apart from the compiler, as [a gist](https://gist
 The ouro compiler has the following commands (shown via running `ouro -h`):
 
 ``` bash
-Ouro v0.8.0.0
+Ouro v0.8.0.1
 
 Usage: ouro COMMAND [-v|--version]
 
